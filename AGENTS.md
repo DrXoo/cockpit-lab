@@ -56,7 +56,9 @@ These principles serve readability and change. Don't add abstractions, layers or
   - import local modules with their `.ts` extension;
   - use only erasable syntax: no `enum`, `namespace` or constructor parameter properties;
   - prefer `declare` for class fields that the constructor assigns.
-- `tsconfig.json` is still loose (`strict: false`) because the code comes from JavaScript. Make modules strict one at a time, and write new modules as if `strict` were on: no implicit `any`, no unchecked `null`.
+- `tsconfig.json` is still loose (`strict: false`) because the code comes from JavaScript. `tsconfig.strict.json` lists the modules already typed strictly; `npm run typecheck` checks both. To migrate a module, type it, add it to that list, and prove the behavior is unchanged (tests, or a comparison against the previous version). Go bottom-up through the imports: tsc also checks every imported module strictly.
+- Add every new module to `tsconfig.strict.json` from the start.
+- Lengths in the configurator model are cm; use the `Cm`/`Mm` types and the conversions in `src/units.ts` wherever both units meet.
 - There is no external deployment. The app runs locally and can be served by any static file server.
 
 ## Domain rules

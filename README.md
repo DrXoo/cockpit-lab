@@ -73,7 +73,7 @@ The source is TypeScript, type-checked by `tsc` but not compiled by it: Vite bui
 
 ## Roadmap
 
-1. **TypeScript migration.** Done so far: Prettier formatting, the move to `src/` with Vite, and the rename to TypeScript with loose settings. Next: type the modules strictly one by one.
+1. **TypeScript migration.** Done so far: Prettier formatting, the move to `src/` with Vite, the rename to TypeScript, and strict typing of the domain modules (geometry, room, model, project, units). Next: the editors, the summary, the 3D scene and the app shell.
 2. **English UI.** Translate the interface and the documentation.
 3. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
 
