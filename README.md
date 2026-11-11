@@ -92,8 +92,7 @@ The source is strict TypeScript, type-checked by `tsc` but not compiled by it: V
 
 ## Roadmap
 
-1. **English UI.** Translate the interface and the documentation.
-2. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
+1. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
 
 ## Development principles
 
