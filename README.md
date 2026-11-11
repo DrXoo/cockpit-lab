@@ -61,8 +61,12 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | Path | Responsibility |
 | --- | --- |
 | `src/index.html`, `src/styles.css`, `src/ui.css` | Markup and styles |
-| `src/app.ts` | Controls, state and exports |
-| `src/project.ts`, `src/setup-editor.ts`, `src/project-summary.ts` | Project format, guided setup and summary |
+| `src/app.ts` | DOM wiring: events, panels and exports |
+| `src/project.ts`, `src/project-storage.ts` | Project format and autosave |
+| `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
+| `src/room-actions.ts` | Adding, editing, deleting and placing room items |
+| `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the rig, posture and desk panels |
+| `src/project-summary.ts`, `src/inspector-view.ts`, `src/check-view.ts`, `src/html.ts` | Summary, validation banner, metrics and checks |
 | `src/cut-list-csv.ts` | Cut list CSV export |
 | `src/model.ts` | Public entry point of the configurator model |
 | `src/config.ts` | Settings, ranges, defaults, presets and validation |
@@ -72,6 +76,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
 | `src/scene.ts` | Three.js rendering, with an SVG fallback |
+| `src/scene-camera.ts` | Camera framing for each view |
 | `tests/` | Unit tests |
 | `e2e/` | End-to-end tests and the project files they use |
 | `scripts/` | Project checks |
