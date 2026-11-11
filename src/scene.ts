@@ -131,12 +131,6 @@ export class CockpitScene {
         opacity: 0.6,
         roughness: 1,
       }),
-      green: new T.MeshBasicMaterial({
-        color: 0xbac8a5,
-        transparent: true,
-        opacity: 0.13,
-        depthWrite: false,
-      }),
       dim: new T.LineBasicMaterial({ color: 0x9ba78d, transparent: true, opacity: 0.85 }),
       arm: new T.MeshStandardMaterial({ color: 0x4f5951, metalness: 0.6, roughness: 0.4 }),
       screen: new T.MeshBasicMaterial({ map: this.screenTexture() }),
