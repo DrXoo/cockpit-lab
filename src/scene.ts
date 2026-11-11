@@ -14,6 +14,7 @@ import {
   floorHeight,
   baseSupports,
 } from './model.ts';
+import { sceneBounds, viewHeight, cameraPose } from './scene-camera.ts';
 const radians = (d) => (d * Math.PI) / 180;
 const V = (...[x, y, z]: number[]) => new T.Vector3(x, y, z);
 export class CockpitScene {
@@ -224,26 +225,9 @@ export class CockpitScene {
     const w = this.container.clientWidth,
       h = this.container.clientHeight;
     if (!w || !h) return;
-    const aspect = w / h,
-      e = this.e,
-      s = this.s;
-    const spanX = this.sceneBounds ? this.sceneBounds.right - this.sceneBounds.left : 260;
-    const spanZ = this.sceneBounds ? this.sceneBounds.front - this.sceneBounds.back : 280;
-    // La proyección en diagonal debe caber también en el ancho de una pantalla vertical.
-    const size =
-      this.view === 'desk'
-        ? Math.max((s?.deskDepth || 80) + 30, ((s?.deskWidth || 140) + 40) / aspect)
-        : this.view === 'top'
-          ? Math.max(spanZ + 60, (spanX + 60) / aspect)
-          : this.view === 'side'
-            ? Math.max(205 + 2 * rigLift(s), ((s?.length || 145) + 50) / aspect)
-            : Math.max(
-                245,
-                (e?.spaceW || 180) / aspect + 55,
-                (e?.spaceD || 165) * 0.72 + 100,
-                ((spanX + spanZ) * 0.78) / aspect,
-                s?.roomEnabled !== false ? (spanX + spanZ) * 0.62 : 0,
-              );
+    const aspect = w / h;
+    const framing = this.s ? { state: this.s, evaluation: this.e, bounds: this.sceneBounds } : null;
+    const size = viewHeight(this.view, aspect, framing);
     this.camera.left = (-size * aspect) / 2;
     this.camera.right = (size * aspect) / 2;
     this.camera.top = size / 2;
@@ -378,21 +362,7 @@ export class CockpitScene {
     this.revision++;
     this.s = s;
     this.e = e;
-    const roomPoints =
-      s.roomEnabled !== false
-        ? [
-            ...e.room.furniture.flatMap((v) => [...v.polygon, ...(v.reserve || [])]),
-            ...e.room.features.flatMap((v) => v.arc || [v.a, v.b]),
-            { x: e.roomBounds.left, z: e.roomBounds.back },
-            { x: e.roomBounds.right, z: e.roomBounds.front },
-          ]
-        : [];
-    this.sceneBounds = {
-      left: Math.min(e.allLeft, ...roomPoints.map((v) => v.x)),
-      right: Math.max(e.allRight, ...roomPoints.map((v) => v.x)),
-      back: Math.min(e.allBack, ...roomPoints.map((v) => v.z)),
-      front: Math.max(e.allFront, ...roomPoints.map((v) => v.z)),
-    };
+    this.sceneBounds = sceneBounds(s, e);
     if (this.root) {
       this.root.traverse((o) => {
         if (o.geometry) o.geometry.dispose();
@@ -1374,55 +1344,15 @@ export class CockpitScene {
   }
   setView(view) {
     this.view = view;
-    const e = this.e,
-      s = this.s;
-    let cx = e ? (e.allLeft + e.allRight) / 2 : 40,
-      cz = e ? (e.allBack + e.allFront) / 2 : 80;
-    if ((view === 'top' || view === 'iso') && this.sceneBounds) {
-      cx = (this.sceneBounds.left + this.sceneBounds.right) / 2;
-      cz = (this.sceneBounds.back + this.sceneBounds.front) / 2;
-    }
-    if (view === 'desk' && e) {
-      cx = s.deskX;
-      cz = s.deskZ;
-    }
-    if (view === 'side' && e) {
-      const p = transformPoint({ x: 0, z: s.length / 2 }, e.rigPose);
-      cx = p.x;
-      cz = p.z;
-    }
+    const s = this.s;
+    const pose = cameraPose(view, { state: s, evaluation: this.e, bounds: this.sceneBounds });
     this.camera.zoom = 1;
-    this.controls.target.set(
-      cx,
-      view === 'iso' ? 37 : view === 'side' ? 62 : view === 'desk' ? s.deskH : 0,
-      cz,
-    );
-    this.controls.enableRotate = view === 'iso';
-    this.controls.mouseButtons.LEFT = view === 'iso' ? T.MOUSE.ROTATE : T.MOUSE.PAN;
-    this.camera.up.set(0, 1, 0);
-    if (view === 'desk') {
-      this.camera.position.set(cx, 650, cz + 0.001);
-      this.camera.up.set(Math.cos(radians(s.deskAngle)), 0, -Math.sin(radians(s.deskAngle)));
-      this.controls.minPolarAngle = 0;
-      this.controls.maxPolarAngle = Math.PI;
-    } else if (view === 'top') {
-      this.camera.position.set(cx, 650, cz + 0.01);
-      this.camera.up.set(0, 0, -1);
-      this.controls.minPolarAngle = 0;
-      this.controls.maxPolarAngle = Math.PI;
-    } else if (view === 'side') {
-      this.camera.position.set(
-        cx - 650 * Math.cos(radians(s.cockpitAngle)),
-        62,
-        cz + 650 * Math.sin(radians(s.cockpitAngle)),
-      );
-      this.controls.minPolarAngle = 0;
-      this.controls.maxPolarAngle = Math.PI;
-    } else {
-      this.camera.position.set(cx - 320, 245, cz + 320);
-      this.controls.minPolarAngle = 0.05;
-      this.controls.maxPolarAngle = Math.PI / 2 - 0.02;
-    }
+    this.controls.target.set(pose.target.x, pose.target.y, pose.target.z);
+    this.controls.enableRotate = pose.rotate;
+    this.controls.mouseButtons.LEFT = pose.rotate ? T.MOUSE.ROTATE : T.MOUSE.PAN;
+    this.camera.up.set(pose.up.x, pose.up.y, pose.up.z);
+    this.camera.position.set(pose.position.x, pose.position.y, pose.position.z);
+    [this.controls.minPolarAngle, this.controls.maxPolarAngle] = pose.polar;
     this.camera.lookAt(this.controls.target);
     this.setFrustum();
     this.controls.update();

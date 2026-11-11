@@ -36,6 +36,7 @@
     "src/room-actions.ts",
     "src/setup-actions.ts",
     "src/inspector-view.ts",
+    "src/scene-camera.ts",
     "playwright.config.ts"
   ]
 }
