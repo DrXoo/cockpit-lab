@@ -57,7 +57,7 @@ test('Cut list totals and exterior-to-interior widths are consistent', () => {
     e.cuts,
     e.parts.reduce((a, p) => a + p.qty, 0),
   );
-  assert.equal(e.parts.find((p) => p.name === 'Travesaños de base').mm, 560);
+  assert.equal(e.parts.find((p) => p.name === 'Base crossmembers').mm, 560);
   const longer = getParts({ ...defaults, length: 155 });
   assert.equal(longer.totalMm - e.totalMm, 200);
   const wider = getParts({ ...defaults, width: 70 });
@@ -305,7 +305,7 @@ test('Sizing, saved state migration and JSON round trips preserve accessory para
   assert.equal(wide.matWidth, 120);
   assert.equal(getParts(wide).totalMm, getParts(defaults).totalMm);
   assert.ok(
-    getParts(wide).accessories.some((i) => i.name === 'Alfombrilla XL' && i.note.includes('120')),
+    getParts(wide).accessories.some((i) => i.name === 'XL desk mat' && i.note.includes('120')),
   );
   const old = { ...defaults };
   for (const k of [

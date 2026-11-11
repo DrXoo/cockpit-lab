@@ -136,9 +136,9 @@ test('El lector rechaza progreso incoherente, unidades erróneas y presencias in
 test('El resumen de un proyecto parcial no ofrece despiece ni geometría de objetos pendientes', () => {
   const p = createProject(),
     html = partialSummary(p.config, evaluate(p.config), p.setup);
-  assert.ok(html.includes('Habitación pendiente'));
-  assert.ok(!html.includes('Lista de cortes'));
-  assert.ok(!html.includes('Largueros'));
+  assert.ok(html.includes('The room is not set up yet'));
+  assert.ok(!html.includes('cut list'));
+  assert.ok(!html.includes('side rails'));
   assert.ok(!html.includes('<h3 class="summary-title">Mesa</h3>'));
   assert.ok(!html.includes('<h3 class="summary-title">Cockpit</h3>'));
 });

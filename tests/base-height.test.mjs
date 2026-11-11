@@ -49,7 +49,7 @@ test('Los cuatro apoyos conectan el suelo original con el chasis y determinan lo
       assert.equal(p.y - p.length / 2, 6);
       assert.equal(p.y + p.length / 2, 6 + baseLift);
     }
-    assert.equal(parts.parts.find((p) => p.name === 'Prolongaciones de base').qty, supports.length);
+    assert.equal(parts.parts.find((p) => p.name === 'Base extensions').qty, supports.length);
     assert.equal(
       parts.totalMm - original.totalMm,
       supports.reduce((sum, p) => sum + p.length * 10, 0),
@@ -82,8 +82,8 @@ test('JSON v1 y v2 anteriores mantienen la altura y los nuevos guardan la elevac
   assert.throws(() => sanitize({ baseLift: '25' }));
   assert.throws(() => sanitize({ baseLift: Infinity }));
   const html = partialSummary(s, evaluate(s), completeSetup());
-  assert.ok(html.includes('Elevación de la base'));
-  assert.ok(html.includes('25 cm · eje del chasis a 35 cm'));
+  assert.ok(html.includes('Base lift'));
+  assert.ok(html.includes('25 cm · chassis axis 35 cm above the floor'));
   assert.ok(html.includes('40 / 57 cm'));
   assert.ok(html.includes('118 / 43 cm'));
 });

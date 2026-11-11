@@ -28,8 +28,8 @@ export const usesPartialSummary = (s: CockpitConfig, setup: SetupProgress): bool
 
 export const summaryHeading = (s: CockpitConfig) =>
   s.cockpitEnabled
-    ? { title: 'Tu cockpit, pieza a pieza.', kicker: 'DEL DISEÑO AL TALLER' }
-    : { title: 'Resumen del proyecto', kicker: 'TU ESPACIO' };
+    ? { title: 'Your cockpit, piece by piece.', kicker: 'FROM DESIGN TO WORKSHOP' }
+    : { title: 'Project summary', kicker: 'YOUR SPACE' };
 
 type Cell = string | number;
 type Row = [label: string, value: Cell];
@@ -52,31 +52,31 @@ export function partialSummary(
     .map((id) => steps.find((step) => step.id === id)?.label)
     .filter(Boolean);
   if (setup.step !== 'complete')
-    html += `<p class="summary-note">Proyecto en preparación · paso ${esc(steps.find((step) => step.id === setup.step)?.label || 'Habitación')}. Se incluyen solo los elementos añadidos.</p>`;
+    html += `<p class="summary-note">Project in progress · ${esc(steps.find((step) => step.id === setup.step)?.label || 'Room')} step. Only the items added so far are included.</p>`;
   if (pending.length)
-    html += `<p class="summary-note">Por completar: ${pending.map(esc).join(', ')}.</p>`;
-  html += title('Tu espacio');
+    html += `<p class="summary-note">Still to do: ${pending.map(esc).join(', ')}.</p>`;
+  html += title('Your space');
   html += s.roomEnabled
     ? dims([
-        ['Habitación · ancho × fondo', `${s.roomW} × ${s.roomD} cm`],
-        ['Altura de techo', `${s.roomH} cm`],
+        ['Room · width × depth', `${s.roomW} × ${s.roomD} cm`],
+        ['Ceiling height', `${s.roomH} cm`],
       ])
-    : '<p>Habitación pendiente de definir.</p>';
+    : '<p>The room is not set up yet.</p>';
   html += roomHTML;
   if (s.deskEnabled) {
     html +=
-      title('Mesa') +
+      title('Desk') +
       dims([
-        ['Tablero · ancho × fondo', `${s.deskWidth} × ${s.deskDepth} cm`],
-        ['Altura', `${s.deskH} cm`],
-        ['Posición X / Z', `${s.deskX} / ${s.deskZ} cm`],
-        ['Giro', `${s.deskAngle}°`],
+        ['Desktop · width × depth', `${s.deskWidth} × ${s.deskDepth} cm`],
+        ['Height', `${s.deskH} cm`],
+        ['Position X / Z', `${s.deskX} / ${s.deskZ} cm`],
+        ['Rotation', `${s.deskAngle}°`],
       ]);
     if (e.desktopItems.length)
       html +=
-        title('Accesorios añadidos') +
+        title('Accessories added') +
         table(
-          ['Elemento', 'Huella X × Z (cm)', 'Posición X / Z (cm)', 'Giro'],
+          ['Item', 'Footprint X × Z (cm)', 'Position X / Z (cm)', 'Rotation'],
           e.desktopItems.map((i) => [
             i.label,
             `${i.sizeX} × ${i.sizeZ}`,
@@ -86,50 +86,47 @@ export function partialSummary(
         );
     if (s.monitorEnabled)
       html +=
-        title('Monitor y brazo') +
+        title('Monitor and arm') +
         dims([
           ['Diagonal', `${s.monitorInches}″`],
-          ['Altura VESA', `${s.monitorH} cm`],
+          ['VESA height', `${s.monitorH} cm`],
           [
-            'Modo',
-            { cockpit: 'Cockpit', desk: 'Escritorio', manual: 'Manual', vr: 'VR · aparcado' }[
+            'Mode',
+            { cockpit: 'Cockpit', desk: 'Desk', manual: 'Manual', vr: 'VR · parked' }[
               s.monitorMode
             ],
           ],
-          ['Tramos del brazo', `${e.armPose.first} + ${e.armPose.second} cm`],
-          ['Alcance necesario', `${Math.round(e.reach)} cm`],
+          ['Arm segments', `${e.armPose.first} + ${e.armPose.second} cm`],
+          ['Reach needed', `${Math.round(e.reach)} cm`],
           [
-            'Giros base / codo / VESA',
+            'Base / elbow / VESA rotation',
             `${e.armPose.baseAngle.toFixed(1)}° / ${e.armPose.elbowAngle.toFixed(1)}° / ${wrapAngle(e.monitorAngle - s.deskAngle).toFixed(1)}°`,
           ],
         ]);
   }
   if (s.cockpitEnabled) {
     html +=
-      '<p class="summary-note">Alturas desde suelo, incluida la elevación de la base. Posiciones desde el extremo trasero del chasis.</p>';
+      '<p class="summary-note">Heights from the floor, including the base lift. Positions from the rear end of the chassis.</p>';
     html +=
       title('Cockpit') +
       dims([
-        ['Chasis', `${s.length} × ${s.width} cm`],
-        [
-          'Elevación de la base',
-          `${rigLift(s)} cm · eje del chasis a ${10 + rigLift(s)} cm del suelo`,
-        ],
-        ['Estatura', `${s.height} cm`],
-        ['Asiento · posición / altura', `${s.seatZ} / ${floorHeight(s, 'seatH')} cm`],
-        ['Reclinación', `${s.recline}°`],
-        ['Posición X / Z', `${s.cockpitX} / ${s.cockpitZ} cm`],
-        ['Giro', `${s.cockpitAngle}°`],
+        ['Chassis', `${s.length} × ${s.width} cm`],
+        ['Base lift', `${rigLift(s)} cm · chassis axis ${10 + rigLift(s)} cm above the floor`],
+        ['Height', `${s.height} cm`],
+        ['Seat · position / height', `${s.seatZ} / ${floorHeight(s, 'seatH')} cm`],
+        ['Recline', `${s.recline}°`],
+        ['Position X / Z', `${s.cockpitX} / ${s.cockpitZ} cm`],
+        ['Rotation', `${s.cockpitAngle}°`],
       ]);
     html += dims([
       [
-        'Pedalera · posición / altura',
+        'Pedals · position / height',
         `${s.pedalZ} / ${floorHeight(s, 'pedalH')} cm · ${s.pedalTilt}°`,
       ],
       ...(s.wheel
         ? [
             row(
-              'Volante · posición / altura',
+              'Wheel · position / height',
               `${s.wheelZ} / ${floorHeight(s, 'wheelH')} cm · ${s.wheelTilt}°`,
             ),
           ]
@@ -137,53 +134,47 @@ export function partialSummary(
       ...(s.hotas || s.shifter || s.handbrake
         ? [
             row(
-              'Mandos laterales · posición / altura',
-              `${s.hotasZ} / ${floorHeight(s, 'hotasH')} cm · salida ${s.hotasOut} cm`,
+              'Side controls · position / height',
+              `${s.hotasZ} / ${floorHeight(s, 'hotasH')} cm · outset ${s.hotasOut} cm`,
             ),
           ]
         : []),
       ...(s.centerStick
-        ? [
-            row(
-              'Joystick central · posición / altura',
-              `${s.stickZ} / ${floorHeight(s, 'stickH')} cm`,
-            ),
-          ]
+        ? [row('Center stick · position / height', `${s.stickZ} / ${floorHeight(s, 'stickH')} cm`)]
         : []),
       [
-        'Cambio y freno',
+        'Shifter and handbrake',
         s.shifter || s.handbrake
           ? s.drivingSide === 'left'
-            ? 'Izquierda del piloto'
-            : 'Derecha del piloto'
-          : 'Desactivados',
+            ? "Driver's left"
+            : "Driver's right"
+          : 'Off',
       ],
-      ['Perfil neto orientativo', `${formatNumber(e.totalMm / 1000)} m · ${e.cuts} cortes`],
+      ['Approximate net profile', `${formatNumber(e.totalMm / 1000)} m · ${e.cuts} cuts`],
     ]);
     html +=
-      title('Lista de cortes orientativa') +
+      title('Approximate cut list') +
       table(
-        ['Pieza', 'Perfil (mm)', 'Ud.', 'Largo (mm)', 'Total (mm)'],
+        ['Part', 'Profile (mm)', 'Qty', 'Length (mm)', 'Total (mm)'],
         e.parts.map((p) => [p.name, p.profile, p.qty, p.mm, p.total]),
       );
   }
   if (e.accessories.length)
     html +=
-      title('Piezas y fijaciones') +
+      title('Parts and fasteners') +
       table(
-        ['Componente', 'Detalle', 'Ud.'],
+        ['Component', 'Detail', 'Qty'],
         e.accessories.map((p) => [p.name, p.note, p.qty]),
       );
   if (e.checks.length)
     html +=
-      title('Comprobaciones') +
-      `<div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div>`;
+      title('Checks') + `<div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div>`;
   if (s.cockpitEnabled)
     html +=
-      '<p class="summary-note">Medidas y comprobaciones orientativas mediante envolventes. La reserva lateral no garantiza una ruta de acceso. Los cortes son longitudes netas sin ancho de sierra. Las prolongaciones de base requieren uniones y arriostramiento por definir; sus fijaciones no se incluyen en las estimaciones. Las fijaciones son estimaciones del configurador; verifica medidas, patrones de montaje, ranura, cargas y anclajes antes de fabricar. No es un plano de fabricación validado.</p>';
+      '<p class="summary-note">Approximate dimensions and checks based on envelopes. The side clearance does not guarantee a way in. Cuts are net lengths without the saw kerf. Base extensions need joints and bracing still to be designed; their fasteners are not included in the estimates. Fasteners are estimates from the configurator; check dimensions, mounting patterns, slot size, loads and mounts before building. This is not a validated fabrication drawing.</p>';
   else if (s.roomEnabled)
     html +=
-      '<p class="summary-note">Las comprobaciones usan envolventes aproximadas. La reserva lateral no garantiza una ruta de acceso continua.</p>';
+      '<p class="summary-note">The checks use approximate envelopes. The side clearance does not guarantee a continuous way in.</p>';
   html += '</div>';
   return html;
 }
@@ -191,71 +182,71 @@ export function partialSummary(
 export function roomSummaryHTML(s: CockpitConfig): string {
   if (s.roomEnabled === false) return '';
   const a = esc;
-  return `<h3 class="summary-title">Habitación y obstáculos<span>Medidas en cm</span></h3><table class="summary-table"><thead><tr><th>Elemento</th><th>Ubicación</th><th>Medidas / apertura</th></tr></thead><tbody>${s.roomFeatures.map((v) => `<tr><td>${a(v.name)}</td><td>Pared ${wallFrame(s, v.wall).corner} · inicio ${v.offset}</td><td>${v.type === 'wardrobeAccess' ? `Puertas correderas · ancho ${v.width} · alto ${v.height} · acceso libre delante ${v.clearance}` : `${v.width} × ${v.height} · ${v.type === 'door' ? v.openAngle + '° ' + (v.swing === 'in' ? 'interior' : 'exterior') : 'antepecho ' + v.sill + ' · reserva ' + v.clearance}`}</td></tr>`).join('')}${s.roomFurniture.map((v) => `<tr><td>${a(v.name)}</td><td>${v.type === 'wallShelf' ? `Pared ${wallFrame(s, v.mountWall).corner} · inicio ${v.offset} · base ${v.elevation} cm` : `X ${round(v.x - s.roomX)} / Z ${round(v.z - s.roomZ)} · ${v.angle}°`}</td><td>${v.width} × ${v.depth} × ${v.height}${v.type === 'chair' ? ` · asiento ${v.seatHeight} · retirada ${v.pullback}` : ''}</td></tr>`).join('')}</tbody></table>`;
+  return `<h3 class="summary-title">Room and obstacles<span>Dimensions in cm</span></h3><table class="summary-table"><thead><tr><th>Item</th><th>Location</th><th>Size / swing</th></tr></thead><tbody>${s.roomFeatures.map((v) => `<tr><td>${a(v.name)}</td><td>Wall ${wallFrame(s, v.wall).corner} · start ${v.offset}</td><td>${v.type === 'wardrobeAccess' ? `Sliding doors · width ${v.width} · height ${v.height} · clear access in front ${v.clearance}` : `${v.width} × ${v.height} · ${v.type === 'door' ? v.openAngle + '° ' + (v.swing === 'in' ? 'inwards' : 'outwards') : 'sill ' + v.sill + ' · clearance ' + v.clearance}`}</td></tr>`).join('')}${s.roomFurniture.map((v) => `<tr><td>${a(v.name)}</td><td>${v.type === 'wallShelf' ? `Wall ${wallFrame(s, v.mountWall).corner} · start ${v.offset} · bottom ${v.elevation} cm` : `X ${round(v.x - s.roomX)} / Z ${round(v.z - s.roomZ)} · ${v.angle}°`}</td><td>${v.width} × ${v.depth} × ${v.height}${v.type === 'chair' ? ` · seat ${v.seatHeight} · pull-back ${v.pullback}` : ''}</td></tr>`).join('')}</tbody></table>`;
 }
 
 export function fullSummaryHTML(s: CockpitConfig, e: CockpitEvaluation): string {
   const fmt = (v: number) => formatNumber(v, 2);
   const dims = [
     ['Preset', presets[s.preset].label],
-    ['Estatura de referencia', `${s.height} cm`],
-    ['Elevación de la base', `${rigLift(s)} cm · eje del chasis a ${10 + rigLift(s)} cm del suelo`],
-    ['Chasis exterior', `${s.length} × ${s.width} cm`],
-    ['Ancho con accesorios', `${Math.ceil(e.rigRight - e.rigLeft)} cm`],
-    ['Asiento · posición / altura', `${s.seatZ} / ${floorHeight(s, 'seatH')} cm`],
-    ['Respaldo desde vertical', `${s.recline}°`],
+    ['Reference height', `${s.height} cm`],
+    ['Base lift', `${rigLift(s)} cm · chassis axis ${10 + rigLift(s)} cm above the floor`],
+    ['Outer chassis', `${s.length} × ${s.width} cm`],
+    ['Width with accessories', `${Math.ceil(e.rigRight - e.rigLeft)} cm`],
+    ['Seat · position / height', `${s.seatZ} / ${floorHeight(s, 'seatH')} cm`],
+    ['Backrest from vertical', `${s.recline}°`],
     [
-      'Volante · posición / centro',
-      s.wheel ? `${s.wheelZ} / ${floorHeight(s, 'wheelH')} cm · ${s.wheelTilt}°` : 'Desactivado',
+      'Wheel · position / center',
+      s.wheel ? `${s.wheelZ} / ${floorHeight(s, 'wheelH')} cm · ${s.wheelTilt}°` : 'Off',
     ],
     [
-      'Pedalera · posición / altura',
+      'Pedals · position / height',
       `${s.pedalZ} / ${floorHeight(s, 'pedalH')} cm · ${s.pedalTilt}°`,
     ],
     [
-      'Mandos laterales · pos. / altura',
+      'Side controls · pos. / height',
       s.hotas || s.shifter || s.handbrake
-        ? `${s.hotasZ} / ${floorHeight(s, 'hotasH')} cm · salida ${s.hotasOut}`
-        : 'Desactivados',
+        ? `${s.hotasZ} / ${floorHeight(s, 'hotasH')} cm · outset ${s.hotasOut}`
+        : 'Off',
     ],
     [
-      'Cambio y freno · lado',
+      'Shifter and handbrake · side',
       s.shifter || s.handbrake
         ? s.drivingSide === 'left'
-          ? 'Izquierda del piloto'
-          : 'Derecha del piloto'
-        : 'Desactivados',
+          ? "Driver's left"
+          : "Driver's right"
+        : 'Off',
     ],
     [
-      'Joystick central · pos. / altura',
-      s.centerStick ? `${s.stickZ} / ${floorHeight(s, 'stickH')} cm` : 'Desactivado',
+      'Center stick · pos. / height',
+      s.centerStick ? `${s.stickZ} / ${floorHeight(s, 'stickH')} cm` : 'Off',
     ],
-    ['Mesa · tablero / altura', `${s.deskWidth} × ${s.deskDepth} / ${s.deskH} cm`],
-    ['Mesa · posición X / Z', `${s.deskX} / ${s.deskZ} cm`],
-    ['Mesa · giro en planta', `${s.deskAngle}°`],
-    ['Cockpit · posición X / Z', `${s.cockpitX} / ${s.cockpitZ} cm`],
-    ['Cockpit · giro en planta', `${s.cockpitAngle}°`],
-    ['Habitación · ancho / fondo / alto', `${s.roomW} / ${s.roomD} / ${s.roomH} cm`],
-    ['Habitación · origen X / Z', `${s.roomX} / ${s.roomZ} cm`],
-    ['Monitor · diagonal / altura', `${s.monitorInches}″ / ${s.monitorH} cm`],
+    ['Desk · desktop / height', `${s.deskWidth} × ${s.deskDepth} / ${s.deskH} cm`],
+    ['Desk · position X / Z', `${s.deskX} / ${s.deskZ} cm`],
+    ['Desk · rotation in the plan', `${s.deskAngle}°`],
+    ['Cockpit · position X / Z', `${s.cockpitX} / ${s.cockpitZ} cm`],
+    ['Cockpit · rotation in the plan', `${s.cockpitAngle}°`],
+    ['Room · width / depth / height', `${s.roomW} / ${s.roomD} / ${s.roomH} cm`],
+    ['Room · origin X / Z', `${s.roomX} / ${s.roomZ} cm`],
+    ['Monitor · diagonal / height', `${s.monitorInches}″ / ${s.monitorH} cm`],
     [
-      'Monitor · modo',
+      'Monitor · mode',
       {
         cockpit: 'Cockpit',
-        desk: 'Escritorio',
-        vr: 'VR · aparcado',
-        manual: 'Articulaciones manuales',
+        desk: 'Desk',
+        vr: 'VR · parked',
+        manual: 'Manual joints',
       }[s.monitorMode],
     ],
-    ['Anclaje · X / Z en tablero', `${s.clampX} / ${s.clampZ} cm`],
-    ['Anclaje · fijación', s.clampMount === 'grommet' ? 'Pasante' : 'Mordaza'],
-    ['Brazo · necesario / declarado', `${Math.round(e.reach)} / ${s.armReach} cm`],
-    ['Brazo · tramos base / terminal', `${round(e.armPose.first)} / ${round(e.armPose.second)} cm`],
+    ['Mount · X / Z on the desktop', `${s.clampX} / ${s.clampZ} cm`],
+    ['Mount · type', s.clampMount === 'grommet' ? 'Grommet' : 'Clamp'],
+    ['Arm · needed / rated', `${Math.round(e.reach)} / ${s.armReach} cm`],
+    ['Arm · base / end segments', `${round(e.armPose.first)} / ${round(e.armPose.second)} cm`],
     [
-      'Brazo · base / codo / VESA',
+      'Arm · base / elbow / VESA',
       `${round(e.armPose.baseAngle)}° / ${round(e.armPose.elbowAngle)}° / ${round(wrapAngle(e.monitorAngle - s.deskAngle))}°`,
     ],
-    ['Zona libre / paso deseado', `${s.roomW} × ${s.roomD} / ${s.aisle} cm`],
+    ['Free area / desired walkway', `${s.roomW} × ${s.roomD} / ${s.aisle} cm`],
   ];
-  return `<div class="summary-inner"><div class="summary-stats"><div><small>Chasis exterior</small><b>${s.length} × ${s.width} cm</b></div><div><small>Conjunto sin paso</small><b>${Math.ceil(e.spaceW)} × ${Math.ceil(e.spaceD)} cm</b></div><div><small>Perfil neto / +10 % compra</small><b>${fmt(e.totalMm / 1000)} / ${fmt((e.totalMm / 1000) * 1.1)} m</b></div><div><small>Cortes de aluminio</small><b>${e.cuts} piezas</b></div></div><h3 class="summary-title">Geometría de tu configuración<span>Alturas desde suelo · posiciones desde atrás</span></h3><div class="summary-dims">${dims.map(([n, v]) => `<p>${n}<b>${v}</b></p>`).join('')}</div>${roomSummaryHTML(s)}<h3 class="summary-title">Sobre el escritorio<span>Coordenadas desde el centro del tablero</span></h3><table class="summary-table"><thead><tr><th>Elemento</th><th>Huella X × Z (cm)</th><th>Posición X / Z (cm)</th><th>Giro</th></tr></thead><tbody>${e.desktopItems.map((i) => `<tr><td>${i.label}</td><td>${i.sizeX} × ${i.sizeZ}${i.id === 'pc' ? ` · h ${s.pcHeight}` : ''}</td><td>${i.local.x} / ${i.local.z}</td><td>${i.local.angle}°</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Comprobaciones<span>${e.errors} pendientes · ${e.warnings} avisos</span></h3><div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div><h3 class="summary-title">Lista de cortes orientativa<span>Longitudes netas · sin ancho de sierra</span></h3><table class="summary-table"><thead><tr><th>Pieza</th><th>Perfil (mm)</th><th>Ud.</th><th>Largo (mm)</th><th>Total (mm)</th></tr></thead><tbody>${e.parts.map((p) => `<tr><td>${p.name}</td><td>${p.profile}</td><td>${p.qty}</td><td>${p.mm}</td><td>${p.total}</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Piezas y fijaciones<span>Cantidades preliminares</span></h3><table class="summary-table"><thead><tr><th>Componente</th><th>Detalle</th><th>Ud.</th></tr></thead><tbody>${e.accessories.map((p) => `<tr><td>${p.name}</td><td>${p.note}</td><td>${p.qty}</td></tr>`).join('')}</tbody></table><div class="summary-note"><b>Antes de pedir o cortar:</b> las prolongaciones de base requieren uniones y arriostramiento por definir; sus fijaciones no se incluyen en las estimaciones. el despiece supone largueros exteriores y travesaños entre caras interiores (ancho − 80 mm), eje de base a ${(10 + rigLift(s)) * 10} mm sobre suelo y módulos sobre escuadras. La altura de cojín es una medida corporal objetivo: adapta los apoyos al espesor y raíles de tu asiento. Las placas se modelan como envolventes, sin taladros. Añade margen de corte y verifica ranura, escuadras, espesor de placas, anclajes y carga con el proveedor. No es un cálculo estructural ni un plano de fabricación validado. Los perfiles 40 × 80 convencionales no se telescopan entre sí. El brazo usa dos tramos de longitud fija con giros horizontales; verifica VESA, peso, topes de giro y recorrido reales.</div></div>`;
+  return `<div class="summary-inner"><div class="summary-stats"><div><small>Outer chassis</small><b>${s.length} × ${s.width} cm</b></div><div><small>Setup without walkway</small><b>${Math.ceil(e.spaceW)} × ${Math.ceil(e.spaceD)} cm</b></div><div><small>Net profile / +10% to buy</small><b>${fmt(e.totalMm / 1000)} / ${fmt((e.totalMm / 1000) * 1.1)} m</b></div><div><small>Aluminium cuts</small><b>${e.cuts} pieces</b></div></div><h3 class="summary-title">Your design geometry<span>Heights from the floor · positions from the rear</span></h3><div class="summary-dims">${dims.map(([n, v]) => `<p>${n}<b>${v}</b></p>`).join('')}</div>${roomSummaryHTML(s)}<h3 class="summary-title">On the desk<span>Coordinates from the center of the desktop</span></h3><table class="summary-table"><thead><tr><th>Item</th><th>Footprint X × Z (cm)</th><th>Position X / Z (cm)</th><th>Rotation</th></tr></thead><tbody>${e.desktopItems.map((i) => `<tr><td>${i.label}</td><td>${i.sizeX} × ${i.sizeZ}${i.id === 'pc' ? ` · h ${s.pcHeight}` : ''}</td><td>${i.local.x} / ${i.local.z}</td><td>${i.local.angle}°</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Checks<span>${e.errors} to fix · ${e.warnings} warnings</span></h3><div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div><h3 class="summary-title">Approximate cut list<span>Net lengths · without saw kerf</span></h3><table class="summary-table"><thead><tr><th>Part</th><th>Profile (mm)</th><th>Qty</th><th>Length (mm)</th><th>Total (mm)</th></tr></thead><tbody>${e.parts.map((p) => `<tr><td>${p.name}</td><td>${p.profile}</td><td>${p.qty}</td><td>${p.mm}</td><td>${p.total}</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Parts and fasteners<span>Preliminary quantities</span></h3><table class="summary-table"><thead><tr><th>Component</th><th>Detail</th><th>Qty</th></tr></thead><tbody>${e.accessories.map((p) => `<tr><td>${p.name}</td><td>${p.note}</td><td>${p.qty}</td></tr>`).join('')}</tbody></table><div class="summary-note"><b>Before you order or cut:</b> base extensions need joints and bracing still to be designed; their fasteners are not included in the estimates. The part list assumes outer side rails with crossmembers between their inner faces (width − 80 mm), the base axis ${(10 + rigLift(s)) * 10} mm above the floor and modules on corner brackets. The cushion height is a target body measurement: adapt the supports to the thickness and rails of your seat. Plates are modeled as envelopes, without holes. Add a cutting allowance and check the slot size, brackets, plate thickness, mounts and load with your supplier. This is not a structural calculation or a validated fabrication drawing. Standard 40 × 80 profiles do not telescope into each other. The arm uses two fixed-length segments with horizontal rotations; check the real VESA pattern, weight, rotation stops and travel.</div></div>`;
 }

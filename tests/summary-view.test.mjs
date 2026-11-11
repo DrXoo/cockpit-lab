@@ -77,11 +77,11 @@ test('the full summary needs a finished project with the room and every element'
 
 test('the summary heading depends on whether there is a cockpit', () => {
   assert.deepEqual(summaryHeading(config), {
-    title: 'Tu cockpit, pieza a pieza.',
-    kicker: 'DEL DISEÑO AL TALLER',
+    title: 'Your cockpit, piece by piece.',
+    kicker: 'FROM DESIGN TO WORKSHOP',
   });
   assert.deepEqual(summaryHeading({ ...config, cockpitEnabled: false }), {
-    title: 'Resumen del proyecto',
-    kicker: 'TU ESPACIO',
+    title: 'Project summary',
+    kicker: 'YOUR SPACE',
   });
 });

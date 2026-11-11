@@ -24,15 +24,15 @@ function desktopAccessories(s: CockpitConfig): Accessory[] {
   const items: Accessory[] = [];
   if (s.matEnabled !== false)
     items.push({
-      name: 'Alfombrilla XL',
+      name: 'XL desk mat',
       qty: 1,
-      note: `${s.matWidth} × ${s.matDepth} cm; escritorio`,
+      note: `${s.matWidth} × ${s.matDepth} cm; desk`,
     });
   if (s.monitorEnabled !== false)
     items.push({
-      name: 'Brazo monitor para mesa',
+      name: 'Desk monitor arm',
       qty: 1,
-      note: `Alcance declarado ≥ ${s.armReach} cm; VESA y carga por verificar`,
+      note: `Rated reach ≥ ${s.armReach} cm; check VESA and load`,
     });
   return items;
 }
@@ -55,31 +55,31 @@ export function getParts(s: CockpitConfig): PartsList {
     const mm = roundMm(cmToMm(lengthCm));
     parts.push({ name, profile, qty, mm, total: (mm * qty) as Mm });
   };
-  add('Largueros de base', '40 × 80', 2, s.length);
-  add('Travesaños de base', '40 × 80', 3, b);
+  add('Base side rails', '40 × 80', 2, s.length);
+  add('Base crossmembers', '40 × 80', 3, b);
   const supports = baseSupports(s);
   if (supports.length)
-    add('Prolongaciones de base', supports[0].profile, supports.length, supports[0].length);
-  add('Travesaños de asiento', '40 × 40', 2, b);
-  add('Apoyos de asiento', '40 × 40', 4, seatPost);
-  add('Largueros de pedalera', '40 × 40', 2, 38);
-  add('Travesaños de pedalera', '40 × 40', 2, b);
-  add('Apoyos de pedalera', '40 × 40', 2, Math.max(4, s.pedalH - 10));
+    add('Base extensions', supports[0].profile, supports.length, supports[0].length);
+  add('Seat crossmembers', '40 × 40', 2, b);
+  add('Seat posts', '40 × 40', 4, seatPost);
+  add('Pedal deck rails', '40 × 40', 2, 38);
+  add('Pedal deck crossmembers', '40 × 40', 2, b);
+  add('Pedal deck posts', '40 × 40', 2, Math.max(4, s.pedalH - 10));
   if (s.wheel) {
-    add('Montantes de volante', '40 × 80', 2, wh);
-    add('Travesaño de volante', '40 × 80', 1, b);
+    add('Wheel uprights', '40 × 80', 2, wh);
+    add('Wheel crossmember', '40 × 80', 1, b);
   }
   if (s.hotas) {
-    add('Montantes HOTAS', '40 × 40', 2, s.hotasH - 13);
-    add('Brazos HOTAS', '40 × 40', 2, s.hotasOut + 12);
+    add('HOTAS uprights', '40 × 40', 2, s.hotasH - 13);
+    add('HOTAS arms', '40 × 40', 2, s.hotasOut + 12);
   }
   if (s.centerStick) {
-    add('Montante joystick central', '40 × 40', 1, s.stickH - 10);
-    add('Brazo joystick central', '40 × 40', 1, 24);
+    add('Center stick upright', '40 × 40', 1, s.stickH - 10);
+    add('Center stick arm', '40 × 40', 1, 24);
   }
   if (s.shifter || s.handbrake) {
-    add('Montante cambio / freno', '40 × 40', 1, s.hotasH - 13);
-    add('Brazo cambio / freno', '40 × 40', 1, 30);
+    add('Shifter / handbrake upright', '40 × 40', 1, s.hotasH - 13);
+    add('Shifter / handbrake arm', '40 × 40', 1, 30);
   }
   const joints =
     14 +
@@ -89,59 +89,59 @@ export function getParts(s: CockpitConfig): PartsList {
     (s.shifter || s.handbrake ? 4 : 0);
   const accessories = [
     {
-      name: 'Escuadras reforzadas serie 40',
+      name: 'Reinforced 40 series corner brackets',
       qty: joints,
-      note: 'Estimación de 2 tornillos por escuadra',
+      note: 'Estimated at 2 bolts per bracket',
     },
     {
-      name: 'Tuercas T + tornillos M8',
+      name: 'T-nuts + M8 bolts',
       qty: joints * 2 + 24,
-      note: 'Ranura y longitud a confirmar con el proveedor',
+      note: 'Confirm slot size and length with the supplier',
     },
     {
-      name: s.feet === 'casters' ? 'Ruedas con freno + adaptador' : 'Pies niveladores + adaptador',
+      name: s.feet === 'casters' ? 'Locking casters + adapter' : 'Leveling feet + adapter',
       qty: 4,
-      note: 'Capacidad de carga a dimensionar',
+      note: 'Size the load capacity',
     },
     {
-      name: 'Tapas de perfil',
+      name: 'Profile end caps',
       qty: parts.reduce((a, p) => a + p.qty * 2, 0),
-      note: 'Máximo teórico; descontar extremos unidos',
+      note: 'Theoretical maximum; leave out joined ends',
     },
     {
-      name: 'Asiento manual de coche + raíles',
+      name: 'Manual car seat + rails',
       qty: 1,
-      note: 'Envolvente de asiento: 50 × 65 cm aprox.',
+      note: 'Seat envelope: about 50 × 65 cm',
     },
     {
-      name: 'Placa pedalera regulable',
+      name: 'Adjustable pedal plate',
       qty: 1,
-      note: `${Math.round(b * 10)} × 380 mm; patrón según pedalera`,
+      note: `${Math.round(b * 10)} × 380 mm; hole pattern to match the pedals`,
     },
   ];
   if (s.wheel)
     accessories.push({
-      name: 'Placa de volante regulable',
+      name: 'Adjustable wheel plate',
       qty: 1,
-      note: `${Math.round(b * 10)} × 220 mm; patrón de la base real`,
+      note: `${Math.round(b * 10)} × 220 mm; hole pattern of the actual base`,
     });
   if (s.hotas)
     accessories.push({
-      name: 'Placas HOTAS desmontables',
+      name: 'Removable HOTAS plates',
       qty: 2,
-      note: '180 × 250 mm; taladrado según mandos',
+      note: '180 × 250 mm; drilled to match the controls',
     });
   if (s.centerStick)
     accessories.push({
-      name: 'Placa joystick central',
+      name: 'Center stick plate',
       qty: 1,
-      note: '180 × 200 mm; montaje desmontable',
+      note: '180 × 200 mm; removable mount',
     });
   if (s.shifter || s.handbrake)
     accessories.push({
-      name: 'Placa cambio / freno de mano',
+      name: 'Shifter / handbrake plate',
       qty: 1,
-      note: '200 × 300 mm; patrones por verificar',
+      note: '200 × 300 mm; check the hole patterns',
     });
   accessories.push(...desktopAccessories(s));
   return {

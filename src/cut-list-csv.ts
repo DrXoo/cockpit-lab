@@ -4,15 +4,15 @@ const SEPARATOR = ';';
 const LINE_BREAK = '\r\n';
 
 const PART_HEADER = [
-  'Pieza',
-  'Perfil (mm)',
-  'Cantidad',
-  'Longitud neta (mm)',
-  'Longitud total (mm)',
-  'Detalle',
+  'Part',
+  'Profile (mm)',
+  'Quantity',
+  'Net length (mm)',
+  'Total length (mm)',
+  'Detail',
 ];
-const ACCESSORY_HEADER = ['Piezas y fijaciones', '', 'Cantidad', '', '', 'Detalle'];
-const PART_NOTE = 'Verificar antes de fabricar';
+const ACCESSORY_HEADER = ['Parts and fasteners', '', 'Quantity', '', '', 'Detail'];
+const PART_NOTE = 'Check before building';
 
 /** The fields of a profile part that the cut list needs. */
 export interface CutListPart {
