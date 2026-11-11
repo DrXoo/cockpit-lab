@@ -45,6 +45,7 @@
     "src/render-annotations.ts",
     "src/render-model.ts",
     "src/layout-picking.ts",
+    "src/scene.ts",
     "src/three-adapter.ts",
     "playwright.config.ts"
   ]

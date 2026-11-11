@@ -2,6 +2,7 @@
 // The Three.js adapter turns each primitive into an object. Drawing order matters because
 // Three.js breaks ties between overlapping transparent objects by creation order.
 import type { PlanPoint, Point3 } from './geometry.ts';
+import type { SceneView } from './scene-camera.ts';
 
 export type Vec3 = [x: number, y: number, z: number];
 export type Color = string | number;
@@ -148,6 +149,17 @@ export interface SceneLabel {
   armHandle?: boolean;
   /** Vertical screen offset, in px. */
   offsetY?: number;
+}
+
+/** Whether a label belongs in a view. Labels outside the viewport are hidden separately. */
+export function labelShownIn(label: SceneLabel, view: SceneView): boolean {
+  return !(
+    (view === 'side' && (label.object || label.notSide)) ||
+    (view === 'desk' && label.rigLabel) ||
+    (label.topOnly && view !== 'top') ||
+    (label.sideOnly && view !== 'side') ||
+    (label.armHandle && view !== 'top' && view !== 'desk')
+  );
 }
 
 const ORIGIN: Vec3 = [0, 0, 0];
