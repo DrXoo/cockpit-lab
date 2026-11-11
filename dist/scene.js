@@ -2,7 +2,7 @@ import {wallFrame} from './room.js?v=9-office-chair';
 import * as T from 'three';
 import {OrbitControls} from './vendor/OrbitControls.js';
 import {SVGRenderer} from './vendor/SVGRenderer.js';
-import {transformPoint,inversePoint,clamp,round,clampEdge,overlapDepth,drivingMount} from './model.js?v=9-office-chair';
+import {transformPoint,inversePoint,clamp,round,clampEdge,overlapDepth,drivingMount,rigLift,floorHeight,baseSupports} from './model.js?v=14-base-height';
 const radians=d=>d*Math.PI/180;
 const V=(x,y,z)=>new T.Vector3(x,y,z);
 export class CockpitScene{
@@ -14,7 +14,7 @@ export class CockpitScene{
   this.vectorFallback=!context;
   if(context){this.renderer=new T.WebGLRenderer({canvas,context,antialias:true,alpha:false});this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.5;}
   else{this.renderer=new SVGRenderer();this.renderer.setQuality('high');this.renderer.setClearColor('#f0f2ec');}
-  this.renderer.domElement.setAttribute('aria-label','Modelo 3D del cockpit, escritorio y habitación. Arrastra para girar; usa los botones para vistas de planta y perfil.');this.renderer.domElement.tabIndex=0;container.prepend(this.renderer.domElement);
+  this.renderer.domElement.setAttribute('aria-label','Vista del proyecto y los elementos añadidos. Usa los botones para cambiar entre 3D y planta; arrastra para girar o distribuir.');this.renderer.domElement.tabIndex=0;container.prepend(this.renderer.domElement);
   this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.controls.enableDamping=true;this.controls.dampingFactor=.1;this.controls.maxPolarAngle=Math.PI/2-.02;this.controls.minZoom=.5;this.controls.maxZoom=4;this.controls.enablePan=true;
   this.scene.add(new T.HemisphereLight(0xffffff,0xb0b8a2,this.vectorFallback?0:2.5));
   const sun=new T.DirectionalLight(0xffffff,this.vectorFallback?.65:3.2);sun.position.set(-150,300,100);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-280,right:280,top:280,bottom:-280,near:1,far:800});sun.shadow.normalBias=.4;sun.shadow.bias=-.0004;sun.shadow.radius=4;this.scene.add(sun);this.scene.add(new T.AmbientLight(0xffffff,this.vectorFallback?.7:.3));
@@ -25,8 +25,21 @@ export class CockpitScene{
   this.revision=0;this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(container);this.resize();this.installLayoutDrag();this.animate();
  }
  screenTexture(){const c=document.createElement('canvas');c.width=1024;c.height=440;const ctx=c.getContext('2d');const g=ctx.createLinearGradient(0,0,0,440);g.addColorStop(0,'#253b36');g.addColorStop(1,'#172b26');ctx.fillStyle=g;ctx.fillRect(0,0,1024,440);ctx.strokeStyle='#506453';ctx.lineWidth=1;for(let i=0;i<24;i++){ctx.beginPath();ctx.moveTo(i*80-400,440);ctx.lineTo(512+(i*80-400-512)*.12,150);ctx.stroke();}for(let y=170;y<440;y+=y/6){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1024,y);ctx.stroke();}ctx.strokeStyle='#c47b48';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(430,440);ctx.bezierCurveTo(700,290,300,290,530,158);ctx.stroke();ctx.fillStyle='#aabb9b';ctx.font='500 16px monospace';ctx.fillText('COCKPIT LAB',35,43);ctx.font='12px monospace';ctx.fillStyle='#8eaa91';ctx.fillText('SIMULATION / READY',35,67);ctx.fillStyle='#d49262';ctx.fillRect(943,30,45,3);ctx.font='70px monospace';ctx.fillStyle='#c5d0b6';ctx.fillText('N',40,370);ctx.font='13px monospace';ctx.fillStyle='#99ab8d';ctx.fillText('000 KM/H',40,400);const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;return texture;}
- resize(){const w=this.container.clientWidth,h=this.container.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h,false);this.setFrustum();}
- setFrustum(){const w=this.container.clientWidth,h=this.container.clientHeight,aspect=w/h;const e=this.e,s=this.s,spanX=this.sceneBounds?this.sceneBounds.right-this.sceneBounds.left:260,spanZ=this.sceneBounds?this.sceneBounds.front-this.sceneBounds.back:280;const size=this.view==='desk'?Math.max((s?.deskDepth||80)+30,((s?.deskWidth||140)+40)/aspect):this.view==='top'?Math.max(spanZ+30,(spanX+30)/aspect):this.view==='side'?Math.max(205,(s?.length||145)+50):Math.max(245,(e?.spaceW||180)/aspect+55,(e?.spaceD||165)*.72+100,s?.roomEnabled!==false?(spanX+spanZ)*.62:0);this.camera.left=-size*aspect/2;this.camera.right=size*aspect/2;this.camera.top=size/2;this.camera.bottom=-size/2;this.camera.updateProjectionMatrix();}
+ resize(){const w=this.container.clientWidth,h=this.container.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h,false);this.setFrustum();this.revision++;}
+ setFrustum(){
+  const w=this.container.clientWidth,h=this.container.clientHeight;
+  if(!w||!h)return;
+  const aspect=w/h,e=this.e,s=this.s;
+  const spanX=this.sceneBounds?this.sceneBounds.right-this.sceneBounds.left:260;
+  const spanZ=this.sceneBounds?this.sceneBounds.front-this.sceneBounds.back:280;
+  // La proyección en diagonal debe caber también en el ancho de una pantalla vertical.
+  const size=this.view==='desk'?Math.max((s?.deskDepth||80)+30,((s?.deskWidth||140)+40)/aspect)
+   :this.view==='top'?Math.max(spanZ+60,(spanX+60)/aspect)
+   :this.view==='side'?Math.max(205+2*rigLift(s),((s?.length||145)+50)/aspect)
+   :Math.max(245,(e?.spaceW||180)/aspect+55,(e?.spaceD||165)*.72+100,(spanX+spanZ)*.78/aspect,s?.roomEnabled!==false?(spanX+spanZ)*.62:0);
+  this.camera.left=-size*aspect/2;this.camera.right=size*aspect/2;
+  this.camera.top=size/2;this.camera.bottom=-size/2;this.camera.updateProjectionMatrix();
+ }
  box(w,h,d,x,y,z,mat=this.mat.silver,parent=this.group,edges=false){const m=new T.Mesh(new T.BoxGeometry(Math.max(w,.1),Math.max(h,.1),Math.max(d,.1)),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);if(edges){const line=new T.LineSegments(new T.EdgesGeometry(m.geometry),this.mat.edge);m.add(line);}return m;}
  beam(axis,length,x,y,z,profile='40x40',parent=this.group){const thick=4,deep=profile==='40x80'?8:4;let w=thick,h=deep,d=length;if(axis==='x'){w=length;d=thick;}if(axis==='y'){w=deep;h=length;d=thick;}const m=this.box(w,h,d,x,y,z,this.mat.silver,parent,true);const groove=this.mat.groove;
   if(axis==='z'){for(const dx of [-1.1,1.1])this.box(.28,.09,length-.5,dx,h/2+.04,0,groove,m);for(const dy of [-h/4,h/4])this.box(.09,.3,length-.5,w/2+.04,dy,0,groove,m);}
@@ -41,11 +54,14 @@ export class CockpitScene{
  label(text,x,y,z,object=false){const el=document.createElement('div');el.className='dim-label'+(object?' object-label':'');el.textContent=text;this.labels.append(el);const item={el,position:V(x,y,z),object};this.labelItems.push(item);return item;}
  dimension(a,b,text,offset=[0,0,0],parent=this.dims){this.line([a,b],this.mat.dim,parent);const along=V(...b).sub(V(...a)).normalize();const tick=Math.abs(along.x)>.5?[0,0,2.2]:[2.2,0,0];for(const p of [a,b])this.line([[p[0]-tick[0],p[1]-.1,p[2]-tick[2]],[p[0]+tick[0],p[1]+.1,p[2]+tick[2]]],this.mat.dim,parent);return this.label(text,(a[0]+b[0])/2+offset[0],(a[1]+b[1])/2+offset[1],(a[2]+b[2])/2+offset[2]);}
  update(s,e){this.revision++;this.s=s;this.e=e;const roomPoints=s.roomEnabled!==false?[...e.room.furniture.flatMap(v=>[...v.polygon,...(v.reserve||[])]),...e.room.features.flatMap(v=>v.arc||[v.a,v.b]),{x:e.roomBounds.left,z:e.roomBounds.back},{x:e.roomBounds.right,z:e.roomBounds.front}]:[];this.sceneBounds={left:Math.min(e.allLeft,...roomPoints.map(v=>v.x)),right:Math.max(e.allRight,...roomPoints.map(v=>v.x)),back:Math.min(e.allBack,...roomPoints.map(v=>v.z)),front:Math.max(e.allFront,...roomPoints.map(v=>v.z))};if(this.root){this.root.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.isMesh&&o.material&&!Object.values(this.mat).includes(o.material))o.material.dispose();if(o.isLine&&o.material!==this.mat.edge&&o.material!==this.mat.dim)o.material.dispose();});this.scene.remove(this.root);}this.labels.innerHTML='';this.labelItems=[];this.root=new T.Group();this.scene.add(this.root);this.rigGroup=new T.Group();this.root.add(this.rigGroup);this.group=this.rigGroup;this.dims=new T.Group();this.root.add(this.dims);this.dims.visible=this.dimensions;const w=s.width,l=s.length;
+  if(s.cockpitEnabled!==false){
   // Four feet, continuous longitudinal rails, crossmembers between inner faces.
   for(const x of [-w/2+2,w/2-2]){
-   this.beam('z',l,x,10,l/2,'40x80');
    for(const z of [10,l-10]){if(s.feet==='casters'){const wheel=this.cylinder(3.3,3.5,x,3.4,z,this.mat.rubber);wheel.rotation.z=Math.PI/2;this.box(4,2,6,x,6,z,this.mat.dark);}else{this.cylinder(3.6,2,x,1.4,z,this.mat.rubber);this.cylinder(.6,4,x,4,z,this.mat.silver);}}
   }
+  for(const p of baseSupports(s))this.beam('y',p.length,p.x,p.y,p.z,'40x40');
+  const assembly=new T.Group();assembly.position.y=rigLift(s);this.rigGroup.add(assembly);this.group=assembly;
+  for(const x of [-w/2+2,w/2-2])this.beam('z',l,x,10,l/2,'40x80');
   for(const z of [10,l/2,l-10])this.beam('x',w-8,0,10,z,'40x80');
   for(const z of [s.seatZ-12,s.seatZ+18]){
    this.beam('x',w-8,0,s.seatH-10,z);
@@ -75,27 +91,33 @@ export class CockpitScene{
   if(s.centerStick){this.beam('y',s.stickH-10,0,(s.stickH-10)/2+10,s.stickZ);this.beam('z',24,0,s.stickH-2,s.stickZ-4);this.box(18,.8,20,0,s.stickH,s.stickZ,this.mat.orange);this.joystick(0,s.stickH+1,s.stickZ);}
   if(this.person)this.buildPerson(s,e);
   this.rigGroup.position.set(s.cockpitX,0,s.cockpitZ);this.rigGroup.rotation.y=radians(s.cockpitAngle);
+  }
   this.deskGroup=new T.Group();this.root.add(this.deskGroup);this.group=this.deskGroup;
-  this.buildDesk({...s,deskZ:0},e);this.deskGroup.position.set(s.deskX,0,s.deskZ);this.deskGroup.rotation.y=radians(s.deskAngle);
-  this.group=this.root;this.buildMonitor(s,e);
+  if(s.deskEnabled!==false)this.buildDesk({...s,deskZ:0},e);this.deskGroup.position.set(s.deskX,0,s.deskZ);this.deskGroup.rotation.y=radians(s.deskAngle);
+  this.group=this.root;this.armHandles=[];this.armDims=null;if(s.deskEnabled!==false&&s.monitorEnabled!==false)this.buildMonitor(s,e);
   const worldDims=this.dims,rigDims=new T.Group();worldDims.add(rigDims);this.dims=rigDims;const startLabels=this.labelItems.length,left=-w/2-20;
+  if(s.cockpitEnabled!==false){
   this.dimension([left,.8,0],[left,.8,l],`${l} cm`,[-2,0,0]);this.line([[-w/2,.8,0],[left-4,.8,0]]);this.line([[-w/2,.8,l],[left-4,.8,l]]);
   this.dimension([-w/2,.8,-18],[w/2,.8,-18],`${w} cm`,[0,0,-3]).notSide=true;this.line([[-w/2,.8,0],[-w/2,.8,-22]]);this.line([[w/2,.8,0],[w/2,.8,-22]]);
   this.sideDims=new T.Group();rigDims.add(this.sideDims);this.sideDims.visible=this.view==='side';
-  this.dimension([left,0,5],[left,s.seatH,5],`Asiento ${s.seatH} cm`,[0,0,-7],this.sideDims).sideOnly=true;
-  if(s.wheel)this.dimension([left,0,l+18],[left,s.wheelH,l+18],`Volante ${s.wheelH} cm`,[0,0,8],this.sideDims).sideOnly=true;
+  this.dimension([left,0,5],[left,floorHeight(s,'seatH'),5],`Asiento ${floorHeight(s,'seatH')} cm`,[0,0,-7],this.sideDims).sideOnly=true;
+  if(s.wheel)this.dimension([left,0,l+18],[left,floorHeight(s,'wheelH'),l+18],`Volante ${floorHeight(s,'wheelH')} cm`,[0,0,8],this.sideDims).sideOnly=true;
+  this.dimension([w/2+12,0,l/2],[w/2+12,10+rigLift(s),l/2],`Base · eje ${10+rigLift(s)} cm`,[0,0,5],this.sideDims).sideOnly=true;
   rigDims.position.set(s.cockpitX,0,s.cockpitZ);rigDims.rotation.y=radians(s.cockpitAngle);
   for(const item of this.labelItems.slice(startLabels)){item.rigLabel=true;const p=transformPoint(item.position,e.rigPose);item.position.set(p.x,p.y,p.z);}
+  }
   this.dims=worldDims;const deskDims=new T.Group();worldDims.add(deskDims);const deskLabels=this.labelItems.length;
+  if(s.deskEnabled!==false){
   this.dimension([e.deskRight+8,.8,e.deskBack],[e.deskRight+8,.8,e.deskFront],`${s.deskWidth} cm`,[3,0,0],deskDims).notSide=true;
   this.dimension([e.deskLeft,.8,e.deskFront+12],[e.deskRight,.8,e.deskFront+12],`${s.deskDepth} cm`,[0,0,3],deskDims).notSide=true;
-  this.label('FLEXISPOT E7 PRO',s.deskDepth/2-20,s.deskH+8,s.deskWidth/2-8,true);
+  this.label('ESCRITORIO',s.deskDepth/2-20,s.deskH+8,s.deskWidth/2-8,true);
   deskDims.position.set(s.deskX,0,s.deskZ);deskDims.rotation.y=radians(s.deskAngle);
   for(const item of this.labelItems.slice(deskLabels)){const p=transformPoint(item.position,e.deskPose);item.position.set(p.x,p.y,p.z);}
-  if(s.shifter||s.handbrake){const p=transformPoint({x:e.drivingMount.x,y:s.hotasH+30,z:e.drivingMount.z},e.rigPose),tag=this.label(`${s.shifter&&s.handbrake?'CAMBIO + FRENO':s.shifter?'CAMBIO':'FRENO'} · ${s.drivingSide==='left'?'IZQUIERDA':'DERECHA'} DEL PILOTO`,p.x,p.y,p.z,true);tag.topOnly=true;tag.offsetY=-32;}
-  if(s.monitorMode==='cockpit')this.label(`${s.monitorInches}″ · MONITOR COMPARTIDO`,e.monitorPoint.x,s.monitorH+e.monitorH/2+8,e.monitorPoint.z,true);
+  }
+  if(s.cockpitEnabled!==false&&(s.shifter||s.handbrake)){const p=transformPoint({x:e.drivingMount.x,y:floorHeight(s,'hotasH')+30,z:e.drivingMount.z},e.rigPose),tag=this.label(`${s.shifter&&s.handbrake?'CAMBIO + FRENO':s.shifter?'CAMBIO':'FRENO'} · ${s.drivingSide==='left'?'IZQUIERDA':'DERECHA'} DEL PILOTO`,p.x,p.y,p.z,true);tag.topOnly=true;tag.offsetY=-32;}
+  if(s.deskEnabled!==false&&s.monitorEnabled!==false&&s.monitorMode==='cockpit')this.label(`${s.monitorInches}″ · MONITOR COMPARTIDO`,e.monitorPoint.x,s.monitorH+e.monitorH/2+8,e.monitorPoint.z,true);
   this.buildRoom(s,e);
-  if(this.layoutEditing&&['top','desk'].includes(this.view)){const item=e.desktopItems.find(i=>i.id===this.layoutTarget),furniture=e.room.furniture.find(i=>'furniture:'+i.id===this.layoutTarget),feature=e.room.features.find(i=>'feature:'+i.id===this.layoutTarget),poly=furniture?furniture.polygon:feature?(feature.leaf||[feature.a,feature.b]):item?item.polygon:this.layoutTarget==='desk'?e.deskPolygon:e.rigPolygon,y=furniture?furniture.height+1:item?s.deskH+item.height+1:1.5;this.line([...poly,poly[0]].map(p=>[p.x,y,p.z]),new T.LineBasicMaterial({color:0xd96236}),this.root);if(item&&this.view==='top')this.label(item.label.toUpperCase(),item.world.x,y+4,item.world.z,true).offsetY=-24;}
+  if(this.layoutEditing&&['top','desk'].includes(this.view)){const item=e.desktopItems.find(i=>i.id===this.layoutTarget),furniture=e.room.furniture.find(i=>'furniture:'+i.id===this.layoutTarget),feature=e.room.features.find(i=>'feature:'+i.id===this.layoutTarget),poly=furniture?furniture.polygon:feature?(feature.leaf||[feature.a,feature.b]):item?item.polygon:this.layoutTarget==='desk'?e.deskPolygon:e.rigPolygon,y=furniture?furniture.y1+1:item?s.deskH+item.height+1:1.5;if(poly.length)this.line([...poly,poly[0]].map(p=>[p.x,y,p.z]),new T.LineBasicMaterial({color:0xd96236}),this.root);if(item&&this.view==='top')this.label(item.label.toUpperCase(),item.world.x,y+4,item.world.z,true).offsetY=-24;}
   this.dims.visible=this.dimensions;this.setFrustum();
  }
  buildRoom(s,e){
@@ -124,6 +146,19 @@ export class CockpitScene{
     const leaf=this.box(item.width,Math.min(item.height,s.roomFullWalls?item.height:55),3.2,(item.hingePoint.x+item.tip.x)/2,Math.min(item.height,s.roomFullWalls?item.height:55)/2,(item.hingePoint.z+item.tip.z)/2,blocked?mat('#b94f35',.85):doorMat,g);leaf.rotation.y=radians(Math.atan2(-(item.tip.z-item.hingePoint.z),item.tip.x-item.hingePoint.x)*180/Math.PI);
     this.cylinder(2.4,3,item.hingePoint.x,1.5,item.hingePoint.z,this.mat.orange,g);
     const label=this.label(`${item.name.toUpperCase()} · ${item.openAngle}°${blocked?' · BLOQUEADA':''}`,item.center.x+f.nx*10,2,item.center.z+f.nz*10,true);label.topOnly=true;label.el.classList.add('room-object-label');
+   }else if(item.type==='wardrobeAccess'){
+    const occupied=e.room.accessHits.includes(item.id),color=occupied?'#b94f35':'#7a8c64',height=item.height;
+    const front=new T.Group();front.position.set(item.center.x-f.nx*1.5,0,item.center.z-f.nz*1.5);front.rotation.y=Math.atan2(-f.tz,f.tx);g.add(front);
+    const panel=mat('#c5bea5',.9),edge=mat('#6b705f');
+    for(const side of [-1,1]){
+     this.box(item.width/2,height,1,side*item.width/4,height/2,side*.4,panel,front,true);
+     this.box(1.5,Math.min(14,height/3),1,side*5,height/2,1,edge,front);
+    }
+    for(const y of [1,height-1])this.box(item.width,2,2,0,y,0,edge,front);
+    this.line([[item.a.x,1.4,item.a.z],[item.b.x,1.4,item.b.z]],new T.LineBasicMaterial({color}),g);
+    if(item.clearance>0){fill(item.reserve,color,.13);this.line([...item.reserve,item.reserve[0]].map(p=>[p.x,1.1,p.z]),new T.LineBasicMaterial({color,transparent:true,opacity:.85}),g);}
+    const status=item.clearance<=0?'! RESERVA DESACTIVADA':occupied?'! REVISAR ACCESO':'✓ ACCESO LIBRE';
+    const label=this.label(`${item.name.toUpperCase()} · ⇆ ${item.width} × ${item.height} cm · ${status}${item.clearance>0?` · ${item.clearance} cm delante`:''}`,item.center.x+f.nx*Math.max(8,item.clearance/2),2,item.center.z+f.nz*Math.max(8,item.clearance/2),true);label.topOnly=true;label.el.classList.add('room-object-label');
    }else{
     const window=this.box(f.tx?item.width:3,item.height,f.tz?item.width:3,item.center.x,item.sill+item.height/2,item.center.z,windowMat,g);
     const frameMat=mat('#6f9ca2');for(const side of [-1,1])this.box(f.tx?2:5,item.height+4,f.tz?2:5,item.center.x+f.tx*side*item.width/2,item.sill+item.height/2,item.center.z+f.tz*side*item.width/2,frameMat,g);
@@ -134,7 +169,7 @@ export class CockpitScene{
    }
   }
   for(const item of e.room.furniture){
-   const parent=new T.Group();parent.position.set(item.x,0,item.z);parent.rotation.y=radians(item.angle);g.add(parent);const W=item.width,D=item.depth,H=item.height,bad=e.room.collisions.includes(item.id),material=bad?new T.MeshStandardMaterial({color:'#b87b62',roughness:.9}):furnMat;
+   const parent=new T.Group();parent.position.set(item.x,item.y0,item.z);parent.rotation.y=radians(item.angle);g.add(parent);const W=item.width,D=item.depth,H=item.height,bad=e.room.collisions.includes(item.id),material=bad?new T.MeshStandardMaterial({color:'#b87b62',roughness:.9}):furnMat;
    if(item.type==='chair'){
     const seat=item.seatHeight,upholstery=bad?material:this.mat.fabric,radius=Math.min(W,D)*.43;
     for(let i=0;i<5;i++){const a=i/5*Math.PI*2,x=Math.cos(a)*radius,z=Math.sin(a)*radius;this.tube([0,10,0],[x,6,z],1.5,this.mat.arm,parent);const wheel=this.cylinder(3,2.8,x,3.5,z,this.mat.rubber,parent);wheel.rotation.z=Math.PI/2;wheel.rotation.y=a;}
@@ -146,17 +181,27 @@ export class CockpitScene{
     this.line([[-5,seat+.2,-D*.22],[0,seat+.2,-D*.34],[5,seat+.2,-D*.22]],new T.LineBasicMaterial({color:'#d1885d'}),parent);
     this.line([...item.polygon,item.polygon[0]].map(p=>[p.x,.9,p.z]),new T.LineBasicMaterial({color:bad?'#b94f35':'#9caa8c',transparent:true,opacity:.6}),g);
     if(item.reserve){fill(item.reserve,'#8c9faa',.13);this.line([...item.reserve,item.reserve[0]].map(p=>[p.x,1.2,p.z]),new T.LineBasicMaterial({color:'#879aa5',transparent:true,opacity:.8}),g);const center=item.reserve.reduce((a,p)=>({x:a.x+p.x/4,z:a.z+p.z/4}),{x:0,z:0});this.label(`RETIRAR SILLA · ${item.pullback} cm`,center.x,2,center.z,true).topOnly=true;}
+   }else if(item.type==='wallShelf'){
+    const thickness=Math.min(2,H/2);
+    this.box(W,thickness,D,0,thickness/2,0,material,parent,true);
+    if(H>4){
+     for(const x of [-W/2+1,W/2-1])this.box(2,H,D,x,H/2,0,material,parent,true);
+     this.box(W,H,1.5,0,H/2,-D/2+.75,material,parent);
+     const levels=Math.max(1,Math.ceil(H/35));
+     for(let i=1;i<=levels;i++)this.box(W,thickness,D,0,thickness/2+i*(H-thickness)/levels,0,material,parent,true);
+    }
    }else if(item.type==='shelf'){
     for(const x of [-W/2+1,W/2-1])this.box(2,H,D,x,H/2,0,material,parent,true);
     this.box(W,H,1.5,0,H/2,D/2-.75,material,parent);const shelves=Math.max(2,Math.ceil(H/35));for(let i=0;i<=shelves;i++)this.box(W,2,D,0,1+i*(H-2)/shelves,0,material,parent,true);
     // A few books make the shelf recognizable in 3D without changing its footprint.
     for(let i=0;i<Math.min(6,Math.floor(W/10));i++)this.box(4,20,D*.6,-W/2+8+i*7,14,-D*.1,furnEdge,parent);
    }else{
-    this.box(W,H,D,0,H/2,0,material,parent,true);
-    if(item.type==='bed'){this.box(W-4,8,D-4,0,H-4,0,this.mat.fabric,parent);this.box(W*.7,4,25,0,H-2,-D/2+20,this.mat.wood,parent);}
+    const baseH=item.type==='bed'?H*.75:H;
+    this.box(W,baseH,D,0,baseH/2,0,material,parent,true);
+    if(item.type==='bed'){this.box(W-4,H*.2,D-4,0,H*.85,0,this.mat.fabric,parent);this.box(W*.7,H*.05,25,0,H*.975,-D/2+20,this.mat.wood,parent);}
     else{this.box(.8,H*.85,.3,0,H/2,-D/2-.2,furnEdge,parent);for(const x of [-3,3])this.box(1,8,1,x,H*.53,-D/2-1,furnEdge,parent);}
    }
-   const label=this.label(`${item.name.toUpperCase()} · ${item.width} × ${item.depth}`,item.x,H+6,item.z,true);label.topOnly=true;label.el.classList.add('room-object-label');
+   const label=this.label(`${item.name.toUpperCase()} · ${item.width} × ${item.depth}${item.type==='wallShelf'?` · PARED · BASE ${item.elevation} cm`:""}${bad?' · ! INTERFERENCIA':""}`,item.x,item.y1+6,item.z,true);label.topOnly=true;label.el.classList.add('room-object-label');
   }
   if(e.freeBand){fill(e.freeBand.polygon,'#adc298',.18);const points=e.freeBand.polygon,c=points.reduce((a,p)=>({x:a.x+p.x/4,z:a.z+p.z/4}),{x:0,z:0});this.label(`RESERVA ${s.aisle} cm`,c.x,1,c.z).topOnly=true;}
  }
@@ -206,7 +251,7 @@ export class CockpitScene{
  buildDesktopObjects(s,e){
   const mat=e.desktopItems.find(item=>item.id==='mat');
   for(const item of [...e.desktopItems].sort((a,b)=>(a.id==='mat'?-1:0)-(b.id==='mat'?-1:0))){
-   if(item.id==='arm')continue;const g=new T.Group(),onMat=item.id!=='mat'&&overlapDepth(item.localPolygon,mat.localPolygon)>.01;
+   if(item.id==='arm')continue;const g=new T.Group(),onMat=!!mat&&item.id!=='mat'&&overlapDepth(item.localPolygon,mat.localPolygon)>.01;
    g.position.set(item.local.x,s.deskH+(onMat?.35:0),item.local.z);g.rotation.y=radians(item.local.angle);this.group.add(g);const X=item.sizeX,Z=item.sizeZ;
    if(item.id==='mat'){
     const fabric=new T.MeshStandardMaterial({color:0x333c39,roughness:1});this.box(X,.35,Z,0,.2,0,fabric,g);
@@ -260,7 +305,7 @@ export class CockpitScene{
   const point=(event,height=0)=>{const r=element.getBoundingClientRect();ray.setFromCamera(new T.Vector2((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1),this.camera);return ray.ray.intersectPlane(new T.Plane(V(0,1,0),-height),new T.Vector3());};
   element.addEventListener('pointerdown',event=>{
    if(!this.layoutEditing||!['top','desk'].includes(this.view)||event.button!==0)return;const floor=point(event),top=point(event,this.s.deskH);if(!floor||!top)return;
-   if(this.layoutTarget==='arm'){
+   if(this.layoutTarget==='arm'&&this.s.deskEnabled!==false&&this.s.monitorEnabled!==false){
     const r=element.getBoundingClientRect(),hits=(this.armHandles??[]).map(handle=>{const q=V(handle.point.x,handle.point.y+3,handle.point.z).project(this.camera);return {...handle,distance:Math.min(...[0,-20].map(offset=>Math.hypot(event.clientX-(r.left+(q.x*.5+.5)*r.width),event.clientY-(r.top+(-q.y*.5+.5)*r.height+offset))))};}).sort((a,b)=>a.distance-b.distance);
     const handle=hits.find(h=>h.distance<=20);
     if(handle){event.preventDefault();event.stopImmediatePropagation();this.controls.enabled=false;this.drag={pointer:event.pointerId,armJoint:handle.id};element.setPointerCapture(event.pointerId);element.style.cursor='grabbing';return;}
@@ -272,11 +317,12 @@ export class CockpitScene{
      if(!hit)continue;event.preventDefault();event.stopImmediatePropagation();this.controls.enabled=false;this.layoutTarget=candidate.id;this.onLayoutSelect?.(candidate.id);const center=candidate.furniture?item:item.center;this.drag={pointer:event.pointerId,target:candidate.id,start:{x:floor.x,z:floor.z},x:center.x,z:center.z,desktop:false};element.setPointerCapture(event.pointerId);element.style.cursor='grabbing';return;
     }
    }
-   const deskLocal=inversePoint(top,this.e.deskPose),ids=this.roomEditing?[]:this.e.desktopItems.map(item=>item.id),order=[...new Set([...(ids.includes(this.layoutTarget)?[this.layoutTarget]:[]),...(this.layoutTarget==='cockpit'?['cockpit']:[]),...(this.roomEditing?['desk','cockpit']:['arm','mouse','keyboard','pc','desk','cockpit','mat'])])];let target,start,x,z;
+   const deskLocal=inversePoint(top,this.e.deskPose),ids=this.roomEditing?[]:this.e.desktopItems.map(item=>item.id),order=[...new Set([...(this.roomEditing?[]:[...this.e.desktopItems].sort((a,b)=>b.height-a.height||(a.id===this.layoutTarget?-1:b.id===this.layoutTarget?1:0)).map(item=>item.id)),...(this.layoutTarget==='cockpit'?['cockpit']:[]),'desk','cockpit'])];let target,start,x,z;
    for(const id of order){
+    if((id==='desk'&&this.s.deskEnabled===false)||(id==='cockpit'&&this.s.cockpitEnabled===false)||(id==='arm'&&this.s.monitorEnabled===false))continue;
     const item=this.roomEditing?null:this.e.desktopItems.find(i=>i.id===id);
     if(item){const local=inversePoint(deskLocal,item.local);if(Math.abs(local.x)<=item.sizeX/2+1&&Math.abs(local.z)<=item.sizeZ/2+1){target=id;start=deskLocal;x=item.local.x;z=item.local.z;break;}}
-    else{const local=inversePoint(floor,id==='desk'?this.e.deskPose:this.e.rigPose),hit=id==='desk'?Math.abs(local.x)<=this.e.deskBounds.halfX&&Math.abs(local.z)<=this.e.deskBounds.halfZ:local.x>=this.e.rigLeft&&local.x<=this.e.rigRight&&local.z>=this.e.lowerZ&&local.z<=this.e.upperZ;if(hit){target=id;start=floor;x=id==='desk'?this.s.deskX:this.s.cockpitX;z=id==='desk'?this.s.deskZ:this.s.cockpitZ;break;}}
+    else if(id==='desk'||id==='cockpit'){const local=inversePoint(floor,id==='desk'?this.e.deskPose:this.e.rigPose),hit=id==='desk'?Math.abs(local.x)<=this.e.deskBounds.halfX&&Math.abs(local.z)<=this.e.deskBounds.halfZ:local.x>=this.e.rigLeft&&local.x<=this.e.rigRight&&local.z>=this.e.lowerZ&&local.z<=this.e.upperZ;if(hit){target=id;start=floor;x=id==='desk'?this.s.deskX:this.s.cockpitX;z=id==='desk'?this.s.deskZ:this.s.cockpitZ;break;}}
    }
    if(!target)return;event.preventDefault();event.stopImmediatePropagation();this.controls.enabled=false;this.layoutTarget=target;this.onLayoutSelect?.(target);this.drag={pointer:event.pointerId,target,start:{x:start.x,z:start.z},x,z,desktop:ids.includes(target)};element.setPointerCapture(event.pointerId);element.style.cursor='grabbing';
   },true);

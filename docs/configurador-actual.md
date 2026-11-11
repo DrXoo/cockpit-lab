@@ -21,6 +21,10 @@ Brazo articulado: dos tramos de longitud fija (total y reparto editables), giro 
 
 Cambio y freno de mano: derecha del piloto por defecto, con selector explícito de lado. Al mirar hacia +Z, la derecha del piloto es −X. Geometría, huella, interferencias y separación con HOTAS usan la misma referencia; el resumen y JSON guardan la elección. HOTAS representa joystick a la derecha y gases a la izquierda del piloto.
 
+Elevación del cockpit: **Cockpit → Base de aluminio → Elevación de la base** añade de 0 a 50 cm a todo el conjunto: chasis, asiento, piloto, volante, pedales y mandos. Conserva la postura y las distancias relativas; mesa, monitor y apoyos en el suelo mantienen su altura. Los controles de postura, las cotas de perfil y los resúmenes muestran alturas finales desde el suelo. El eje del perfil de base está a `10 + baseLift` cm; su cara inferior, a `6 + baseLift` cm.
+
+El campo opcional `baseLift` se guarda en cm en el JSON actual; los archivos anteriores usan 0 cm. Las alturas individuales guardadas conservan su referencia original y la conversión a altura desde el suelo es explícita. La elevación se conserva al cambiar de preset. Cuatro prolongaciones de perfil 40 × 40 definidas en el modelo, sobre los apoyos originales, alimentan escena, envolventes y despiece; su longitud es la elevación. Las uniones de esas prolongaciones y su arriostramiento quedan por definir y sus fijaciones no se incluyen en las estimaciones actuales. No se valida la resistencia de una base elevada. Las interferencias con mesa y muebles se recalculan a la nueva altura, con la tolerancia existente de 0,1 cm: el contacto dentro de esa tolerancia no se considera interferencia.
+
 
 ## Habitación
 

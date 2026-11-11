@@ -30,10 +30,12 @@ Las comprobaciones revisan la sintaxis del código propio y las pruebas de geome
 ## Qué incluye ahora
 
 - Presets GT, vuelo, híbrido y espacio mínimo.
+- Creación guiada: habitación, huecos, muebles, mesa y cockpit, con recuperación del progreso.
 - Medidas y posiciones del asiento, volante, pedales y soportes laterales.
 - Escritorio de tamaño regulable, PC, teclado, ratón y alfombrilla XL.
 - Brazo de monitor genérico articulado y posiciones de trabajo, cockpit y VR.
-- Habitación rectangular con puertas, ventanas, muebles y silla de PC.
+- Habitación rectangular con puertas, ventanas, muebles, estanterías de pared con altura de montaje y silla de PC.
+- Acceso a armarios empotrados de puertas correderas, con reserva libre delante y sin modelar el interior.
 - Vistas 3D, planta, mesa y perfil; distribución mediante arrastre.
 - Comprobaciones geométricas orientativas, resumen y exportación JSON/CSV.
 
@@ -43,7 +45,7 @@ La documentación detallada está en [docs/configurador-actual.md](docs/configur
 
 | Ruta | Responsabilidad |
 | --- | --- |
-| `dist/index.html`, `dist/styles.css` | Interfaz y estilos |
+| `dist/index.html`, `dist/styles.css`, `dist/ui.css` | Interfaz, estilos base y ajustes de legibilidad y navegación |
 | `dist/app.js` | Controles, estado y exportaciones |
 | `dist/model.js`, `dist/geometry.js` | Geometría, postura y cálculos del configurador |
 | `dist/room.js`, `dist/room-editor.js` | Modelo y edición de habitación y muebles |
@@ -63,9 +65,9 @@ El modelo actual aproxima los periféricos y las placas; estima fijaciones y no 
 
 ## Configuraciones y alojamiento
 
-Los diseños se guardan en el navegador bajo `cockpit-lab-v1` y se pueden exportar/importar en JSON. Cada origen (dominio y puerto) tiene su propio almacenamiento. Para llevar un diseño de la web alojada al entorno local, expórtalo allí e impórtalo aquí. Los archivos personales pueden guardarse en `configuraciones-personales/`, excluida de Git.
+Los proyectos se guardan en el navegador bajo `cockpit-lab-v2` y se pueden exportar/importar en JSON v2 con unidades explícitas en cm. Se conservan la importación de archivos v1 y la recuperación del guardado anterior `cockpit-lab-v1`. Los diseños anteriores entran directamente en el editor; los nuevos recuperan su paso de creación. Consulta [el recorrido y el adaptador de guardado](docs/creacion-guiada.md). Cada origen (dominio y puerto) tiene su propio almacenamiento. Para llevar un diseño de la web alojada al entorno local, expórtalo allí e impórtalo aquí. Los archivos personales pueden guardarse en `configuraciones-personales/`, excluida de Git.
 
-El repositorio es público. La publicación original en Sites mantiene su propio control de acceso y su proceso de despliegue. Un push a GitHub **no despliega** esa web. La etiqueta «Privado» de la interfaz describe el alojamiento original y no implementa autenticación en una copia servida por otro medio.
+El repositorio es público. La publicación original en Sites mantiene su propio control de acceso y su proceso de despliegue. Un push a GitHub **no despliega** esa web. El autoguardado de diseños es local al navegador y no implementa autenticación ni control de acceso.
 
 ## Dependencias y licencia
 

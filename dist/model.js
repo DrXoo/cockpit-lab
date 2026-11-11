@@ -3,7 +3,7 @@ import {normalizeRoom,evaluateRoom} from './room.js?v=9-office-chair';
 const rad=d=>d*Math.PI/180;
 // Coordinate system in cm: X lateral, Y from floor, Z from rear chassis edge.
 export const fields = {
- length:[125,180,1],width:[58,80,1],seatZ:[30,55,1],seatH:[24,48,1],recline:[10,35,1],height:[155,200,1],
+ length:[125,180,1],width:[58,80,1],baseLift:[0,50,1],seatZ:[30,55,1],seatH:[24,48,1],recline:[10,35,1],height:[155,200,1],
  wheelZ:[58,105,1],wheelH:[48,90,1],wheelTilt:[0,30,1],pedalZ:[90,162,1],pedalH:[10,36,1],pedalTilt:[0,35,1],
  hotasZ:[35,82,1],hotasH:[38,78,1],hotasOut:[8,28,1],stickZ:[48,90,1],stickH:[35,66,1],
  deskWidth:[120,200,5],deskDepth:[60,80,5],deskH:[66,131,0.5],deskGap:[0,80,1],deskX:[-1500,1500,1],deskZ:[-1500,1500,1],deskAngle:[0,355,5],cockpitX:[-1500,1500,1],cockpitZ:[-1500,1500,1],cockpitAngle:[0,355,5],armReach:[40,120,1],armSplit:[20,80,1],armBaseAngle:[-180,180,.1],armElbowAngle:[-180,180,.1],monitorYaw:[-180,180,.1],clampX:[-34,34,0.1],clampZ:[-94,94,0.1],monitorAhead:[12,55,1],monitorH:[70,140,1],monitorInches:[24,49,1],armMinH:[5,40,1],armMaxH:[25,75,1],
@@ -11,7 +11,8 @@ export const fields = {
  roomX:[-1000,1000,1],roomZ:[-1000,1000,1],roomW:[120,1200,1],roomD:[120,1200,1],roomH:[180,400,1],aisle:[40,120,1]
 };
 export const defaults = {
- length:145,width:64,seatZ:40,seatH:32,recline:20,height:178,
+ deskEnabled:true,cockpitEnabled:true,monitorEnabled:true,keyboardEnabled:true,pcEnabled:true,mouseEnabled:true,matEnabled:true,
+ length:145,width:64,baseLift:0,seatZ:40,seatH:32,recline:20,height:178,
  wheelZ:74,wheelH:68,wheelTilt:15,pedalZ:118,pedalH:18,pedalTilt:18,
  wheel:true,hotas:false,centerStick:false,shifter:true,handbrake:true,drivingSide:'right',feet:'level',
  hotasZ:53,hotasH:53,hotasOut:15,stickZ:68,stickH:48,
@@ -27,22 +28,33 @@ export const presets={
 };
 export {clamp,round,transformPoint,inversePoint,rectangle,overlapDepth,polygonDistance};
 export const dist=(a,b)=>Math.hypot(a.z-b.z,a.y-b.y);
+// Alturas guardadas respecto al cockpit original; la interfaz muestra alturas desde suelo.
+export const rigHeightKeys=['seatH','wheelH','pedalH','hotasH','stickH'];
+export const rigLift=s=>s.baseLift??0;
+export const floorHeight=(s,key)=>s[key]+rigLift(s);
+export function setRigHeight(s,key,value){return {...s,[key]:value-rigLift(s)};}
+// Cuatro prolongaciones entre los apoyos originales (Y=6) y la cara inferior del chasis.
+// Las piezas se definen aquí y alimentan escena, envolventes y lista de cortes.
+export function baseSupports(s){
+ const length=rigLift(s);if(s.cockpitEnabled===false||length<=0)return [];
+ return [-s.width/2+2,s.width/2-2].flatMap(x=>[10,s.length-10].map(z=>({x,z,y:6+length/2,length,profile:'40 × 40'})));
+}
 export function pose(s,target){return target==='desk'?{x:s.deskX,z:s.deskZ,angle:s.deskAngle}:{x:s.cockpitX,z:s.cockpitZ,angle:s.cockpitAngle};}
 export function layoutPreset(s,name){const c=pose(s,'cockpit'),offset=s.width/2+s.hotasOut+9+(s.deskDepth??80)/2+6;const local=name==='left'?{x:-offset,z:95}:name==='front'?{x:0,z:s.length+(s.deskDepth??80)/2+6}:{x:offset,z:95},p=transformPoint(local,c);return {...s,deskX:round(p.x),deskZ:round(p.z),deskAngle:(c.angle+(name==='left'?180:name==='front'?270:0))%360};}
 // Forward is +Z and up is +Y: the seated driver's right is -X.
 export function drivingMount(s){const sign=s.drivingSide==='left'?1:-1;return {sign,x:sign*(s.width/2+s.hotasOut),z:s.hotasZ-7};}
 export const desktopTargets=[{id:'arm',label:'Anclaje del brazo',prefix:'clamp'},{id:'keyboard',label:'Teclado',prefix:'keyboard'},{id:'pc',label:'PC / torre',prefix:'pc'},{id:'mouse',label:'Ratón',prefix:'mouse'},{id:'mat',label:'Alfombrilla XL',prefix:'mat'}];
 export function deskBounds(s){const width=s.deskWidth??defaults.deskWidth,depth=s.deskDepth??defaults.deskDepth,halfX=depth/2,halfZ=width/2,frameWidth=clamp(width-20,110,190);return {width,depth,halfX,halfZ,anchorX:halfX-6,anchorZ:halfZ-6,footDepth:66,footprintHalfX:Math.max(halfX,33),frameWidth,columnZ:frameWidth/2-5};}
-export function fieldSpec(key,s){const b=deskBounds(s);if(key==='clampX')return [-b.anchorX,b.anchorX,.1];if(key==='clampZ')return [-b.anchorZ,b.anchorZ,.1];if(/^(keyboard|pc|mouse|mat)X$/.test(key))return [-b.halfX,b.halfX,.1];if(/^(keyboard|pc|mouse|mat)Z$/.test(key))return [-b.halfZ,b.halfZ,.1];return fields[key];}
+export function fieldSpec(key,s){const b=deskBounds(s);if(rigHeightKeys.includes(key)){const [min,max,step]=fields[key];return [min+rigLift(s),max+rigLift(s),step];}if(key==='clampX')return [-b.anchorX,b.anchorX,.1];if(key==='clampZ')return [-b.anchorZ,b.anchorZ,.1];if(/^(keyboard|pc|mouse|mat)X$/.test(key))return [-b.halfX,b.halfX,.1];if(/^(keyboard|pc|mouse|mat)Z$/.test(key))return [-b.halfZ,b.halfZ,.1];return fields[key];}
 export function clampEdge(s){const b=deskBounds(s),candidates=[['xmin',Math.abs(s.clampX+b.anchorX)],['xmax',Math.abs(s.clampX-b.anchorX)],['zmin',Math.abs(s.clampZ+b.anchorZ)],['zmax',Math.abs(s.clampZ-b.anchorZ)]];return candidates.sort((a,b)=>Math.abs(a[1]-b[1])<.001?(a[0]===s.clampSide?-1:b[0]===s.clampSide?1:0):a[1]-b[1])[0][0];}
-export function getDesktopItems(s){
+export function getDesktopItems(s,{includeInactive=false}={}){
  const bounds=deskBounds(s),sizes={arm:[8,8,3],keyboard:[s.keyboardDepth,s.keyboardWidth,2.2],pc:[s.pcWidth,s.pcDepth,s.pcHeight],mouse:[12,7,3.5],mat:[s.matDepth,s.matWidth,.35]};
- return desktopTargets.map(target=>{const [sizeX,sizeZ,height]=sizes[target.id],local={x:s[target.prefix+'X'],z:s[target.prefix+'Z'],angle:s[target.prefix+'Angle']??0},localPolygon=rectangle(-sizeX/2,sizeX/2,-sizeZ/2,sizeZ/2,local),world=transformPoint(local,pose(s,'desk')),polygon=localPolygon.map(p=>transformPoint(p,pose(s,'desk'))),outside=localPolygon.some(p=>Math.abs(p.x)>bounds.halfX+.01||Math.abs(p.z)>bounds.halfZ+.01);return {...target,sizeX,sizeZ,height,local,localPolygon,world,polygon,outside};});
+ return desktopTargets.filter(target=>includeInactive||(s.deskEnabled!==false&&s[target.id==='arm'?'monitorEnabled':target.id+'Enabled']!==false)).map(target=>{const [sizeX,sizeZ,height]=sizes[target.id],local={x:s[target.prefix+'X'],z:s[target.prefix+'Z'],angle:s[target.prefix+'Angle']??0},localPolygon=rectangle(-sizeX/2,sizeX/2,-sizeZ/2,sizeZ/2,local),world=transformPoint(local,pose(s,'desk')),polygon=localPolygon.map(p=>transformPoint(p,pose(s,'desk'))),outside=localPolygon.some(p=>Math.abs(p.x)>bounds.halfX+.01||Math.abs(p.z)>bounds.halfZ+.01);return {...target,sizeX,sizeZ,height,local,localPolygon,world,polygon,outside};});
 }
 export function placeDeskItem(s,id,x,z){
  const target=desktopTargets.find(t=>t.id===id);if(!target)return s;const result={...s},b=deskBounds(s);
  if(id==='arm'){result.clampX=round(clamp(x,-b.anchorX,b.anchorX));result.clampZ=round(clamp(z,-b.anchorZ,b.anchorZ));if(s.clampMount==='clamp'){const edge=clampEdge(result);result.clampSide=edge;if(edge==='xmin')result.clampX=-b.anchorX;if(edge==='xmax')result.clampX=b.anchorX;if(edge==='zmin')result.clampZ=-b.anchorZ;if(edge==='zmax')result.clampZ=b.anchorZ;}return result;}
- const item=getDesktopItems(s).find(t=>t.id===id),angle=rad(item.local.angle),halfX=Math.abs(Math.cos(angle))*item.sizeX/2+Math.abs(Math.sin(angle))*item.sizeZ/2,halfZ=Math.abs(Math.sin(angle))*item.sizeX/2+Math.abs(Math.cos(angle))*item.sizeZ/2;
+ const item=getDesktopItems(s,{includeInactive:true}).find(t=>t.id===id),angle=rad(item.local.angle),halfX=Math.abs(Math.cos(angle))*item.sizeX/2+Math.abs(Math.sin(angle))*item.sizeZ/2,halfZ=Math.abs(Math.sin(angle))*item.sizeX/2+Math.abs(Math.cos(angle))*item.sizeZ/2;
  const limitX=Math.floor(Math.max(0,b.halfX-halfX)*10+1e-7)/10,limitZ=Math.floor(Math.max(0,b.halfZ-halfZ)*10+1e-7)/10;result[target.prefix+'X']=round(clamp(x,-limitX,limitX));result[target.prefix+'Z']=round(clamp(z,-limitZ,limitZ));return result;
 }
 export function resizeDesk(s,width,depth){
@@ -70,8 +82,9 @@ export function armKinematics(s,anchor,target=null){
 }
 export function monitorGeometry(s){
  const anchor=transformPoint({x:s.clampX,z:s.clampZ,y:s.deskH},pose(s,'desk'));
- const target=s.monitorMode==='manual'?null:s.monitorMode==='cockpit'?transformPoint({x:0,z:s.wheelZ+s.monitorAhead,y:s.monitorH},pose(s,'cockpit')):transformPoint({x:-10,z:0,y:s.monitorH},pose(s,'desk'));
- const arm=armKinematics(s,anchor,target),point=target??arm.end,angle=s.monitorMode==='manual'?s.deskAngle+s.monitorYaw:s.monitorMode==='cockpit'?s.cockpitAngle:s.deskAngle+90;
+ const mode=s.cockpitEnabled===false&&s.monitorMode==='cockpit'?'desk':s.monitorMode;
+ const target=mode==='manual'?null:mode==='cockpit'?transformPoint({x:0,z:s.wheelZ+s.monitorAhead,y:s.monitorH},pose(s,'cockpit')):transformPoint({x:-10,z:0,y:s.monitorH},pose(s,'desk'));
+ const arm=armKinematics(s,anchor,target),point=target??arm.end,angle=mode==='manual'?s.deskAngle+s.monitorYaw:mode==='cockpit'?s.cockpitAngle:s.deskAngle+90;
  return {anchor,arm,point,angle};
 }
 export function setMonitorMode(s,mode){
@@ -112,11 +125,21 @@ export function anatomy(s){
  const hipAngle=Math.acos(clamp((v1.z*v2.z+v1.y*v2.y)/(Math.hypot(v1.z,v1.y)*Math.hypot(v2.z,v2.y)),-1,1))*180/Math.PI;
  return {hip,shoulder,eye,foot,hand,legs,arms,hipAngle};
 }
+function desktopAccessories(s){
+ if(s.deskEnabled===false)return [];
+ const items=[];
+ if(s.matEnabled!==false)items.push({name:'Alfombrilla XL',qty:1,note:`${s.matWidth} × ${s.matDepth} cm; escritorio`});
+ if(s.monitorEnabled!==false)items.push({name:'Brazo monitor para mesa',qty:1,note:`Alcance declarado ≥ ${s.armReach} cm; VESA y carga por verificar`});
+ return items;
+}
 export function getParts(s){
+ if(s.cockpitEnabled===false)return {parts:[],accessories:desktopAccessories(s),totalMm:0,cuts:0,joints:0};
  const b=s.width-8,wh=s.wheelH-22,seatPost=Math.max(4,s.seatH-18),parts=[];
  const add=(name,profile,qty,cm)=>parts.push({name,profile,qty,mm:Math.round(cm*10),total:Math.round(cm*10)*qty});
  add('Largueros de base','40 × 80',2,s.length);
  add('Travesaños de base','40 × 80',3,b);
+ const supports=baseSupports(s);
+ if(supports.length)add('Prolongaciones de base',supports[0].profile,supports.length,supports[0].length);
  add('Travesaños de asiento','40 × 40',2,b);
  add('Apoyos de asiento','40 × 40',4,seatPost);
  add('Largueros de pedalera','40 × 40',2,38);
@@ -139,12 +162,12 @@ export function getParts(s){
  if(s.hotas)accessories.push({name:'Placas HOTAS desmontables',qty:2,note:'180 × 250 mm; taladrado según mandos'});
  if(s.centerStick)accessories.push({name:'Placa joystick central',qty:1,note:'180 × 200 mm; montaje desmontable'});
  if(s.shifter||s.handbrake)accessories.push({name:'Placa cambio / freno de mano',qty:1,note:'200 × 300 mm; patrones por verificar'});
- accessories.push({name:'Alfombrilla XL',qty:1,note:`${s.matWidth} × ${s.matDepth} cm; escritorio`});
- accessories.push({name:'Brazo monitor para mesa',qty:1,note:`Alcance declarado ≥ ${s.armReach} cm; VESA y carga por verificar`});
+ accessories.push(...desktopAccessories(s));
  return {parts,accessories,totalMm:parts.reduce((a,p)=>a+p.total,0),cuts:parts.reduce((a,p)=>a+p.qty,0),joints};
 }
 export function evaluate(s){
- const body=anatomy(s),hasDriving=s.shifter||s.handbrake,driving=drivingMount(s),rigPose=pose(s,'cockpit'),deskPose=pose(s,'desk');
+ const hasRig=s.cockpitEnabled!==false,hasDesk=s.deskEnabled!==false,hasMonitor=hasDesk&&s.monitorEnabled!==false;
+ const body=anatomy(s),hasDriving=hasRig&&(s.shifter||s.handbrake),driving=drivingMount(s),rigPose=pose(s,'cockpit'),deskPose=pose(s,'desk');
  const flightExtra=s.hotas?s.hotasOut+9:0,drivingExtra=hasDriving?s.hotasOut+10:0;
  const rigLeft=-s.width/2-Math.max(flightExtra,driving.sign<0?drivingExtra:0),rigRight=s.width/2+Math.max(flightExtra,driving.sign>0?drivingExtra:0);
  const bounds=deskBounds(s),deskLeft=-bounds.halfX,deskRight=bounds.halfX,deskBack=-bounds.halfZ,deskFront=bounds.halfZ;
@@ -154,22 +177,25 @@ export function evaluate(s){
  const pedalEnd=s.pedalZ+18*Math.cos(rad(s.pedalTilt)),overhang=pedalEnd>s.length;
  const seatBackZ=s.seatZ-12-Math.sin(rad(s.recline))*64-Math.cos(rad(s.recline))*4.5;
  const lowerZ=Math.min(0,seatBackZ),upperZ=Math.max(s.length,pedalEnd,s.wheel?s.wheelZ+32:0);
- const rigPolygon=rectangle(rigLeft,rigRight,lowerZ,upperZ,rigPose),deskPolygon=rectangle(-bounds.footprintHalfX,bounds.footprintHalfX,deskBack,deskFront,deskPose),tabletopPolygon=rectangle(deskLeft,deskRight,deskBack,deskFront,deskPose),monitorPolygon=rectangle(-monitorW/2,monitorW/2,-2,2,{...monitorPoint,angle:monitorAngle});
+ const rigPolygon=hasRig?rectangle(rigLeft,rigRight,lowerZ,upperZ,rigPose):[],deskPolygon=hasDesk?rectangle(-bounds.footprintHalfX,bounds.footprintHalfX,deskBack,deskFront,deskPose):[],tabletopPolygon=hasDesk?rectangle(deskLeft,deskRight,deskBack,deskFront,deskPose):[],monitorPolygon=hasMonitor?rectangle(-monitorW/2,monitorW/2,-2,2,{...monitorPoint,angle:monitorAngle}):[];
  const desktopItems=getDesktopItems(s);
- const allPoints=[...rigPolygon,...deskPolygon,...monitorPolygon,...desktopItems.flatMap(item=>item.polygon),armPose.elbow,armPose.end],allLeft=Math.min(...allPoints.map(p=>p.x)),allRight=Math.max(...allPoints.map(p=>p.x)),allBack=Math.min(...allPoints.map(p=>p.z)),allFront=Math.max(...allPoints.map(p=>p.z));
+ const setupPoints=[...rigPolygon,...deskPolygon,...monitorPolygon,...desktopItems.flatMap(item=>item.polygon),...(hasMonitor?[armPose.elbow,armPose.end]:[])];
+ const allPoints=setupPoints.length?setupPoints:[{x:s.roomX,z:s.roomZ}],allLeft=Math.min(...allPoints.map(p=>p.x)),allRight=Math.max(...allPoints.map(p=>p.x)),allBack=Math.min(...allPoints.map(p=>p.z)),allFront=Math.max(...allPoints.map(p=>p.z));
  const spaceW=allRight-allLeft,spaceD=allFront-allBack,freeW=s.roomW-spaceW,freeD=s.roomD-spaceD;
  const roomBounds={left:s.roomX,right:s.roomX+s.roomW,back:s.roomZ,front:s.roomZ+s.roomD};
  const clearances={left:allLeft-roomBounds.left,right:roomBounds.right-allRight,back:allBack-roomBounds.back,front:roomBounds.front-allFront};
  const roomFits=Object.values(clearances).every(gap=>gap>=-.01);
- const sideGap=polygonDistance(rigPolygon,deskPolygon);
+ const sideGap=hasRig&&hasDesk?polygonDistance(rigPolygon,deskPolygon):0;
  const solid=(x0,x1,z0,z1,y0,y1,placement)=>({polygon:rectangle(x0,x1,z0,z1,placement),y0,y1});
- const rigSolids=[solid(-s.width/2,s.width/2,0,s.length,6,14,rigPose),solid(-25,25,seatBackZ,s.seatZ+25,s.seatH-8,s.seatH+64,rigPose),solid(-s.width/2+4,s.width/2-4,s.pedalZ-19,s.pedalZ+19,s.pedalH-5,s.pedalH+24,rigPose)];
- if(s.wheel){rigSolids.push(solid(-16,16,s.wheelZ-3,s.wheelZ+32,s.wheelH-10,s.wheelH+16,rigPose));for(const sign of [-1,1]){const x=sign*(s.width/2-2);rigSolids.push(solid(x-4,x+4,s.wheelZ+15,s.wheelZ+21,14,s.wheelH-8,rigPose));}}
- if(s.hotas)for(const sign of [-1,1]){const x=sign*(s.width/2+s.hotasOut),z=s.hotasZ+(sign===driving.sign&&hasDriving?24:0);rigSolids.push(solid(x-9,x+9,z-12.5,z+12.5,s.hotasH-4,s.hotasH+22,rigPose));}
+ const rigSolids=hasRig?[solid(-s.width/2,s.width/2,0,s.length,6,14,rigPose),solid(-25,25,seatBackZ,s.seatZ+25,s.seatH-8,s.seatH+64,rigPose),solid(-s.width/2+4,s.width/2-4,s.pedalZ-19,s.pedalZ+19,s.pedalH-5,s.pedalH+24,rigPose)]:[];
+ if(hasRig&&s.wheel){rigSolids.push(solid(-16,16,s.wheelZ-3,s.wheelZ+32,s.wheelH-10,s.wheelH+16,rigPose));for(const sign of [-1,1]){const x=sign*(s.width/2-2);rigSolids.push(solid(x-4,x+4,s.wheelZ+15,s.wheelZ+21,14,s.wheelH-8,rigPose));}}
+ if(hasRig&&s.hotas)for(const sign of [-1,1]){const x=sign*(s.width/2+s.hotasOut),z=s.hotasZ+(sign===driving.sign&&hasDriving?24:0);rigSolids.push(solid(x-9,x+9,z-12.5,z+12.5,s.hotasH-4,s.hotasH+22,rigPose));}
  if(hasDriving){const {x,z}=driving;rigSolids.push(solid(x-10,x+10,z-15,z+15,s.hotasH-4,s.hotasH+25,rigPose));}
- if(s.centerStick)rigSolids.push(solid(-9,9,s.stickZ-10,s.stickZ+10,s.stickH-3,s.stickH+22,rigPose));
- const deskSolids=[solid(deskLeft,deskRight,deskBack,deskFront,s.deskH-2.5,s.deskH,deskPose)];
- for(const z of [-bounds.columnZ,bounds.columnZ]){deskSolids.push(solid(0,10,z-4.5,z+4.5,6,s.deskH-4,deskPose));deskSolids.push(solid(-33,33,z-4,z+4,1,6,deskPose));}
+ if(hasRig&&s.centerStick)rigSolids.push(solid(-9,9,s.stickZ-10,s.stickZ+10,s.stickH-3,s.stickH+22,rigPose));
+ for(const volume of rigSolids){volume.y0+=rigLift(s);volume.y1+=rigLift(s);}
+ for(const p of baseSupports(s))rigSolids.push(solid(p.x-2,p.x+2,p.z-2,p.z+2,p.y-p.length/2,p.y+p.length/2,rigPose));
+ const deskSolids=hasDesk?[solid(deskLeft,deskRight,deskBack,deskFront,s.deskH-2.5,s.deskH,deskPose)]:[];
+ for(const z of hasDesk?[-bounds.columnZ,bounds.columnZ]:[]){deskSolids.push(solid(0,10,z-4.5,z+4.5,6,s.deskH-4,deskPose));deskSolids.push(solid(-33,33,z-4,z+4,1,6,deskPose));}
  let collisionCount=0;for(const r of rigSolids)for(const d of deskSolids)if(Math.min(r.y1,d.y1)-Math.max(r.y0,d.y0)>.1&&overlapDepth(r.polygon,d.polygon)>.1)collisionCount++;
  const deskCollision=collisionCount>0;
  const bodyCheck=[];
@@ -179,7 +205,7 @@ export function evaluate(s){
  if(s.wheel)bodyCheck.push(check('elbow','Ángulo de codo',body.arms.reachable?`${Math.round(body.arms.angle)}°`:'Sin alcance',!body.arms.reachable?'error':body.arms.angle<85||body.arms.angle>140?'warning':'ok','Guía 85–140° · agarre lateral'));
  if(s.hotas){const d=Math.hypot(s.hotasZ-body.shoulder.z,s.hotasH+18-body.shoulder.y,s.width/2+s.hotasOut-18);bodyCheck.push(check('hotas','Alcance HOTAS',`${Math.round(d)} cm`,d>s.height*.332?'error':d>s.height*.30?'warning':'ok','Hombro a empuñadura · aproximado'));}
  if(s.centerStick){const d=Math.hypot(s.stickZ-body.shoulder.z,s.stickH+14-body.shoulder.y);bodyCheck.push(check('stick','Joystick central',`${Math.round(d)} cm`,d>s.height*.332?'error':'ok','Hombro a empuñadura · aproximado'));}
- if(s.monitorMode==='cockpit'){const eye=transformPoint({x:0,...body.eye},rigPose),d=Math.hypot(monitorPoint.x-eye.x,monitorPoint.z-eye.z,monitorPoint.y-eye.y);bodyCheck.push(check('eyes','Ojos a pantalla',`${Math.round(d)} cm`,d<50||d>110?'warning':'ok','Distancia geométrica · guía 50–110 cm'));}
+ if(hasRig&&hasMonitor&&s.monitorMode==='cockpit'){const eye=transformPoint({x:0,...body.eye,y:body.eye.y+rigLift(s)},rigPose),d=Math.hypot(monitorPoint.x-eye.x,monitorPoint.z-eye.z,monitorPoint.y-eye.y);bodyCheck.push(check('eyes','Ojos a pantalla',`${Math.round(d)} cm`,d<50||d>110?'warning':'ok','Distancia geométrica · guía 50–110 cm'));}
  const spaceCheck=[check('side','Separación en planta',sideGap<0?`${Math.ceil(-sideGap)} cm de solape`:`${Math.round(sideGap)} cm`,sideGap<5?'warning':'ok',sideGap<0?'Huellas superpuestas; comprueba las alturas':'Distancia mínima entre huellas giradas')];
  spaceCheck.push(check('collision','Interferencias',deskCollision?`${collisionCount} cruce${collisionCount>1?'s':''}`:'Sin cruce',deskCollision?'error':'ok','Volúmenes aproximados · giro incluido'));
 
@@ -187,31 +213,34 @@ export function evaluate(s){
   spaceCheck.push(check('arm','Brazo de monitor',armPose.reachable?(s.monitorMode==='manual'?'Manual':'Alcanza'):'No alcanza',!armPose.reachable?'error':reach>s.armReach*.9?'warning':'ok',`${Math.round(reach)} cm en planta · rango ${round(armPose.minReach)}–${s.armReach} cm; tramos ${round(armPose.first)} + ${round(armPose.second)} cm`));
   spaceCheck.push(check('lift','Altura del brazo',`${Math.round(lift)} cm`,lift<s.armMinH||lift>s.armMaxH?'error':'ok',`Centro VESA sobre tablero · ${s.armMinH}–${s.armMaxH} cm`));
   if(s.monitorMode==='cockpit'){
-   const monitorClearance=s.monitorH-monitorH/2-(s.wheelH+16);
+   const monitorClearance=s.monitorH-monitorH/2-(floorHeight(s,'wheelH')+16);
    spaceCheck.push(check('screen','Pantalla / volante',s.wheel?`${Math.round(monitorClearance)} cm`:'Libre',s.wheel&&monitorClearance<2?'warning':'ok','Separación vertical de envolventes'));
   }
  }
- if(s.monitorMode==='vr')spaceCheck.push(check('vr','Modo VR','Frontal libre','ok','Monitor aparcado sobre la mesa'));
+ if(s.monitorMode==='vr'&&hasMonitor)spaceCheck.push(check('vr','Modo VR','Frontal libre','ok','Monitor aparcado sobre la mesa'));
  const outsideItems=desktopItems.filter(item=>item.outside),hardItems=desktopItems.filter(item=>item.id!=='mat'),desktopOverlaps=[];
  for(let i=0;i<hardItems.length;i++)for(let j=i+1;j<hardItems.length;j++)if(overlapDepth(hardItems[i].localPolygon,hardItems[j].localPolygon)>.2)desktopOverlaps.push(`${hardItems[i].label} / ${hardItems[j].label}`);
- const mat=desktopItems.find(item=>item.id==='mat'),mouse=desktopItems.find(item=>item.id==='mouse'),mouseOnMat=mouse.localPolygon.every(p=>{const local=inversePoint(p,mat.local);return Math.abs(local.x)<=mat.sizeX/2+.01&&Math.abs(local.z)<=mat.sizeZ/2+.01;});
+ const mat=desktopItems.find(item=>item.id==='mat'),mouse=desktopItems.find(item=>item.id==='mouse'),mouseOnMat=!!mat&&!!mouse&&mouse.localPolygon.every(p=>{const local=inversePoint(p,mat.local);return Math.abs(local.x)<=mat.sizeX/2+.01&&Math.abs(local.z)<=mat.sizeZ/2+.01;});
  const desktopChecks=[check('desktop-fit','Dentro del tablero',outsideItems.length?'Revisar bordes':'Todo dentro',outsideItems.length?'warning':'ok',outsideItems.length?outsideItems.map(i=>i.label).join(', '):`Envolventes y giros sobre ${s.deskWidth} × ${s.deskDepth} cm`),check('desktop-overlap','Objetos sobre la mesa',desktopOverlaps.length?`${desktopOverlaps.length} solape${desktopOverlaps.length>1?'s':''}`:'Sin solapes',desktopOverlaps.length?'warning':'ok',desktopOverlaps.length?desktopOverlaps.join(' · '):'La alfombrilla admite objetos encima'),check('mouse-mat','Ratón y alfombrilla',mouseOnMat?'Dentro':'Fuera',mouseOnMat?'ok':'warning',`${s.matWidth} × ${s.matDepth} cm · cobertura del ratón`)];
  const edgeDistance=Math.min(Math.abs(s.clampX+bounds.anchorX),Math.abs(s.clampX-bounds.anchorX),Math.abs(s.clampZ+bounds.anchorZ),Math.abs(s.clampZ-bounds.anchorZ));
  desktopChecks.push(check('mount','Fijación del brazo',s.clampMount==='grommet'?'Pasante':edgeDistance<.1?'En borde':'Revisar',s.clampMount==='clamp'&&edgeDistance>=.1?'warning':'ok',s.clampMount==='grommet'?'Requiere taladro o pasacables compatible':'Mordaza al borde · compatibilidad por comprobar'));
 
  const segmentSolid=(a,b,r,y)=>{const length=Math.hypot(b.x-a.x,b.z-a.z),angle=Math.atan2(-(b.z-a.z),b.x-a.x)*180/Math.PI;return solid(-length/2,length/2,-r,r,y-3,y+3,{x:(a.x+b.x)/2,z:(a.z+b.z)/2,angle});};
- const roomSolids=[...rigSolids.map(v=>({...v,label:'Cockpit'})),...deskSolids.map(v=>({...v,label:'Escritorio'})),...desktopItems.filter(v=>v.id!=='mat').map(v=>({polygon:v.polygon,y0:s.deskH,y1:s.deskH+v.height,label:v.label})),{polygon:monitorPolygon,y0:s.monitorH-monitorH/2,y1:s.monitorH+monitorH/2,label:'Monitor'},...[[clampPoint,armPose.elbow],[armPose.elbow,armPose.end]].map(([a,b])=>({...segmentSolid(a,b,1.5,s.monitorH),label:'Brazo de monitor'}))];
- const room=evaluateRoom(s,roomSolids),bandCandidates=Object.entries(clearances).filter(([,gap])=>gap>=s.aisle).map(([side])=>({side,polygon:side==='left'?rectangle(allLeft-s.aisle,allLeft,allBack,allFront,{x:0,z:0,angle:0}):side==='right'?rectangle(allRight,allRight+s.aisle,allBack,allFront,{x:0,z:0,angle:0}):side==='back'?rectangle(allLeft,allRight,allBack-s.aisle,allBack,{x:0,z:0,angle:0}):rectangle(allLeft,allRight,allFront,allFront+s.aisle,{x:0,z:0,angle:0})}));
+ const roomSolids=[...rigSolids.map(v=>({...v,label:'Cockpit'})),...deskSolids.map(v=>({...v,label:'Escritorio'})),...desktopItems.filter(v=>v.id!=='mat').map(v=>({polygon:v.polygon,y0:s.deskH,y1:s.deskH+v.height,label:v.label})),...(hasMonitor?[{polygon:monitorPolygon,y0:s.monitorH-monitorH/2,y1:s.monitorH+monitorH/2,label:'Monitor'},...[[clampPoint,armPose.elbow],[armPose.elbow,armPose.end]].map(([a,b])=>({...segmentSolid(a,b,1.5,s.monitorH),label:'Brazo de monitor'}))]:[])];
+ const room=evaluateRoom(s,roomSolids),bandCandidates=(setupPoints.length?Object.entries(clearances):[]).filter(([,gap])=>gap>=s.aisle).map(([side])=>({side,polygon:side==='left'?rectangle(allLeft-s.aisle,allLeft,allBack,allFront,{x:0,z:0,angle:0}):side==='right'?rectangle(allRight,allRight+s.aisle,allBack,allFront,{x:0,z:0,angle:0}):side==='back'?rectangle(allLeft,allRight,allBack-s.aisle,allBack,{x:0,z:0,angle:0}):rectangle(allLeft,allRight,allFront,allFront+s.aisle,{x:0,z:0,angle:0})}));
  const freeBand=bandCandidates.find(b=>!room.furniture.some(f=>overlapDepth(b.polygon,f.polygon)>.1)&&!room.features.filter(f=>f.type==='door').some(f=>f.sectors.some(p=>overlapDepth(b.polygon,p)>.1)));
  const aisleFits=roomFits&&!!freeBand;
  const extra=[];
- if(overhang)extra.push(check('overhang','Pedalera',`Sobresale ${Math.ceil(pedalEnd-s.length)} cm`,'error','Alarga el chasis o retrasa la pedalera'));
- if(seatBackZ<0)extra.push(check('seatback','Respaldo',`Sobresale ${Math.ceil(-seatBackZ)} cm`,'warning','La huella del conjunto incluye este saliente'));
- if(s.roomEnabled!==false&&!roomFits)extra.push(check('room','Zona disponible','Fuera de zona','error','Mueve los elementos o ajusta el origen y tamaño de la zona'));
- else if(s.roomEnabled!==false)extra.push(check('room','Reserva lateral',aisleFits?`${s.aisle} cm posibles`:'Insuficiente',aisleFits?'ok':'warning','Banda sin muebles ni barrido de puerta; no verifica una ruta de acceso'));
- if(s.centerStick&&s.wheel&&Math.abs(s.stickZ-s.wheelZ)<24)extra.push(check('mode','Mandos centrales','Revisar montaje','warning','El joystick y volante comparten zona: desmontaje alterno'));
+ if(hasRig&&overhang)extra.push(check('overhang','Pedalera',`Sobresale ${Math.ceil(pedalEnd-s.length)} cm`,'error','Alarga el chasis o retrasa la pedalera'));
+ if(hasRig&&seatBackZ<0)extra.push(check('seatback','Respaldo',`Sobresale ${Math.ceil(-seatBackZ)} cm`,'warning','La huella del conjunto incluye este saliente'));
+ if(setupPoints.length&&s.roomEnabled!==false&&!roomFits)extra.push(check('room','Zona disponible','Fuera de zona','error','Mueve los elementos o ajusta el origen y tamaño de la zona'));
+ else if(setupPoints.length&&s.roomEnabled!==false)extra.push(check('room','Reserva lateral',aisleFits?`${s.aisle} cm posibles`:'Insuficiente',aisleFits?'ok':'warning','Banda sin muebles ni barrido de puerta; no verifica una ruta de acceso'));
+ if(hasRig&&s.centerStick&&s.wheel&&Math.abs(s.stickZ-s.wheelZ)<24)extra.push(check('mode','Mandos centrales','Revisar montaje','warning','El joystick y volante comparten zona: desmontaje alterno'));
+ if(!hasRig)bodyCheck.length=0;
+ for(let i=spaceCheck.length-1;i>=0;i--){const id=spaceCheck[i].id;if((['side','collision'].includes(id)&&!(hasRig&&hasDesk))||(['arm','lift','vr'].includes(id)&&!hasMonitor)||(id==='screen'&&!(hasRig&&hasMonitor)))spaceCheck.splice(i,1);}
+ for(let i=desktopChecks.length-1;i>=0;i--){const id=desktopChecks[i].id;if(!hasDesk||(id==='mouse-mat'&&!(mat&&mouse))||(id==='mount'&&!hasMonitor))desktopChecks.splice(i,1);}
  const checks=[...bodyCheck,...spaceCheck,...desktopChecks,...extra,...room.checks],errors=checks.filter(c=>c.level==='error').length,warnings=checks.filter(c=>c.level==='warning').length;
- return {body,bodyCheck,spaceCheck,desktopChecks,desktopItems,desktopOverlaps,mouseOnMat,extra,checks,errors,warnings,rigLeft,rigRight,deskLeft,deskRight,deskBack,deskFront,monitorW,monitorH,clampPoint,monitorPoint,reach,lift,spaceW,spaceD,allLeft,allRight,allBack,allFront,freeW,freeD,lowerZ,upperZ,sideGap,rigPose,deskPose,rigPolygon,deskPolygon,tabletopPolygon,deskBounds:bounds,monitorAngle,armPose,drivingMount:driving,collisionCount,roomFits,roomBounds,clearances,aisleFits,freeBand,room,...getParts(s)};
+ return {body:hasRig?body:null,bodyCheck,spaceCheck,desktopChecks,desktopItems,desktopOverlaps,mouseOnMat,extra,checks,errors,warnings,rigLeft,rigRight,deskLeft,deskRight,deskBack,deskFront,monitorW,monitorH,clampPoint,monitorPoint,reach,lift,spaceW,spaceD,allLeft,allRight,allBack,allFront,freeW,freeD,lowerZ,upperZ,sideGap,rigPose,deskPose,rigPolygon,deskPolygon,tabletopPolygon,deskBounds:bounds,monitorAngle,armPose,drivingMount:driving,collisionCount,roomFits,roomBounds,clearances,aisleFits,freeBand,room,...getParts(s)};
 }
 export function sanitize(input){
  if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Configuración inválida');
@@ -219,7 +248,7 @@ export function sanitize(input){
  // Preserve earlier configurations whose desktop position was implicit.
  if(!('deskX' in input))s.deskX=(typeof input.width==='number'?clamp(input.width,58,80):defaults.width)/2+(typeof input.deskGap==='number'?clamp(input.deskGap,0,80):defaults.deskGap)+40;
  for(const [key,range] of Object.entries(fields)){if(key in input){if(typeof input[key]!=='number'||!Number.isFinite(input[key]))throw new Error(`Valor inválido: ${key}`);s[key]=clamp(input[key],range[0],range[1]);}}
- for(const key of ['wheel','hotas','centerStick','shifter','handbrake','roomEnabled','roomFullWalls'])if(key in input){if(typeof input[key]!=='boolean')throw new Error('Opción inválida');s[key]=input[key];}
+ for(const key of ['wheel','hotas','centerStick','shifter','handbrake','roomEnabled','roomFullWalls','deskEnabled','cockpitEnabled','monitorEnabled','keyboardEnabled','pcEnabled','mouseEnabled','matEnabled'])if(key in input){if(typeof input[key]!=='boolean')throw new Error('Opción inválida');s[key]=input[key];}
  for(const [key,allowed] of Object.entries({feet:['level','casters'],drivingSide:['right','left'],monitorMode:['cockpit','desk','vr','manual'],armBend:['positive','negative'],clampMount:['clamp','grommet'],clampSide:['xmin','xmax','zmin','zmax'],preset:Object.keys(presets)}))if(allowed.includes(input[key]))s[key]=input[key];
  return normalizeRoom(s,input);
 }
