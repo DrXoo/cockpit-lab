@@ -29,6 +29,7 @@
     "src/check-view.ts",
     "src/project-summary.ts",
     "src/controls-view.ts",
+    "src/room-editor.ts",
     "playwright.config.ts"
   ]
 }

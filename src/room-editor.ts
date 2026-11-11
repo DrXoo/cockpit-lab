@@ -1,49 +1,88 @@
+// Room tab: the editor of the room, its openings and its furniture. Lengths in cm.
 import { round } from './geometry.ts';
-import { wallFrame, wallNames, furnitureNames } from './room.ts';
+import {
+  wallFrame,
+  wallNames,
+  furnitureNames,
+  type FurnitureItem,
+  type RoomFeature,
+} from './room.ts';
+import type { CockpitConfig } from './config.ts';
+import type { CockpitEvaluation } from './evaluate.ts';
+import type { ControlTemplates } from './controls-view.ts';
 import { escapeHTML } from './html.ts';
 
 export { escapeHTML };
-export function roomItem(s, target) {
+
+export type RoomItem = RoomFeature | FurnitureItem;
+type RoomLists = Pick<CockpitConfig, 'roomFeatures' | 'roomFurniture'>;
+
+/** Openings sit on a wall; furniture stands in the room. */
+export const isFeature = (item: RoomItem): item is RoomFeature => 'wall' in item;
+
+/** The selection key of an item: `feature:<id>` or `furniture:<id>`. */
+export const roomTarget = (item: RoomItem): string =>
+  (isFeature(item) ? 'feature:' : 'furniture:') + item.id;
+
+export function roomItem(s: RoomLists, target: string): RoomItem | null | undefined {
   return target.startsWith('feature:')
     ? s.roomFeatures.find((v) => v.id === target.slice(8))
     : target.startsWith('furniture:')
       ? s.roomFurniture.find((v) => v.id === target.slice(10))
       : null;
 }
-export function roomItems(s, mode) {
+export function roomItems(s: RoomLists, mode: string): RoomItem[] {
   return mode === 'furniture'
     ? [...s.roomFurniture, ...s.roomFeatures.filter((v) => v.type === 'wardrobeAccess')]
     : ['openings', 'room'].includes(mode)
       ? s.roomFeatures.filter((v) => v.type !== 'wardrobeAccess')
       : [...s.roomFeatures, ...s.roomFurniture];
 }
-export function roomValue(s, target, key) {
+/** A value of the selected item; x and z are measured from the room's walls. */
+export function roomValue(
+  s: CockpitConfig,
+  target: string,
+  key: string,
+): string | number | undefined {
   const item = roomItem(s, target);
-  if (!item)
+  if (!item) {
+    // Without an item, the target is the desk or the cockpit.
+    const placed = target as 'desk' | 'cockpit';
     return key === 'x'
-      ? round(s[target + 'X'] - s.roomX)
+      ? round(s[`${placed}X`] - s.roomX)
       : key === 'z'
-        ? round(s[target + 'Z'] - s.roomZ)
-        : s[target + 'Angle'];
-  return key === 'x' ? round(item.x - s.roomX) : key === 'z' ? round(item.z - s.roomZ) : item[key];
+        ? round(s[`${placed}Z`] - s.roomZ)
+        : s[`${placed}Angle`];
+  }
+  if (key === 'x') return round((item as { x: number }).x - s.roomX);
+  if (key === 'z') return round((item as { z: number }).z - s.roomZ);
+  return (item as unknown as Record<string, string | number | undefined>)[key];
 }
-export function roomControls(s, e, target, range, toggle, { mode = 'all' } = {}) {
+export function roomControls(
+  s: CockpitConfig,
+  e: CockpitEvaluation,
+  target: string,
+  range: ControlTemplates['range'],
+  toggle: ControlTemplates['toggle'],
+  { mode = 'all' } = {},
+): string {
   const items = roomItems(s, mode);
   const choices = [
     ...(mode === 'all' && s.deskEnabled !== false ? ['desk'] : []),
     ...(mode === 'all' && s.cockpitEnabled !== false ? ['cockpit'] : []),
-    ...items.map((v) => (v.wall ? 'feature:' : 'furniture:') + v.id),
+    ...items.map(roomTarget),
   ];
   const active = choices.includes(target) ? target : choices[0],
     item = active ? roomItem(s, active) : null,
     a = escapeHTML;
-  const num = (key, label, min, max, step = 1, unit = 'cm') => {
+  const num = (key: string, label: string, min: number, max: number, step = 1, unit = 'cm') => {
     const value = roomValue(s, active, key);
-    return `<div class="control room-object-control"><div class="control-top"><label for="room-${key}-range">${label}</label><div class="number-wrap"><input id="room-${key}-number" type="number" data-room-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}"><span>${unit}</span></div></div><input id="room-${key}-range" type="range" data-room-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}" style="--pct:${((value - min) / (max - min || 1)) * 100}%"></div>`;
+    return `<div class="control room-object-control"><div class="control-top"><label for="room-${key}-range">${label}</label><div class="number-wrap"><input id="room-${key}-number" type="number" data-room-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}"><span>${unit}</span></div></div><input id="room-${key}-range" type="range" data-room-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}" style="--pct:${((Number(value) - min) / (max - min || 1)) * 100}%"></div>`;
   };
-  const sel = (key, label, options) =>
-    `<div class="select-control"><label for="room-${key}">${label}</label><select id="room-${key}" data-room-key="${key}">${options.map(([v, n]) => `<option value="${v}" ${item?.[key] === v ? 'selected' : ''}>${a(n)}</option>`).join('')}</select></div>`;
-  const group = (title, body) =>
+  const selected = (key: string) => (item as unknown as Record<string, unknown> | null)?.[key];
+  const sel = (key: string, label: string, options: [string, string][]) =>
+    `<div class="select-control"><label for="room-${key}">${label}</label><select id="room-${key}" data-room-key="${key}">${options.map(([v, n]) => `<option value="${v}" ${selected(key) === v ? 'selected' : ''}>${a(n)}</option>`).join('')}</select></div>`;
+  const group = (title: string, body: string) =>
     `<div class="control-group"><h3 class="group-title">${title}</h3>${body}</div>`;
   let html = ['all', 'room'].includes(mode)
     ? group(
@@ -73,7 +112,7 @@ export function roomControls(s, e, target, range, toggle, { mode = 'all' } = {})
             'chair',
             'obstacle',
           ];
-  const names = {
+  const names: Record<string, string> = {
     door: 'Puerta',
     window: 'Ventana',
     wardrobeAccess: 'Armario empotrado',
@@ -105,7 +144,7 @@ export function roomControls(s, e, target, range, toggle, { mode = 'all' } = {})
       num('height', 'Altura de las puertas desde el suelo', 30, s.roomH, 0.5) +
       num('clearance', 'Espacio libre delante', 0, 200, 0.5) +
       '<p class="layout-hint">Solo se representa el frente de puertas correderas y su franja de acceso. No necesitas medir el interior. La altura inicial coincide con el techo: ajústala a tus puertas. El espacio por encima queda disponible. Arrastra el frente a lo largo de la pared; cambia la pared en el selector. La franja debe quedar libre de muebles, mesa y cockpit. Con 0 cm se desactiva la reserva.</p>';
-  } else if (item?.wall) {
+  } else if (item && isFeature(item)) {
     const frame = wallFrame(s, item.wall);
     editor +=
       sel('wall', 'Pared', Object.entries(wallNames)) +

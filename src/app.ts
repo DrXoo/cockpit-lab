@@ -20,7 +20,14 @@ import {
   furnitureNames,
   officeChairPlacement,
 } from './room.ts';
-import { roomControls, roomItem, roomItems, roomValue } from './room-editor.ts';
+import {
+  roomControls,
+  roomItem,
+  roomItems,
+  roomValue,
+  isFeature,
+  roomTarget,
+} from './room-editor.ts';
 import {
   defaults,
   presets,
@@ -172,7 +179,7 @@ function selectRoomTarget(target) {
 function changeRoomValue(key, value, redraw = false) {
   const item = roomItem(state, layoutTarget);
   if (item) {
-    const list = item.wall ? 'roomFeatures' : 'roomFurniture';
+    const list = isFeature(item) ? 'roomFeatures' : 'roomFurniture';
     const adjusted = key === 'x' ? value + state.roomX : key === 'z' ? value + state.roomZ : value;
     state = {
       ...state,
@@ -189,11 +196,12 @@ function syncRoomInputs() {
   if (!['room', 'furniture'].includes(section)) return;
   const item = roomItem(state, layoutTarget),
     mounted = item?.type === 'wallShelf',
-    frame = item?.wall
-      ? wallFrame(state, item.wall)
-      : mounted
-        ? wallFrame(state, item.mountWall)
-        : null;
+    frame =
+      item && isFeature(item)
+        ? wallFrame(state, item.wall)
+        : mounted
+          ? wallFrame(state, item.mountWall)
+          : null;
   $('#controls')
     .querySelectorAll('[data-room-key]')
     .forEach((el) => {
@@ -263,7 +271,10 @@ function bindRoomEditor() {
       el.addEventListener('click', () =>
         changeRoomValue(
           'angle',
-          (roomValue(state, layoutTarget, 'angle') + Number(el.dataset.roomRotate) + 360) % 360,
+          ((roomValue(state, layoutTarget, 'angle') as number) +
+            Number(el.dataset.roomRotate) +
+            360) %
+            360,
         ),
       ),
     );
@@ -419,7 +430,7 @@ function bindRoomEditor() {
   $('#roomDelete')?.addEventListener('click', () => {
     const item = roomItem(state, layoutTarget);
     if (!item) return;
-    const list = item.wall ? 'roomFeatures' : 'roomFurniture';
+    const list = isFeature(item) ? 'roomFeatures' : 'roomFurniture';
     state = { ...state, [list]: state[list].filter((v) => v.id !== item.id) };
     layoutTarget = 'desk';
     roomChanged(true);
@@ -654,8 +665,8 @@ function renderControls() {
     stage = guided ? setup.step : section === 'furniture' ? 'furniture' : 'openings';
   if (['openings', 'furniture'].includes(stage) && ['room', 'furniture'].includes(section)) {
     const items = roomItems(state, stage);
-    if (!items.some((v) => (v.wall ? 'feature:' : 'furniture:') + v.id === layoutTarget))
-      layoutTarget = items[0] ? (items[0].wall ? 'feature:' : 'furniture:') + items[0].id : '';
+    if (!items.some((v) => roomTarget(v) === layoutTarget))
+      layoutTarget = items[0] ? roomTarget(items[0]) : '';
   }
   if (
     section === 'desk' &&

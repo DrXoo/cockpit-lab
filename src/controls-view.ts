@@ -12,12 +12,19 @@ export interface ControlView {
   evaluation: CockpitEvaluation;
 }
 
-type BooleanSetting = {
+export type BooleanSetting = {
   [K in keyof CockpitConfig]: CockpitConfig[K] extends boolean ? K : never;
 }[keyof CockpitConfig];
-type ChoiceSetting = {
+export type ChoiceSetting = {
   [K in keyof CockpitConfig]: CockpitConfig[K] extends string ? K : never;
 }[keyof CockpitConfig];
+
+/** The control templates bound to a state, as the editors receive them. */
+export interface ControlTemplates {
+  range(key: NumericField, label: string): string;
+  toggle(key: BooleanSetting, label: string): string;
+  select(key: ChoiceSetting, label: string, options: [value: string, text: string][]): string;
+}
 
 const ANGLE_SETTINGS: readonly string[] = ['recline', 'wheelTilt', 'pedalTilt', 'monitorYaw'];
 
