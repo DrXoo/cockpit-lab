@@ -12,9 +12,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
-    "check": "node scripts/check.mjs && tsc -p . && prettier --check .",
+    "check": "node scripts/check.mjs && npm run typecheck && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p . && tsc -p tsconfig.strict.json"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

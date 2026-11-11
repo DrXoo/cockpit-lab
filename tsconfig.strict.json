@@ -1,0 +1,11 @@
+{
+  // Modules already migrated to strict typing. Add each module once it passes, bottom-up
+  // through its imports: tsc also checks the imported modules with these settings.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true
+  },
+  "include": [],
+  "files": ["src/geometry.ts", "src/cut-list-csv.ts"]
+}

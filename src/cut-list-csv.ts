@@ -14,18 +14,43 @@ const PART_HEADER = [
 const ACCESSORY_HEADER = ['Piezas y fijaciones', '', 'Cantidad', '', '', 'Detalle'];
 const PART_NOTE = 'Verificar antes de fabricar';
 
-const quote = (value) => `"${String(value).replaceAll('"', '""')}"`;
+/** The fields of a profile part that the cut list needs. */
+export interface CutListPart {
+  name: string;
+  profile: string;
+  qty: number;
+  /** Net length of one piece, in mm. */
+  mm: number;
+  /** Total length of all pieces, in mm. */
+  total: number;
+}
 
-function partRow(part) {
+export interface CutListAccessory {
+  name: string;
+  qty: number;
+  note: string;
+}
+
+type Cell = string | number;
+
+const quote = (value: Cell): string => `"${String(value).replaceAll('"', '""')}"`;
+
+function partRow(part: CutListPart): Cell[] {
   return [part.name, part.profile, part.qty, part.mm, part.total, PART_NOTE];
 }
 
-function accessoryRow(accessory) {
+function accessoryRow(accessory: CutListAccessory): Cell[] {
   return [accessory.name, '', accessory.qty, '', '', accessory.note];
 }
 
-export function cutListCsv({ parts, accessories }) {
-  const rows = [
+export function cutListCsv({
+  parts,
+  accessories,
+}: {
+  parts: readonly CutListPart[];
+  accessories: readonly CutListAccessory[];
+}): string {
+  const rows: Cell[][] = [
     PART_HEADER,
     ...parts.map(partRow),
     [],
