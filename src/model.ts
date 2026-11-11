@@ -7,8 +7,22 @@ import {
   overlapDepth,
   polygonDistance,
 } from './geometry.ts';
-import { normalizeRoom, evaluateRoom } from './room.ts';
-const rad = (d) => (d * Math.PI) / 180;
+import {
+  normalizeRoom,
+  evaluateRoom,
+  type FurnitureItem,
+  type Obstacle,
+  type RoomFeature,
+} from './room.ts';
+import type { Check, CheckLevel } from './checks.ts';
+import type { PlanPoint, Placement, Point3 } from './geometry.ts';
+import { cmToMm, roundMm, type Mm } from './units.ts';
+
+const rad = (degrees: number): number => (degrees * Math.PI) / 180;
+
+/** Allowed range of a numeric setting: [min, max, step]. */
+export type FieldRange = readonly [min: number, max: number, step: number];
+
 // Coordinate system in cm: X lateral, Y from floor, Z from rear chassis edge.
 export const fields = {
   length: [125, 180, 1],
@@ -76,8 +90,47 @@ export const fields = {
   roomD: [120, 1200, 1],
   roomH: [180, 400, 1],
   aisle: [40, 120, 1],
-};
-export const defaults = {
+} satisfies Record<string, FieldRange>;
+
+/** A numeric setting; every one has a range in `fields`. Lengths are in cm, angles in degrees. */
+export type NumericField = keyof typeof fields;
+
+export type DrivingSide = 'right' | 'left';
+export type Feet = 'level' | 'casters';
+export type MonitorMode = 'cockpit' | 'desk' | 'vr' | 'manual';
+export type ArmBend = 'positive' | 'negative';
+export type ClampMount = 'clamp' | 'grommet';
+export type ClampSide = 'xmin' | 'xmax' | 'zmin' | 'zmax';
+export type PresetId = 'gt' | 'flight' | 'hybrid' | 'small';
+
+/** The whole configurator state, as saved in project files (lengths in cm). */
+export interface CockpitConfig extends Record<NumericField, number> {
+  deskEnabled: boolean;
+  cockpitEnabled: boolean;
+  monitorEnabled: boolean;
+  keyboardEnabled: boolean;
+  pcEnabled: boolean;
+  mouseEnabled: boolean;
+  matEnabled: boolean;
+  wheel: boolean;
+  hotas: boolean;
+  centerStick: boolean;
+  shifter: boolean;
+  handbrake: boolean;
+  drivingSide: DrivingSide;
+  feet: Feet;
+  armBend: ArmBend;
+  clampMount: ClampMount;
+  clampSide: ClampSide;
+  monitorMode: MonitorMode;
+  roomEnabled: boolean;
+  roomFullWalls: boolean;
+  roomFeatures: RoomFeature[];
+  roomFurniture: FurnitureItem[];
+  preset: PresetId;
+}
+
+export const defaults: CockpitConfig = {
   deskEnabled: true,
   cockpitEnabled: true,
   monitorEnabled: true,
@@ -167,7 +220,36 @@ export const defaults = {
   aisle: 60,
   preset: 'gt',
 };
-export const presets = {
+/** Rig settings applied by a preset. */
+export type PresetValues = Pick<
+  CockpitConfig,
+  | 'length'
+  | 'width'
+  | 'seatZ'
+  | 'seatH'
+  | 'recline'
+  | 'wheelZ'
+  | 'wheelH'
+  | 'wheelTilt'
+  | 'pedalZ'
+  | 'pedalH'
+  | 'pedalTilt'
+  | 'wheel'
+  | 'hotas'
+  | 'centerStick'
+  | 'shifter'
+  | 'handbrake'
+  | 'hotasZ'
+  | 'hotasH'
+  | 'hotasOut'
+  | 'stickZ'
+  | 'stickH'
+>;
+
+export const presets: Record<
+  PresetId,
+  { label: string; description: string; values: PresetValues }
+> = {
   gt: {
     label: 'GT compacto',
     description: 'Asiento de coche, tres pedales y mandos a mano.',
@@ -278,29 +360,47 @@ export const presets = {
   },
 };
 export { clamp, round, transformPoint, inversePoint, rectangle, overlapDepth, polygonDistance };
-export const dist = (a, b) => Math.hypot(a.z - b.z, a.y - b.y);
+/** A point in the cockpit's side (sagittal) plane: Z forward, Y up. */
+export interface SidePoint {
+  z: number;
+  y: number;
+}
+
+export const dist = (a: SidePoint, b: SidePoint): number => Math.hypot(a.z - b.z, a.y - b.y);
 // Alturas guardadas respecto al cockpit original; la interfaz muestra alturas desde suelo.
-export const rigHeightKeys = ['seatH', 'wheelH', 'pedalH', 'hotasH', 'stickH'];
-export const rigLift = (s) => s.baseLift ?? 0;
-export const floorHeight = (s, key) => s[key] + rigLift(s);
-export function setRigHeight(s, key, value) {
+export const rigHeightKeys = ['seatH', 'wheelH', 'pedalH', 'hotasH', 'stickH'] as const;
+export type RigHeightKey = (typeof rigHeightKeys)[number];
+const isRigHeightKey = (key: string): key is RigHeightKey =>
+  (rigHeightKeys as readonly string[]).includes(key);
+
+export const rigLift = (s: Partial<Pick<CockpitConfig, 'baseLift'>>): number => s.baseLift ?? 0;
+export const floorHeight = (s: CockpitConfig, key: RigHeightKey): number => s[key] + rigLift(s);
+export function setRigHeight(s: CockpitConfig, key: RigHeightKey, value: number): CockpitConfig {
   return { ...s, [key]: value - rigLift(s) };
 }
 // Cuatro prolongaciones entre los apoyos originales (Y=6) y la cara inferior del chasis.
 // Las piezas se definen aquí y alimentan escena, envolventes y lista de cortes.
-export function baseSupports(s) {
+export interface BaseSupport {
+  x: number;
+  y: number;
+  z: number;
+  length: number;
+  profile: string;
+}
+
+export function baseSupports(s: CockpitConfig): BaseSupport[] {
   const length = rigLift(s);
   if (s.cockpitEnabled === false || length <= 0) return [];
   return [-s.width / 2 + 2, s.width / 2 - 2].flatMap((x) =>
     [10, s.length - 10].map((z) => ({ x, z, y: 6 + length / 2, length, profile: '40 × 40' })),
   );
 }
-export function pose(s, target) {
+export function pose(s: CockpitConfig, target: 'desk' | 'cockpit'): Placement {
   return target === 'desk'
     ? { x: s.deskX, z: s.deskZ, angle: s.deskAngle }
     : { x: s.cockpitX, z: s.cockpitZ, angle: s.cockpitAngle };
 }
-export function layoutPreset(s, name) {
+export function layoutPreset(s: CockpitConfig, name: 'left' | 'front' | 'right'): CockpitConfig {
   const c = pose(s, 'cockpit'),
     offset = s.width / 2 + s.hotasOut + 9 + (s.deskDepth ?? 80) / 2 + 6;
   const local =
@@ -318,18 +418,28 @@ export function layoutPreset(s, name) {
   };
 }
 // Forward is +Z and up is +Y: the seated driver's right is -X.
-export function drivingMount(s) {
+export function drivingMount(s: CockpitConfig) {
   const sign = s.drivingSide === 'left' ? 1 : -1;
   return { sign, x: sign * (s.width / 2 + s.hotasOut), z: s.hotasZ - 7 };
 }
-export const desktopTargets = [
+export type DesktopItemId = 'arm' | 'keyboard' | 'pc' | 'mouse' | 'mat';
+type DesktopPrefix = 'clamp' | 'keyboard' | 'pc' | 'mouse' | 'mat';
+
+export interface DesktopTarget {
+  id: DesktopItemId;
+  label: string;
+  /** Prefix of the item's position settings: `<prefix>X` and `<prefix>Z`. */
+  prefix: DesktopPrefix;
+}
+
+export const desktopTargets: DesktopTarget[] = [
   { id: 'arm', label: 'Anclaje del brazo', prefix: 'clamp' },
   { id: 'keyboard', label: 'Teclado', prefix: 'keyboard' },
   { id: 'pc', label: 'PC / torre', prefix: 'pc' },
   { id: 'mouse', label: 'Ratón', prefix: 'mouse' },
   { id: 'mat', label: 'Alfombrilla XL', prefix: 'mat' },
 ];
-export function deskBounds(s) {
+export function deskBounds(s: Partial<Pick<CockpitConfig, 'deskWidth' | 'deskDepth'>>) {
   const width = s.deskWidth ?? defaults.deskWidth,
     depth = s.deskDepth ?? defaults.deskDepth,
     halfX = depth / 2,
@@ -348,9 +458,10 @@ export function deskBounds(s) {
     columnZ: frameWidth / 2 - 5,
   };
 }
-export function fieldSpec(key, s) {
+/** Range of a setting for the current configuration: some limits depend on other settings. */
+export function fieldSpec(key: NumericField, s: CockpitConfig): FieldRange {
   const b = deskBounds(s);
-  if (rigHeightKeys.includes(key)) {
+  if (isRigHeightKey(key)) {
     const [min, max, step] = fields[key];
     return [min + rigLift(s), max + rigLift(s), step];
   }
@@ -360,9 +471,10 @@ export function fieldSpec(key, s) {
   if (/^(keyboard|pc|mouse|mat)Z$/.test(key)) return [-b.halfZ, b.halfZ, 0.1];
   return fields[key];
 }
-export function clampEdge(s) {
+/** The desk edge closest to the arm's anchor, keeping the current side on ties. */
+export function clampEdge(s: CockpitConfig): ClampSide {
   const b = deskBounds(s),
-    candidates: [string, number][] = [
+    candidates: [ClampSide, number][] = [
       ['xmin', Math.abs(s.clampX + b.anchorX)],
       ['xmax', Math.abs(s.clampX - b.anchorX)],
       ['zmin', Math.abs(s.clampZ + b.anchorZ)],
@@ -378,9 +490,14 @@ export function clampEdge(s) {
       : a[1] - b[1],
   )[0][0];
 }
-export function getDesktopItems(s, { includeInactive = false } = {}) {
+const enabledKey = (id: DesktopItemId) =>
+  id === 'arm' ? 'monitorEnabled' : (`${id}Enabled` as const);
+const angleOf = (s: CockpitConfig, prefix: DesktopPrefix): number =>
+  prefix === 'clamp' ? 0 : (s[`${prefix}Angle`] ?? 0);
+
+export function getDesktopItems(s: CockpitConfig, { includeInactive = false } = {}) {
   const bounds = deskBounds(s),
-    sizes = {
+    sizes: Record<DesktopItemId, [sizeX: number, sizeZ: number, height: number]> = {
       arm: [8, 8, 3],
       keyboard: [s.keyboardDepth, s.keyboardWidth, 2.2],
       pc: [s.pcWidth, s.pcDepth, s.pcHeight],
@@ -390,16 +507,14 @@ export function getDesktopItems(s, { includeInactive = false } = {}) {
   return desktopTargets
     .filter(
       (target) =>
-        includeInactive ||
-        (s.deskEnabled !== false &&
-          s[target.id === 'arm' ? 'monitorEnabled' : target.id + 'Enabled'] !== false),
+        includeInactive || (s.deskEnabled !== false && s[enabledKey(target.id)] !== false),
     )
     .map((target) => {
       const [sizeX, sizeZ, height] = sizes[target.id],
         local = {
-          x: s[target.prefix + 'X'],
-          z: s[target.prefix + 'Z'],
-          angle: s[target.prefix + 'Angle'] ?? 0,
+          x: s[`${target.prefix}X`],
+          z: s[`${target.prefix}Z`],
+          angle: angleOf(s, target.prefix),
         },
         localPolygon = rectangle(-sizeX / 2, sizeX / 2, -sizeZ / 2, sizeZ / 2, local),
         world = transformPoint(local, pose(s, 'desk')),
@@ -410,7 +525,12 @@ export function getDesktopItems(s, { includeInactive = false } = {}) {
       return { ...target, sizeX, sizeZ, height, local, localPolygon, world, polygon, outside };
     });
 }
-export function placeDeskItem(s, id, x, z) {
+export function placeDeskItem(
+  s: CockpitConfig,
+  id: DesktopItemId,
+  x: number,
+  z: number,
+): CockpitConfig {
   const target = desktopTargets.find((t) => t.id === id);
   if (!target) return s;
   const result = { ...s },
@@ -428,19 +548,20 @@ export function placeDeskItem(s, id, x, z) {
     }
     return result;
   }
-  const item = getDesktopItems(s, { includeInactive: true }).find((t) => t.id === id),
-    angle = rad(item.local.angle),
+  const item = getDesktopItems(s, { includeInactive: true }).find((t) => t.id === id);
+  if (!item) return s;
+  const angle = rad(item.local.angle),
     halfX =
       (Math.abs(Math.cos(angle)) * item.sizeX) / 2 + (Math.abs(Math.sin(angle)) * item.sizeZ) / 2,
     halfZ =
       (Math.abs(Math.sin(angle)) * item.sizeX) / 2 + (Math.abs(Math.cos(angle)) * item.sizeZ) / 2;
   const limitX = Math.floor(Math.max(0, b.halfX - halfX) * 10 + 1e-7) / 10,
     limitZ = Math.floor(Math.max(0, b.halfZ - halfZ) * 10 + 1e-7) / 10;
-  result[target.prefix + 'X'] = round(clamp(x, -limitX, limitX));
-  result[target.prefix + 'Z'] = round(clamp(z, -limitZ, limitZ));
+  result[`${target.prefix}X`] = round(clamp(x, -limitX, limitX));
+  result[`${target.prefix}Z`] = round(clamp(z, -limitZ, limitZ));
   return result;
 }
-export function resizeDesk(s, width, depth) {
+export function resizeDesk(s: CockpitConfig, width: number, depth: number): CockpitConfig {
   const side = clampEdge(s);
   let next = { ...s, deskWidth: clamp(width, 120, 200), deskDepth: clamp(depth, 60, 80) };
   const b = deskBounds(next);
@@ -454,25 +575,31 @@ export function resizeDesk(s, width, depth) {
     if (side === 'zmax') next.clampZ = b.anchorZ;
   }
   for (const item of desktopTargets.filter((t) => t.id !== 'arm'))
-    next = placeDeskItem(next, item.id, next[item.prefix + 'X'], next[item.prefix + 'Z']);
+    next = placeDeskItem(next, item.id, next[`${item.prefix}X`], next[`${item.prefix}Z`]);
   return next;
 }
-export function updateDeskItem(s, key, value) {
+export function updateDeskItem(s: CockpitConfig, key: NumericField, value: number): CockpitConfig {
   if (key === 'deskWidth' || key === 'deskDepth')
     return resizeDesk(
       s,
       key === 'deskWidth' ? value : s.deskWidth,
       key === 'deskDepth' ? value : s.deskDepth,
     );
-  const next = { ...s, [key]: value },
+  const next: CockpitConfig = { ...s, [key]: value },
     target = desktopTargets.find((t) => key.startsWith(t.prefix));
   return target
-    ? placeDeskItem(next, target.id, next[target.prefix + 'X'], next[target.prefix + 'Z'])
+    ? placeDeskItem(next, target.id, next[`${target.prefix}X`], next[`${target.prefix}Z`])
     : next;
 }
 // Planar two-link monitor arm. Angles follow the desk's Y rotation convention.
-export const wrapAngle = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
-export function armKinematics(s, anchor, target = null) {
+/** Wraps an angle in degrees to [-180, 180). */
+export const wrapAngle = (angle: number): number => ((((angle + 180) % 360) + 360) % 360) - 180;
+
+export function armKinematics(
+  s: CockpitConfig,
+  anchor: PlanPoint,
+  target: PlanPoint | null = null,
+) {
   const first = (s.armReach * (s.armSplit ?? 50)) / 100,
     second = s.armReach - first,
     minReach = Math.abs(first - second),
@@ -509,7 +636,7 @@ export function armKinematics(s, anchor, target = null) {
     end = { x: elbow.x + second * Math.cos(b), y, z: elbow.z - second * Math.sin(b) };
   return { base, elbow, end, first, second, minReach, maxReach, baseAngle, elbowAngle, reachable };
 }
-export function monitorGeometry(s) {
+export function monitorGeometry(s: CockpitConfig) {
   const anchor = transformPoint({ x: s.clampX, z: s.clampZ, y: s.deskH }, pose(s, 'desk'));
   const mode = s.cockpitEnabled === false && s.monitorMode === 'cockpit' ? 'desk' : s.monitorMode;
   const target =
@@ -528,7 +655,7 @@ export function monitorGeometry(s) {
           : s.deskAngle + 90;
   return { anchor, arm, point, angle };
 }
-export function setMonitorMode(s, mode) {
+export function setMonitorMode(s: CockpitConfig, mode: MonitorMode): CockpitConfig {
   if (mode !== 'manual' || s.monitorMode === 'manual') return { ...s, monitorMode: mode };
   const g = monitorGeometry(s);
   return {
@@ -539,19 +666,28 @@ export function setMonitorMode(s, mode) {
     monitorYaw: wrapAngle(g.angle - s.deskAngle),
   };
 }
-export function editArm(s, key, value) {
-  if (key === 'monitorMode') return setMonitorMode(s, value);
-  if (!['armBaseAngle', 'armElbowAngle', 'monitorYaw', 'armBend'].includes(key)) return s;
-  let next = ['armBaseAngle', 'armElbowAngle', 'monitorYaw'].includes(key)
-    ? setMonitorMode(s, 'manual')
-    : { ...s };
-  next[key] = value;
-  if (key === 'armElbowAngle') next.armBend = value < 0 ? 'negative' : 'positive';
-  if (key === 'armBend' && next.monitorMode === 'manual')
-    next.armElbowAngle = Math.abs(next.armElbowAngle) * (value === 'negative' ? -1 : 1);
+/** Edits one arm setting. Changing an angle by hand switches the monitor to manual mode. */
+export function editArm(s: CockpitConfig, key: string, value: unknown): CockpitConfig {
+  if (key === 'monitorMode') return setMonitorMode(s, value as MonitorMode);
+  if (key === 'armBend') {
+    const next = { ...s, armBend: value as ArmBend };
+    if (next.monitorMode === 'manual')
+      next.armElbowAngle = Math.abs(next.armElbowAngle) * (value === 'negative' ? -1 : 1);
+    return next;
+  }
+  if (key !== 'armBaseAngle' && key !== 'armElbowAngle' && key !== 'monitorYaw') return s;
+  const angle = value as number;
+  const next = setMonitorMode(s, 'manual');
+  next[key] = angle;
+  if (key === 'armElbowAngle') next.armBend = angle < 0 ? 'negative' : 'positive';
   return next;
 }
-export function moveArmJoint(s, joint, x, z) {
+export function moveArmJoint(
+  s: CockpitConfig,
+  joint: 'elbow' | 'end',
+  x: number,
+  z: number,
+): CockpitConfig {
   const next = setMonitorMode(s, 'manual'),
     g = monitorGeometry(next);
   if (joint === 'elbow') {
@@ -565,7 +701,8 @@ export function moveArmJoint(s, joint, x, z) {
   }
   return next;
 }
-export function solveJoint(a, b, l1, l2, branch = 1) {
+/** Two-link joint between a and b with link lengths l1 and l2; branch picks the bend side. */
+export function solveJoint(a: SidePoint, b: SidePoint, l1: number, l2: number, branch = 1) {
   const d = dist(a, b),
     reachable = d <= l1 + l2 && d >= Math.abs(l1 - l2) && d > 0.001;
   const safeD = clamp(d, Math.abs(l1 - l2) + 0.001, l1 + l2 - 0.001);
@@ -579,7 +716,7 @@ export function solveJoint(a, b, l1, l2, branch = 1) {
     (Math.acos(clamp((l1 * l1 + l2 * l2 - safeD * safeD) / (2 * l1 * l2), -1, 1)) * 180) / Math.PI;
   return { joint, reachable, angle, d };
 }
-export function anatomy(s) {
+export function anatomy(s: CockpitConfig) {
   const h = s.height,
     a = rad(s.recline),
     hip = { z: s.seatZ, y: s.seatH + 4 },
@@ -600,9 +737,25 @@ export function anatomy(s) {
     Math.PI;
   return { hip, shoulder, eye, foot, hand, legs, arms, hipAngle };
 }
-function desktopAccessories(s) {
+export interface Accessory {
+  name: string;
+  qty: number;
+  note: string;
+}
+
+export interface ProfilePart {
+  name: string;
+  profile: string;
+  qty: number;
+  /** Net length of one piece. */
+  mm: Mm;
+  /** Total length of all pieces. */
+  total: Mm;
+}
+
+function desktopAccessories(s: CockpitConfig): Accessory[] {
   if (s.deskEnabled === false) return [];
-  const items = [];
+  const items: Accessory[] = [];
   if (s.matEnabled !== false)
     items.push({
       name: 'Alfombrilla XL',
@@ -617,15 +770,25 @@ function desktopAccessories(s) {
     });
   return items;
 }
-export function getParts(s) {
+export interface PartsList {
+  parts: ProfilePart[];
+  accessories: Accessory[];
+  totalMm: number;
+  cuts: number;
+  joints: number;
+}
+
+export function getParts(s: CockpitConfig): PartsList {
   if (s.cockpitEnabled === false)
     return { parts: [], accessories: desktopAccessories(s), totalMm: 0, cuts: 0, joints: 0 };
   const b = s.width - 8,
     wh = s.wheelH - 22,
     seatPost = Math.max(4, s.seatH - 18),
-    parts = [];
-  const add = (name, profile, qty, cm) =>
-    parts.push({ name, profile, qty, mm: Math.round(cm * 10), total: Math.round(cm * 10) * qty });
+    parts: ProfilePart[] = [];
+  const add = (name: string, profile: string, qty: number, lengthCm: number) => {
+    const mm = roundMm(cmToMm(lengthCm));
+    parts.push({ name, profile, qty, mm, total: (mm * qty) as Mm });
+  };
   add('Largueros de base', '40 × 80', 2, s.length);
   add('Travesaños de base', '40 × 80', 3, b);
   const supports = baseSupports(s);
@@ -723,7 +886,7 @@ export function getParts(s) {
     joints,
   };
 }
-export function evaluate(s) {
+export function evaluate(s: CockpitConfig) {
   const hasRig = s.cockpitEnabled !== false,
     hasDesk = s.deskEnabled !== false,
     hasMonitor = hasDesk && s.monitorEnabled !== false;
@@ -794,7 +957,15 @@ export function evaluate(s) {
   };
   const roomFits = Object.values(clearances).every((gap) => gap >= -0.01);
   const sideGap = hasRig && hasDesk ? polygonDistance(rigPolygon, deskPolygon) : 0;
-  const solid = (x0, x1, z0, z1, y0, y1, placement) => ({
+  const solid = (
+    x0: number,
+    x1: number,
+    z0: number,
+    z1: number,
+    y0: number,
+    y1: number,
+    placement: Placement,
+  ) => ({
     polygon: rectangle(x0, x1, z0, z1, placement),
     y0,
     y1,
@@ -861,8 +1032,14 @@ export function evaluate(s) {
       )
         collisionCount++;
   const deskCollision = collisionCount > 0;
-  const bodyCheck = [];
-  const check = (id, label, value, level, detail) => ({ id, label, value, level, detail });
+  const bodyCheck: Check[] = [];
+  const check = (
+    id: string,
+    label: string,
+    value: string,
+    level: CheckLevel,
+    detail: string,
+  ): Check => ({ id, label, value, level, detail });
   bodyCheck.push(
     check(
       'knee',
@@ -999,7 +1176,7 @@ export function evaluate(s) {
     );
   const outsideItems = desktopItems.filter((item) => item.outside),
     hardItems = desktopItems.filter((item) => item.id !== 'mat'),
-    desktopOverlaps = [];
+    desktopOverlaps: string[] = [];
   for (let i = 0; i < hardItems.length; i++)
     for (let j = i + 1; j < hardItems.length; j++)
       if (overlapDepth(hardItems[i].localPolygon, hardItems[j].localPolygon) > 0.2)
@@ -1060,7 +1237,7 @@ export function evaluate(s) {
     ),
   );
 
-  const segmentSolid = (a, b, r, y) => {
+  const segmentSolid = (a: PlanPoint, b: PlanPoint, r: number, y: number) => {
     const length = Math.hypot(b.x - a.x, b.z - a.z),
       angle = (Math.atan2(-(b.z - a.z), b.x - a.x) * 180) / Math.PI;
     return solid(-length / 2, length / 2, -r, r, y - 3, y + 3, {
@@ -1069,7 +1246,7 @@ export function evaluate(s) {
       angle,
     });
   };
-  const roomSolids = [
+  const roomSolids: Obstacle[] = [
     ...rigSolids.map((v) => ({ ...v, label: 'Cockpit' })),
     ...deskSolids.map((v) => ({ ...v, label: 'Escritorio' })),
     ...desktopItems
@@ -1119,7 +1296,7 @@ export function evaluate(s) {
         .some((f) => f.sectors.some((p) => overlapDepth(b.polygon, p) > 0.1)),
   );
   const aisleFits = roomFits && !!freeBand;
-  const extra = [];
+  const extra: Check[] = [];
   if (hasRig && overhang)
     extra.push(
       check(
@@ -1242,52 +1419,68 @@ export function evaluate(s) {
     ...getParts(s),
   };
 }
-export function sanitize(input) {
+const BOOLEAN_SETTINGS = [
+  'wheel',
+  'hotas',
+  'centerStick',
+  'shifter',
+  'handbrake',
+  'roomEnabled',
+  'roomFullWalls',
+  'deskEnabled',
+  'cockpitEnabled',
+  'monitorEnabled',
+  'keyboardEnabled',
+  'pcEnabled',
+  'mouseEnabled',
+  'matEnabled',
+] as const;
+
+const CHOICE_SETTINGS = {
+  feet: ['level', 'casters'],
+  drivingSide: ['right', 'left'],
+  monitorMode: ['cockpit', 'desk', 'vr', 'manual'],
+  armBend: ['positive', 'negative'],
+  clampMount: ['clamp', 'grommet'],
+  clampSide: ['xmin', 'xmax', 'zmin', 'zmax'],
+  preset: Object.keys(presets),
+} satisfies { [K in keyof CockpitConfig]?: readonly CockpitConfig[K][] | string[] };
+
+type ChoiceSetting = keyof typeof CHOICE_SETTINGS;
+
+/**
+ * Validates a saved configuration. Missing settings take their defaults, numbers are clamped
+ * to their range, and a value of the wrong type is rejected.
+ */
+export function sanitize(input: unknown): CockpitConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Configuración inválida');
-  const s = { ...defaults };
+  const raw = input as Record<string, unknown>;
+  const s: CockpitConfig = { ...defaults };
   // Preserve earlier configurations whose desktop position was implicit.
-  if (!('deskX' in input))
+  if (!('deskX' in raw))
     s.deskX =
-      (typeof input.width === 'number' ? clamp(input.width, 58, 80) : defaults.width) / 2 +
-      (typeof input.deskGap === 'number' ? clamp(input.deskGap, 0, 80) : defaults.deskGap) +
+      (typeof raw.width === 'number' ? clamp(raw.width, 58, 80) : defaults.width) / 2 +
+      (typeof raw.deskGap === 'number' ? clamp(raw.deskGap, 0, 80) : defaults.deskGap) +
       40;
-  for (const [key, range] of Object.entries(fields)) {
-    if (key in input) {
-      if (typeof input[key] !== 'number' || !Number.isFinite(input[key]))
-        throw new Error(`Valor inválido: ${key}`);
-      s[key] = clamp(input[key], range[0], range[1]);
-    }
+  for (const key of Object.keys(fields) as NumericField[]) {
+    if (!(key in raw)) continue;
+    const value = raw[key];
+    if (typeof value !== 'number' || !Number.isFinite(value))
+      throw new Error(`Valor inválido: ${key}`);
+    const [min, max] = fields[key];
+    s[key] = clamp(value, min, max);
   }
-  for (const key of [
-    'wheel',
-    'hotas',
-    'centerStick',
-    'shifter',
-    'handbrake',
-    'roomEnabled',
-    'roomFullWalls',
-    'deskEnabled',
-    'cockpitEnabled',
-    'monitorEnabled',
-    'keyboardEnabled',
-    'pcEnabled',
-    'mouseEnabled',
-    'matEnabled',
-  ])
-    if (key in input) {
-      if (typeof input[key] !== 'boolean') throw new Error('Opción inválida');
-      s[key] = input[key];
+  for (const key of BOOLEAN_SETTINGS)
+    if (key in raw) {
+      const value = raw[key];
+      if (typeof value !== 'boolean') throw new Error('Opción inválida');
+      s[key] = value;
     }
-  for (const [key, allowed] of Object.entries({
-    feet: ['level', 'casters'],
-    drivingSide: ['right', 'left'],
-    monitorMode: ['cockpit', 'desk', 'vr', 'manual'],
-    armBend: ['positive', 'negative'],
-    clampMount: ['clamp', 'grommet'],
-    clampSide: ['xmin', 'xmax', 'zmin', 'zmax'],
-    preset: Object.keys(presets),
-  }))
-    if (allowed.includes(input[key])) s[key] = input[key];
-  return normalizeRoom(s, input);
+  for (const key of Object.keys(CHOICE_SETTINGS) as ChoiceSetting[]) {
+    const allowed: readonly unknown[] = CHOICE_SETTINGS[key];
+    // The value is one of the allowed literals, so the assignment keeps the setting's type.
+    if (allowed.includes(raw[key])) (s as Record<ChoiceSetting, unknown>)[key] = raw[key];
+  }
+  return normalizeRoom(s, raw);
 }

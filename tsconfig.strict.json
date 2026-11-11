@@ -7,5 +7,12 @@
     "noImplicitAny": true
   },
   "include": [],
-  "files": ["src/geometry.ts", "src/cut-list-csv.ts", "src/checks.ts", "src/room.ts"]
+  "files": [
+    "src/geometry.ts",
+    "src/cut-list-csv.ts",
+    "src/checks.ts",
+    "src/room.ts",
+    "src/units.ts",
+    "src/model.ts"
+  ]
 }
