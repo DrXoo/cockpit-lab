@@ -2,25 +2,16 @@ import { wallFrame } from './room.ts';
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
-import {
-  transformPoint,
-  inversePoint,
-  clamp,
-  round,
-  clampEdge,
-  overlapDepth,
-  rigLift,
-  floorHeight,
-} from './model.ts';
+import { transformPoint, inversePoint, clamp, round, rigLift, floorHeight } from './model.ts';
 import { sceneBounds, viewHeight, cameraPose } from './scene-camera.ts';
 import { createRenderList, ROOT } from './render-list.ts';
 import { drawRig } from './render-rig.ts';
+import { drawDesk, drawMonitor, drawArmReach } from './render-desk.ts';
 import { addPrimitives } from './three-adapter.ts';
 const radians = (d) => (d * Math.PI) / 180;
 const V = (...[x, y, z]: number[]) => new T.Vector3(x, y, z);
 export class CockpitScene {
   // Typed loosely during the JavaScript migration.
-  declare armDims: any;
   declare armHandles: any;
   declare camera: any;
   declare container: any;
@@ -337,6 +328,15 @@ export class CockpitScene {
     this.labelItems.push(item);
     return item;
   }
+  addLabels(labels) {
+    for (const label of labels) {
+      const { x, y, z } = label.position;
+      const item = this.label(label.text, x, y, z, label.object);
+      if (label.className) item.el.classList.add(label.className);
+      for (const flag of ['topOnly', 'sideOnly', 'notSide', 'rigLabel', 'armHandle', 'offsetY'])
+        if (label[flag] !== undefined) item[flag] = label[flag];
+    }
+  }
   dimension(a, b, text, offset = [0, 0, 0], parent = this.dims) {
     this.line([a, b], this.mat.dim, parent);
     const along = V(...b)
@@ -396,13 +396,22 @@ export class CockpitScene {
     this.deskGroup = new T.Group();
     this.root.add(this.deskGroup);
     this.group = this.deskGroup;
-    if (s.deskEnabled !== false) this.buildDesk({ ...s, deskZ: 0 }, e);
+    const desk = createRenderList();
+    drawDesk(desk, ROOT, s, e);
+    addPrimitives(desk.primitives, this.deskGroup, this.mat);
     this.deskGroup.position.set(s.deskX, 0, s.deskZ);
     this.deskGroup.rotation.y = radians(s.deskAngle);
     this.group = this.root;
-    this.armHandles = [];
-    this.armDims = null;
-    if (s.deskEnabled !== false && s.monitorEnabled !== false) this.buildMonitor(s, e);
+    const monitor = createRenderList();
+    this.armHandles = drawMonitor(monitor, ROOT, s, e, {
+      showHandles:
+        !!this.layoutEditing && this.layoutTarget === 'arm' && ['top', 'desk'].includes(this.view),
+    });
+    addPrimitives(monitor.primitives, this.root, this.mat);
+    this.addLabels(monitor.labels);
+    const reach = createRenderList();
+    drawArmReach(reach, ROOT, s, e, { visible: this.view === 'top' });
+    addPrimitives(reach.primitives, this.dims, this.mat);
     const worldDims = this.dims,
       rigDims = new T.Group();
     worldDims.add(rigDims);
@@ -935,216 +944,6 @@ export class CockpitScene {
       this.label(`RESERVA ${s.aisle} cm`, c.x, 1, c.z).topOnly = true;
     }
   }
-  buildDesk(s, e) {
-    const x = 0,
-      z = s.deskZ,
-      y = s.deskH,
-      b = e.deskBounds;
-    this.box(s.deskDepth, 2.5, s.deskWidth, x, y - 1.25, z, this.mat.wood, this.group, true);
-    // Subtle plank grain, built from geometry so the viewer is self-contained.
-    for (let i = 0; i < Math.floor(s.deskDepth / 5); i++)
-      this.box(
-        0.06,
-        0.04,
-        s.deskWidth - 4,
-        x - s.deskDepth / 2 + 3 + i * 5,
-        y + 0.02,
-        z,
-        this.mat.wood,
-      );
-    this.beam('z', b.frameWidth - 10, x + 5, y - 8, z, '40x40');
-    for (const zz of [z - b.columnZ, z + b.columnZ]) {
-      this.box(66, 4.5, 8, x, 3.5, zz, this.mat.desk);
-      this.box(9, y - 15, 8, x + 5, (y - 15) / 2 + 6, zz, this.mat.desk);
-      this.box(10, 27, 9, x + 5, y - 25, zz, this.mat.desk);
-      this.box(54, 3, 7, x - 4, y - 4, zz, this.mat.desk);
-      for (const xx of [x - 27, x + 27]) this.cylinder(2.4, 1.4, xx, 0.8, zz, this.mat.rubber);
-    }
-    this.buildDesktopObjects(s, e);
-  }
-  buildDesktopObjects(s, e) {
-    const mat = e.desktopItems.find((item) => item.id === 'mat');
-    for (const item of [...e.desktopItems].sort(
-      (a, b) => (a.id === 'mat' ? -1 : 0) - (b.id === 'mat' ? -1 : 0),
-    )) {
-      if (item.id === 'arm') continue;
-      const g = new T.Group(),
-        onMat =
-          !!mat && item.id !== 'mat' && overlapDepth(item.localPolygon, mat.localPolygon) > 0.01;
-      g.position.set(item.local.x, s.deskH + (onMat ? 0.35 : 0), item.local.z);
-      g.rotation.y = radians(item.local.angle);
-      this.group.add(g);
-      const X = item.sizeX,
-        Z = item.sizeZ;
-      if (item.id === 'mat') {
-        const fabric = new T.MeshStandardMaterial({ color: 0x333c39, roughness: 1 });
-        this.box(X, 0.35, Z, 0, 0.2, 0, fabric, g);
-        const seam = new T.LineBasicMaterial({ color: 0x8a907b });
-        this.line(
-          [
-            [-X / 2 + 0.6, 0.4, -Z / 2 + 0.6],
-            [X / 2 - 0.6, 0.4, -Z / 2 + 0.6],
-            [X / 2 - 0.6, 0.4, Z / 2 - 0.6],
-            [-X / 2 + 0.6, 0.4, Z / 2 - 0.6],
-            [-X / 2 + 0.6, 0.4, -Z / 2 + 0.6],
-          ],
-          seam,
-          g,
-        );
-        this.box(1.5, 0.08, 5.5, X / 2 - 2, 0.43, Z / 2 - 5, this.mat.orange, g);
-      }
-      if (item.id === 'keyboard') {
-        this.box(X, 1.8, Z, 0, 1.1, 0, this.mat.dark, g, true);
-        const rows = 5,
-          columns = 12,
-          dx = (X - 1.8) / rows,
-          dz = (Z - 1.6) / columns;
-        for (let row = 0; row < rows; row++)
-          for (let col = 0; col < columns; col++)
-            this.box(
-              dx * 0.78,
-              0.55,
-              dz * 0.8,
-              -X / 2 + 1.1 + row * dx,
-              2.2,
-              -Z / 2 + 1 + col * dz,
-              row === 0 && col === 0 ? this.mat.orange : this.mat.fabric,
-              g,
-            );
-        this.box(dx * 0.8, 0.58, dz * 4, -X / 2 + 1.1, 2.22, 0, this.mat.groove, g);
-      }
-      if (item.id === 'mouse') {
-        const shell = this.sphere(1, 0, 1.65, 0, this.mat.dark, g);
-        shell.scale.set(5.8, 1.65, 3.4);
-        this.line(
-          [
-            [-0.2, 3.28, 0],
-            [2.4, 3.05, 0],
-            [4.4, 2.55, 0],
-          ],
-          new T.LineBasicMaterial({ color: 0x74816e }),
-          g,
-        );
-        const wheel = this.cylinder(0.65, 1, 1.5, 3.1, 0, this.mat.rubber, g);
-        wheel.rotation.x = Math.PI / 2;
-        this.box(0.8, 0.25, 1, -0.8, 3.23, 0, this.mat.orange, g);
-      }
-      if (item.id === 'pc') {
-        const H = s.pcHeight;
-        this.box(X, H, Z, 0, H / 2, 0, this.mat.dark, g, true);
-        this.box(0.3, H * 0.81, Z * 0.83, -X / 2 - 0.2, H * 0.51, 0, this.mat.fabric, g);
-        for (let i = 0; i < 10; i++)
-          this.box(
-            0.15,
-            0.25,
-            Z * 0.74,
-            -X / 2 - 0.4,
-            H * 0.12 + i * H * 0.075,
-            0,
-            this.mat.dark,
-            g,
-          );
-        for (let i = 0; i < 7; i++)
-          this.box(X * 0.76, 0.12, 0.25, 0, H + 0.07, -Z * 0.3 + i * Z * 0.1, this.mat.groove, g);
-        this.sphere(0.35, X * 0.25, H + 0.2, -Z * 0.35, this.mat.orange, g);
-        for (const xx of [-X * 0.35, X * 0.35])
-          for (const zz of [-Z * 0.35, Z * 0.35])
-            this.cylinder(1, 0.7, xx, 0.35, zz, this.mat.rubber, g);
-      }
-    }
-  }
-  buildMonitor(s, e) {
-    const p = e.clampPoint,
-      target = e.monitorPoint,
-      R = s.armReach,
-      arm = e.armPose,
-      mid = arm.elbow,
-      actual = arm.end;
-    const anchor = new T.Group(),
-      edge = clampEdge(s);
-    anchor.position.set(p.x, s.deskH, p.z);
-    anchor.rotation.y = radians(s.deskAngle + { xmin: 0, xmax: 180, zmin: -90, zmax: 90 }[edge]);
-    this.group.add(anchor);
-    if (s.clampMount === 'clamp') {
-      this.box(8, 2, 8, 0, 1, 0, this.mat.arm, anchor);
-      this.box(2, 8, 6, -6, -3, 0, this.mat.dark, anchor);
-      this.box(8, 1.5, 6, -3, -7, 0, this.mat.dark, anchor);
-      this.cylinder(0.6, 6, 0, -4, 0, this.mat.silver, anchor);
-    } else {
-      this.cylinder(3.8, 1.2, 0, 0.6, 0, this.mat.arm, anchor);
-      this.cylinder(0.6, 7, 0, -3, 0, this.mat.silver, anchor);
-    }
-    this.cylinder(
-      1.6,
-      Math.max(8, target.y - s.deskH),
-      p.x,
-      (target.y + s.deskH) / 2,
-      p.z,
-      this.mat.arm,
-    );
-    this.tube([p.x, target.y, p.z], [mid.x, target.y, mid.z], 1.4, this.mat.arm);
-    this.tube([mid.x, target.y, mid.z], [actual.x, target.y, actual.z], 1.3, this.mat.arm);
-    for (const j of [{ x: p.x, z: p.z }, mid, actual])
-      this.cylinder(2.7, 3, j.x, target.y, j.z, this.mat.dark);
-    if (!arm.reachable) {
-      const bad = new T.LineDashedMaterial({ color: 0xc26a46, dashSize: 2, gapSize: 2 });
-      this.line(
-        [
-          [actual.x, target.y, actual.z],
-          [target.x, target.y, target.z],
-        ],
-        bad,
-        this.group,
-        true,
-      );
-    }
-    const monitor = new T.Group();
-    monitor.position.set(target.x, target.y, target.z);
-    monitor.rotation.y = radians(e.monitorAngle);
-    this.group.add(monitor);
-    this.box(e.monitorW, e.monitorH, 3.3, 0, 0, 0, this.mat.dark, monitor);
-    this.box(e.monitorW - 1.8, e.monitorH - 1.8, 0.1, 0, 0.3, -1.72, this.mat.screen, monitor);
-    this.box(4, 0.4, 0.3, 0, -e.monitorH / 2 + 0.5, -1.9, this.mat.silver, monitor);
-    this.box(12, 12, 2, 0, 0, 3, this.mat.arm, monitor);
-    this.armHandles = [
-      { id: 'elbow', label: 'CODO', point: mid },
-      { id: 'end', label: 'VESA', point: actual },
-    ];
-    if (this.layoutEditing && this.layoutTarget === 'arm' && ['top', 'desk'].includes(this.view))
-      for (const handle of this.armHandles) {
-        this.sphere(3.8, handle.point.x, handle.point.y + 3, handle.point.z, this.mat.orange);
-        const item = this.label(
-          handle.label,
-          handle.point.x,
-          handle.point.y + 7,
-          handle.point.z,
-          true,
-        );
-        item.el.classList.add('arm-joint-label');
-        item.offsetY = -20;
-        item.armHandle = true;
-      }
-    // Horizontal reach indicator projected onto floor in top view.
-
-    this.armDims = new T.Group();
-    this.dims.add(this.armDims);
-    this.line(
-      [
-        [p.x, 0.8, p.z],
-        [target.x, 0.8, target.z],
-      ],
-      this.mat.dim,
-      this.armDims,
-      true,
-    );
-    const arc = [];
-    for (let i = 0; i <= 64; i++) {
-      const a = (i / 64) * Math.PI * 2;
-      arc.push([p.x + Math.cos(a) * R, 0.6, p.z + Math.sin(a) * R]);
-    }
-    this.line(arc, this.mat.dim, this.armDims, true);
-    this.armDims.visible = this.view === 'top';
-  }
   setView(view) {
     this.view = view;
     const s = this.s;
@@ -1160,7 +959,6 @@ export class CockpitScene {
     this.setFrustum();
     this.controls.update();
     if (this.roomGroup) this.roomGroup.visible = s.roomEnabled !== false;
-    if (this.armDims) this.armDims.visible = view === 'top';
     if (this.sideDims) this.sideDims.visible = view === 'side';
     if (this.s) this.update(this.s, this.e);
   }

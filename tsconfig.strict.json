@@ -40,6 +40,7 @@
     "src/render-list.ts",
     "src/render-profile.ts",
     "src/render-rig.ts",
+    "src/render-desk.ts",
     "src/three-adapter.ts",
     "playwright.config.ts"
   ]
