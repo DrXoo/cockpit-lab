@@ -1,4 +1,5 @@
 // Evaluates a configuration: envelopes, interferences and ergonomic and room checks.
+// Lengths are in cm. Volumes are approximate envelopes, not a structural model.
 import {
   degToRad,
   inversePoint,
@@ -9,8 +10,9 @@ import {
   transformPoint,
   type PlanPoint,
   type Placement,
+  type Point3,
 } from './geometry.ts';
-import { evaluateRoom, type Obstacle } from './room.ts';
+import { evaluateRoom, type Obstacle, type RoomEvaluation, type Solid } from './room.ts';
 import type { Check, CheckLevel } from './checks.ts';
 import type { CockpitConfig } from './config.ts';
 import { anatomy } from './anatomy.ts';
@@ -20,64 +22,106 @@ import { monitorGeometry } from './monitor-arm.ts';
 import { getParts } from './parts.ts';
 import { baseSupports, drivingMount, floorHeight, rigLift } from './rig.ts';
 
-export function evaluate(s: CockpitConfig) {
-  const hasRig = s.cockpitEnabled !== false,
-    hasDesk = s.deskEnabled !== false,
-    hasMonitor = hasDesk && s.monitorEnabled !== false;
-  const body = anatomy(s),
-    hasDriving = hasRig && (s.shifter || s.handbrake),
-    driving = drivingMount(s),
-    rigPose = pose(s, 'cockpit'),
-    deskPose = pose(s, 'desk');
-  const flightExtra = s.hotas ? s.hotasOut + 9 : 0,
-    drivingExtra = hasDriving ? s.hotasOut + 10 : 0;
-  const rigLeft = -s.width / 2 - Math.max(flightExtra, driving.sign < 0 ? drivingExtra : 0),
-    rigRight = s.width / 2 + Math.max(flightExtra, driving.sign > 0 ? drivingExtra : 0);
-  const bounds = deskBounds(s),
-    deskLeft = -bounds.halfX,
-    deskRight = bounds.halfX,
-    deskBack = -bounds.halfZ,
-    deskFront = bounds.halfZ;
-  const monitorW = (s.monitorInches * 2.54 * 21) / Math.hypot(21, 9),
-    monitorH = (s.monitorInches * 2.54 * 9) / Math.hypot(21, 9);
-  const monitor = monitorGeometry(s),
-    clampPoint = monitor.anchor,
-    monitorPoint = monitor.point,
-    monitorAngle = monitor.angle,
-    armPose = monitor.arm;
-  const reach = Math.hypot(clampPoint.x - monitorPoint.x, clampPoint.z - monitorPoint.z),
-    lift = s.monitorH - s.deskH;
-  const pedalEnd = s.pedalZ + 18 * Math.cos(degToRad(s.pedalTilt)),
-    overhang = pedalEnd > s.length;
+// Tolerances. Below these values two volumes are in contact, not interfering.
+/** Minimum vertical and plan overlap for a rig volume to interfere with the desk. */
+const RIG_DESK_OVERLAP_CM = 0.1;
+/** The whole setup may stick out of the room by this much and still fit. */
+const ROOM_FIT_TOLERANCE_CM = 0.01;
+/** Minimum plan overlap between two hard items on the tabletop. */
+const DESKTOP_OVERLAP_CM = 0.2;
+/** The mouse may stick out of the mat by this much and still count as on it. */
+const MAT_EDGE_TOLERANCE_CM = 0.01;
+/** Maximum distance from the desk edge for a clamp-mounted arm to count as on the edge. */
+const CLAMP_EDGE_TOLERANCE_CM = 0.1;
+/** Minimum plan overlap for furniture or a door sweep to block the free aisle. */
+const AISLE_OVERLAP_CM = 0.1;
+
+const CM_PER_INCH = 2.54;
+/** Monitors are modeled as ultrawide 21:9 screens. */
+const MONITOR_ASPECT = { width: 21, height: 9 } as const;
+
+export type CockpitEvaluation = ReturnType<typeof evaluate>;
+
+interface Presence {
+  hasRig: boolean;
+  hasDesk: boolean;
+  hasMonitor: boolean;
+  /** A shifter or handbrake is mounted on the rig. */
+  hasDriving: boolean;
+}
+
+type DrivingMount = ReturnType<typeof drivingMount>;
+type Body = ReturnType<typeof anatomy>;
+type DesktopItem = ReturnType<typeof getDesktopItems>[number];
+
+const solid = (
+  x0: number,
+  x1: number,
+  z0: number,
+  z1: number,
+  y0: number,
+  y1: number,
+  placement: Placement,
+): Solid => ({ polygon: rectangle(x0, x1, z0, z1, placement), y0, y1 });
+
+const check = (
+  id: string,
+  label: string,
+  value: string,
+  level: CheckLevel,
+  detail: string,
+): Check => ({ id, label, value, level, detail });
+
+function presenceOf(s: CockpitConfig): Presence {
+  const hasRig = s.cockpitEnabled !== false;
+  const hasDesk = s.deskEnabled !== false;
+  return {
+    hasRig,
+    hasDesk,
+    hasMonitor: hasDesk && s.monitorEnabled !== false,
+    hasDriving: hasRig && (s.shifter || s.handbrake),
+  };
+}
+
+function monitorSize(inches: number) {
+  const diagonal = Math.hypot(MONITOR_ASPECT.width, MONITOR_ASPECT.height);
+  return {
+    monitorW: (inches * CM_PER_INCH * MONITOR_ASPECT.width) / diagonal,
+    monitorH: (inches * CM_PER_INCH * MONITOR_ASPECT.height) / diagonal,
+  };
+}
+
+/** Plan footprint of the rig, including side mounts, the pedals and a reclined backrest. */
+function rigFootprint(s: CockpitConfig, presence: Presence, driving: DrivingMount) {
+  const flightExtra = s.hotas ? s.hotasOut + 9 : 0;
+  const drivingExtra = presence.hasDriving ? s.hotasOut + 10 : 0;
+  const rigLeft = -s.width / 2 - Math.max(flightExtra, driving.sign < 0 ? drivingExtra : 0);
+  const rigRight = s.width / 2 + Math.max(flightExtra, driving.sign > 0 ? drivingExtra : 0);
+  const pedalEnd = s.pedalZ + 18 * Math.cos(degToRad(s.pedalTilt));
   const seatBackZ =
     s.seatZ - 12 - Math.sin(degToRad(s.recline)) * 64 - Math.cos(degToRad(s.recline)) * 4.5;
-  const lowerZ = Math.min(0, seatBackZ),
-    upperZ = Math.max(s.length, pedalEnd, s.wheel ? s.wheelZ + 32 : 0);
-  const rigPolygon = hasRig ? rectangle(rigLeft, rigRight, lowerZ, upperZ, rigPose) : [],
-    deskPolygon = hasDesk
-      ? rectangle(-bounds.footprintHalfX, bounds.footprintHalfX, deskBack, deskFront, deskPose)
-      : [],
-    tabletopPolygon = hasDesk ? rectangle(deskLeft, deskRight, deskBack, deskFront, deskPose) : [],
-    monitorPolygon = hasMonitor
-      ? rectangle(-monitorW / 2, monitorW / 2, -2, 2, { ...monitorPoint, angle: monitorAngle })
-      : [];
-  const desktopItems = getDesktopItems(s);
-  const setupPoints = [
-    ...rigPolygon,
-    ...deskPolygon,
-    ...monitorPolygon,
-    ...desktopItems.flatMap((item) => item.polygon),
-    ...(hasMonitor ? [armPose.elbow, armPose.end] : []),
-  ];
-  const allPoints = setupPoints.length ? setupPoints : [{ x: s.roomX, z: s.roomZ }],
-    allLeft = Math.min(...allPoints.map((p) => p.x)),
-    allRight = Math.max(...allPoints.map((p) => p.x)),
-    allBack = Math.min(...allPoints.map((p) => p.z)),
-    allFront = Math.max(...allPoints.map((p) => p.z));
-  const spaceW = allRight - allLeft,
-    spaceD = allFront - allBack,
-    freeW = s.roomW - spaceW,
-    freeD = s.roomD - spaceD;
+  const lowerZ = Math.min(0, seatBackZ);
+  const upperZ = Math.max(s.length, pedalEnd, s.wheel ? s.wheelZ + 32 : 0);
+  return {
+    rigLeft,
+    rigRight,
+    pedalEnd,
+    overhang: pedalEnd > s.length,
+    seatBackZ,
+    lowerZ,
+    upperZ,
+  };
+}
+
+/** Bounding box of every point of the setup and its clearance to each room wall. */
+function setupExtent(s: CockpitConfig, setupPoints: PlanPoint[]) {
+  const points = setupPoints.length ? setupPoints : [{ x: s.roomX, z: s.roomZ }];
+  const allLeft = Math.min(...points.map((p) => p.x));
+  const allRight = Math.max(...points.map((p) => p.x));
+  const allBack = Math.min(...points.map((p) => p.z));
+  const allFront = Math.max(...points.map((p) => p.z));
+  const spaceW = allRight - allLeft;
+  const spaceD = allFront - allBack;
   const roomBounds = {
     left: s.roomX,
     right: s.roomX + s.roomW,
@@ -90,92 +134,124 @@ export function evaluate(s: CockpitConfig) {
     back: allBack - roomBounds.back,
     front: roomBounds.front - allFront,
   };
-  const roomFits = Object.values(clearances).every((gap) => gap >= -0.01);
-  const sideGap = hasRig && hasDesk ? polygonDistance(rigPolygon, deskPolygon) : 0;
-  const solid = (
-    x0: number,
-    x1: number,
-    z0: number,
-    z1: number,
-    y0: number,
-    y1: number,
-    placement: Placement,
-  ) => ({
-    polygon: rectangle(x0, x1, z0, z1, placement),
-    y0,
-    y1,
-  });
-  const rigSolids = hasRig
-    ? [
-        solid(-s.width / 2, s.width / 2, 0, s.length, 6, 14, rigPose),
-        solid(-25, 25, seatBackZ, s.seatZ + 25, s.seatH - 8, s.seatH + 64, rigPose),
-        solid(
-          -s.width / 2 + 4,
-          s.width / 2 - 4,
-          s.pedalZ - 19,
-          s.pedalZ + 19,
-          s.pedalH - 5,
-          s.pedalH + 24,
-          rigPose,
-        ),
-      ]
-    : [];
-  if (hasRig && s.wheel) {
-    rigSolids.push(
+  return {
+    allLeft,
+    allRight,
+    allBack,
+    allFront,
+    spaceW,
+    spaceD,
+    freeW: s.roomW - spaceW,
+    freeD: s.roomD - spaceD,
+    roomBounds,
+    clearances,
+    roomFits: Object.values(clearances).every((gap) => gap >= -ROOM_FIT_TOLERANCE_CM),
+  };
+}
+
+/** Volumes of the chassis, seat, pedals and controls, raised by the base elevation. */
+function rigVolumes(
+  s: CockpitConfig,
+  presence: Presence,
+  driving: DrivingMount,
+  seatBackZ: number,
+  rigPose: Placement,
+): Solid[] {
+  if (!presence.hasRig) return baseSupportVolumes(s, rigPose);
+  const volumes = [
+    solid(-s.width / 2, s.width / 2, 0, s.length, 6, 14, rigPose),
+    solid(-25, 25, seatBackZ, s.seatZ + 25, s.seatH - 8, s.seatH + 64, rigPose),
+    solid(
+      -s.width / 2 + 4,
+      s.width / 2 - 4,
+      s.pedalZ - 19,
+      s.pedalZ + 19,
+      s.pedalH - 5,
+      s.pedalH + 24,
+      rigPose,
+    ),
+  ];
+  if (s.wheel) {
+    volumes.push(
       solid(-16, 16, s.wheelZ - 3, s.wheelZ + 32, s.wheelH - 10, s.wheelH + 16, rigPose),
     );
     for (const sign of [-1, 1]) {
       const x = sign * (s.width / 2 - 2);
-      rigSolids.push(solid(x - 4, x + 4, s.wheelZ + 15, s.wheelZ + 21, 14, s.wheelH - 8, rigPose));
+      volumes.push(solid(x - 4, x + 4, s.wheelZ + 15, s.wheelZ + 21, 14, s.wheelH - 8, rigPose));
     }
   }
-  if (hasRig && s.hotas)
+  if (s.hotas)
     for (const sign of [-1, 1]) {
-      const x = sign * (s.width / 2 + s.hotasOut),
-        z = s.hotasZ + (sign === driving.sign && hasDriving ? 24 : 0);
-      rigSolids.push(solid(x - 9, x + 9, z - 12.5, z + 12.5, s.hotasH - 4, s.hotasH + 22, rigPose));
+      const x = sign * (s.width / 2 + s.hotasOut);
+      const z = s.hotasZ + (sign === driving.sign && presence.hasDriving ? 24 : 0);
+      volumes.push(solid(x - 9, x + 9, z - 12.5, z + 12.5, s.hotasH - 4, s.hotasH + 22, rigPose));
     }
-  if (hasDriving) {
+  if (presence.hasDriving) {
     const { x, z } = driving;
-    rigSolids.push(solid(x - 10, x + 10, z - 15, z + 15, s.hotasH - 4, s.hotasH + 25, rigPose));
+    volumes.push(solid(x - 10, x + 10, z - 15, z + 15, s.hotasH - 4, s.hotasH + 25, rigPose));
   }
-  if (hasRig && s.centerStick)
-    rigSolids.push(
-      solid(-9, 9, s.stickZ - 10, s.stickZ + 10, s.stickH - 3, s.stickH + 22, rigPose),
-    );
-  for (const volume of rigSolids) {
+  if (s.centerStick)
+    volumes.push(solid(-9, 9, s.stickZ - 10, s.stickZ + 10, s.stickH - 3, s.stickH + 22, rigPose));
+  for (const volume of volumes) {
     volume.y0 += rigLift(s);
     volume.y1 += rigLift(s);
   }
-  for (const p of baseSupports(s))
-    rigSolids.push(
-      solid(p.x - 2, p.x + 2, p.z - 2, p.z + 2, p.y - p.length / 2, p.y + p.length / 2, rigPose),
-    );
-  const deskSolids = hasDesk
-    ? [solid(deskLeft, deskRight, deskBack, deskFront, s.deskH - 2.5, s.deskH, deskPose)]
-    : [];
-  for (const z of hasDesk ? [-bounds.columnZ, bounds.columnZ] : []) {
-    deskSolids.push(solid(0, 10, z - 4.5, z + 4.5, 6, s.deskH - 4, deskPose));
-    deskSolids.push(solid(-33, 33, z - 4, z + 4, 1, 6, deskPose));
+  return [...volumes, ...baseSupportVolumes(s, rigPose)];
+}
+
+/** The base extensions already sit at their final height. */
+function baseSupportVolumes(s: CockpitConfig, rigPose: Placement): Solid[] {
+  return baseSupports(s).map((p) =>
+    solid(p.x - 2, p.x + 2, p.z - 2, p.z + 2, p.y - p.length / 2, p.y + p.length / 2, rigPose),
+  );
+}
+
+/** Tabletop, two columns and two feet. */
+function deskVolumes(
+  s: CockpitConfig,
+  bounds: ReturnType<typeof deskBounds>,
+  deskPose: Placement,
+): Solid[] {
+  const volumes = [
+    solid(
+      -bounds.halfX,
+      bounds.halfX,
+      -bounds.halfZ,
+      bounds.halfZ,
+      s.deskH - 2.5,
+      s.deskH,
+      deskPose,
+    ),
+  ];
+  for (const z of [-bounds.columnZ, bounds.columnZ]) {
+    volumes.push(solid(0, 10, z - 4.5, z + 4.5, 6, s.deskH - 4, deskPose));
+    volumes.push(solid(-33, 33, z - 4, z + 4, 1, 6, deskPose));
   }
-  let collisionCount = 0;
-  for (const r of rigSolids)
-    for (const d of deskSolids)
+  return volumes;
+}
+
+function countCollisions(a: Solid[], b: Solid[]): number {
+  let count = 0;
+  for (const x of a)
+    for (const y of b)
       if (
-        Math.min(r.y1, d.y1) - Math.max(r.y0, d.y0) > 0.1 &&
-        overlapDepth(r.polygon, d.polygon) > 0.1
+        Math.min(x.y1, y.y1) - Math.max(x.y0, y.y0) > RIG_DESK_OVERLAP_CM &&
+        overlapDepth(x.polygon, y.polygon) > RIG_DESK_OVERLAP_CM
       )
-        collisionCount++;
-  const deskCollision = collisionCount > 0;
-  const bodyCheck: Check[] = [];
-  const check = (
-    id: string,
-    label: string,
-    value: string,
-    level: CheckLevel,
-    detail: string,
-  ): Check => ({ id, label, value, level, detail });
-  bodyCheck.push(
+        count++;
+  return count;
+}
+
+/** Joint angles and reach, against approximate comfort guides for average proportions. */
+function bodyChecks(
+  s: CockpitConfig,
+  body: Body,
+  presence: Presence,
+  monitorPoint: Point3,
+  rigPose: Placement,
+): Check[] {
+  if (!presence.hasRig) return [];
+  const checks = [
     check(
       'knee',
       'Ángulo de rodilla',
@@ -187,8 +263,6 @@ export function evaluate(s: CockpitConfig) {
           : 'ok',
       'Guía 100–145° · proporciones medias',
     ),
-  );
-  bodyCheck.push(
     check(
       'hip',
       'Apertura de cadera',
@@ -196,9 +270,9 @@ export function evaluate(s: CockpitConfig) {
       body.hipAngle < 85 || body.hipAngle > 125 ? 'warning' : 'ok',
       'Guía 85–125° · respaldo incluido',
     ),
-  );
+  ];
   if (s.wheel)
-    bodyCheck.push(
+    checks.push(
       check(
         'elbow',
         'Ángulo de codo',
@@ -212,129 +286,165 @@ export function evaluate(s: CockpitConfig) {
       ),
     );
   if (s.hotas) {
-    const d = Math.hypot(
+    const distance = Math.hypot(
       s.hotasZ - body.shoulder.z,
       s.hotasH + 18 - body.shoulder.y,
       s.width / 2 + s.hotasOut - 18,
     );
-    bodyCheck.push(
+    checks.push(
       check(
         'hotas',
         'Alcance HOTAS',
-        `${Math.round(d)} cm`,
-        d > s.height * 0.332 ? 'error' : d > s.height * 0.3 ? 'warning' : 'ok',
+        `${Math.round(distance)} cm`,
+        distance > s.height * 0.332 ? 'error' : distance > s.height * 0.3 ? 'warning' : 'ok',
         'Hombro a empuñadura · aproximado',
       ),
     );
   }
   if (s.centerStick) {
-    const d = Math.hypot(s.stickZ - body.shoulder.z, s.stickH + 14 - body.shoulder.y);
-    bodyCheck.push(
+    const distance = Math.hypot(s.stickZ - body.shoulder.z, s.stickH + 14 - body.shoulder.y);
+    checks.push(
       check(
         'stick',
         'Joystick central',
-        `${Math.round(d)} cm`,
-        d > s.height * 0.332 ? 'error' : 'ok',
+        `${Math.round(distance)} cm`,
+        distance > s.height * 0.332 ? 'error' : 'ok',
         'Hombro a empuñadura · aproximado',
       ),
     );
   }
-  if (hasRig && hasMonitor && s.monitorMode === 'cockpit') {
-    const eye = transformPoint({ x: 0, ...body.eye, y: body.eye.y + rigLift(s) }, rigPose),
-      d = Math.hypot(monitorPoint.x - eye.x, monitorPoint.z - eye.z, monitorPoint.y - eye.y);
-    bodyCheck.push(
+  if (presence.hasMonitor && s.monitorMode === 'cockpit') {
+    const eye = transformPoint({ x: 0, ...body.eye, y: body.eye.y + rigLift(s) }, rigPose);
+    const distance = Math.hypot(
+      monitorPoint.x - eye.x,
+      monitorPoint.z - eye.z,
+      monitorPoint.y - eye.y,
+    );
+    checks.push(
       check(
         'eyes',
         'Ojos a pantalla',
-        `${Math.round(d)} cm`,
-        d < 50 || d > 110 ? 'warning' : 'ok',
+        `${Math.round(distance)} cm`,
+        distance < 50 || distance > 110 ? 'warning' : 'ok',
         'Distancia geométrica · guía 50–110 cm',
       ),
     );
   }
-  const spaceCheck = [
+  return checks;
+}
+
+/** Rig-to-desk separation, interferences and the monitor arm. */
+function spaceChecks(
+  s: CockpitConfig,
+  presence: Presence,
+  layout: {
+    sideGap: number;
+    collisionCount: number;
+    armPose: ReturnType<typeof monitorGeometry>['arm'];
+    reach: number;
+    lift: number;
+    monitorH: number;
+  },
+): Check[] {
+  const { sideGap, collisionCount, armPose, reach, lift, monitorH } = layout;
+  const checks: Check[] = [];
+  if (presence.hasRig && presence.hasDesk) {
+    checks.push(
+      check(
+        'side',
+        'Separación en planta',
+        sideGap < 0 ? `${Math.ceil(-sideGap)} cm de solape` : `${Math.round(sideGap)} cm`,
+        sideGap < 5 ? 'warning' : 'ok',
+        sideGap < 0
+          ? 'Huellas superpuestas; comprueba las alturas'
+          : 'Distancia mínima entre huellas giradas',
+      ),
+      check(
+        'collision',
+        'Interferencias',
+        collisionCount > 0
+          ? `${collisionCount} cruce${collisionCount > 1 ? 's' : ''}`
+          : 'Sin cruce',
+        collisionCount > 0 ? 'error' : 'ok',
+        'Volúmenes aproximados · giro incluido',
+      ),
+    );
+  }
+  if (!presence.hasMonitor) return checks;
+  checks.push(
     check(
-      'side',
-      'Separación en planta',
-      sideGap < 0 ? `${Math.ceil(-sideGap)} cm de solape` : `${Math.round(sideGap)} cm`,
-      sideGap < 5 ? 'warning' : 'ok',
-      sideGap < 0
-        ? 'Huellas superpuestas; comprueba las alturas'
-        : 'Distancia mínima entre huellas giradas',
+      'arm',
+      'Brazo de monitor',
+      armPose.reachable ? (s.monitorMode === 'manual' ? 'Manual' : 'Alcanza') : 'No alcanza',
+      !armPose.reachable ? 'error' : reach > s.armReach * 0.9 ? 'warning' : 'ok',
+      `${Math.round(reach)} cm en planta · rango ${round(armPose.minReach)}–${s.armReach} cm; tramos ${round(armPose.first)} + ${round(armPose.second)} cm`,
     ),
-  ];
-  spaceCheck.push(
     check(
-      'collision',
-      'Interferencias',
-      deskCollision ? `${collisionCount} cruce${collisionCount > 1 ? 's' : ''}` : 'Sin cruce',
-      deskCollision ? 'error' : 'ok',
-      'Volúmenes aproximados · giro incluido',
+      'lift',
+      'Altura del brazo',
+      `${Math.round(lift)} cm`,
+      lift < s.armMinH || lift > s.armMaxH ? 'error' : 'ok',
+      `Centro VESA sobre tablero · ${s.armMinH}–${s.armMaxH} cm`,
     ),
   );
-
-  {
-    spaceCheck.push(
+  if (s.monitorMode === 'cockpit' && presence.hasRig) {
+    const monitorClearance = s.monitorH - monitorH / 2 - (floorHeight(s, 'wheelH') + 16);
+    checks.push(
       check(
-        'arm',
-        'Brazo de monitor',
-        armPose.reachable ? (s.monitorMode === 'manual' ? 'Manual' : 'Alcanza') : 'No alcanza',
-        !armPose.reachable ? 'error' : reach > s.armReach * 0.9 ? 'warning' : 'ok',
-        `${Math.round(reach)} cm en planta · rango ${round(armPose.minReach)}–${s.armReach} cm; tramos ${round(armPose.first)} + ${round(armPose.second)} cm`,
+        'screen',
+        'Pantalla / volante',
+        s.wheel ? `${Math.round(monitorClearance)} cm` : 'Libre',
+        s.wheel && monitorClearance < 2 ? 'warning' : 'ok',
+        'Separación vertical de envolventes',
       ),
     );
-    spaceCheck.push(
-      check(
-        'lift',
-        'Altura del brazo',
-        `${Math.round(lift)} cm`,
-        lift < s.armMinH || lift > s.armMaxH ? 'error' : 'ok',
-        `Centro VESA sobre tablero · ${s.armMinH}–${s.armMaxH} cm`,
-      ),
-    );
-    if (s.monitorMode === 'cockpit') {
-      const monitorClearance = s.monitorH - monitorH / 2 - (floorHeight(s, 'wheelH') + 16);
-      spaceCheck.push(
-        check(
-          'screen',
-          'Pantalla / volante',
-          s.wheel ? `${Math.round(monitorClearance)} cm` : 'Libre',
-          s.wheel && monitorClearance < 2 ? 'warning' : 'ok',
-          'Separación vertical de envolventes',
-        ),
-      );
-    }
   }
-  if (s.monitorMode === 'vr' && hasMonitor)
-    spaceCheck.push(
-      check('vr', 'Modo VR', 'Frontal libre', 'ok', 'Monitor aparcado sobre la mesa'),
-    );
-  const outsideItems = desktopItems.filter((item) => item.outside),
-    hardItems = desktopItems.filter((item) => item.id !== 'mat'),
-    desktopOverlaps: string[] = [];
+  if (s.monitorMode === 'vr')
+    checks.push(check('vr', 'Modo VR', 'Frontal libre', 'ok', 'Monitor aparcado sobre la mesa'));
+  return checks;
+}
+
+/** Overlaps between hard tabletop items, and whether the mouse sits on the mat. */
+function desktopLayout(desktopItems: DesktopItem[]) {
+  const hardItems = desktopItems.filter((item) => item.id !== 'mat');
+  const desktopOverlaps: string[] = [];
   for (let i = 0; i < hardItems.length; i++)
     for (let j = i + 1; j < hardItems.length; j++)
-      if (overlapDepth(hardItems[i].localPolygon, hardItems[j].localPolygon) > 0.2)
+      if (overlapDepth(hardItems[i].localPolygon, hardItems[j].localPolygon) > DESKTOP_OVERLAP_CM)
         desktopOverlaps.push(`${hardItems[i].label} / ${hardItems[j].label}`);
-  const mat = desktopItems.find((item) => item.id === 'mat'),
-    mouse = desktopItems.find((item) => item.id === 'mouse'),
-    mouseOnMat =
-      !!mat &&
-      !!mouse &&
-      mouse.localPolygon.every((p) => {
-        const local = inversePoint(p, mat.local);
-        return (
-          Math.abs(local.x) <= mat.sizeX / 2 + 0.01 && Math.abs(local.z) <= mat.sizeZ / 2 + 0.01
-        );
-      });
-  const desktopChecks = [
+  const mat = desktopItems.find((item) => item.id === 'mat');
+  const mouse = desktopItems.find((item) => item.id === 'mouse');
+  const mouseOnMat =
+    !!mat &&
+    !!mouse &&
+    mouse.localPolygon.every((p) => {
+      const local = inversePoint(p, mat.local);
+      return (
+        Math.abs(local.x) <= mat.sizeX / 2 + MAT_EDGE_TOLERANCE_CM &&
+        Math.abs(local.z) <= mat.sizeZ / 2 + MAT_EDGE_TOLERANCE_CM
+      );
+    });
+  return { desktopOverlaps, mouseOnMat, hasMatAndMouse: !!mat && !!mouse };
+}
+
+function desktopChecks(
+  s: CockpitConfig,
+  presence: Presence,
+  desktopItems: DesktopItem[],
+  layout: ReturnType<typeof desktopLayout>,
+  bounds: ReturnType<typeof deskBounds>,
+): Check[] {
+  if (!presence.hasDesk) return [];
+  const { desktopOverlaps, mouseOnMat } = layout;
+  const outsideItems = desktopItems.filter((item) => item.outside);
+  const checks = [
     check(
       'desktop-fit',
       'Dentro del tablero',
       outsideItems.length ? 'Revisar bordes' : 'Todo dentro',
       outsideItems.length ? 'warning' : 'ok',
       outsideItems.length
-        ? outsideItems.map((i) => i.label).join(', ')
+        ? outsideItems.map((item) => item.label).join(', ')
         : `Envolventes y giros sobre ${s.deskWidth} × ${s.deskDepth} cm`,
     ),
     check(
@@ -346,134 +456,171 @@ export function evaluate(s: CockpitConfig) {
       desktopOverlaps.length ? 'warning' : 'ok',
       desktopOverlaps.length ? desktopOverlaps.join(' · ') : 'La alfombrilla admite objetos encima',
     ),
-    check(
-      'mouse-mat',
-      'Ratón y alfombrilla',
-      mouseOnMat ? 'Dentro' : 'Fuera',
-      mouseOnMat ? 'ok' : 'warning',
-      `${s.matWidth} × ${s.matDepth} cm · cobertura del ratón`,
-    ),
   ];
-  const edgeDistance = Math.min(
-    Math.abs(s.clampX + bounds.anchorX),
-    Math.abs(s.clampX - bounds.anchorX),
-    Math.abs(s.clampZ + bounds.anchorZ),
-    Math.abs(s.clampZ - bounds.anchorZ),
-  );
-  desktopChecks.push(
-    check(
-      'mount',
-      'Fijación del brazo',
-      s.clampMount === 'grommet' ? 'Pasante' : edgeDistance < 0.1 ? 'En borde' : 'Revisar',
-      s.clampMount === 'clamp' && edgeDistance >= 0.1 ? 'warning' : 'ok',
-      s.clampMount === 'grommet'
-        ? 'Requiere taladro o pasacables compatible'
-        : 'Mordaza al borde · compatibilidad por comprobar',
-    ),
-  );
+  if (layout.hasMatAndMouse)
+    checks.push(
+      check(
+        'mouse-mat',
+        'Ratón y alfombrilla',
+        mouseOnMat ? 'Dentro' : 'Fuera',
+        mouseOnMat ? 'ok' : 'warning',
+        `${s.matWidth} × ${s.matDepth} cm · cobertura del ratón`,
+      ),
+    );
+  if (presence.hasMonitor) {
+    const edgeDistance = Math.min(
+      Math.abs(s.clampX + bounds.anchorX),
+      Math.abs(s.clampX - bounds.anchorX),
+      Math.abs(s.clampZ + bounds.anchorZ),
+      Math.abs(s.clampZ - bounds.anchorZ),
+    );
+    const onEdge = edgeDistance < CLAMP_EDGE_TOLERANCE_CM;
+    checks.push(
+      check(
+        'mount',
+        'Fijación del brazo',
+        s.clampMount === 'grommet' ? 'Pasante' : onEdge ? 'En borde' : 'Revisar',
+        s.clampMount === 'clamp' && !onEdge ? 'warning' : 'ok',
+        s.clampMount === 'grommet'
+          ? 'Requiere taladro o pasacables compatible'
+          : 'Mordaza al borde · compatibilidad por comprobar',
+      ),
+    );
+  }
+  return checks;
+}
 
-  const segmentSolid = (a: PlanPoint, b: PlanPoint, r: number, y: number) => {
-    const length = Math.hypot(b.x - a.x, b.z - a.z),
-      angle = (Math.atan2(-(b.z - a.z), b.x - a.x) * 180) / Math.PI;
-    return solid(-length / 2, length / 2, -r, r, y - 3, y + 3, {
-      x: (a.x + b.x) / 2,
-      z: (a.z + b.z) / 2,
-      angle,
-    });
-  };
-  const roomSolids: Obstacle[] = [
-    ...rigSolids.map((v) => ({ ...v, label: 'Cockpit' })),
-    ...deskSolids.map((v) => ({ ...v, label: 'Escritorio' })),
+/** A thin prism along a monitor arm segment, at the monitor height. */
+function segmentVolume(a: PlanPoint, b: PlanPoint, radius: number, y: number): Solid {
+  const length = Math.hypot(b.x - a.x, b.z - a.z);
+  const angle = (Math.atan2(-(b.z - a.z), b.x - a.x) * 180) / Math.PI;
+  return solid(-length / 2, length / 2, -radius, radius, y - 3, y + 3, {
+    x: (a.x + b.x) / 2,
+    z: (a.z + b.z) / 2,
+    angle,
+  });
+}
+
+/** Everything of the setup that can block furniture, openings and clearance zones. */
+function setupObstacles(
+  s: CockpitConfig,
+  presence: Presence,
+  parts: {
+    rigSolids: Solid[];
+    deskSolids: Solid[];
+    desktopItems: DesktopItem[];
+    monitorPolygon: Point3[];
+    monitorH: number;
+    monitor: ReturnType<typeof monitorGeometry>;
+  },
+): Obstacle[] {
+  const { rigSolids, deskSolids, desktopItems, monitorPolygon, monitorH, monitor } = parts;
+  const obstacles: Obstacle[] = [
+    ...rigSolids.map((volume) => ({ ...volume, label: 'Cockpit' })),
+    ...deskSolids.map((volume) => ({ ...volume, label: 'Escritorio' })),
     ...desktopItems
-      .filter((v) => v.id !== 'mat')
-      .map((v) => ({ polygon: v.polygon, y0: s.deskH, y1: s.deskH + v.height, label: v.label })),
-    ...(hasMonitor
-      ? [
-          {
-            polygon: monitorPolygon,
-            y0: s.monitorH - monitorH / 2,
-            y1: s.monitorH + monitorH / 2,
-            label: 'Monitor',
-          },
-          ...[
-            [clampPoint, armPose.elbow],
-            [armPose.elbow, armPose.end],
-          ].map(([a, b]) => ({
-            ...segmentSolid(a, b, 1.5, s.monitorH),
-            label: 'Brazo de monitor',
-          })),
-        ]
-      : []),
+      .filter((item) => item.id !== 'mat')
+      .map((item) => ({
+        polygon: item.polygon,
+        y0: s.deskH,
+        y1: s.deskH + item.height,
+        label: item.label,
+      })),
   ];
-  const room = evaluateRoom(s, roomSolids),
-    bandCandidates = (setupPoints.length ? Object.entries(clearances) : [])
-      .filter(([, gap]) => gap >= s.aisle)
-      .map(([side]) => ({
-        side,
-        polygon:
-          side === 'left'
-            ? rectangle(allLeft - s.aisle, allLeft, allBack, allFront, { x: 0, z: 0, angle: 0 })
-            : side === 'right'
-              ? rectangle(allRight, allRight + s.aisle, allBack, allFront, { x: 0, z: 0, angle: 0 })
-              : side === 'back'
-                ? rectangle(allLeft, allRight, allBack - s.aisle, allBack, { x: 0, z: 0, angle: 0 })
-                : rectangle(allLeft, allRight, allFront, allFront + s.aisle, {
-                    x: 0,
-                    z: 0,
-                    angle: 0,
-                  }),
-      }));
-  const freeBand = bandCandidates.find(
-    (b) =>
-      !room.furniture.some((f) => overlapDepth(b.polygon, f.polygon) > 0.1) &&
-      !room.features
-        .filter((f) => f.type === 'door')
-        .some((f) => f.sectors.some((p) => overlapDepth(b.polygon, p) > 0.1)),
+  if (!presence.hasMonitor) return obstacles;
+  const arm = monitor.arm;
+  return [
+    ...obstacles,
+    {
+      polygon: monitorPolygon,
+      y0: s.monitorH - monitorH / 2,
+      y1: s.monitorH + monitorH / 2,
+      label: 'Monitor',
+    },
+    ...[
+      [monitor.anchor, arm.elbow],
+      [arm.elbow, arm.end],
+    ].map(([a, b]) => ({ ...segmentVolume(a, b, 1.5, s.monitorH), label: 'Brazo de monitor' })),
+  ];
+}
+
+/** The first side of the setup with an aisle free of furniture and door sweeps. */
+function findFreeBand(
+  s: CockpitConfig,
+  extent: ReturnType<typeof setupExtent>,
+  hasSetup: boolean,
+  room: RoomEvaluation,
+) {
+  const { allLeft, allRight, allBack, allFront } = extent;
+  const origin = { x: 0, z: 0, angle: 0 };
+  const bandOn = (side: string) =>
+    side === 'left'
+      ? rectangle(allLeft - s.aisle, allLeft, allBack, allFront, origin)
+      : side === 'right'
+        ? rectangle(allRight, allRight + s.aisle, allBack, allFront, origin)
+        : side === 'back'
+          ? rectangle(allLeft, allRight, allBack - s.aisle, allBack, origin)
+          : rectangle(allLeft, allRight, allFront, allFront + s.aisle, origin);
+  const candidates = (hasSetup ? Object.entries(extent.clearances) : [])
+    .filter(([, gap]) => gap >= s.aisle)
+    .map(([side]) => ({ side, polygon: bandOn(side) }));
+  const doors = room.features.filter((feature) => feature.type === 'door');
+  return candidates.find(
+    (band) =>
+      !room.furniture.some((item) => overlapDepth(band.polygon, item.polygon) > AISLE_OVERLAP_CM) &&
+      !doors.some((door) =>
+        door.sectors.some((sector) => overlapDepth(band.polygon, sector) > AISLE_OVERLAP_CM),
+      ),
   );
-  const aisleFits = roomFits && !!freeBand;
-  const extra: Check[] = [];
-  if (hasRig && overhang)
-    extra.push(
+}
+
+function otherChecks(
+  s: CockpitConfig,
+  presence: Presence,
+  rig: ReturnType<typeof rigFootprint>,
+  room: { hasSetup: boolean; roomFits: boolean; aisleFits: boolean },
+): Check[] {
+  const checks: Check[] = [];
+  if (presence.hasRig && rig.overhang)
+    checks.push(
       check(
         'overhang',
         'Pedalera',
-        `Sobresale ${Math.ceil(pedalEnd - s.length)} cm`,
+        `Sobresale ${Math.ceil(rig.pedalEnd - s.length)} cm`,
         'error',
         'Alarga el chasis o retrasa la pedalera',
       ),
     );
-  if (hasRig && seatBackZ < 0)
-    extra.push(
+  if (presence.hasRig && rig.seatBackZ < 0)
+    checks.push(
       check(
         'seatback',
         'Respaldo',
-        `Sobresale ${Math.ceil(-seatBackZ)} cm`,
+        `Sobresale ${Math.ceil(-rig.seatBackZ)} cm`,
         'warning',
         'La huella del conjunto incluye este saliente',
       ),
     );
-  if (setupPoints.length && s.roomEnabled !== false && !roomFits)
-    extra.push(
-      check(
-        'room',
-        'Zona disponible',
-        'Fuera de zona',
-        'error',
-        'Mueve los elementos o ajusta el origen y tamaño de la zona',
-      ),
+  if (room.hasSetup && s.roomEnabled !== false)
+    checks.push(
+      room.roomFits
+        ? check(
+            'room',
+            'Reserva lateral',
+            room.aisleFits ? `${s.aisle} cm posibles` : 'Insuficiente',
+            room.aisleFits ? 'ok' : 'warning',
+            'Banda sin muebles ni barrido de puerta; no verifica una ruta de acceso',
+          )
+        : check(
+            'room',
+            'Zona disponible',
+            'Fuera de zona',
+            'error',
+            'Mueve los elementos o ajusta el origen y tamaño de la zona',
+          ),
     );
-  else if (setupPoints.length && s.roomEnabled !== false)
-    extra.push(
-      check(
-        'room',
-        'Reserva lateral',
-        aisleFits ? `${s.aisle} cm posibles` : 'Insuficiente',
-        aisleFits ? 'ok' : 'warning',
-        'Banda sin muebles ni barrido de puerta; no verifica una ruta de acceso',
-      ),
-    );
-  if (hasRig && s.centerStick && s.wheel && Math.abs(s.stickZ - s.wheelZ) < 24)
-    extra.push(
+  if (presence.hasRig && s.centerStick && s.wheel && Math.abs(s.stickZ - s.wheelZ) < 24)
+    checks.push(
       check(
         'mode',
         'Mandos centrales',
@@ -482,36 +629,100 @@ export function evaluate(s: CockpitConfig) {
         'El joystick y volante comparten zona: desmontaje alterno',
       ),
     );
-  if (!hasRig) bodyCheck.length = 0;
-  for (let i = spaceCheck.length - 1; i >= 0; i--) {
-    const id = spaceCheck[i].id;
-    if (
-      (['side', 'collision'].includes(id) && !(hasRig && hasDesk)) ||
-      (['arm', 'lift', 'vr'].includes(id) && !hasMonitor) ||
-      (id === 'screen' && !(hasRig && hasMonitor))
-    )
-      spaceCheck.splice(i, 1);
-  }
-  for (let i = desktopChecks.length - 1; i >= 0; i--) {
-    const id = desktopChecks[i].id;
-    if (!hasDesk || (id === 'mouse-mat' && !(mat && mouse)) || (id === 'mount' && !hasMonitor))
-      desktopChecks.splice(i, 1);
-  }
-  const checks = [...bodyCheck, ...spaceCheck, ...desktopChecks, ...extra, ...room.checks],
-    errors = checks.filter((c) => c.level === 'error').length,
-    warnings = checks.filter((c) => c.level === 'warning').length;
+  return checks;
+}
+
+export function evaluate(s: CockpitConfig) {
+  const presence = presenceOf(s);
+  const { hasRig, hasDesk, hasMonitor } = presence;
+  const body = anatomy(s);
+  const driving = drivingMount(s);
+  const rigPose = pose(s, 'cockpit');
+  const deskPose = pose(s, 'desk');
+  const rig = rigFootprint(s, presence, driving);
+  const { rigLeft, rigRight, lowerZ, upperZ } = rig;
+
+  const bounds = deskBounds(s);
+  const deskLeft = -bounds.halfX;
+  const deskRight = bounds.halfX;
+  const deskBack = -bounds.halfZ;
+  const deskFront = bounds.halfZ;
+
+  const { monitorW, monitorH } = monitorSize(s.monitorInches);
+  const monitor = monitorGeometry(s);
+  const clampPoint = monitor.anchor;
+  const monitorPoint = monitor.point;
+  const monitorAngle = monitor.angle;
+  const armPose = monitor.arm;
+  const reach = Math.hypot(clampPoint.x - monitorPoint.x, clampPoint.z - monitorPoint.z);
+  const lift = s.monitorH - s.deskH;
+
+  const rigPolygon = hasRig ? rectangle(rigLeft, rigRight, lowerZ, upperZ, rigPose) : [];
+  const deskPolygon = hasDesk
+    ? rectangle(-bounds.footprintHalfX, bounds.footprintHalfX, deskBack, deskFront, deskPose)
+    : [];
+  const tabletopPolygon = hasDesk
+    ? rectangle(deskLeft, deskRight, deskBack, deskFront, deskPose)
+    : [];
+  const monitorPolygon = hasMonitor
+    ? rectangle(-monitorW / 2, monitorW / 2, -2, 2, { ...monitorPoint, angle: monitorAngle })
+    : [];
+  const desktopItems = getDesktopItems(s);
+  const setupPoints: PlanPoint[] = [
+    ...rigPolygon,
+    ...deskPolygon,
+    ...monitorPolygon,
+    ...desktopItems.flatMap((item) => item.polygon),
+    ...(hasMonitor ? [armPose.elbow, armPose.end] : []),
+  ];
+  const hasSetup = setupPoints.length > 0;
+  const extent = setupExtent(s, setupPoints);
+  const sideGap = hasRig && hasDesk ? polygonDistance(rigPolygon, deskPolygon) : 0;
+
+  const rigSolids = rigVolumes(s, presence, driving, rig.seatBackZ, rigPose);
+  const deskSolids = hasDesk ? deskVolumes(s, bounds, deskPose) : [];
+  const collisionCount = countCollisions(rigSolids, deskSolids);
+
+  const desktop = desktopLayout(desktopItems);
+  const room = evaluateRoom(
+    s,
+    setupObstacles(s, presence, {
+      rigSolids,
+      deskSolids,
+      desktopItems,
+      monitorPolygon,
+      monitorH,
+      monitor,
+    }),
+  );
+  const freeBand = findFreeBand(s, extent, hasSetup, room);
+  const aisleFits = extent.roomFits && !!freeBand;
+
+  const bodyCheck = bodyChecks(s, body, presence, monitorPoint, rigPose);
+  const spaceCheck = spaceChecks(s, presence, {
+    sideGap,
+    collisionCount,
+    armPose,
+    reach,
+    lift,
+    monitorH,
+  });
+  const deskCheck = desktopChecks(s, presence, desktopItems, desktop, bounds);
+  const extra = otherChecks(s, presence, rig, { hasSetup, roomFits: extent.roomFits, aisleFits });
+  const checks = [...bodyCheck, ...spaceCheck, ...deskCheck, ...extra, ...room.checks];
+
   return {
     body: hasRig ? body : null,
     bodyCheck,
     spaceCheck,
-    desktopChecks,
+    desktopChecks: deskCheck,
     desktopItems,
-    desktopOverlaps,
-    mouseOnMat,
+    desktopOverlaps: desktop.desktopOverlaps,
+    mouseOnMat: desktop.mouseOnMat,
     extra,
     checks,
-    errors,
-    warnings,
+    errors: checks.filter((c) => c.level === 'error').length,
+    warnings: checks.filter((c) => c.level === 'warning').length,
     rigLeft,
     rigRight,
     deskLeft,
@@ -524,14 +735,14 @@ export function evaluate(s: CockpitConfig) {
     monitorPoint,
     reach,
     lift,
-    spaceW,
-    spaceD,
-    allLeft,
-    allRight,
-    allBack,
-    allFront,
-    freeW,
-    freeD,
+    spaceW: extent.spaceW,
+    spaceD: extent.spaceD,
+    allLeft: extent.allLeft,
+    allRight: extent.allRight,
+    allBack: extent.allBack,
+    allFront: extent.allFront,
+    freeW: extent.freeW,
+    freeD: extent.freeD,
     lowerZ,
     upperZ,
     sideGap,
@@ -545,9 +756,9 @@ export function evaluate(s: CockpitConfig) {
     armPose,
     drivingMount: driving,
     collisionCount,
-    roomFits,
-    roomBounds,
-    clearances,
+    roomFits: extent.roomFits,
+    roomBounds: extent.roomBounds,
+    clearances: extent.clearances,
     aisleFits,
     freeBand,
     room,
