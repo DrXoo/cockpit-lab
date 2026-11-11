@@ -7,5 +7,5 @@
     "noImplicitAny": true
   },
   "include": [],
-  "files": ["src/geometry.ts", "src/cut-list-csv.ts"]
+  "files": ["src/geometry.ts", "src/cut-list-csv.ts", "src/checks.ts", "src/room.ts"]
 }

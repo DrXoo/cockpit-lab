@@ -76,7 +76,7 @@ function icons(root = document) {
 icons();
 const KEY = 'cockpit-lab-v2';
 let project = createProject(),
-  state = project.config,
+  state: any = project.config,
   setup: any = project.setup,
   section = 'room',
   view = 'top',
