@@ -30,6 +30,8 @@
     "src/project-summary.ts",
     "src/controls-view.ts",
     "src/room-editor.ts",
+    "src/desk-editor.ts",
+    "src/setup-editor.ts",
     "playwright.config.ts"
   ]
 }

@@ -1,25 +1,47 @@
+// Guided setup: the form of each step, the progress bar and the shared placement controls.
 import { deskElementControls, monitorShortcuts } from './desk-editor.ts';
-import { steps } from './project.ts';
-import { presets } from './model.ts';
-import { roomControls, escapeHTML as esc } from './room-editor.ts';
+import { steps, type SetupProgress } from './project.ts';
+import { presets, type CockpitConfig } from './config.ts';
+import type { CockpitEvaluation } from './evaluate.ts';
+import type { BooleanSetting, ControlTemplates } from './controls-view.ts';
+import { roomControls } from './room-editor.ts';
+import { escapeHTML as esc } from './html.ts';
 
-const number = (id, label, min, max, value = '', placeholder = '') =>
+const number = (
+  id: string,
+  label: string,
+  min: number,
+  max: number,
+  value: string | number = '',
+  placeholder = '',
+) =>
   `<label class="setup-field" for="${id}">${label}<span><input id="${id}" type="number" min="${min}" max="${max}" step="0.5" required value="${esc(value)}" placeholder="${placeholder}"><small>cm</small></span></label>`;
-export function accessoryControls(toggle) {
-  return `<div class="control-group"><h3 class="group-title">Accesorios de tu mesa</h3>${[
-    ['monitorEnabled', 'Monitor y brazo'],
-    ['keyboardEnabled', 'Teclado'],
-    ['pcEnabled', 'PC / torre'],
-    ['mouseEnabled', 'Ratón'],
-    ['matEnabled', 'Alfombrilla'],
-  ]
-    .map(([key, label]) => toggle(key, label))
-    .join('')}</div>`;
+const ACCESSORIES: [BooleanSetting, string][] = [
+  ['monitorEnabled', 'Monitor y brazo'],
+  ['keyboardEnabled', 'Teclado'],
+  ['pcEnabled', 'PC / torre'],
+  ['mouseEnabled', 'Ratón'],
+  ['matEnabled', 'Alfombrilla'],
+];
+
+export function accessoryControls(toggle: ControlTemplates['toggle']): string {
+  return `<div class="control-group"><h3 class="group-title">Accesorios de tu mesa</h3>${ACCESSORIES.map(
+    ([key, label]) => toggle(key, label),
+  ).join('')}</div>`;
 }
-export function placementControls(target, range) {
-  return `<div class="control-group"><h3 class="group-title">Posición en la habitación</h3>${range(target + 'X', 'Posición X') + range(target + 'Z', 'Posición Z') + range(target + 'Angle', 'Giro en planta')}<button class="arm-edit-action" data-place="${target}">Colocar en planta ↗</button><p class="layout-hint">Puedes arrastrar el elemento en planta o escribir su posición. Referencia común de la habitación, en cm.</p></div>`;
+export function placementControls(
+  target: 'desk' | 'cockpit',
+  range: ControlTemplates['range'],
+): string {
+  return `<div class="control-group"><h3 class="group-title">Posición en la habitación</h3>${range(`${target}X`, 'Posición X') + range(`${target}Z`, 'Posición Z') + range(`${target}Angle`, 'Giro en planta')}<button class="arm-edit-action" data-place="${target}">Colocar en planta ↗</button><p class="layout-hint">Puedes arrastrar el elemento en planta o escribir su posición. Referencia común de la habitación, en cm.</p></div>`;
 }
-export function creationControls(s, e, setup, target, { range, toggle, select }) {
+export function creationControls(
+  s: CockpitConfig,
+  e: CockpitEvaluation,
+  setup: SetupProgress,
+  target: string,
+  { range, toggle, select }: ControlTemplates,
+): string {
   const step = setup.step;
   const room = setup.drafts?.room || {},
     desk = setup.drafts?.desk || {};
@@ -47,7 +69,7 @@ export function creationControls(s, e, setup, target, { range, toggle, select })
   }
   return html;
 }
-export function progressHTML(setup) {
+export function progressHTML(setup: SetupProgress): string {
   return steps
     .map(
       (step, index) =>
