@@ -31,7 +31,10 @@ test('the guided setup builds a room, an opening, a desk and a cockpit', async (
   });
   await page.locator('#setupNext').click();
 
-  // Cockpit
+  // Cockpit: going back to the empty choice keeps an empty draft
+  await page.locator('#setupPreset').selectOption('gt');
+  await page.locator('#setupPreset').selectOption('');
+  await expect.poll(async () => (await getSavedProject(page))?.setup.drafts?.preset).toBe('');
   await page.locator('#setupPreset').selectOption('flight');
   await page.locator('#setupCockpitForm [type="submit"]').click();
   expect(await getState(page)).toMatchObject({
