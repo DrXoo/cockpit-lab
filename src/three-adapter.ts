@@ -37,12 +37,18 @@ function place(object: T.Object3D, position: Vec3, rotation: Vec3) {
   object.rotation.set(...rotation);
 }
 
+/** The groups the scene changes after building, without rebuilding. */
+export interface BuiltGroups {
+  dimensions: T.Object3D | null;
+}
+
 /** Adds the primitives under `root`; ROOT in the list stands for it. */
 export function addPrimitives(
   primitives: readonly Primitive[],
   root: T.Object3D,
   palette: Palette,
-): void {
+): BuiltGroups {
+  const built: BuiltGroups = { dimensions: null };
   const parents = new Map<number, T.Object3D>([[ROOT, root]]);
   const materials = new Map<number, T.Material>();
   const parentOf = (id: number): T.Object3D => {
@@ -68,6 +74,7 @@ export function addPrimitives(
         group.visible = p.visible;
         parentOf(p.parent).add(group);
         parents.set(p.id, group);
+        if (p.role === 'dimensions') built.dimensions = group;
         break;
       }
       case 'box': {
@@ -149,4 +156,5 @@ export function addPrimitives(
       }
     }
   }
+  return built;
 }

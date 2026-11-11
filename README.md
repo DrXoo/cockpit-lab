@@ -76,7 +76,9 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
 | `src/scene.ts` | Three.js scene, labels and interaction, with an SVG fallback |
-| `src/render-list.ts`, `src/render-rig.ts`, `src/render-desk.ts`, `src/render-profile.ts` | Render model: what the scene draws, as plain data |
+| `src/render-model.ts`, `src/render-list.ts` | Render model: what the scene draws, as plain data in drawing order |
+| `src/render-rig.ts`, `src/render-desk.ts`, `src/render-room.ts`, `src/render-profile.ts` | Drawings of the rig, desk and monitor, room and aluminium profiles |
+| `src/render-annotations.ts` | Measurements, labels and the selection outline |
 | `src/three-adapter.ts` | Turns the render model into Three.js objects |
 | `src/scene-camera.ts` | Camera framing for each view |
 | `tests/` | Unit tests |

@@ -41,6 +41,9 @@
     "src/render-profile.ts",
     "src/render-rig.ts",
     "src/render-desk.ts",
+    "src/render-room.ts",
+    "src/render-annotations.ts",
+    "src/render-model.ts",
     "src/three-adapter.ts",
     "playwright.config.ts"
   ]
