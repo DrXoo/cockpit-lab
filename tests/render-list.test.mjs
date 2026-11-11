@@ -56,7 +56,7 @@ test('a dimension draws its line, a tick at each end and a centred label', () =>
 
 test('labels for objects are told apart from measurements', () => {
   const r = createRenderList();
-  const name = r.label('ESCRITORIO', 1, 2, 3, true);
+  const name = r.label('DESK', 1, 2, 3, true);
   const measure = r.label('0,0', 0, 0.8, -8);
   assert.equal(name.object, true);
   assert.equal(measure.object, false);

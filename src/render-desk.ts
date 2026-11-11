@@ -219,7 +219,7 @@ export function drawMonitor(
   r.box(4, 0.4, 0.3, 0, -e.monitorH / 2 + 0.5, -1.9, 'silver', screen);
   r.box(12, 12, 2, 0, 0, 3, 'arm', screen);
   const handles: ArmHandle[] = [
-    { id: 'elbow', label: 'CODO', point: mid },
+    { id: 'elbow', label: 'ELBOW', point: mid },
     { id: 'end', label: 'VESA', point: actual },
   ];
   if (showHandles)

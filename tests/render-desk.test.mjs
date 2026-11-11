@@ -107,7 +107,7 @@ test('the arm joints become handles only while editing the arm', () => {
   assert.deepEqual(
     editing.r.labels.map((l) => [l.text, l.armHandle, l.className]),
     [
-      ['CODO', true, 'arm-joint-label'],
+      ['ELBOW', true, 'arm-joint-label'],
       ['VESA', true, 'arm-joint-label'],
     ],
   );

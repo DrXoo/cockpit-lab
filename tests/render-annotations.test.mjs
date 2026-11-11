@@ -37,7 +37,7 @@ test('heights are measured only in the side view', () => {
   const heights = side('side').labels.filter((l) => l.sideOnly);
   assert.deepEqual(
     heights.map((l) => l.text.split(' ')[0]),
-    ['Asiento', 'Volante', 'Base'],
+    ['Seat', 'Wheel', 'Base'],
   );
   const hiddenGroup = side('iso').primitives.filter((p) => p.kind === 'group')[1];
   assert.equal(hiddenGroup.visible, false);
@@ -54,7 +54,7 @@ test('the desk is measured and named in world coordinates', () => {
   const { state, r } = annotate({}, (r, s, e) => drawDeskDimensions(r, ROOT, s, e));
   assert.deepEqual(
     r.labels.map((l) => l.text),
-    [`${state.deskWidth} cm`, `${state.deskDepth} cm`, 'ESCRITORIO'],
+    [`${state.deskWidth} cm`, `${state.deskDepth} cm`, 'DESK'],
   );
 });
 
@@ -65,11 +65,11 @@ test('the shifter is tagged with the side of the pilot it is on', () => {
     ).r.labels;
   assert.deepEqual(
     tag({ shifter: true, handbrake: true, drivingSide: 'left' }).map((l) => l.text),
-    ['CAMBIO + FRENO · IZQUIERDA DEL PILOTO'],
+    ["SHIFTER + HANDBRAKE · DRIVER'S LEFT"],
   );
   assert.equal(
     tag({ shifter: false, handbrake: true, drivingSide: 'right' })[0].text,
-    'FRENO · DERECHA DEL PILOTO',
+    "HANDBRAKE · DRIVER'S RIGHT",
   );
   assert.deepEqual(tag({ shifter: false, handbrake: false }), []);
 });
@@ -81,7 +81,7 @@ test('a monitor shared with the cockpit is labelled with its size', () => {
   );
   assert.deepEqual(
     r.labels.map((l) => l.text),
-    [`${state.monitorInches}″ · MONITOR COMPARTIDO`],
+    [`${state.monitorInches}″ · SHARED MONITOR`],
   );
 });
 

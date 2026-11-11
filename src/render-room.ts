@@ -87,7 +87,7 @@ export function drawRoom(
   if (e.freeBand) {
     r.fill(e.freeBand.polygon, '#adc298', 0.18, ZONE_HEIGHT_CM, parent);
     const center = centroidOfFour(e.freeBand.polygon);
-    r.label(`RESERVA ${s.aisle} cm`, center.x, 1, center.z).topOnly = true;
+    r.label(`CLEARANCE ${s.aisle} cm`, center.x, 1, center.z).topOnly = true;
   }
 }
 
@@ -158,7 +158,7 @@ function drawRoomMeasurements(
   r.dimension(
     [s.roomX, 0.9, s.roomZ - 15],
     [s.roomX + s.roomW, 0.9, s.roomZ - 15],
-    `HABITACIÓN · ${s.roomW} cm`,
+    `ROOM · ${s.roomW} cm`,
     [0, 0, -5],
     dimensions,
   ).topOnly = true;
@@ -223,7 +223,7 @@ function drawDoor(
   leaf.rotation = [0, degToRad(leafAngleDeg), 0];
   r.cylinder(2.4, 3, item.hingePoint.x, 1.5, item.hingePoint.z, 'orange', parent);
   const label = r.label(
-    `${item.name.toUpperCase()} · ${item.openAngle}°${blocked ? ' · BLOQUEADA' : ''}`,
+    `${item.name.toUpperCase()} · ${item.openAngle}°${blocked ? ' · BLOCKED' : ''}`,
     item.center.x + f.nx * 10,
     2,
     item.center.z + f.nz * 10,
@@ -271,14 +271,10 @@ function drawWardrobeAccess(
     r.line(closedLoop(item.reserve, 1.1), outline(r, color, 0.85), parent);
   }
   const status =
-    item.clearance <= 0
-      ? '! RESERVA DESACTIVADA'
-      : occupied
-        ? '! REVISAR ACCESO'
-        : '✓ ACCESO LIBRE';
+    item.clearance <= 0 ? '! CLEARANCE OFF' : occupied ? '! CHECK ACCESS' : '✓ ACCESS CLEAR';
   const labelOffset = Math.max(8, item.clearance / 2);
   const label = r.label(
-    `${item.name.toUpperCase()} · ⇆ ${item.width} × ${item.height} cm · ${status}${item.clearance > 0 ? ` · ${item.clearance} cm delante` : ''}`,
+    `${item.name.toUpperCase()} · ⇆ ${item.width} × ${item.height} cm · ${status}${item.clearance > 0 ? ` · ${item.clearance} cm in front` : ''}`,
     item.center.x + f.nx * labelOffset,
     2,
     item.center.z + f.nz * labelOffset,
@@ -401,7 +397,7 @@ function drawFurniture(
     }
   }
   const label = r.label(
-    `${item.name.toUpperCase()} · ${item.width} × ${item.depth}${item.type === 'wallShelf' ? ` · PARED · BASE ${item.elevation} cm` : ''}${interferes ? ' · ! INTERFERENCIA' : ''}`,
+    `${item.name.toUpperCase()} · ${item.width} × ${item.depth}${item.type === 'wallShelf' ? ` · WALL · BOTTOM ${item.elevation} cm` : ''}${interferes ? ' · ! INTERFERENCE' : ''}`,
     item.x,
     item.y1 + 6,
     item.z,
@@ -462,6 +458,6 @@ function drawChair(
     r.fill(item.reserve, '#8c9faa', 0.13, ZONE_HEIGHT_CM, room);
     r.line(closedLoop(item.reserve, 1.2), outline(r, '#879aa5', 0.8), room);
     const center = centroidOfFour(item.reserve);
-    r.label(`RETIRAR SILLA · ${item.pullback} cm`, center.x, 2, center.z, true).topOnly = true;
+    r.label(`CHAIR PULL-BACK · ${item.pullback} cm`, center.x, 2, center.z, true).topOnly = true;
   }
 }

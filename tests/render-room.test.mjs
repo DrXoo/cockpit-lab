@@ -68,7 +68,7 @@ test('a blocked door is drawn in red and says so', () => {
     roomFurniture: [{ type: 'cabinet', id: 'box', width: 30, depth: 30, ...inSweep }],
   });
   assert.deepEqual(blocked.evaluation.room.doorHits, ['door']);
-  assert.ok(labelText(blocked.r).some((text) => text.endsWith('· 90° · BLOQUEADA')));
+  assert.ok(labelText(blocked.r).some((text) => text.endsWith('· 90° · BLOCKED')));
   assert.equal(flatColor(blocked.r, arc(blocked.r).material), '#b94f35');
 });
 
@@ -77,8 +77,8 @@ test('a wardrobe front states whether its access is kept free', () => {
     labelText(draw({ roomFeatures: [{ type: 'wardrobeAccess', wall: 'east', clearance }] }).r).find(
       (text) => text.includes('⇆'),
     );
-  assert.match(access(0), /! RESERVA DESACTIVADA$/);
-  assert.match(access(60), /✓ ACCESO LIBRE · 60 cm delante$/);
+  assert.match(access(0), /! CLEARANCE OFF$/);
+  assert.match(access(60), /✓ ACCESS CLEAR · 60 cm in front$/);
 });
 
 test('furniture that interferes is flagged with a symbol as well as a colour', () => {
@@ -89,7 +89,7 @@ test('furniture that interferes is flagged with a symbol as well as a colour', (
     ],
   });
   assert.ok(evaluation.room.collisions.length > 0, state.roomW);
-  assert.ok(labelText(r).some((text) => text.endsWith('· ! INTERFERENCIA')));
+  assert.ok(labelText(r).some((text) => text.endsWith('· ! INTERFERENCE')));
 });
 
 test('the room size is measured on the plan, in the dimensions group', () => {

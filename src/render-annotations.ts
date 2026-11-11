@@ -86,7 +86,7 @@ export function drawRigDimensions(
   r.dimension(
     [left, 0, 5],
     [left, seatHeight, 5],
-    `Asiento ${seatHeight} cm`,
+    `Seat ${seatHeight} cm`,
     [0, 0, -7],
     side,
   ).sideOnly = true;
@@ -95,7 +95,7 @@ export function drawRigDimensions(
     r.dimension(
       [left, 0, l + 18],
       [left, wheelHeight, l + 18],
-      `Volante ${wheelHeight} cm`,
+      `Wheel ${wheelHeight} cm`,
       [0, 0, 8],
       side,
     ).sideOnly = true;
@@ -104,7 +104,7 @@ export function drawRigDimensions(
   r.dimension(
     [w / 2 + 12, 0, l / 2],
     [w / 2 + 12, baseAxis, l / 2],
-    `Base · eje ${baseAxis} cm`,
+    `Base · axis ${baseAxis} cm`,
     [0, 0, 5],
     side,
   ).sideOnly = true;
@@ -140,7 +140,7 @@ export function drawDeskDimensions(
     [0, 0, 3],
     desk,
   ).notSide = true;
-  r.label('ESCRITORIO', s.deskDepth / 2 - 20, s.deskH + 8, s.deskWidth / 2 - 8, true);
+  r.label('DESK', s.deskDepth / 2 - 20, s.deskH + 8, s.deskWidth / 2 - 8, true);
   placeLabels(r.labels, first, e.deskPose);
 }
 
@@ -151,15 +151,16 @@ export function drawSetupLabels(r: RenderList, s: CockpitConfig, e: CockpitEvalu
       { x: e.drivingMount.x, y: floorHeight(s, 'hotasH') + 30, z: e.drivingMount.z },
       e.rigPose,
     );
-    const controls = s.shifter && s.handbrake ? 'CAMBIO + FRENO' : s.shifter ? 'CAMBIO' : 'FRENO';
-    const side = s.drivingSide === 'left' ? 'IZQUIERDA' : 'DERECHA';
-    const tag = r.label(`${controls} · ${side} DEL PILOTO`, p.x, p.y, p.z, true);
+    const controls =
+      s.shifter && s.handbrake ? 'SHIFTER + HANDBRAKE' : s.shifter ? 'SHIFTER' : 'HANDBRAKE';
+    const side = s.drivingSide === 'left' ? 'LEFT' : 'RIGHT';
+    const tag = r.label(`${controls} · DRIVER'S ${side}`, p.x, p.y, p.z, true);
     tag.topOnly = true;
     tag.offsetY = -32;
   }
   if (s.deskEnabled !== false && s.monitorEnabled !== false && s.monitorMode === 'cockpit')
     r.label(
-      `${s.monitorInches}″ · MONITOR COMPARTIDO`,
+      `${s.monitorInches}″ · SHARED MONITOR`,
       e.monitorPoint.x,
       s.monitorH + e.monitorH / 2 + 8,
       e.monitorPoint.z,
