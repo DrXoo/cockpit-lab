@@ -1,33 +1,33 @@
-# Desarrollo y migración
+# Development and migration
 
-## Punto de partida
+## Starting point
 
-La importación toma el código del configurador existente del commit `aebf0a0711f041078d41d9878c65c8fc7718e99f`. Los archivos de aplicación y sus tres suites de pruebas se copian sin cambios. El historial del repositorio público comienza con esta importación; no se publica el historial interno del alojamiento.
+The import takes the code of the existing configurator from commit `aebf0a0711f041078d41d9878c65c8fc7718e99f`. The application files and their three test suites are copied unchanged. The public repository's history starts with this import; the hosting service's internal history is not published.
 
-La licencia de Three.js se conserva; ahora se instala desde npm y el build la incluye en `dist/licenses/`. Se excluyen la configuración del alojamiento original, las credenciales, las capturas de comprobación internas y los JSON personales. El README original del configurador se conserva como `docs/configurator.md`, con su alcance y limitaciones.
+The Three.js license is kept; Three.js is now installed from npm and the build includes its license in `dist/licenses/`. The original hosting configuration, credentials, internal check screenshots and personal JSON files are left out. The configurator's original README is kept as `docs/configurator.md`, with its scope and limitations.
 
-## Puesta en marcha
+## Getting started
 
-1. Clona el repositorio y abre la carpeta en VS Code.
-2. Ejecuta `npm install` y después `npm run dev` en la terminal integrada.
-3. Abre la dirección indicada, normalmente `http://127.0.0.1:5173`.
-4. Guarda los cambios; la página se recarga sola.
-5. Ejecuta `npm run check` (tipos, sintaxis y formato) y `npm test` antes de crear un commit.
+1. Clone the repository and open the folder in VS Code.
+2. Run `npm install` and then `npm run dev` in the integrated terminal.
+3. Open the address shown, usually `http://127.0.0.1:5173`.
+4. Save your changes; the page reloads by itself.
+5. Run `npm run check` (types, syntax and formatting) and `npm test` before you commit.
 
-Ejecuta `npm install` una vez tras clonar. `npm run dev` arranca el servidor de desarrollo de Vite, que solo escucha en la interfaz local, sirve `src/` y recarga la página al guardar. `npm run build` genera la versión estática en `dist/`, que no se versiona, y `npm run format` formatea el código.
+Run `npm install` once after cloning. `npm run dev` starts the Vite dev server, which only listens on the local interface, serves `src/` and reloads the page when you save. `npm run build` produces the static version in `dist/`, which is not versioned, and `npm run format` formats the code.
 
-## Flujo de trabajo
+## Workflow
 
-Mantén una versión funcional en `main` y haz commits pequeños directamente en ella; usa una rama corta solo cuando un cambio necesite varios pasos antes de funcionar. Revisa el diff y la validación antes de cada commit. Describe en cada cambio el problema, el resultado y cómo se comprobó.
+Keep a working version on `main` and commit small changes directly to it; use a short-lived branch only when a change needs several steps before it works. Review the diff and the checks before each commit. Describe in each change the problem, the result and how it was checked.
 
-Las pruebas actuales verifican el modelo aproximado y sus regresiones. Las funciones de fabricación necesitan pruebas adicionales de unidades, referencias geométricas, agujeros, uniones y exportaciones. No conviertas un test del modelo aproximado en una afirmación de validez estructural.
+The current tests verify the approximate model and its regressions. Fabrication features need additional tests for units, geometric references, holes, joints and exports. Do not turn a test of the approximate model into a claim of structural validity.
 
-## Despliegue
+## Deployment
 
-No hay despliegue externo. La aplicación se ejecuta en local y puede servirse con cualquier servidor de archivos estáticos.
+There is no external deployment. The app runs locally and can be served by any static file server.
 
-## Guardado de diseños
+## Saved designs
 
-Cada origen (host y puerto) tiene su propio almacenamiento. Para mover un diseño, expórtalo en JSON desde el origen que lo contiene e impórtalo en el otro. No borres el almacenamiento del navegador antes de exportar un diseño que quieras conservar.
+Each origin (host and port) has its own storage. To move a design, export it as JSON from the origin that holds it and import it in the other one. Do not clear the browser storage before exporting a design you want to keep.
 
-Los futuros esquemas CAD incluirán versión y migración. Las unidades actuales son cm; introducir mm requiere una conversión explícita, comprobada mediante medidas conocidas y archivos anteriores.
+The future CAD schemas will include a version and migration. The current units are cm; introducing mm needs an explicit conversion, checked with known dimensions and earlier files.

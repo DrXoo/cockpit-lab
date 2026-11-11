@@ -1,48 +1,46 @@
 # Cockpit Lab
 
-Configurador estático de cockpit DIY compacto, simracing y vuelo VR. Interfaz española, dimensiones en cm, despiece en mm. No requiere servicios externos ni CDN. El estado se guarda localmente en el navegador y se exporta en JSON/CSV o se imprime.
+A static configurator for compact DIY cockpits for sim racing and VR flight. Spanish interface, dimensions in cm, part list in mm. It needs no external services or CDN. The state is saved locally in the browser, and can be exported as JSON/CSV or printed.
 
-- `src/model.js`: geometría, postura antropométrica, comprobaciones y despiece.
-- `src/scene.js`: modelo 3D con Three.js, OrbitControls y alternativa SVG sin WebGL.
-- `src/app.js`: ajustes, presets, persistencia y exportaciones.
-- Three.js 0.186.1 y sus componentes se instalan desde npm, con licencia MIT.
+- `src/model.js`: geometry, anthropometric posture, checks and part list.
+- `src/scene.js`: 3D model with Three.js and OrbitControls, with an SVG fallback without WebGL.
+- `src/app.js`: settings, presets, persistence and exports.
+- Three.js 0.186.1 and its components are installed from npm, under the MIT license.
 
-Verificación: `node --test tests/model.test.mjs`.
+Verification: `node --test tests/model.test.mjs`.
 
-Modelo de diseño aproximado: no valida cargas, rigidez, taladros, barrido completo del brazo ni acceso real. Comprobar medidas físicas antes de fabricar. Referencia E7 Pro: tablero 140 × 80 × 2,5 cm y estructura 63,5–128,5 cm; versión concreta por verificar. El brazo no corresponde a un producto comercial.
+An approximate design model: it does not validate loads, stiffness, holes, the full sweep of the arm or real access. Check the physical dimensions before building. E7 Pro reference: 140 × 80 × 2.5 cm desktop and a 63.5–128.5 cm frame; the exact version is still to be confirmed. The arm does not match a commercial product.
 
-Distribución libre: posición X/Z y giro independientes de escritorio y cockpit; arrastre en planta, presets de distribución, zona fija y migración de configuraciones anteriores. Los alcances y las interferencias usan las transformaciones de ambos elementos; las intersecciones se comprueban con volúmenes orientados.
+Free layout: the desk and the cockpit have independent X/Z positions and rotations; dragging in the plan, layout presets, a fixed area and migration of earlier designs. Reach and interference use the transforms of both items; intersections are checked with oriented volumes.
 
-Escritorio: anclaje del brazo editable en cuatro bordes (mordaza) o interior (pasante), teclado y PC con posición/giro/tamaño, ratón independiente y alfombrilla XL de tamaño regulable. La vista Mesa permite arrastrarlos sobre el tablero; las posiciones son locales y se guardan con las configuraciones previas. Se comprueban límites del tablero, solapes de objetos y cobertura del ratón. El resumen incluye posición, huella y giro de cada accesorio.
+Desk: an editable arm mount on any of the four edges (clamp) or inside the desktop (grommet), a keyboard and a PC with position, rotation and size, a separate mouse and an XL desk mat of adjustable size. The Desk view lets you drag them on the desktop; the positions are local and are saved with earlier designs. Desktop bounds, overlapping items and mouse coverage are checked. The summary includes the position, footprint and rotation of each accessory.
 
-Tablero regulable: ancho de 120 a 200 cm y fondo de 60 a 80 cm, con presets y medidas intermedias. Las cotas, huella, mordaza, límites de arrastre y resumen usan las dimensiones actuales. Al redimensionar se conservan los tamaños de los accesorios; los que caben se recolocan y los que sobresalen generan aviso. Los pies de referencia mantienen 66 cm de fondo, incluidos en la huella del suelo.
+Adjustable desktop: 120 to 200 cm wide and 60 to 80 cm deep, with presets and sizes in between. Dimensions, footprint, clamp, drag limits and summary use the current size. Resizing keeps the size of the accessories; those that fit are moved back onto it and those that stick out raise a warning. The reference legs stay 66 cm deep and are included in the floor footprint.
 
-Brazo articulado: dos tramos de longitud fija (total y reparto editables), giro de base, flexión del codo y giro VESA. Los modos automáticos apuntan al cockpit o al escritorio y resuelven las dos ramas del codo; el modo manual conserva las articulaciones. En Distribuir, con el anclaje seleccionado, se arrastran los puntos CODO y VESA en planta. El extremo respeta el alcance máximo y el plegado mínimo. Botones directos llevan de nuevo el monitor al cockpit o a la mesa. Persistencia y resumen incluyen los ángulos y las longitudes. Los topes físicos y la elevación propia de brazos comerciales no se simulan.
+Articulated arm: two segments of fixed length (editable total and split), base rotation, elbow bend and VESA rotation. The automatic modes point at the cockpit or the desk and solve both elbow branches; manual mode keeps the joints. In Arrange, with the mount selected, the ELBOW and VESA points are dragged in the plan. The end respects the maximum reach and the minimum fold. Direct buttons bring the monitor back to the cockpit or the desk. Saving and the summary include the angles and lengths. The physical stops and the own height adjustment of commercial arms are not simulated.
 
-Cambio y freno de mano: derecha del piloto por defecto, con selector explícito de lado. Al mirar hacia +Z, la derecha del piloto es −X. Geometría, huella, interferencias y separación con HOTAS usan la misma referencia; el resumen y JSON guardan la elección. HOTAS representa joystick a la derecha y gases a la izquierda del piloto.
+Shifter and handbrake: on the driver's right by default, with an explicit side selector. Looking towards +Z, the driver's right is −X. Geometry, footprint, interference and the gap to the HOTAS use the same reference; the summary and JSON store the choice. The HOTAS is a joystick on the driver's right and a throttle on the left.
 
-Elevación del cockpit: **Cockpit → Base de aluminio → Elevación de la base** añade de 0 a 50 cm a todo el conjunto: chasis, asiento, piloto, volante, pedales y mandos. Conserva la postura y las distancias relativas; mesa, monitor y apoyos en el suelo mantienen su altura. Los controles de postura, las cotas de perfil y los resúmenes muestran alturas finales desde el suelo. El eje del perfil de base está a `10 + baseLift` cm; su cara inferior, a `6 + baseLift` cm.
+Cockpit lift: **Cockpit → Aluminium base → Base lift** adds 0 to 50 cm to the whole rig: chassis, seat, driver, wheel, pedals and controls. It keeps the posture and relative distances; the desk, the monitor and the supports on the floor keep their height. The posture controls, the side view dimensions and the summaries show final heights from the floor. The axis of the base profile is at `10 + baseLift` cm; its underside at `6 + baseLift` cm.
 
-El campo opcional `baseLift` se guarda en cm en el JSON actual; los archivos anteriores usan 0 cm. Las alturas individuales guardadas conservan su referencia original y la conversión a altura desde el suelo es explícita. La elevación se conserva al cambiar de preset. Cuatro prolongaciones de perfil 40 × 40 definidas en el modelo, sobre los apoyos originales, alimentan escena, envolventes y despiece; su longitud es la elevación. Las uniones de esas prolongaciones y su arriostramiento quedan por definir y sus fijaciones no se incluyen en las estimaciones actuales. No se valida la resistencia de una base elevada. Las interferencias con mesa y muebles se recalculan a la nueva altura, con la tolerancia existente de 0,1 cm: el contacto dentro de esa tolerancia no se considera interferencia.
+The optional `baseLift` field is saved in cm in the current JSON; earlier files use 0 cm. The individual heights saved keep their original reference, and the conversion to a height from the floor is explicit. The lift is kept when the preset changes. Four 40 × 40 profile extensions defined in the model, on top of the original supports, feed the scene, envelopes and part list; their length is the lift. The joints of those extensions and their bracing are still to be designed, and their fasteners are not included in the current estimates. The strength of a raised base is not validated. Interference with the desk and furniture is checked again at the new height, with the existing 0.1 cm tolerance: contact within that tolerance is not interference.
 
+## Room
 
-## Habitación
+The **Room** tab sets the inside dimensions of a rectangular room and its height. The walls are named AB, BC, CD and DA, clockwise from the top left corner of the plan. Each door or window is placed by its wall, its distance from the starting corner and its width.
 
-La pestaña **Habitación** configura las medidas interiores de una habitación rectangular y su altura. Las paredes se nombran AB, BC, CD y DA en sentido horario desde la esquina superior izquierda de la planta. Cada puerta o ventana se coloca mediante su pared, distancia desde la esquina inicial y ancho.
+- Doors: width, height, hinge at the start or end, opening inwards or outwards and an angle of 0–180°. The check covers the swing from closed to the configured angle, in sectors of up to 2°.
+- Windows: width, height, sill and access clearance in front. The window sashes are not simulated.
+- Furniture: bookcase, wardrobe, bed, drawer unit or a generic volume; width, depth, height, position and rotation. They can be dragged in the plan, like the desk and the cockpit.
+- Furniture outside the bounds, overlapping furniture, interference with the setup and obstructed doors are detected. The side clearance checks a free band, not a continuous way in or an escape route.
+- The room editor shows positions relative to walls DA and AB; the data is saved in the app's shared coordinates. Changing the origin moves the walls, not the items. **Center the desk and cockpit** moves both, keeping their relation.
 
-- Puertas: ancho, altura, bisagra inicial/final, apertura interior/exterior y ángulo de 0–180°. La comprobación incluye el barrido desde cerrada hasta el ángulo configurado, discretizado en sectores de hasta 2°.
-- Ventanas: ancho, altura, antepecho y reserva de acceso delante. No se simulan las hojas de ventana.
-- Muebles: estantería, armario, cama, cajonera o volumen genérico; ancho, fondo, altura, posición y giro. Se pueden arrastrar en planta, igual que mesa y cockpit.
-- Se detectan muebles fuera de los límites, superposición de muebles, interferencias con el conjunto y obstrucciones de la puerta. La reserva lateral comprueba una banda libre, no una ruta continua de acceso ni evacuación.
-- Las posiciones del editor de habitación se muestran relativas a las paredes DA y AB; los datos se guardan en las coordenadas comunes de la aplicación. Cambiar el origen mueve las paredes y no los objetos. **Centrar mesa y cockpit** traslada ambos conservando su relación.
+The data is saved in the browser and in the exported JSON files. Earlier files remain compatible; loading them adds a room without openings or furniture. The model is approximate and does not calculate loads, strength, hardware details or precise collisions of real parts.
 
-Los datos se guardan en el navegador y en los JSON exportados. Los archivos anteriores siguen siendo compatibles; al cargarlos se añade una habitación sin huecos ni muebles. El modelo es orientativo y no calcula esfuerzos, resistencia, detalles del herraje o colisiones precisas de piezas reales.
+Verification: `node --test tests/*.test.mjs`, and a browser test of creating, editing, dragging, saving and the summary.
 
-Verificación: `node --test tests/*.test.mjs` y prueba en navegador de creación, edición, arrastre, guardado y resumen.
+### Office chair
 
+**Room → ＋ Office chair** adds a 65 × 65 cm chair on casters, 115 cm tall overall with the seat at 47 cm, placed in front of the desk and facing it. It can be dragged and turned on its own; **Place in front of the desk** lines it up again after the desk moves. Its dimensions can be adjusted to the real chair.
 
-### Silla de escritorio
-
-**Habitación → ＋ Silla de PC** añade una silla con ruedas de 65 × 65 cm, altura total de 115 cm y asiento a 47 cm, inicialmente delante de la mesa y mirando hacia ella. Se puede arrastrar y girar independientemente; **Colocar frente al escritorio** vuelve a alinearla después de mover la mesa. Sus dimensiones se pueden ajustar a la silla real.
-
-Las colisiones de la silla distinguen base, asiento, respaldo y reposabrazos para permitir posiciones parcialmente bajo el tablero cuando las alturas lo permiten. La franja trasera configurable reserva espacio para retirarla y se avisa si invade una pared u otro objeto. Es una reserva rectangular orientativa, no una simulación de movimiento de una persona. La silla y su reserva se incluyen en el JSON y en el resumen.
+The chair's collisions tell apart the base, seat, backrest and armrests, so that it can sit partly under the desktop when the heights allow it. The configurable rear band keeps space to push it back, and you are warned if it reaches a wall or another item. It is an approximate rectangular clearance, not a simulation of a person moving. The chair and its clearance are included in the JSON and the summary.
