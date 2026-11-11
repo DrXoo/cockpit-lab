@@ -15,7 +15,7 @@ import {
 import { readProject, projectData, completeSetup } from '../src/project.ts';
 import { partialSummary } from '../src/project-summary.ts';
 
-test('La elevación conserva la postura y los ajustes locales y muestra alturas desde suelo', () => {
+test('the lift keeps the posture and local settings and shows heights from the floor', () => {
   const s = { ...defaults, baseLift: 25, hotas: true, centerStick: true },
     before = evaluate({ ...s, baseLift: 0 }),
     after = evaluate(s);
@@ -38,7 +38,7 @@ test('La elevación conserva la postura y los ajustes locales y muestra alturas 
   );
 });
 
-test('Los cuatro apoyos conectan el suelo original con el chasis y determinan los cortes añadidos', () => {
+test('the four supports join the original floor to the chassis and set the added cuts', () => {
   for (const baseLift of [1, 25, 50]) {
     const s = { ...defaults, baseLift },
       supports = baseSupports(s),
@@ -60,13 +60,13 @@ test('Los cuatro apoyos conectan el suelo original con el chasis y determinan lo
   assert.deepEqual(baseSupports({ ...defaults, baseLift: 25, cockpitEnabled: false }), []);
 });
 
-test('Las interferencias con la mesa se recalculan a la altura real', () => {
+test('interference with the desk is checked again at the real height', () => {
   const s = { ...defaults, deskX: 60, deskZ: 160, wheel: false, shifter: false, handbrake: false };
   assert.equal(evaluate(s).collisionCount, 0);
   assert.ok(evaluate({ ...s, baseLift: 50 }).collisionCount > 0);
 });
 
-test('JSON v1 y v2 anteriores mantienen la altura y los nuevos guardan la elevación', () => {
+test('older v1 and v2 JSON keep their height and new files store the lift', () => {
   const old = { ...defaults };
   delete old.baseLift;
   for (const version of [1, 2]) {

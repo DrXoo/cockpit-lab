@@ -10,7 +10,7 @@ const render = (state, target) =>
 const button = (html, mode) =>
   html.match(new RegExp(`<button[^>]*data-monitor-pose="${mode}"[^>]*>`))?.[0];
 
-test('El paso Mesa conserva los dos destinos del monitor al seleccionar cualquier elemento', () => {
+test('the Desk step keeps both monitor targets whichever item is selected', () => {
   const s = { ...defaults, monitorMode: 'manual' };
   for (const target of ['desk', 'arm', 'keyboard', 'pc', 'mouse', 'mat']) {
     const html = render(s, target);
@@ -21,7 +21,7 @@ test('El paso Mesa conserva los dos destinos del monitor al seleccionar cualquie
   }
 });
 
-test('El destino cockpit se habilita al añadirlo y los botones respetan la presencia del monitor', () => {
+test('the cockpit target is enabled once added and the buttons follow whether there is a monitor', () => {
   const s = { ...defaults, cockpitEnabled: false, monitorMode: 'desk' };
   const html = render(s, 'keyboard');
   assert.ok(button(html, 'cockpit').includes('disabled'));
@@ -35,7 +35,7 @@ test('El destino cockpit se habilita al añadirlo y los botones respetan la pres
   assert.equal(monitorShortcuts({ ...s, monitorEnabled: false }), '');
 });
 
-test('Volver de la edición manual a un destino actualiza el estado de los accesos en ambas interfaces', () => {
+test('going back from manual editing to a target updates the shortcuts in both interfaces', () => {
   let s = editArm({ ...defaults }, 'armBaseAngle', 45);
   assert.equal(s.monitorMode, 'manual');
   for (const mode of ['desk', 'cockpit']) {

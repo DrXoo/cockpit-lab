@@ -34,7 +34,7 @@ const obstacle = (x, z, label = 'Mueble', y0 = 0, y1 = 100) => ({
   y1,
 });
 
-test('El empotrado reserva acceso hacia dentro de cada pared sin interior ni barrido', () => {
+test('a built-in wardrobe keeps access clear inwards from each wall, without an inside or a swing', () => {
   for (const wall of ['north', 'east', 'south', 'west']) {
     const s = room({ roomFeatures: [access({ wall })] }),
       e = evaluateRoom(s, []),
@@ -58,7 +58,7 @@ test('El empotrado reserva acceso hacia dentro de cada pared sin interior ni bar
   }
 });
 
-test('El acceso ocupado avisa sin inventar una colisión física ni una ventana', () => {
+test('blocked access warns without inventing a physical collision or a window', () => {
   const s = room(),
     e = evaluateRoom(s, [
       obstacle(100, 40, 'Escritorio'),
@@ -89,7 +89,7 @@ test('El acceso ocupado avisa sin inventar una colisión física ni una ventana'
   );
 });
 
-test('La evaluación completa incorpora muebles, mesa y cockpit delante de las correderas', () => {
+test('the full evaluation takes in furniture, the desk and the cockpit in front of sliding doors', () => {
   const furniture = {
     id: 'cajonera',
     type: 'cabinet',
@@ -115,7 +115,7 @@ test('La evaluación completa incorpora muebles, mesa y cockpit delante de las c
   assert.deepEqual(e.accessories, []);
 });
 
-test('El arrastre conserva la pared y admite frentes anchos sin pedir medidas interiores', () => {
+test('dragging keeps the wall and allows wide fronts without inside measurements', () => {
   const s = room({ roomW: 500, roomFeatures: [access({ width: 420 })] });
   assert.equal(s.roomFeatures[0].width, 420);
   assert.equal(moveRoomTarget(s, 'feature:armario', 2000, -100).roomFeatures[0].offset, 80);
@@ -138,7 +138,7 @@ test('El arrastre conserva la pared y admite frentes anchos sin pedir medidas in
   assert.deepEqual(evaluateRoom({ ...s, roomEnabled: false }, [obstacle(100, 40)]).checks, []);
 });
 
-test('El acceso convive con huecos y detecta anclajes o frentes superpuestos', () => {
+test('access coexists with openings and detects overlapping mounts or fronts', () => {
   const s = room({
     roomFeatures: [
       access(),
@@ -172,7 +172,7 @@ test('El acceso convive con huecos y detecta anclajes o frentes superpuestos', (
   );
 });
 
-test('El proyecto conserva el acceso y los archivos anteriores siguen abriéndose', () => {
+test('the project keeps the access and older files still open', () => {
   const p = createProject();
   p.config = room({
     roomFeatures: [access({ wall: 'west', offset: 22.5, width: 200, clearance: 95 })],
@@ -191,7 +191,7 @@ test('El proyecto conserva el acceso y los archivos anteriores siguen abriéndos
   assert.equal(resized.roomFeatures[0].height, 250);
 });
 
-test('Se añade y selecciona en Muebles con pared, ancho, altura, posición y reserva', () => {
+test('it is added and selected in Furniture with wall, width, height, position and clearance', () => {
   const s = room(),
     items = roomItems(s, 'furniture');
   assert.equal(items[0].type, 'wardrobeAccess');
@@ -212,7 +212,7 @@ test('Se añade y selecciona en Muebles con pared, ancho, altura, posición y re
     assert.ok(!html.includes(`data-room-key="${key}"`));
 });
 
-test('La altura de las puertas permite una estantería por encima y detecta invasiones por debajo', () => {
+test('the door height allows a shelf above and detects intrusions below', () => {
   const highShelf = {
     id: 'alta',
     type: 'wallShelf',
@@ -243,7 +243,7 @@ test('La altura de las puertas permite una estantería por encima y detecta inva
   }
 });
 
-test('La altura editada se guarda y se limita al techo; los accesos sin altura conservan compatibilidad', () => {
+test('the edited height is saved and limited to the ceiling; accesses without a height stay compatible', () => {
   const p = createProject();
   p.config = room({ roomFeatures: [access({ height: 212.5 })] });
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };

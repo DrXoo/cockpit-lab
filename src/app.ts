@@ -399,7 +399,7 @@ function continueSetup(defer = false) {
 function bindCreationControls() {
   const setupPreset = $optional<HTMLSelectElement>('#setupPreset');
   setupPreset?.addEventListener('change', () => {
-    // The first option, "Elige una base", leaves the draft empty.
+    // The first option, "Choose a base", leaves the draft empty.
     const preset = setupPreset.value === '' ? '' : presetId(setupPreset.value);
     setup = { ...setup, drafts: { ...setup.drafts, preset } };
     queueSave();

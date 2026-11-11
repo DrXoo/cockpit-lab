@@ -4,7 +4,7 @@ import { defaults, evaluate, getParts, getDesktopItems, resizeDesk } from '../sr
 import { createProject, readProject, projectData, advanceSetup } from '../src/project.ts';
 import { partialSummary } from '../src/project-summary.ts';
 
-test('Un proyecto nuevo no contiene objetos ni despiece y espera las medidas de habitación', () => {
+test('a new project has no items or part list and waits for the room size', () => {
   const p = createProject(),
     e = evaluate(p.config);
   assert.equal(p.setup.step, 'room');
@@ -18,7 +18,7 @@ test('Un proyecto nuevo no contiene objetos ni despiece y espera las medidas de 
   assert.equal(e.cuts, 0);
   assert.deepEqual(e.accessories, []);
 });
-test('Los elementos pendientes no obstruyen muebles ni puertas ni contaminan las cantidades', () => {
+test('items not yet added neither block furniture or doors nor affect the quantities', () => {
   const s = {
     ...createProject().config,
     roomEnabled: true,
@@ -62,7 +62,7 @@ test('Los elementos pendientes no obstruyen muebles ni puertas ni contaminan las
   assert.deepEqual(e.parts, []);
   assert.ok(evaluate({ ...s, deskEnabled: true }).room.collisions.includes('mueble'));
 });
-test('Añadir una mesa no añade periféricos y activar un accesorio afecta al modelo real', () => {
+test('adding a desk adds no peripherals and turning an accessory on changes the real model', () => {
   let s = { ...createProject().config, roomEnabled: true, deskEnabled: true };
   s = resizeDesk(s, 160, 80);
   assert.deepEqual(getDesktopItems(s), []);
@@ -82,7 +82,7 @@ test('Añadir una mesa no añade periféricos y activar un accesorio afecta al m
     ),
   );
 });
-test('Un cockpit independiente produce su despiece sin inventar mesa ni brazo', () => {
+test('a cockpit on its own gets its part list without an invented desk or arm', () => {
   const e = evaluate({ ...createProject().config, roomEnabled: true, cockpitEnabled: true });
   assert.ok(e.cuts > 0);
   assert.ok(e.bodyCheck.length);
@@ -90,7 +90,7 @@ test('Un cockpit independiente produce su despiece sin inventar mesa ni brazo', 
   assert.ok(!e.checks.some((c) => ['arm', 'eyes', 'side', 'collision', 'lift'].includes(c.id)));
   assert.ok(!e.accessories.some((p) => /escritorio|monitor/i.test(p.name + ' ' + p.note)));
 });
-test('El progreso se reanuda en el paso exacto y conserva los pasos pendientes', () => {
+test('progress resumes at the exact step and keeps the deferred steps', () => {
   const p = createProject();
   p.config.roomEnabled = true;
   p.config.roomW = 410;
@@ -107,7 +107,7 @@ test('El progreso se reanuda en el paso exacto y conserva los pasos pendientes',
   assert.equal(restored.setup.drafts.desk.w, '160');
   assert.equal(restored.setup.drafts.desk.d, '');
 });
-test('El adaptador v1 conserva posiciones, medidas y objetos y entra en el editor completo', () => {
+test('the v1 adapter keeps positions, sizes and items and opens the full editor', () => {
   const old = { ...defaults, deskX: 218, cockpitAngle: 70, length: 155 };
   delete old.deskEnabled;
   delete old.cockpitEnabled;
@@ -122,7 +122,7 @@ test('El adaptador v1 conserva posiciones, medidas y objetos y entra en el edito
   assert.deepEqual(readProject(projectData(p.config, p.setup)).config, p.config);
   assert.equal(readProject({ version: 1, config: old }, { stored: true }).setup.step, 'complete');
 });
-test('El lector rechaza progreso incoherente, unidades erróneas y presencias inválidas', () => {
+test('the reader rejects inconsistent progress, wrong units and invalid item presence', () => {
   const p = createProject(),
     data = projectData(p.config, p.setup);
   assert.throws(() => readProject({ ...data, units: 'mm' }));
@@ -133,7 +133,7 @@ test('El lector rechaza progreso incoherente, unidades erróneas y presencias in
   );
   assert.throws(() => readProject({ app: 'Cockpit Lab', version: 1 }));
 });
-test('El resumen de un proyecto parcial no ofrece despiece ni geometría de objetos pendientes', () => {
+test('the summary of a partial project has no part list or geometry of missing items', () => {
   const p = createProject(),
     html = partialSummary(p.config, evaluate(p.config), p.setup);
   assert.ok(html.includes('The room is not set up yet'));
@@ -142,7 +142,7 @@ test('El resumen de un proyecto parcial no ofrece despiece ni geometría de obje
   assert.ok(!html.includes('<h3 class="summary-title">Mesa</h3>'));
   assert.ok(!html.includes('<h3 class="summary-title">Cockpit</h3>'));
 });
-test('Se puede completar un cockpit sin mesa y conservar los pasos aplazados', () => {
+test('a cockpit can be finished without a desk, keeping the deferred steps', () => {
   const p = createProject();
   p.config.roomEnabled = true;
   p.setup = advanceSetup(p.setup);
@@ -157,7 +157,7 @@ test('Se puede completar un cockpit sin mesa y conservar los pasos aplazados', (
   assert.deepEqual(restored.setup.deferred, ['openings', 'furniture', 'desk']);
   assert.ok(evaluate(restored.config).cuts > 0);
 });
-test('Una configuración anterior con habitación desactivada sigue siendo guardable en v2', () => {
+test('an older design with the room turned off can still be saved as v2', () => {
   const old = readProject({
     app: 'Cockpit Lab',
     version: 1,

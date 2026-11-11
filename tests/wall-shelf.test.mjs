@@ -39,7 +39,7 @@ const low = (height = 100) => ({
   angle: 0,
 });
 
-test('La estantería apoya dentro de las cuatro paredes y el arrastre conserva su altura y anclaje', () => {
+test('a wall shelf rests inside all four walls and dragging keeps its height and wall', () => {
   for (const mountWall of ['north', 'east', 'south', 'west']) {
     const s = room({ roomX: -50, roomZ: 20, roomFurniture: [shelf({ mountWall })] }),
       f = wallFrame(s, mountWall),
@@ -69,7 +69,7 @@ test('La estantería apoya dentro de las cuatro paredes y el arrastre conserva s
   }
 });
 
-test('Dos estanterías comparten planta sin interferencia si sus alturas lo permiten', () => {
+test('two shelves share the plan without interference when their heights allow it', () => {
   for (const [height, collides] of [
     [100, false],
     [140, false],
@@ -90,7 +90,7 @@ test('Dos estanterías comparten planta sin interferencia si sus alturas lo perm
   assert.deepEqual(evaluateRoom(s, []).collisions, ['alta', 'superior']);
 });
 
-test('El volumen elevado condiciona también el conjunto y se comprueba el techo', () => {
+test('the raised volume also constrains the setup and the ceiling is checked', () => {
   const s = room({ roomFurniture: [shelf()] }),
     polygon = rectangle(80, 120, 5, 25, { x: 0, z: 0, angle: 0 });
   assert.deepEqual(
@@ -112,7 +112,7 @@ test('El volumen elevado condiciona también el conjunto y se comprueba el techo
   );
 });
 
-test('Una estantería no puede anclarse sobre una ventana aunque su reserva esté desactivada', () => {
+test('a shelf cannot be mounted over a window even with its clearance turned off', () => {
   const window = {
     id: 'ventana',
     name: 'Ventana',
@@ -134,7 +134,7 @@ test('Una estantería no puede anclarse sobre una ventana aunque su reserva est�
   assert.deepEqual(evaluateRoom(s, []).windowHits, []);
 });
 
-test('La puerta comprueba la estantería a su altura y deja libre la situada sobre el dintel', () => {
+test('a door checks a shelf at its height and leaves one above the lintel clear', () => {
   const door = {
     id: 'puerta',
     type: 'door',
@@ -154,7 +154,7 @@ test('La puerta comprueba la estantería a su altura y deja libre la situada sob
   assert.deepEqual(above.collisions, []);
 });
 
-test('El guardado conserva pared, altura y posición, y sigue importando muebles v1', () => {
+test('saving keeps the wall, height and position, and v1 furniture still imports', () => {
   const p = createProject();
   p.config = room({
     roomFurniture: [shelf({ mountWall: 'east', offset: 73.5, elevation: 155.5 }), low()],
@@ -179,7 +179,7 @@ test('El guardado conserva pared, altura y posición, y sigue importando muebles
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(invalid))), invalid);
 });
 
-test('El menú de muebles ofrece anclaje y elevación sin los controles de giro libre', () => {
+test('the furniture panel offers wall and height without the free rotation controls', () => {
   const s = room({ roomFurniture: [shelf()] }),
     html = roomControls(
       s,
