@@ -48,6 +48,7 @@ import {
 } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import { cutListCsv } from './cut-list-csv.ts';
+import { validationBanner, metricsView } from './inspector-view.ts';
 import {
   sectionOfStep,
   setupButtons,
@@ -472,10 +473,6 @@ function renderWorkflow() {
   metrics[0].querySelector('span').textContent = state.cockpitEnabled
     ? 'HUELLA DEL COCKPIT'
     : 'HABITACIÓN';
-  if (!state.cockpitEnabled) {
-    $('#metricFootprint').textContent = `${state.roomW} × ${state.roomD} cm`;
-    $('#metricWidthNote').textContent = 'Medidas interiores';
-  }
   metrics[1].hidden = !state.cockpitEnabled && !state.deskEnabled;
   metrics[1].querySelector(':scope > small').textContent = 'Elementos añadidos, sin paso libre';
   metrics[2].hidden = !state.cockpitEnabled;
@@ -493,14 +490,6 @@ function renderWorkflow() {
     : state.cockpitEnabled
       ? presets[state.preset].label
       : 'Tu habitación';
-  if (!hasScene) {
-    $('#validationBanner').className = 'validation-banner';
-    $('#validationBanner').innerHTML =
-      '<span class="status-icon">1</span><div><strong>Define tu espacio</strong><small>Las comprobaciones aparecerán al añadir elementos.</small></div>';
-  } else if (!state.cockpitEnabled && !evaluation.errors && !evaluation.warnings) {
-    $('#validationBanner').innerHTML =
-      '<span class="status-icon">✓</span><div><strong>Sin interferencias detectadas</strong><small>Solo se revisan los elementos añadidos.</small></div>';
-  }
 }
 function renderControls() {
   const guided = setup.step !== 'complete',
@@ -788,21 +777,19 @@ function refresh() {
   ]
     .map(checkRowHTML)
     .join('');
-  const banner = $('#validationBanner');
-  banner.className = `validation-banner ${e.errors ? 'error' : e.warnings ? 'warning' : ''}`;
-  banner.innerHTML = `<span class="status-icon">${e.errors ? '×' : e.warnings ? '!' : '✓'}</span><div><strong>${e.errors ? `${e.errors} ajuste${e.errors > 1 ? 's' : ''} pendiente${e.errors > 1 ? 's' : ''}` : e.warnings ? `${e.warnings} detalle${e.warnings > 1 ? 's' : ''} por revisar` : 'Buen punto de partida'}</strong><small>${e.errors ? 'Consulta las comprobaciones de abajo.' : 'Valida la postura con tu equipo real.'}</small></div>`;
+  const banner = validationBanner(state, e);
+  $('#validationBanner').className = banner.className;
+  $('#validationBanner').innerHTML = banner.html;
   $('#reachValue').textContent = `${Math.round(e.reach)} / ${state.armReach} cm`;
   $('#reachMax').textContent = `Máx. ${state.armReach} cm`;
   $('#reachMeter').style.width = `${Math.min(100, (e.reach / state.armReach) * 100)}%`;
   $('#reachMeter').classList.toggle('over', e.reach > state.armReach);
-  $('#metricFootprint').innerHTML =
-    `${state.length} <small>×</small> ${state.width} <small>cm</small>`;
-  $('#metricWidthNote').textContent = `${Math.ceil(e.rigRight - e.rigLeft)} cm con accesorios`;
-  $('#metricSpace').innerHTML =
-    `${Math.ceil(e.spaceW)} <small>×</small> ${Math.ceil(e.spaceD)} <small>cm</small>`;
-  $('#metricProfiles').innerHTML =
-    `${(e.totalMm / 1000).toLocaleString('es-ES', { maximumFractionDigits: 2 })} <small>m</small>`;
-  $('#metricPieces').textContent = `${e.cuts} cortes · serie 40`;
+  const metrics = metricsView(state, e);
+  $('#metricFootprint').innerHTML = metrics.footprintHTML;
+  $('#metricWidthNote').textContent = metrics.widthNote;
+  $('#metricSpace').innerHTML = metrics.spaceHTML;
+  $('#metricProfiles').innerHTML = metrics.profilesHTML;
+  $('#metricPieces').textContent = metrics.piecesText;
   renderWorkflow();
   scene?.update(state, evaluation);
 }
