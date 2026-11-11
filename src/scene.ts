@@ -73,7 +73,7 @@ export class CockpitScene {
       this.renderer = new T.WebGLRenderer({ canvas, context, antialias: true, alpha: false });
       this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = T.PCFSoftShadowMap;
+      this.renderer.shadowMap.type = T.PCFShadowMap;
       this.renderer.outputColorSpace = T.SRGBColorSpace;
       this.renderer.toneMapping = T.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure = 1.5;
