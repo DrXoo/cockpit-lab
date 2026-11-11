@@ -70,3 +70,10 @@ export function selectHTML(
 
 export const groupHTML = (title: string, html: string, hint = ''): string =>
   `<div class="control-group"><h3 class="group-title">${title}${hint ? `<span>${hint}</span>` : ''}</h3>${html}</div>`;
+
+/** The control templates bound to one state and evaluation. */
+export const bindControls = (view: ControlView): ControlTemplates => ({
+  range: (key, label) => rangeHTML(view, key, label),
+  toggle: (key, label) => toggleHTML(view, key, label),
+  select: (key, label, options) => selectHTML(view, key, label, options),
+});

@@ -32,6 +32,7 @@
     "src/room-editor.ts",
     "src/desk-editor.ts",
     "src/setup-editor.ts",
+    "src/settings-panels.ts",
     "playwright.config.ts"
   ]
 }
