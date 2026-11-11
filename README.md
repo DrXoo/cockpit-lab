@@ -61,7 +61,12 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/app.ts` | Controls, state and exports |
 | `src/project.ts`, `src/setup-editor.ts`, `src/project-summary.ts` | Project format, guided setup and summary |
 | `src/cut-list-csv.ts` | Cut list CSV export |
-| `src/model.ts`, `src/geometry.ts` | Cockpit geometry, posture and calculations |
+| `src/model.ts` | Public entry point of the configurator model |
+| `src/config.ts` | Settings, ranges, defaults, presets and validation |
+| `src/evaluate.ts` | Envelopes, interferences and checks for a configuration |
+| `src/rig.ts`, `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Cockpit rig, placement, desk, monitor arm and seated posture |
+| `src/parts.ts`, `src/field-spec.ts` | Bill of materials and per-setting ranges |
+| `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
 | `src/scene.ts` | Three.js rendering, with an SVG fallback |
 | `tests/` | Automated tests |

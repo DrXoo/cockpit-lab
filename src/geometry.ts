@@ -28,7 +28,7 @@ export const clamp = (value: number, min: number, max: number): number =>
 export const round = (value: number, decimals = 1): number =>
   Math.round(value * 10 ** decimals) / 10 ** decimals;
 
-const degToRad = (degrees: number): number => (degrees * Math.PI) / 180;
+export const degToRad = (degrees: number): number => (degrees * Math.PI) / 180;
 
 /** Rotates a local point by the placement angle, then translates it. */
 export function transformPoint(point: PlanPoint, placement: Placement): Point3 {

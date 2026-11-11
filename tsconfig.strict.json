@@ -11,8 +11,17 @@
     "src/geometry.ts",
     "src/cut-list-csv.ts",
     "src/checks.ts",
-    "src/room.ts",
     "src/units.ts",
+    "src/room.ts",
+    "src/config.ts",
+    "src/rig.ts",
+    "src/layout.ts",
+    "src/desk.ts",
+    "src/field-spec.ts",
+    "src/monitor-arm.ts",
+    "src/anatomy.ts",
+    "src/parts.ts",
+    "src/evaluate.ts",
     "src/model.ts",
     "src/project.ts"
   ]

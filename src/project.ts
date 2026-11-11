@@ -1,5 +1,5 @@
 // Project file format and guided-setup progress. Lengths are in cm (format v2, `units: 'cm'`).
-import { defaults, presets, sanitize, type CockpitConfig, type PresetId } from './model.ts';
+import { defaults, presets, sanitize, type CockpitConfig, type PresetId } from './config.ts';
 
 export type StepId = 'room' | 'openings' | 'furniture' | 'desk' | 'cockpit';
 export type SetupStep = StepId | 'complete';

@@ -2,6 +2,7 @@
 // Plan coordinates follow the app convention: X lateral, Z depth, +Y height from the floor.
 import {
   clamp,
+  degToRad,
   round,
   rectangle,
   overlapDepth,
@@ -221,8 +222,6 @@ const isWallId = (value: unknown): value is WallId =>
 
 const isFurnitureType = (value: unknown): value is FurnitureType =>
   typeof value === 'string' && Object.hasOwn(furnitureNames, value);
-
-const degToRad = (degrees: number): number => (degrees * Math.PI) / 180;
 
 /** Clean user text: no markup or control characters, limited length. */
 const text = (value: unknown, fallback: string): string =>
