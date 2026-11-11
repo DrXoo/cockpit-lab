@@ -74,11 +74,11 @@ export function setupButtons(setup: SetupProgress, state: CockpitConfig): SetupB
     (step === 'cockpit' && !state.cockpitEnabled);
   return {
     backDisabled: step === 'room',
-    nextLabel: step === 'cockpit' ? 'Terminar' : 'Continuar',
+    nextLabel: step === 'cockpit' ? 'Finish' : 'Continue',
     nextDisabled:
       step === 'desk' ? !state.deskEnabled : step === 'cockpit' ? !state.cockpitEnabled : false,
     skipHidden: !canDefer,
-    skipLabel: step === 'desk' ? 'No necesito mesa' : 'Añadir después',
+    skipLabel: step === 'desk' ? "I don't need a desk" : 'Add later',
   };
 }
 

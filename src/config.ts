@@ -233,8 +233,8 @@ export const presets: Record<
   { label: string; description: string; values: PresetValues }
 > = {
   gt: {
-    label: 'GT compacto',
-    description: 'Asiento de coche, tres pedales y mandos a mano.',
+    label: 'Compact GT',
+    description: 'Car seat, three pedals and controls within reach.',
     values: {
       length: 145,
       width: 64,
@@ -260,8 +260,8 @@ export const presets: Record<
     },
   },
   flight: {
-    label: 'Vuelo VR',
-    description: 'HOTAS lateral, pedales bajos y frontal despejado.',
+    label: 'VR flight',
+    description: 'Side HOTAS, low pedals and a clear front.',
     values: {
       length: 145,
       width: 64,
@@ -287,8 +287,8 @@ export const presets: Record<
     },
   },
   hybrid: {
-    label: 'Híbrido GT + vuelo',
-    description: 'Volante y HOTAS lateral con soportes desmontables.',
+    label: 'GT + flight hybrid',
+    description: 'Wheel and side HOTAS on removable mounts.',
     values: {
       length: 150,
       width: 66,
@@ -314,8 +314,8 @@ export const presets: Record<
     },
   },
   small: {
-    label: 'Espacio mínimo',
-    description: 'Base de 130 cm; sin mandos laterales para entrar mejor.',
+    label: 'Smallest footprint',
+    description: '130 cm base; no side controls, for easier access.',
     values: {
       length: 130,
       width: 60,

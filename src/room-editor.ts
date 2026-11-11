@@ -86,13 +86,13 @@ export function roomControls(
     `<div class="control-group"><h3 class="group-title">${title}</h3>${body}</div>`;
   let html = ['all', 'room'].includes(mode)
     ? group(
-        'Medidas interiores',
-        toggle('roomEnabled', 'Mostrar habitación y comprobar obstáculos') +
-          range('roomW', 'Ancho de pared AB') +
-          range('roomD', 'Fondo de pared BC') +
-          range('roomH', 'Altura de techo') +
-          toggle('roomFullWalls', 'Mostrar paredes completas en 3D') +
-          `<details class="room-reference"><summary>Referencia y espacio de paso</summary>${range('roomX', 'Origen X de la habitación') + range('roomZ', 'Origen Z de la habitación') + range('aisle', 'Reserva lateral deseada')}<p class="layout-hint">Cambiar el origen mueve las paredes. Mesa, cockpit y muebles conservan su posición.</p></details><div class="room-actions"><button id="roomFrame">Ver habitación en planta</button><button id="roomCenter">Centrar mesa y cockpit</button></div>`,
+        'Inside dimensions',
+        toggle('roomEnabled', 'Show the room and check obstacles') +
+          range('roomW', 'Wall AB width') +
+          range('roomD', 'Wall BC depth') +
+          range('roomH', 'Ceiling height') +
+          toggle('roomFullWalls', 'Show full-height walls in 3D') +
+          `<details class="room-reference"><summary>Reference and walkway</summary>${range('roomX', 'Room X origin') + range('roomZ', 'Room Z origin') + range('aisle', 'Desired side clearance')}<p class="layout-hint">Changing the origin moves the walls. The desk, cockpit and furniture keep their positions.</p></details><div class="room-actions"><button id="roomFrame">Show the room in the plan</button><button id="roomCenter">Center the desk and cockpit</button></div>`,
       )
     : '';
   const addTypes =
@@ -113,119 +113,119 @@ export function roomControls(
             'obstacle',
           ];
   const names: Record<string, string> = {
-    door: 'Puerta',
-    window: 'Ventana',
-    wardrobeAccess: 'Armario empotrado',
+    door: 'Door',
+    window: 'Window',
+    wardrobeAccess: 'Built-in wardrobe',
     ...furnitureNames,
   };
   html += group(
-    mode === 'furniture' ? 'Añadir mueble' : 'Añadir elementos',
+    mode === 'furniture' ? 'Add furniture' : 'Add items',
     `<div class="room-add-grid">${addTypes.map((type) => `<button data-add-room="${type}">＋ ${a(names[type])}</button>`).join('')}</div>${
       choices.length
-        ? `<div class="select-control target-picker"><label for="roomTarget">Elemento seleccionado</label><select id="roomTarget">${choices
+        ? `<div class="select-control target-picker"><label for="roomTarget">Selected item</label><select id="roomTarget">${choices
             .map((id) => {
               const v = roomItem(s, id);
-              return `<option value="${id}" ${id === active ? 'selected' : ''}>${a(v?.name || (id === 'desk' ? 'Escritorio completo' : 'Cockpit'))}</option>`;
+              return `<option value="${id}" ${id === active ? 'selected' : ''}>${a(v?.name || (id === 'desk' ? 'Whole desk' : 'Cockpit'))}</option>`;
             })
             .join('')}</select></div>`
-        : '<p class="room-empty">Todavía no has añadido elementos en este paso.</p>'
+        : '<p class="room-empty">You have not added any items in this step yet.</p>'
     }`,
   );
   if (!active) return html;
   let editor = '';
   if (item)
-    editor += `<div class="room-name"><label for="roomName">Nombre</label><input id="roomName" data-room-key="name" value="${a(item.name)}" maxlength="45"></div>`;
+    editor += `<div class="room-name"><label for="roomName">Name</label><input id="roomName" data-room-key="name" value="${a(item.name)}" maxlength="45"></div>`;
   if (item?.type === 'wardrobeAccess') {
     const frame = wallFrame(s, item.wall);
     editor +=
-      sel('wall', 'Pared del armario', Object.entries(wallNames)) +
-      num('offset', `Inicio del acceso desde ${frame.corner}`, 0, frame.length - item.width, 0.5) +
-      num('width', 'Ancho de las puertas correderas', 30, frame.length) +
-      num('height', 'Altura de las puertas desde el suelo', 30, s.roomH, 0.5) +
-      num('clearance', 'Espacio libre delante', 0, 200, 0.5) +
-      '<p class="layout-hint">Solo se representa el frente de puertas correderas y su franja de acceso. No necesitas medir el interior. La altura inicial coincide con el techo: ajústala a tus puertas. El espacio por encima queda disponible. Arrastra el frente a lo largo de la pared; cambia la pared en el selector. La franja debe quedar libre de muebles, mesa y cockpit. Con 0 cm se desactiva la reserva.</p>';
+      sel('wall', 'Wardrobe wall', Object.entries(wallNames)) +
+      num('offset', `Access start from ${frame.corner}`, 0, frame.length - item.width, 0.5) +
+      num('width', 'Sliding door width', 30, frame.length) +
+      num('height', 'Door height from the floor', 30, s.roomH, 0.5) +
+      num('clearance', 'Clear space in front', 0, 200, 0.5) +
+      '<p class="layout-hint">Only the sliding door front and its access band are drawn. You do not need to measure the inside. The starting height matches the ceiling: adjust it to your doors. The space above stays available. Drag the front along the wall; change the wall in the selector. The band must stay clear of furniture, the desk and the cockpit. 0 cm turns the clearance off.</p>';
   } else if (item && isFeature(item)) {
     const frame = wallFrame(s, item.wall);
     editor +=
-      sel('wall', 'Pared', Object.entries(wallNames)) +
-      num('offset', `Inicio del hueco desde ${frame.corner}`, 0, frame.length - item.width, 0.5) +
-      num('width', 'Ancho del hueco', 30, Math.min(300, frame.length)) +
-      num('height', 'Altura del hueco', 30, s.roomH);
+      sel('wall', 'Wall', Object.entries(wallNames)) +
+      num('offset', `Opening start from ${frame.corner}`, 0, frame.length - item.width, 0.5) +
+      num('width', 'Opening width', 30, Math.min(300, frame.length)) +
+      num('height', 'Opening height', 30, s.roomH);
     if (item.type === 'door')
       editor +=
-        sel('hinge', 'Bisagras', [
-          ['start', `Inicio del hueco · cerca de ${frame.corner}`],
-          ['end', 'Final del hueco'],
+        sel('hinge', 'Hinges', [
+          ['start', `Opening start · near ${frame.corner}`],
+          ['end', 'Opening end'],
         ]) +
-        sel('swing', 'Sentido de apertura', [
-          ['in', 'Hacia dentro'],
-          ['out', 'Hacia fuera'],
+        sel('swing', 'Swing direction', [
+          ['in', 'Inwards'],
+          ['out', 'Outwards'],
         ]) +
-        num('openAngle', 'Ángulo que debe poder abrir', 0, 180, 1, '°') +
-        '<p class="layout-hint">El área naranja comprueba todo el barrido desde cerrada hasta este ángulo. Arrastra el hueco a lo largo de su pared; cambia de pared con el selector.</p>';
+        num('openAngle', 'Angle it must open to', 0, 180, 1, '°') +
+        '<p class="layout-hint">The orange area checks the whole swing from closed to this angle. Drag the opening along its wall; change the wall with the selector.</p>';
     else
       editor +=
-        num('sill', 'Antepecho desde el suelo', 0, s.roomH - item.height) +
-        num('clearance', 'Reserva libre delante', 0, 150) +
-        '<p class="layout-hint">La franja azul reserva acceso. El antepecho sitúa la ventana en altura; no se simula el giro de sus hojas.</p>';
+        num('sill', 'Sill height from the floor', 0, s.roomH - item.height) +
+        num('clearance', 'Clearance in front', 0, 150) +
+        '<p class="layout-hint">The blue band keeps access clear. The sill sets the window height; its sashes are not simulated.</p>';
   } else {
     if (item) {
       const chair = item.type === 'chair';
       editor +=
-        sel('type', 'Tipo de mueble', Object.entries(furnitureNames)) +
+        sel('type', 'Furniture type', Object.entries(furnitureNames)) +
         num(
           'width',
-          chair ? 'Ancho total de la silla' : 'Ancho del mueble',
+          chair ? 'Overall chair width' : 'Furniture width',
           chair ? 40 : 10,
           chair ? 100 : 350,
         ) +
         num(
           'depth',
-          chair ? 'Fondo total de la silla' : 'Fondo del mueble',
+          chair ? 'Overall chair depth' : 'Furniture depth',
           chair ? 40 : 10,
           chair ? 100 : 250,
         ) +
         num(
           'height',
-          chair ? 'Altura total de la silla' : 'Altura del mueble',
+          chair ? 'Overall chair height' : 'Furniture height',
           chair ? 70 : item.type === 'wallShelf' ? 2 : 10,
           chair ? 180 : 350,
         );
       if (chair)
         editor +=
-          num('seatHeight', 'Altura del asiento', 30, Math.min(65, item.height - 20)) +
-          num('pullback', 'Espacio para retirar la silla', 0, 150) +
+          num('seatHeight', 'Seat height', 30, Math.min(65, item.height - 20)) +
+          num('pullback', 'Space to pull the chair back', 0, 150) +
           (s.deskEnabled !== false
-            ? '<button class="arm-edit-action" id="chairAtDesk">Colocar frente al escritorio ↗</button>'
+            ? '<button class="arm-edit-action" id="chairAtDesk">Place in front of the desk ↗</button>'
             : '') +
-          '<p class="layout-hint">La huella incluye ruedas y reposabrazos. La franja trasera reserva espacio para apartar la silla; ponla a 0 para ocultarla. La silla se mueve independientemente de la mesa.</p>';
+          '<p class="layout-hint">The footprint includes the casters and armrests. The rear band keeps space to push the chair back; set it to 0 to hide it. The chair moves separately from the desk.</p>';
     }
     if (item?.type === 'wallShelf') {
       const frame = wallFrame(s, item.mountWall);
       editor +=
-        sel('mountWall', 'Pared de anclaje', Object.entries(wallNames)) +
+        sel('mountWall', 'Mounting wall', Object.entries(wallNames)) +
         num(
           'offset',
-          `Inicio desde esquina ${frame.corner}`,
+          `Start from corner ${frame.corner}`,
           0,
           Math.max(0, frame.length - item.width),
           0.5,
         ) +
-        num('elevation', 'Altura de la base desde el suelo', 0, s.roomH, 0.5) +
-        '<p class="layout-hint">Arrastra en planta a lo largo de la pared. Cambia la pared en el selector. La altura de la base deja espacio para otros muebles debajo; se avisa si sus volúmenes se cruzan. El contacto con la pared es intencionado. No se calculan cargas ni fijaciones.</p>';
+        num('elevation', 'Bottom height from the floor', 0, s.roomH, 0.5) +
+        '<p class="layout-hint">Drag it along the wall in the plan. Change the wall in the selector. The bottom height leaves room for other furniture underneath; you are warned if their volumes overlap. Contact with the wall is intended. Loads and fixings are not calculated.</p>';
     } else
       editor +=
-        num('x', 'Posición X desde pared DA', -200, s.roomW + 200, 0.5) +
-        num('z', 'Posición Z desde pared AB', -200, s.roomD + 200, 0.5) +
-        num('angle', 'Giro en planta', 0, 359, 1, '°') +
-        `<div class="rotate-actions"><button data-room-rotate="-90">↶ −90°</button><button data-room-rotate="90">+90° ↷</button></div><p class="layout-hint">${active === 'cockpit' ? 'Referencia: centro del extremo trasero del chasis.' : 'Referencia: centro del elemento.'} Arrastra en planta o escribe las distancias a las paredes.</p>`;
+        num('x', 'X position from wall DA', -200, s.roomW + 200, 0.5) +
+        num('z', 'Z position from wall AB', -200, s.roomD + 200, 0.5) +
+        num('angle', 'Rotation in the plan', 0, 359, 1, '°') +
+        `<div class="rotate-actions"><button data-room-rotate="-90">↶ −90°</button><button data-room-rotate="90">+90° ↷</button></div><p class="layout-hint">${active === 'cockpit' ? 'Reference: the center of the rear end of the chassis.' : 'Reference: the center of the item.'} Drag in the plan or type the distances to the walls.</p>`;
   }
-  if (item) editor += '<button class="room-delete" id="roomDelete">Eliminar este elemento</button>';
+  if (item) editor += '<button class="room-delete" id="roomDelete">Delete this item</button>';
   html += group(
-    item ? escapeHTML(item.name) : active === 'cockpit' ? 'Colocar cockpit' : 'Colocar escritorio',
+    item ? escapeHTML(item.name) : active === 'cockpit' ? 'Place the cockpit' : 'Place the desk',
     editor,
   );
   html +=
-    '<p class="control-hint">Paredes A–B–C–D en sentido horario desde la esquina superior izquierda. Se comprueban límites, muebles y barrido de puerta con envolventes aproximadas. La reserva lateral no garantiza una ruta continua de entrada.</p>';
+    '<p class="control-hint">Walls A–B–C–D run clockwise from the top left corner. Bounds, furniture and door swings are checked with approximate envelopes. The side clearance does not guarantee a continuous way in.</p>';
   return html;
 }

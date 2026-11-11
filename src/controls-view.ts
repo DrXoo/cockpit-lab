@@ -52,7 +52,7 @@ export function controlValue({ state, evaluation }: ControlView, key: NumericFie
 export function rangeHTML(view: ControlView, key: NumericField, label: string): string {
   const [min, max, step] = fieldSpec(key, view.state),
     value = round(controlValue(view, key), 1);
-  return `<div class="control"><div class="control-top"><label for="${key}-range">${label}</label><div class="number-wrap"><input id="${key}-number" type="number" data-key="${key}" data-number min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}, valor en ${unitFor(key)}"><span>${unitFor(key)}</span></div></div><input id="${key}-range" type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}" style="--pct:${((value - min) / (max - min)) * 100}%"><div class="control-range-label"><span>${min}</span><span>${max} ${unitFor(key)}</span></div></div>`;
+  return `<div class="control"><div class="control-top"><label for="${key}-range">${label}</label><div class="number-wrap"><input id="${key}-number" type="number" data-key="${key}" data-number min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}, value in ${unitFor(key)}"><span>${unitFor(key)}</span></div></div><input id="${key}-range" type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}" style="--pct:${((value - min) / (max - min)) * 100}%"><div class="control-range-label"><span>${min}</span><span>${max} ${unitFor(key)}</span></div></div>`;
 }
 
 export function toggleHTML(view: ControlView, key: BooleanSetting, label: string): string {

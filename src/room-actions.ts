@@ -46,7 +46,7 @@ function draftItem(state: CockpitConfig, type: RoomItemType, id: string) {
     return {
       id,
       type,
-      name: type === 'door' ? 'Puerta' : 'Ventana',
+      name: type === 'door' ? 'Door' : 'Window',
       wall: type === 'door' ? 'south' : 'north',
       offset: type === 'door' ? 20 : Math.max(0, (state.roomW - 120) / 2),
       width: type === 'door' ? 80 : 120,
@@ -72,7 +72,7 @@ function draftItem(state: CockpitConfig, type: RoomItemType, id: string) {
     const chair = {
       id,
       type,
-      name: 'Silla de PC',
+      name: 'Office chair',
       width: 65,
       depth: 65,
       height: 115,

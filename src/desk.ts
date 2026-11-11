@@ -14,11 +14,11 @@ export interface DesktopTarget {
 }
 
 export const desktopTargets: DesktopTarget[] = [
-  { id: 'arm', label: 'Anclaje del brazo', prefix: 'clamp' },
-  { id: 'keyboard', label: 'Teclado', prefix: 'keyboard' },
-  { id: 'pc', label: 'PC / torre', prefix: 'pc' },
-  { id: 'mouse', label: 'Ratón', prefix: 'mouse' },
-  { id: 'mat', label: 'Alfombrilla XL', prefix: 'mat' },
+  { id: 'arm', label: 'Arm mount', prefix: 'clamp' },
+  { id: 'keyboard', label: 'Keyboard', prefix: 'keyboard' },
+  { id: 'pc', label: 'PC / tower', prefix: 'pc' },
+  { id: 'mouse', label: 'Mouse', prefix: 'mouse' },
+  { id: 'mat', label: 'XL desk mat', prefix: 'mat' },
 ];
 export function deskBounds(s: Partial<Pick<CockpitConfig, 'deskWidth' | 'deskDepth'>>) {
   const width = s.deskWidth ?? defaults.deskWidth,

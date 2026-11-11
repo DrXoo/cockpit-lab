@@ -114,6 +114,6 @@ test('a selected desktop object is named in the top view', () => {
   );
   assert.deepEqual(
     keyboard.r.labels.map((l) => [l.text, l.offsetY]),
-    [['TECLADO', -24]],
+    [['KEYBOARD', -24]],
   );
 });

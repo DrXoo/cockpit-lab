@@ -49,20 +49,20 @@ test('the cockpit preset is applied and the rig centred along the room', () => {
 test('the step buttons follow what has been added', () => {
   assert.deepEqual(setupButtons(atStep('room'), fresh.config), {
     backDisabled: true,
-    nextLabel: 'Continuar',
+    nextLabel: 'Continue',
     nextDisabled: false,
     skipHidden: true,
-    skipLabel: 'Añadir después',
+    skipLabel: 'Add later',
   });
   assert.equal(setupButtons(atStep('openings'), withRoom).skipHidden, false);
   assert.deepEqual(
     (({ nextDisabled, skipHidden, skipLabel }) => ({ nextDisabled, skipHidden, skipLabel }))(
       setupButtons(atStep('desk'), withRoom),
     ),
-    { nextDisabled: true, skipHidden: false, skipLabel: 'No necesito mesa' },
+    { nextDisabled: true, skipHidden: false, skipLabel: "I don't need a desk" },
   );
   const cockpit = setupButtons(atStep('cockpit'), withCockpitPreset(withRoom, 'gt'));
-  assert.equal(cockpit.nextLabel, 'Terminar');
+  assert.equal(cockpit.nextLabel, 'Finish');
   assert.equal(cockpit.nextDisabled, false);
   assert.equal(cockpit.skipHidden, true);
 });

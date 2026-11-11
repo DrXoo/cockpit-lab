@@ -18,19 +18,19 @@ export type FurnitureType =
   'chair' | 'shelf' | 'wallShelf' | 'wardrobe' | 'bed' | 'cabinet' | 'obstacle';
 
 export const wallNames: Record<WallId, string> = {
-  north: 'AB · arriba',
-  east: 'BC · derecha',
-  south: 'CD · abajo',
-  west: 'DA · izquierda',
+  north: 'AB · top',
+  east: 'BC · right',
+  south: 'CD · bottom',
+  west: 'DA · left',
 };
 export const furnitureNames: Record<FurnitureType, string> = {
-  chair: 'Silla de PC',
-  shelf: 'Estantería',
-  wallShelf: 'Estantería de pared',
-  wardrobe: 'Armario',
-  bed: 'Cama',
-  cabinet: 'Cajonera',
-  obstacle: 'Otro mueble',
+  chair: 'Office chair',
+  shelf: 'Bookcase',
+  wallShelf: 'Wall shelf',
+  wardrobe: 'Wardrobe',
+  bed: 'Bed',
+  cabinet: 'Drawer unit',
+  obstacle: 'Other furniture',
 };
 
 // Tolerances. Below these values two volumes are in contact, not interfering.
@@ -303,7 +303,7 @@ function normalizeWardrobeAccess(
   return {
     id: idFor(raw.id, 'access', index),
     type: 'wardrobeAccess',
-    name: text(raw.name, 'Armario empotrado'),
+    name: text(raw.name, 'Built-in wardrobe'),
     wall,
     width,
     offset: number(raw.offset, Math.max(0, (frame.length - width) / 2), 0, frame.length - width),
@@ -328,7 +328,7 @@ function normalizeOpening(
   return {
     id: idFor(raw.id, 'opening', index),
     type: raw.type,
-    name: text(raw.name, isDoor ? 'Puerta' : 'Ventana'),
+    name: text(raw.name, isDoor ? 'Door' : 'Window'),
     wall,
     width,
     height,

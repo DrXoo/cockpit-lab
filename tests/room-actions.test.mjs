@@ -29,7 +29,7 @@ test('adding a door enables the room and selects the new, validated door', () =>
     {
       id: 'd1',
       type: 'door',
-      name: 'Puerta',
+      name: 'Door',
       wall: 'south',
       width: 80,
       height: 205,

@@ -8,34 +8,34 @@ export function rigPanelHTML(view: ControlView): string {
   const { range, toggle, select } = bindControls(view);
   let html = '';
   html +=
-    '<button class="arm-edit-action" id="bodySettings">Ajustar asiento, postura y mandos →</button>';
+    '<button class="arm-edit-action" id="bodySettings">Adjust seat, posture and controls →</button>';
   html += placementControls('cockpit', range);
   html += group(
-    'Base de aluminio',
-    range('length', 'Largo del chasis') +
-      range('width', 'Ancho exterior') +
-      range('baseLift', 'Elevación de la base') +
-      '<p class="layout-hint">Sube juntos el asiento, el volante, los pedales y los mandos laterales, conservando tu postura. 0 cm mantiene la base original. Los pies o ruedas siguen en el suelo. La mesa y el monitor conservan su altura.</p>',
+    'Aluminium base',
+    range('length', 'Chassis length') +
+      range('width', 'Outer width') +
+      range('baseLift', 'Base lift') +
+      '<p class="layout-hint">Raises the seat, wheel, pedals and side controls together, keeping your posture. 0 cm keeps the original base. The feet or casters stay on the floor. The desk and the monitor keep their height.</p>',
     '40 × 80 / 40 × 40',
   );
   html += group(
-    'Módulos y mandos',
-    toggle('wheel', 'Volante y base DD') +
-      toggle('hotas', 'HOTAS lateral') +
-      toggle('centerStick', 'Joystick central') +
-      toggle('shifter', 'Cambio en H') +
-      toggle('handbrake', 'Freno de mano') +
-      select('drivingSide', 'Lado del cambio y freno', [
-        ['right', 'Derecha del piloto'],
-        ['left', 'Izquierda del piloto'],
+    'Modules and controls',
+    toggle('wheel', 'Wheel and DD base') +
+      toggle('hotas', 'Side HOTAS') +
+      toggle('centerStick', 'Center stick') +
+      toggle('shifter', 'H-pattern shifter') +
+      toggle('handbrake', 'Handbrake') +
+      select('drivingSide', 'Shifter and handbrake side', [
+        ['right', "Driver's right"],
+        ['left', "Driver's left"],
       ]) +
-      select('feet', 'Apoyo', [
-        ['level', 'Pies niveladores'],
-        ['casters', 'Ruedas con freno'],
+      select('feet', 'Feet', [
+        ['level', 'Leveling feet'],
+        ['casters', 'Locking casters'],
       ]),
   );
   html +=
-    '<p class="control-hint">Derecha e izquierda del cambio y freno se miran sentado al volante. Chasis fijo y módulos desmontables. El ancho total incluye los accesorios activos. La selección de perfiles es preliminar; no calcula rigidez para tu base DD.</p>';
+    '<p class="control-hint">Right and left for the shifter and handbrake are seen from the driving seat. Fixed chassis with removable modules. The total width includes the active accessories. The profile selection is preliminary; it does not calculate stiffness for your DD base.</p>';
   return html;
 }
 
@@ -43,42 +43,42 @@ export function bodyPanelHTML(view: ControlView): string {
   const { range, toggle, select } = bindControls(view);
   const { state } = view;
   let html = '';
-  html += '<button class="arm-edit-action" id="rigSettings">← Volver al cockpit</button>';
-  html += group('Tu punto de partida', range('height', 'Tu estatura'));
+  html += '<button class="arm-edit-action" id="rigSettings">← Back to the cockpit</button>';
+  html += group('Your starting point', range('height', 'Your height'));
   html += group(
-    'Asiento',
-    range('seatZ', 'Posición longitudinal') +
-      range('seatH', 'Altura del cojín') +
-      range('recline', 'Reclinación del respaldo'),
-    'Desde atrás / suelo',
+    'Seat',
+    range('seatZ', 'Fore-aft position') +
+      range('seatH', 'Cushion height') +
+      range('recline', 'Backrest recline'),
+    'From the rear / floor',
   );
   if (state.wheel)
     html += group(
-      'Volante',
-      range('wheelZ', 'Posición longitudinal') +
-        range('wheelH', 'Altura del centro') +
-        range('wheelTilt', 'Inclinación de la base'),
+      'Wheel',
+      range('wheelZ', 'Fore-aft position') +
+        range('wheelH', 'Center height') +
+        range('wheelTilt', 'Base tilt'),
     );
   html += group(
-    'Pedalera',
-    range('pedalZ', 'Posición longitudinal') +
-      range('pedalH', 'Altura de plataforma') +
-      range('pedalTilt', 'Inclinación de plataforma'),
+    'Pedals',
+    range('pedalZ', 'Fore-aft position') +
+      range('pedalH', 'Deck height') +
+      range('pedalTilt', 'Deck tilt'),
   );
   if (state.hotas || state.shifter || state.handbrake)
     html += group(
-      'Mandos laterales',
-      range('hotasZ', 'Posición longitudinal') +
-        range('hotasH', 'Altura de las placas') +
-        range('hotasOut', 'Salida desde el chasis'),
+      'Side controls',
+      range('hotasZ', 'Fore-aft position') +
+        range('hotasH', 'Plate height') +
+        range('hotasOut', 'Outset from the chassis'),
     );
   if (state.centerStick)
     html += group(
-      'Joystick central',
-      range('stickZ', 'Posición longitudinal') + range('stickH', 'Altura de la placa'),
+      'Center stick',
+      range('stickZ', 'Fore-aft position') + range('stickH', 'Plate height'),
     );
   html +=
-    '<p class="control-hint">Las posiciones parten del extremo trasero del chasis y las alturas, del suelo, incluida la elevación de la base. Ajusta la elevación del conjunto en Cockpit → Base de aluminio. Reclinar se mide desde la vertical. Activa el piloto para explorar la postura.</p>';
+    '<p class="control-hint">Positions are measured from the rear end of the chassis and heights from the floor, including the base lift. Set the lift of the whole rig in Cockpit → Aluminium base. Recline is measured from vertical. Show the driver to explore the posture.</p>';
   return html;
 }
 
@@ -89,55 +89,55 @@ export function deskPanelHTML(view: ControlView, layoutTarget: string): string {
   html += accessoryControls(toggle);
   const size = `${state.deskWidth}x${state.deskDepth}`;
   html += group(
-    'Tablero de la mesa',
-    `<div class="select-control"><label for="deskSizePreset">Medida rápida</label><select id="deskSizePreset"><option value="custom">Personalizada</option>${['120x60', '120x80', '140x60', '140x80', '160x80', '180x80', '200x80'].map((value) => `<option value="${value}" ${value === size ? 'selected' : ''}>${value.replace('x', ' × ')} cm</option>`).join('')}</select></div>` +
-      range('deskWidth', 'Ancho del tablero') +
-      range('deskDepth', 'Fondo del tablero') +
-      '<p class="layout-hint">Ancho × fondo. Los objetos conservan su tamaño y se recolocan dentro del tablero cuando caben. Los pies de referencia mantienen 66 cm de fondo.</p>',
-    'Ancho × fondo',
+    'Desktop',
+    `<div class="select-control"><label for="deskSizePreset">Quick size</label><select id="deskSizePreset"><option value="custom">Custom</option>${['120x60', '120x80', '140x60', '140x80', '160x80', '180x80', '200x80'].map((value) => `<option value="${value}" ${value === size ? 'selected' : ''}>${value.replace('x', ' × ')} cm</option>`).join('')}</select></div>` +
+      range('deskWidth', 'Desktop width') +
+      range('deskDepth', 'Desktop depth') +
+      '<p class="layout-hint">Width × depth. Items keep their size and move back onto the desktop when they fit. The reference legs stay 66 cm deep.</p>',
+    'Width × depth',
   );
   if (state.monitorEnabled !== false) {
     html += group(
-      'Monitor y brazo articulado',
+      'Monitor and arm',
       monitorShortcuts(state) +
-        select('monitorMode', 'Posición del monitor', [
-          ['cockpit', 'Frente al cockpit'],
-          ['desk', 'Sobre escritorio'],
-          ['vr', 'VR · aparcado'],
-          ['manual', 'Articulaciones manuales'],
+        select('monitorMode', 'Monitor position', [
+          ['cockpit', 'Facing the cockpit'],
+          ['desk', 'On the desk'],
+          ['vr', 'VR · parked'],
+          ['manual', 'Manual joints'],
         ]) +
-        `<button class="arm-edit-action" id="armControlsDragBtn">Editar articulaciones en planta ↗</button>` +
-        range('armBaseAngle', 'Giro de la base') +
-        range('armElbowAngle', 'Flexión del codo') +
-        range('monitorYaw', 'Giro de la pantalla (VESA)') +
-        select('armBend', 'Lado de flexión', [
-          ['positive', 'Codo hacia un lado'],
-          ['negative', 'Codo hacia el otro'],
+        `<button class="arm-edit-action" id="armControlsDragBtn">Edit the joints in the plan ↗</button>` +
+        range('armBaseAngle', 'Base rotation') +
+        range('armElbowAngle', 'Elbow bend') +
+        range('monitorYaw', 'Screen rotation (VESA)') +
+        select('armBend', 'Bend direction', [
+          ['positive', 'Elbow to one side'],
+          ['negative', 'Elbow to the other side'],
         ]) +
-        range('monitorH', 'Altura centro VESA') +
-        range('monitorAhead', 'Pantalla delante volante') +
-        range('monitorInches', 'Diagonal de pantalla') +
-        '<p class="layout-hint">Arrastra <b>CODO</b> para girar el primer tramo o <b>VESA</b> para mover el extremo. Los controles de giro activan el modo manual. Los botones de colocación vuelven a calcular la postura hacia el destino.</p>',
+        range('monitorH', 'VESA center height') +
+        range('monitorAhead', 'Screen ahead of the wheel') +
+        range('monitorInches', 'Screen diagonal') +
+        '<p class="layout-hint">Drag <b>ELBOW</b> to turn the first segment or <b>VESA</b> to move the end. The rotation controls switch to manual mode. The placement buttons work out the pose towards the target again.</p>',
     ).replace('<div class="control-group">', '<div class="control-group" id="armControls">');
     html += group(
-      'Medidas del brazo',
-      range('armReach', 'Longitud total de los tramos') +
-        range('armSplit', 'Primer tramo (% del total)') +
-        `<p class="layout-hint" id="armLengths">Primer tramo: ${round(evaluation.armPose.first)} cm · segundo tramo: ${round(evaluation.armPose.second)} cm. El codo a 0° deja el brazo estirado; ±180° lo pliega.</p>` +
-        range('armMinH', 'Altura VESA mínima') +
-        range('armMaxH', 'Altura VESA máxima'),
-      'Modelo genérico de 2 tramos',
+      'Arm dimensions',
+      range('armReach', 'Total segment length') +
+        range('armSplit', 'First segment (% of total)') +
+        `<p class="layout-hint" id="armLengths">First segment: ${round(evaluation.armPose.first)} cm · second segment: ${round(evaluation.armPose.second)} cm. An elbow at 0° keeps the arm straight; ±180° folds it.</p>` +
+        range('armMinH', 'Minimum VESA height') +
+        range('armMaxH', 'Maximum VESA height'),
+      'Generic 2-segment model',
     );
   }
   html += deskElementControls(state, evaluation, layoutTarget, { range, select });
   if (state.cockpitEnabled !== false)
     html += group(
-      'Colocación rápida',
-      `<div class="select-control"><label for="layoutPreset">Mesa respecto al cockpit</label><select id="layoutPreset"><option value="free">Personalizada</option><option value="right">Mesa a la derecha</option><option value="left">Mesa a la izquierda</option><option value="front">Mesa enfrente</option></select></div>`,
+      'Quick placement',
+      `<div class="select-control"><label for="layoutPreset">Desk relative to the cockpit</label><select id="layoutPreset"><option value="free">Custom</option><option value="right">Desk on the right</option><option value="left">Desk on the left</option><option value="front">Desk in front</option></select></div>`,
     );
-  html += group('Altura de mesa', range('deskH', 'Altura del tablero'), 'Altura desde suelo');
-  html += '<button class="arm-edit-action" id="goRoom">Habitación, puertas y muebles ↗</button>';
+  html += group('Desk height', range('deskH', 'Desktop height'), 'Height from the floor');
+  html += '<button class="arm-edit-action" id="goRoom">Room, doors and furniture ↗</button>';
   html +=
-    '<p class="control-hint">Posición y giro de mesa y cockpit independientes. La zona permanece fija al moverlos. El brazo mantiene dos tramos de longitud fija y comprueba su alcance mínimo/máximo y altura VESA. Los giros son en planta; verifica los topes y cargas del modelo real. Diagonal en pulgadas (″), resto en cm. Configura paredes, puertas, ventanas y muebles en la pestaña Habitación.</p>';
+    '<p class="control-hint">The desk and the cockpit are positioned and turned separately. The room stays fixed as you move them. The arm keeps two segments of fixed length and checks its minimum/maximum reach and VESA height. Rotations are in the plan; check the stops and loads of the real model. Diagonal in inches (″), everything else in cm. Set up walls, doors, windows and furniture in the Room tab.</p>';
   return html;
 }

@@ -14,33 +14,33 @@ export interface StepInfo {
 export const steps: StepInfo[] = [
   {
     id: 'room',
-    label: 'Habitación',
-    title: '¿Cuánto mide tu habitación?',
-    hint: 'Introduce las medidas interiores. Después colocaremos puertas, ventanas y muebles.',
+    label: 'Room',
+    title: 'How big is your room?',
+    hint: 'Enter the inside dimensions. Then we will place doors, windows and furniture.',
   },
   {
     id: 'openings',
-    label: 'Huecos',
-    title: 'Puertas y ventanas',
-    hint: 'Añade cada hueco, elige su pared y ajusta sus medidas y apertura.',
+    label: 'Openings',
+    title: 'Doors and windows',
+    hint: 'Add each opening, choose its wall and set its size and swing.',
   },
   {
     id: 'furniture',
-    label: 'Muebles',
-    title: 'Lo que ya ocupa espacio',
-    hint: 'Añade cama, armario y otros muebles. Arrástralos en planta o escribe su posición.',
+    label: 'Furniture',
+    title: 'What already takes up space',
+    hint: 'Add the bed, wardrobe and other furniture. Drag them in the plan or type their position.',
   },
   {
     id: 'desk',
-    label: 'Mesa',
-    title: 'Coloca tu mesa',
-    hint: 'Introduce sus medidas y sitúala en la habitación. Añade solo los accesorios que utilizas.',
+    label: 'Desk',
+    title: 'Place your desk',
+    hint: 'Enter its size and place it in the room. Add only the accessories you use.',
   },
   {
     id: 'cockpit',
     label: 'Cockpit',
-    title: 'Ahora, tu cockpit',
-    hint: 'Elige una base, ajusta sus medidas y colócala en el espacio disponible.',
+    title: 'Now, your cockpit',
+    hint: 'Choose a base, adjust its size and place it in the space available.',
   },
 ];
 

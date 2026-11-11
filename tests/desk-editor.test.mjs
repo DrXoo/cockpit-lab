@@ -26,7 +26,7 @@ test('El destino cockpit se habilita al añadirlo y los botones respetan la pres
   const html = render(s, 'keyboard');
   assert.ok(button(html, 'cockpit').includes('disabled'));
   assert.ok(!button(html, 'desk').includes('disabled'));
-  assert.ok(html.includes('Añade un cockpit'));
+  assert.ok(html.includes('Add a cockpit'));
   assert.ok(
     !button(render({ ...s, cockpitEnabled: true }, 'keyboard'), 'cockpit').includes('disabled'),
   );

@@ -6,7 +6,7 @@ import { groupHTML as group, type ControlTemplates } from './controls-view.ts';
 
 export function monitorShortcuts(s: CockpitConfig): string {
   if (s.deskEnabled === false || s.monitorEnabled === false) return '';
-  return `<div class="arm-shortcuts"><button data-monitor-pose="cockpit" aria-pressed="${s.monitorMode === 'cockpit' && s.cockpitEnabled !== false}" ${s.cockpitEnabled === false ? 'disabled' : ''}>Llevar al cockpit</button><button data-monitor-pose="desk" aria-pressed="${s.monitorMode === 'desk'}">Llevar al escritorio</button></div>${s.cockpitEnabled === false ? '<p class="layout-hint">Añade un cockpit para poder llevar el monitor hasta él.</p>' : ''}`;
+  return `<div class="arm-shortcuts"><button data-monitor-pose="cockpit" aria-pressed="${s.monitorMode === 'cockpit' && s.cockpitEnabled !== false}" ${s.cockpitEnabled === false ? 'disabled' : ''}>Bring to the cockpit</button><button data-monitor-pose="desk" aria-pressed="${s.monitorMode === 'desk'}">Bring to the desk</button></div>${s.cockpitEnabled === false ? '<p class="layout-hint">Add a cockpit to bring the monitor to it.</p>' : ''}`;
 }
 
 // Shared by step 4 and the complete editor; positions remain local to the desk.
@@ -21,70 +21,66 @@ export function deskElementControls(
     prefix = item ? item.prefix : target;
   // Position settings of the selected item: `<prefix>X`, `<prefix>Z` and `<prefix>Angle`.
   const setting = (suffix: 'X' | 'Z' | 'Angle') => `${prefix}${suffix}` as NumericField;
-  const picker = `<div class="select-control target-picker"><label for="layoutTargetSelect">Elemento a mover</label><select id="layoutTargetSelect"><optgroup label="Distribución del espacio">${s.cockpitEnabled !== false ? `<option value="cockpit" ${target === 'cockpit' ? 'selected' : ''}>Cockpit</option>` : ''}<option value="desk" ${target === 'desk' ? 'selected' : ''}>Escritorio completo</option></optgroup><optgroup label="Sobre el tablero">${desktopTargets
+  const picker = `<div class="select-control target-picker"><label for="layoutTargetSelect">Item to move</label><select id="layoutTargetSelect"><optgroup label="Room layout">${s.cockpitEnabled !== false ? `<option value="cockpit" ${target === 'cockpit' ? 'selected' : ''}>Cockpit</option>` : ''}<option value="desk" ${target === 'desk' ? 'selected' : ''}>Whole desk</option></optgroup><optgroup label="On the desktop">${desktopTargets
     .filter((t) => e.desktopItems.some((i) => i.id === t.id))
     .map((t) => `<option value="${t.id}" ${target === t.id ? 'selected' : ''}>${t.label}</option>`)
     .join('')}</optgroup></select></div>`;
   let placement = '';
   if (target === 'arm') {
-    placement += select('clampMount', 'Fijación', [
-      ['clamp', 'Mordaza al borde'],
-      ['grommet', 'Pasante / taladro'],
+    placement += select('clampMount', 'Mount', [
+      ['clamp', 'Edge clamp'],
+      ['grommet', 'Grommet / drilled hole'],
     ]);
     if (s.clampMount === 'clamp') {
       const edge = clampEdge(s);
       placement +=
-        `<div class="select-control"><label for="clampEdgeSelect">Borde del tablero</label><select id="clampEdgeSelect">${[
-          ['xmin', 'Trabajo (−X)'],
-          ['xmax', 'Posterior (+X)'],
-          ['zmin', 'Extremo −Z'],
-          ['zmax', 'Extremo +Z'],
+        `<div class="select-control"><label for="clampEdgeSelect">Desktop edge</label><select id="clampEdgeSelect">${[
+          ['xmin', 'Front (−X)'],
+          ['xmax', 'Back (+X)'],
+          ['zmin', '−Z end'],
+          ['zmax', '+Z end'],
         ]
           .map(
             ([value, label]) =>
               `<option value="${value}" ${edge === value ? 'selected' : ''}>${label}</option>`,
           )
           .join('')}</select></div>` +
-        range(edge[0] === 'x' ? 'clampZ' : 'clampX', 'Posición a lo largo del borde');
+        range(edge[0] === 'x' ? 'clampZ' : 'clampX', 'Position along the edge');
     } else
       placement +=
-        range('clampX', 'Posición X en tablero') + range('clampZ', 'Posición Z en tablero');
+        range('clampX', 'X position on the desktop') + range('clampZ', 'Z position on the desktop');
     placement +=
-      '<button class="arm-edit-action" id="armDragBtn">Mover monitor y brazo ↗</button><p class="layout-hint">Mueve el anclaje, no la pantalla. Al arrastrar con mordaza se ajusta al borde más cercano. La fijación pasante permite colocarlo en el interior y requiere un taladro o pasacables compatible.</p>';
+      '<button class="arm-edit-action" id="armDragBtn">Move monitor and arm ↗</button><p class="layout-hint">This moves the mount, not the screen. A clamp snaps to the nearest edge as you drag it. A grommet mount can sit inside the desktop and needs a drilled hole or a compatible cable grommet.</p>';
   } else {
     placement +=
-      range(setting('X'), item ? 'Posición X en tablero' : 'Posición X (lateral)') +
-      range(setting('Z'), item ? 'Posición Z en tablero' : 'Posición Z (fondo)') +
-      range(setting('Angle'), 'Giro en planta') +
+      range(setting('X'), item ? 'X position on the desktop' : 'X position (sideways)') +
+      range(setting('Z'), item ? 'Z position on the desktop' : 'Z position (depth)') +
+      range(setting('Angle'), 'Rotation in the plan') +
       `<div class="rotate-actions"><button data-rotate="-90">↶ −90°</button><button data-rotate="90">+90° ↷</button></div>`;
-    placement += `<p class="layout-hint" ${item ? 'data-desktop-hint' : ''}>${item ? `Referencia: centro del tablero, que gira con la mesa. X recorre los ${s.deskDepth} cm de fondo; Z los ${s.deskWidth} cm de ancho.` : target === 'desk' ? 'Referencia: centro del tablero en el espacio.' : 'Referencia: centro del extremo trasero del chasis.'} Selecciona y arrastra en las vistas <b>Mesa</b> o <b>Planta</b>. También puedes escribir la posición y el giro aquí.</p>`;
+    placement += `<p class="layout-hint" ${item ? 'data-desktop-hint' : ''}>${item ? `Reference: the center of the desktop, which turns with the desk. X runs along its ${s.deskDepth} cm depth; Z along its ${s.deskWidth} cm width.` : target === 'desk' ? 'Reference: the center of the desktop in the room.' : 'Reference: the center of the rear end of the chassis.'} Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.</p>`;
   }
-  html += group(
-    'Colocar elementos',
-    picker + placement,
-    item ? 'Sobre el tablero' : 'En el espacio',
-  );
+  html += group('Place items', picker + placement, item ? 'On the desktop' : 'In the room');
   if (target === 'keyboard')
     html += group(
-      'Tamaño del teclado',
-      range('keyboardWidth', 'Ancho del teclado') + range('keyboardDepth', 'Fondo del teclado'),
+      'Keyboard size',
+      range('keyboardWidth', 'Keyboard width') + range('keyboardDepth', 'Keyboard depth'),
     );
   if (target === 'pc')
     html += group(
-      'Tamaño del PC',
-      range('pcWidth', 'Ancho de torre') +
-        range('pcDepth', 'Fondo de torre') +
-        range('pcHeight', 'Altura de torre'),
+      'PC size',
+      range('pcWidth', 'Tower width') +
+        range('pcDepth', 'Tower depth') +
+        range('pcHeight', 'Tower height'),
     );
   if (target === 'mouse')
     html +=
-      '<p class="control-hint">Ratón de 12 × 7 cm aprox. Puedes colocarlo y girarlo independientemente del teclado y la alfombrilla.</p>';
+      '<p class="control-hint">A mouse of about 12 × 7 cm. You can place and turn it separately from the keyboard and the desk mat.</p>';
   if (target === 'mat')
     html += group(
-      'Alfombrilla XL',
-      `<div class="select-control"><label for="matPreset">Medida rápida</label><select id="matPreset"><option value="custom">Personalizada</option><option value="90x40">90 × 40 cm</option><option value="120x60">120 × 60 cm</option><option value="140x80">140 × 80 cm</option></select></div>` +
-        range('matWidth', 'Ancho de alfombrilla') +
-        range('matDepth', 'Fondo de alfombrilla'),
+      'XL desk mat',
+      `<div class="select-control"><label for="matPreset">Quick size</label><select id="matPreset"><option value="custom">Custom</option><option value="90x40">90 × 40 cm</option><option value="120x60">120 × 60 cm</option><option value="140x80">140 × 80 cm</option></select></div>` +
+        range('matWidth', 'Mat width') +
+        range('matDepth', 'Mat depth'),
     );
   return html;
 }

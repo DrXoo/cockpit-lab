@@ -34,7 +34,7 @@ test('arm angles are shown as the evaluated pose, the screen yaw relative to the
 });
 
 test('a range control has a slider and a number field with the current limits', () => {
-  const html = rangeHTML(view, 'seatH', 'Altura del cojín');
+  const html = rangeHTML(view, 'seatH', 'Cushion height');
   const [min, max, step] = fieldSpec('seatH', state);
   assert.match(
     html,
@@ -43,7 +43,7 @@ test('a range control has a slider and a number field with the current limits', 
     ),
   );
   assert.match(html, /id="seatH-number" type="number"/);
-  assert.match(html, /aria-label="Altura del cojín, valor en cm"/);
+  assert.match(html, /aria-label="Cushion height, value in cm"/);
   assert.match(html, /<span>cm<\/span>/);
 });
 
