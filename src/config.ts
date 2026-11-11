@@ -381,7 +381,7 @@ export const choiceOptions = (key: string): readonly string[] | undefined =>
  */
 export function sanitize(input: unknown): CockpitConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input))
-    throw new Error('Configuración inválida');
+    throw new Error('Invalid configuration');
   const raw = input as Record<string, unknown>;
   const s: CockpitConfig = { ...defaults };
   // Preserve earlier configurations whose desktop position was implicit.
@@ -394,14 +394,14 @@ export function sanitize(input: unknown): CockpitConfig {
     if (!(key in raw)) continue;
     const value = raw[key];
     if (typeof value !== 'number' || !Number.isFinite(value))
-      throw new Error(`Valor inválido: ${key}`);
+      throw new Error(`Invalid value: ${key}`);
     const [min, max] = fields[key];
     s[key] = clamp(value, min, max);
   }
   for (const key of BOOLEAN_SETTINGS)
     if (key in raw) {
       const value = raw[key];
-      if (typeof value !== 'boolean') throw new Error('Opción inválida');
+      if (typeof value !== 'boolean') throw new Error('Invalid option');
       s[key] = value;
     }
   for (const key of Object.keys(CHOICE_SETTINGS) as ChoiceSetting[]) {

@@ -115,24 +115,24 @@ export const completeSetup = (): SetupProgress => ({
 });
 
 function readMeasureDraft(input: unknown): MeasureDraft {
-  if (!isRecord(input)) throw new Error('Medidas en borrador inválidas');
+  if (!isRecord(input)) throw new Error('Invalid draft measurements');
   const draft: MeasureDraft = {};
   for (const key of ['w', 'd', 'h'] as const) {
     const value = input[key];
     if (value === undefined) continue;
-    if (!isDraftMeasure(value)) throw new Error('Medida en borrador inválida');
+    if (!isDraftMeasure(value)) throw new Error('Invalid draft measurement');
     draft[key] = value;
   }
   return draft;
 }
 
 function readDrafts(input: unknown = {}): SetupDrafts {
-  if (!isRecord(input) || Array.isArray(input)) throw new Error('Borrador inválido');
+  if (!isRecord(input) || Array.isArray(input)) throw new Error('Invalid draft');
   const drafts: SetupDrafts = {};
   for (const group of ['room', 'desk'] as const)
     if (input[group] !== undefined) drafts[group] = readMeasureDraft(input[group]);
   if (input.preset !== undefined) {
-    if (!isDraftPreset(input.preset)) throw new Error('Base en borrador inválida');
+    if (!isDraftPreset(input.preset)) throw new Error('Invalid draft base');
     drafts.preset = input.preset;
   }
   return drafts;
@@ -160,7 +160,7 @@ export function createProject(): Project {
 
 /** Explicit v1 adapter: earlier projects always had a desk and a cockpit, and used cm. */
 function readVersion1(data: RawRecord & { config: RawRecord }): Project {
-  if (data.units && data.units !== 'cm') throw new Error('Las configuraciones v1 usan cm');
+  if (data.units && data.units !== 'cm') throw new Error('v1 designs use cm');
   return {
     config: sanitize({
       ...data.config,
@@ -187,11 +187,11 @@ function readSetup(input: unknown, config: CockpitConfig): SetupProgress {
     !Array.isArray(input.deferred) ||
     !input.deferred.every(isStepId)
   )
-    throw new Error('Progreso inválido');
+    throw new Error('Invalid setup progress');
   const { step, furthest, deferred } = input;
   const index = steps.findIndex((s) => s.id === step);
   if (index > furthest || (step !== 'room' && step !== 'complete' && !config.roomEnabled))
-    throw new Error('Habitación pendiente');
+    throw new Error('The room is not set up yet');
   return {
     step,
     furthest,
@@ -206,15 +206,14 @@ function readSetup(input: unknown, config: CockpitConfig): SetupProgress {
  */
 export function readProject(data: unknown, { stored = false } = {}): Project {
   if (!data || (!stored && (data as RawRecord).app !== 'Cockpit Lab'))
-    throw new Error('Archivo de otro programa');
+    throw new Error('File from another program');
   const rawConfig = isRecord(data) ? data.config : undefined;
   if (!isRecord(data) || !isRecord(rawConfig) || Array.isArray(rawConfig))
-    throw new Error('Configuración inválida');
+    throw new Error('Invalid configuration');
   if (data.version === 1) return readVersion1({ ...data, config: rawConfig });
-  if (data.version !== 2 || data.units !== 'cm')
-    throw new Error('Versión o unidades no compatibles');
+  if (data.version !== 2 || data.units !== 'cm') throw new Error('Unsupported version or units');
   for (const key of PRESENCE_SETTINGS)
-    if (typeof rawConfig[key] !== 'boolean') throw new Error('Presencia de elementos inválida');
+    if (typeof rawConfig[key] !== 'boolean') throw new Error('Invalid item presence');
   const config = sanitize(rawConfig);
   return { config, setup: readSetup(data.setup, config) };
 }
