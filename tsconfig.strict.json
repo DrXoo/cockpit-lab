@@ -28,6 +28,7 @@
     "src/html.ts",
     "src/check-view.ts",
     "src/project-summary.ts",
+    "src/controls-view.ts",
     "playwright.config.ts"
   ]
 }

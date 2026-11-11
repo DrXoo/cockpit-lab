@@ -49,6 +49,14 @@ import { CockpitScene } from './scene.ts';
 import { cutListCsv } from './cut-list-csv.ts';
 import { createProjectStore } from './project-storage.ts';
 import { checkRowHTML } from './check-view.ts';
+import {
+  unitFor,
+  controlValue as controlValueOf,
+  rangeHTML,
+  toggleHTML,
+  selectHTML,
+  groupHTML,
+} from './controls-view.ts';
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -138,38 +146,13 @@ function update(key, value) {
   queueSave();
   refresh();
 }
-const unitFor = (k) =>
-  k === 'monitorInches'
-    ? '″'
-    : k === 'armSplit'
-      ? '%'
-      : ['recline', 'wheelTilt', 'pedalTilt', 'monitorYaw'].includes(k) || k.endsWith('Angle')
-        ? '°'
-        : 'cm';
-function controlValue(key) {
-  return rigHeightKeys.includes(key)
-    ? floorHeight(state, key)
-    : key === 'armBaseAngle'
-      ? evaluation.armPose.baseAngle
-      : key === 'armElbowAngle'
-        ? evaluation.armPose.elbowAngle
-        : key === 'monitorYaw'
-          ? wrapAngle(evaluation.monitorAngle - state.deskAngle)
-          : state[key];
-}
-function range(key, label) {
-  const [min, max, step] = fieldSpec(key, state),
-    value = round(controlValue(key), 1);
-  return `<div class="control"><div class="control-top"><label for="${key}-range">${label}</label><div class="number-wrap"><input id="${key}-number" type="number" data-key="${key}" data-number min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}, valor en ${unitFor(key)}"><span>${unitFor(key)}</span></div></div><input id="${key}-range" type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}" aria-label="${label}" style="--pct:${((value - min) / (max - min)) * 100}%"><div class="control-range-label"><span>${min}</span><span>${max} ${unitFor(key)}</span></div></div>`;
-}
-function toggle(key, label) {
-  return `<div class="toggle-control"><label for="${key}">${label}</label><label class="switch"><input type="checkbox" id="${key}" data-key="${key}" ${state[key] ? 'checked' : ''} aria-label="${label}"><span class="switch-track"></span></label></div>`;
-}
-function select(key, label, options) {
-  return `<div class="select-control"><label for="${key}">${label}</label><select id="${key}" data-key="${key}">${options.map(([value, text]) => `<option value="${value}" ${state[key] === value ? 'selected' : ''}>${text}</option>`).join('')}</select></div>`;
-}
-const group = (title, html, hint = '') =>
-  `<div class="control-group"><h3 class="group-title">${title}${hint ? `<span>${hint}</span>` : ''}</h3>${html}</div>`;
+// Control templates read the current state and evaluation.
+const controlView = () => ({ state, evaluation });
+const controlValue = (key) => controlValueOf(controlView(), key);
+const range = (key, label) => rangeHTML(controlView(), key, label);
+const toggle = (key, label) => toggleHTML(controlView(), key, label);
+const select = (key, label, options) => selectHTML(controlView(), key, label, options);
+const group = groupHTML;
 function roomChanged(redraw = false) {
   state = normalizeRoom(state);
   modified = true;
