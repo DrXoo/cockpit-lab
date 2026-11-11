@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 let failed = false;
-for (const directory of ['src', 'scripts', 'tests']) {
+for (const directory of ['scripts', 'tests']) {
   for (const entry of await readdir(resolve(root, directory), { withFileTypes: true })) {
     if (!entry.isFile() || !/\.(?:js|mjs)$/.test(entry.name)) continue;
     const file = resolve(root, directory, entry.name);
@@ -14,4 +14,4 @@ for (const directory of ['src', 'scripts', 'tests']) {
   }
 }
 if (failed) process.exitCode = 1;
-else console.log('Sintaxis del código propio: correcta.');
+else console.log('Script and test syntax: OK.');

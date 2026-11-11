@@ -1,4 +1,4 @@
-import { defaults, sanitize } from './model.js';
+import { defaults, sanitize } from './model.ts';
 
 export const steps = [
   {
@@ -33,10 +33,10 @@ export const steps = [
   },
 ];
 export const completeSetup = () => ({ step: 'complete', furthest: 4, deferred: [] });
-function readDrafts(input = {}) {
+function readDrafts(input: any = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Borrador inválido');
-  const drafts = {};
+  const drafts: Record<string, any> = {};
   for (const [group, keys] of Object.entries({ room: ['w', 'd', 'h'], desk: ['w', 'd', 'h'] })) {
     if (input[group] === undefined) continue;
     if (!input[group] || typeof input[group] !== 'object')

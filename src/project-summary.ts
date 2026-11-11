@@ -1,6 +1,6 @@
-import { escapeHTML as esc } from './room-editor.js';
-import { steps } from './project.js';
-import { wrapAngle, rigLift, floorHeight } from './model.js';
+import { escapeHTML as esc } from './room-editor.ts';
+import { steps } from './project.ts';
+import { wrapAngle, rigLift, floorHeight } from './model.ts';
 
 const title = (text) => `<h3 class="summary-title">${text}</h3>`;
 const dims = (rows) =>

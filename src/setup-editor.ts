@@ -1,7 +1,7 @@
-import { deskElementControls, monitorShortcuts } from './desk-editor.js';
-import { steps } from './project.js';
-import { presets } from './model.js';
-import { roomControls, escapeHTML as esc } from './room-editor.js';
+import { deskElementControls, monitorShortcuts } from './desk-editor.ts';
+import { steps } from './project.ts';
+import { presets } from './model.ts';
+import { roomControls, escapeHTML as esc } from './room-editor.ts';
 
 const number = (id, label, min, max, value = '', placeholder = '') =>
   `<label class="setup-field" for="${id}">${label}<span><input id="${id}" type="number" min="${min}" max="${max}" step="0.5" required value="${esc(value)}" placeholder="${placeholder}"><small>cm</small></span></label>`;

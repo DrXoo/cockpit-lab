@@ -8,7 +8,7 @@ It runs entirely in your browser, with no accounts, servers or external services
 
 ## Getting started
 
-Requires Git and Node.js 22.12 or later (Node.js 24 LTS recommended).
+Requires Git and Node.js 22.18 or later (Node.js 24 LTS recommended). The tests run the TypeScript sources directly through Node's built-in type stripping.
 
 ```sh
 git clone https://github.com/DrXoo/cockpit-lab.git
@@ -31,7 +31,7 @@ npm run preview  # serves dist/ at http://127.0.0.1:4173
 ## Checks
 
 ```sh
-npm run check   # syntax and formatting check
+npm run check   # type check (tsc), syntax and formatting
 npm run format  # format the code with Prettier
 npm test        # automated tests (Node's built-in test runner)
 ```
@@ -58,22 +58,22 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | Path | Responsibility |
 | --- | --- |
 | `src/index.html`, `src/styles.css`, `src/ui.css` | Markup and styles |
-| `src/app.js` | Controls, state and exports |
-| `src/project.js`, `src/setup-editor.js`, `src/project-summary.js` | Project format, guided setup and summary |
-| `src/cut-list-csv.js` | Cut list CSV export |
-| `src/model.js`, `src/geometry.js` | Cockpit geometry, posture and calculations |
-| `src/room.js`, `src/room-editor.js`, `src/desk-editor.js` | Room, furniture and desk model and editors |
-| `src/scene.js` | Three.js rendering, with an SVG fallback |
+| `src/app.ts` | Controls, state and exports |
+| `src/project.ts`, `src/setup-editor.ts`, `src/project-summary.ts` | Project format, guided setup and summary |
+| `src/cut-list-csv.ts` | Cut list CSV export |
+| `src/model.ts`, `src/geometry.ts` | Cockpit geometry, posture and calculations |
+| `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
+| `src/scene.ts` | Three.js rendering, with an SVG fallback |
 | `tests/` | Automated tests |
 | `scripts/` | Project checks |
 | `vite.config.js` | Dev server and build configuration |
 | `docs/` | Detailed documentation and the mini CAD plan |
 
-Three.js 0.186.1 is installed from npm.
+The source is TypeScript, type-checked by `tsc` but not compiled by it: Vite builds the app and Node runs the tests. Three.js 0.186.1 is installed from npm.
 
 ## Roadmap
 
-1. **TypeScript migration.** Done so far: Prettier formatting, and the move to `src/` with Vite. Next: rename the modules to TypeScript, then type them strictly one by one.
+1. **TypeScript migration.** Done so far: Prettier formatting, the move to `src/` with Vite, and the rename to TypeScript with loose settings. Next: type the modules strictly one by one.
 2. **English UI.** Translate the interface and the documentation.
 3. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
 

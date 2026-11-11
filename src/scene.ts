@@ -1,4 +1,4 @@
-import { wallFrame } from './room.js';
+import { wallFrame } from './room.ts';
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
@@ -13,10 +13,46 @@ import {
   rigLift,
   floorHeight,
   baseSupports,
-} from './model.js';
+} from './model.ts';
 const radians = (d) => (d * Math.PI) / 180;
-const V = (x, y, z) => new T.Vector3(x, y, z);
+const V = (...[x, y, z]: number[]) => new T.Vector3(x, y, z);
 export class CockpitScene {
+  // Typed loosely during the JavaScript migration.
+  declare armDims: any;
+  declare armHandles: any;
+  declare camera: any;
+  declare container: any;
+  declare controls: any;
+  declare deskGroup: any;
+  declare dimensions: any;
+  declare dims: any;
+  declare drag: any;
+  declare e: any;
+  declare group: any;
+  declare labelItems: any;
+  declare labels: any;
+  declare lastSignature: any;
+  declare layoutEditing: any;
+  declare layoutTarget: any;
+  declare mat: any;
+  declare onArmMove: any;
+  declare onLayoutMove: any;
+  declare onLayoutSelect: any;
+  declare person: any;
+  declare renderer: any;
+  declare resizeObserver: any;
+  declare revision: any;
+  declare rigGroup: any;
+  declare roomEditing: any;
+  declare roomGroup: any;
+  declare root: any;
+  declare s: any;
+  declare scene: any;
+  declare sceneBounds: any;
+  declare sideDims: any;
+  declare vectorFallback: any;
+  declare view: any;
+
   constructor(container, labels) {
     this.container = container;
     this.labels = labels;
@@ -312,7 +348,7 @@ export class CockpitScene {
     el.className = 'dim-label' + (object ? ' object-label' : '');
     el.textContent = text;
     this.labels.append(el);
-    const item = { el, position: V(x, y, z), object };
+    const item: any = { el, position: V(x, y, z), object };
     this.labelItems.push(item);
     return item;
   }
@@ -1595,7 +1631,7 @@ export class CockpitScene {
           if (p) this.onArmMove?.(this.drag.armJoint, p.x, p.z);
           return;
         }
-        let p = point(event, this.drag.desktop ? this.s.deskH : 0);
+        let p: any = point(event, this.drag.desktop ? this.s.deskH : 0);
         if (p && this.drag.desktop) p = inversePoint(p, this.e.deskPose);
         if (p)
           this.onLayoutMove?.(

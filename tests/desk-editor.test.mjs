@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, evaluate, editArm } from '../src/model.js';
-import { creationControls } from '../src/setup-editor.js';
-import { monitorShortcuts } from '../src/desk-editor.js';
+import { defaults, evaluate, editArm } from '../src/model.ts';
+import { creationControls } from '../src/setup-editor.ts';
+import { monitorShortcuts } from '../src/desk-editor.ts';
 
 const controls = { range: () => '', toggle: () => '', select: () => '' };
 const render = (state, target) =>

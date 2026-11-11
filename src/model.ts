@@ -6,8 +6,8 @@ import {
   rectangle,
   overlapDepth,
   polygonDistance,
-} from './geometry.js';
-import { normalizeRoom, evaluateRoom } from './room.js';
+} from './geometry.ts';
+import { normalizeRoom, evaluateRoom } from './room.ts';
 const rad = (d) => (d * Math.PI) / 180;
 // Coordinate system in cm: X lateral, Y from floor, Z from rear chassis edge.
 export const fields = {
@@ -362,7 +362,7 @@ export function fieldSpec(key, s) {
 }
 export function clampEdge(s) {
   const b = deskBounds(s),
-    candidates = [
+    candidates: [string, number][] = [
       ['xmin', Math.abs(s.clampX + b.anchorX)],
       ['xmax', Math.abs(s.clampX - b.anchorX)],
       ['zmin', Math.abs(s.clampZ + b.anchorZ)],

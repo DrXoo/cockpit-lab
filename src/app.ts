@@ -1,20 +1,20 @@
-import { deskElementControls, monitorShortcuts } from './desk-editor.js';
-import { steps, createProject, readProject, projectData, advanceSetup } from './project.js';
+import { deskElementControls, monitorShortcuts } from './desk-editor.ts';
+import { steps, createProject, readProject, projectData, advanceSetup } from './project.ts';
 import {
   creationControls,
   accessoryControls,
   placementControls,
   progressHTML,
-} from './setup-editor.js';
-import { partialSummary } from './project-summary.js';
+} from './setup-editor.ts';
+import { partialSummary } from './project-summary.ts';
 import {
   normalizeRoom,
   moveRoomTarget,
   wallFrame,
   furnitureNames,
   officeChairPlacement,
-} from './room.js';
-import { roomControls, roomItem, roomItems, roomValue, escapeHTML } from './room-editor.js';
+} from './room.ts';
+import { roomControls, roomItem, roomItems, roomValue, escapeHTML } from './room-editor.ts';
 import {
   defaults,
   presets,
@@ -38,9 +38,9 @@ import {
   rigLift,
   floorHeight,
   setRigHeight,
-} from './model.js';
-import { CockpitScene } from './scene.js';
-import { cutListCsv } from './cut-list-csv.js';
+} from './model.ts';
+import { CockpitScene } from './scene.ts';
+import { cutListCsv } from './cut-list-csv.ts';
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -67,7 +67,7 @@ const paths = {
 };
 function icons(root = document) {
   root
-    .querySelectorAll('i[data-icon]')
+    .querySelectorAll<HTMLElement>('i[data-icon]')
     .forEach(
       (i) =>
         (i.innerHTML = `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="${paths[i.dataset.icon] || paths.info}"/></svg>`),
@@ -77,7 +77,7 @@ icons();
 const KEY = 'cockpit-lab-v2';
 let project = createProject(),
   state = project.config,
-  setup = project.setup,
+  setup: any = project.setup,
   section = 'room',
   view = 'top',
   modified = false,
@@ -1464,7 +1464,7 @@ try {
   $('#webglFallback').hidden = false;
 }
 // Read-only view of current calculations, useful for verifying a configuration.
-window.cockpitLab = {
+(window as any).cockpitLab = {
   getState: () => structuredClone(state),
   getEvaluation: () => structuredClone(evaluation),
 };

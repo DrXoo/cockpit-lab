@@ -1,5 +1,5 @@
-import { round } from './geometry.js';
-import { wallFrame, wallNames, furnitureNames } from './room.js';
+import { round } from './geometry.ts';
+import { wallFrame, wallNames, furnitureNames } from './room.ts';
 export const escapeHTML = (v) =>
   String(v).replace(
     /[&<>"']/g,

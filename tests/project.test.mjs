@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, evaluate, getParts, getDesktopItems, resizeDesk } from '../src/model.js';
-import { createProject, readProject, projectData, advanceSetup } from '../src/project.js';
-import { partialSummary } from '../src/project-summary.js';
+import { defaults, evaluate, getParts, getDesktopItems, resizeDesk } from '../src/model.ts';
+import { createProject, readProject, projectData, advanceSetup } from '../src/project.ts';
+import { partialSummary } from '../src/project-summary.ts';
 
 test('Un proyecto nuevo no contiene objetos ni despiece y espera las medidas de habitación', () => {
   const p = createProject(),

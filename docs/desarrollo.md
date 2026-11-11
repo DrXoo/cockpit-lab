@@ -12,7 +12,7 @@ La licencia de Three.js se conserva; ahora se instala desde npm y el build la in
 2. Ejecuta `npm install` y después `npm run dev` en la terminal integrada.
 3. Abre la dirección indicada, normalmente `http://127.0.0.1:5173`.
 4. Guarda los cambios; la página se recarga sola.
-5. Ejecuta `npm run check` y `npm test` antes de crear un commit.
+5. Ejecuta `npm run check` (tipos, sintaxis y formato) y `npm test` antes de crear un commit.
 
 Ejecuta `npm install` una vez tras clonar. `npm run dev` arranca el servidor de desarrollo de Vite, que solo escucha en la interfaz local, sirve `src/` y recarga la página al guardar. `npm run build` genera la versión estática en `dist/`, que no se versiona, y `npm run format` formatea el código.
 

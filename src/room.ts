@@ -1,4 +1,4 @@
-import { clamp, round, rectangle, overlapDepth, transformPoint } from './geometry.js';
+import { clamp, round, rectangle, overlapDepth, transformPoint } from './geometry.ts';
 
 export const wallNames = {
   north: 'AB · arriba',
@@ -129,7 +129,7 @@ export function normalizeRoom(s, input = s) {
         const type = Object.hasOwn(furnitureNames, v.type) ? v.type : 'shelf',
           chair = type === 'chair',
           mounted = type === 'wallShelf';
-        const item = {
+        const item: Record<string, any> = {
           id: idFor(v.id, 'furniture', i),
           type,
           name: text(v.name, furnitureNames[type]),

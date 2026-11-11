@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, sanitize, evaluate, rectangle } from '../src/model.js';
+import { defaults, sanitize, evaluate, rectangle } from '../src/model.ts';
 import {
   normalizeRoom,
   wallFrame,
   featureGeometry,
   evaluateRoom,
   moveRoomTarget,
-} from '../src/room.js';
+} from '../src/room.ts';
 const base = () => ({
   ...structuredClone(defaults),
   roomX: 0,

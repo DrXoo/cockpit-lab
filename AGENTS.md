@@ -52,7 +52,11 @@ These principles serve readability and change. Don't add abstractions, layers or
 
 - The source lives in `src/`. Vite runs the dev server (`npm run dev`) and builds the app into `dist/` (`npm run build`). `dist/` is generated output: never edit it or commit it.
 - Third-party code comes from npm with exact pinned versions. Don't vendor copies into `src/`.
-- The modules are still JavaScript. The next steps rename them to TypeScript and then type them strictly, one module at a time. New modules can already be written in TypeScript once the rename lands.
+- The source is TypeScript. `tsc` only type-checks it (`noEmit`): Vite builds the app, and Node runs the tests on the `.ts` files directly through type stripping. So:
+  - import local modules with their `.ts` extension;
+  - use only erasable syntax: no `enum`, `namespace` or constructor parameter properties;
+  - prefer `declare` for class fields that the constructor assigns.
+- `tsconfig.json` is still loose (`strict: false`) because the code comes from JavaScript. Make modules strict one at a time, and write new modules as if `strict` were on: no implicit `any`, no unchecked `null`.
 - There is no external deployment. The app runs locally and can be served by any static file server.
 
 ## Domain rules

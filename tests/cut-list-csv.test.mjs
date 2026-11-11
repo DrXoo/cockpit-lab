@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cutListCsv } from '../src/cut-list-csv.js';
-import { defaults, evaluate } from '../src/model.js';
+import { cutListCsv } from '../src/cut-list-csv.ts';
+import { defaults, evaluate } from '../src/model.ts';
 
 const evaluation = {
   parts: [{ name: 'Larguero "base"', profile: '40x40', qty: 2, mm: 1250, total: 2500 }],
