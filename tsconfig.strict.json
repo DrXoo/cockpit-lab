@@ -33,6 +33,7 @@
     "src/desk-editor.ts",
     "src/setup-editor.ts",
     "src/settings-panels.ts",
+    "src/room-actions.ts",
     "playwright.config.ts"
   ]
 }

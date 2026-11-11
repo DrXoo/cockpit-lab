@@ -13,13 +13,7 @@ import {
   usesPartialSummary,
   summaryHeading,
 } from './project-summary.ts';
-import {
-  normalizeRoom,
-  moveRoomTarget,
-  wallFrame,
-  furnitureNames,
-  officeChairPlacement,
-} from './room.ts';
+import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
 import {
   roomControls,
   roomItem,
@@ -54,6 +48,15 @@ import {
 } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import { cutListCsv } from './cut-list-csv.ts';
+import {
+  addRoomItem,
+  canAddRoomItem,
+  stepOfRoomItem,
+  updateRoomItem,
+  deleteRoomItem,
+  placeChairAtDesk,
+  centerInRoom,
+} from './room-actions.ts';
 import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from './settings-panels.ts';
 import { createProjectStore } from './project-storage.ts';
 import { checkRowHTML } from './check-view.ts';
@@ -178,19 +181,7 @@ function selectRoomTarget(target) {
   setActiveView('top');
 }
 function changeRoomValue(key, value, redraw = false) {
-  const item = roomItem(state, layoutTarget);
-  if (item) {
-    const list = isFeature(item) ? 'roomFeatures' : 'roomFurniture';
-    const adjusted = key === 'x' ? value + state.roomX : key === 'z' ? value + state.roomZ : value;
-    state = {
-      ...state,
-      [list]: state[list].map((v) => (v.id === item.id ? { ...v, [key]: adjusted } : v)),
-    };
-  } else if (['desk', 'cockpit'].includes(layoutTarget)) {
-    if (key === 'x') state[layoutTarget + 'X'] = value + state.roomX;
-    else if (key === 'z') state[layoutTarget + 'Z'] = value + state.roomZ;
-    else if (key === 'angle') state[layoutTarget + 'Angle'] = value;
-  }
+  state = updateRoomItem(state, layoutTarget, key, value);
   roomChanged(redraw);
 }
 function syncRoomInputs() {
@@ -286,153 +277,40 @@ function bindRoomEditor() {
         const type = el.dataset.addRoom,
           id =
             crypto.randomUUID?.() ||
-            'room-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9),
-          opening = ['door', 'window', 'wardrobeAccess'].includes(type);
-        if (
-          (opening && state.roomFeatures.length >= 24) ||
-          (!opening && state.roomFurniture.length >= 30)
-        ) {
+            'room-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+        if (!canAddRoomItem(state, type)) {
           toast('Límite de elementos alcanzado');
           return;
         }
-        if (type === 'wardrobeAccess')
-          state = {
-            ...state,
-            roomFeatures: [
-              ...state.roomFeatures,
-              {
-                id,
-                type,
-                name: 'Armario empotrado',
-                wall: 'north',
-                width: Math.min(180, state.roomW),
-                offset: Math.max(0, (state.roomW - 180) / 2),
-                clearance: 80,
-              },
-            ],
-          };
-        else if (opening) {
-          state = {
-            ...state,
-            roomFeatures: [
-              ...state.roomFeatures,
-              {
-                id,
-                type,
-                name: type === 'door' ? 'Puerta' : 'Ventana',
-                wall: type === 'door' ? 'south' : 'north',
-                offset: type === 'door' ? 20 : Math.max(0, (state.roomW - 120) / 2),
-                width: type === 'door' ? 80 : 120,
-                height: type === 'door' ? 205 : 120,
-                sill: type === 'door' ? 0 : 100,
-                hinge: 'start',
-                swing: 'in',
-                openAngle: 90,
-                clearance: 60,
-              },
-            ],
-          };
-        } else if (type === 'wallShelf')
-          state = {
-            ...state,
-            roomFurniture: [
-              ...state.roomFurniture,
-              {
-                id,
-                type,
-                name: furnitureNames[type],
-                mountWall: 'north',
-                width: 100,
-                depth: 30,
-                height: 40,
-                elevation: 140,
-              },
-            ],
-          };
-        else if (type === 'chair') {
-          const chair = {
-            id,
-            type,
-            name: 'Silla de PC',
-            width: 65,
-            depth: 65,
-            height: 115,
-            seatHeight: 47,
-            pullback: 50,
-          };
-          state = {
-            ...state,
-            roomFurniture: [
-              ...state.roomFurniture,
-              {
-                ...chair,
-                ...(state.deskEnabled !== false
-                  ? officeChairPlacement(state, chair)
-                  : {
-                      x: state.roomX + state.roomW / 2,
-                      z: state.roomZ + state.roomD / 2,
-                      angle: 0,
-                    }),
-              },
-            ],
-          };
-        } else
-          state = {
-            ...state,
-            roomFurniture: [
-              ...state.roomFurniture,
-              {
-                id,
-                type,
-                name: furnitureNames[type],
-                x: state.roomX + state.roomW / 2,
-                z: state.roomZ + state.roomD / 2,
-                width: type === 'bed' ? 140 : 80,
-                depth: type === 'bed' ? 200 : type === 'wardrobe' ? 55 : 35,
-                height: type === 'bed' ? 60 : type === 'wardrobe' ? 200 : 100,
-                angle: 0,
-              },
-            ],
-          };
+        const added = addRoomItem(state, type, id);
+        state = added.state;
         setup = {
           ...setup,
-          deferred: setup.deferred.filter(
-            (id) => id !== (opening && type !== 'wardrobeAccess' ? 'openings' : 'furniture'),
-          ),
+          deferred: setup.deferred.filter((step) => step !== stepOfRoomItem(type)),
         };
-        state.roomEnabled = true;
-        state = normalizeRoom(state);
-        layoutTarget = (opening ? 'feature:' : 'furniture:') + id;
+        layoutTarget = added.target;
         roomChanged(true);
         selectRoomTarget(layoutTarget);
         toast(
           type === 'wardrobeAccess'
             ? 'Acceso añadido. Ajusta las puertas y el espacio libre delante.'
-            : opening
+            : stepOfRoomItem(type) === 'openings'
               ? 'Hueco añadido. Ajusta su pared y medidas.'
               : 'Mueble añadido. Arrástralo en planta.',
         );
       }),
     );
   $('#chairAtDesk')?.addEventListener('click', () => {
-    const item = roomItem(state, layoutTarget);
-    if (item?.type !== 'chair') return;
-    state = {
-      ...state,
-      roomFurniture: state.roomFurniture.map((v) =>
-        v.id === item.id ? { ...v, ...officeChairPlacement(state, v) } : v,
-      ),
-    };
+    if (roomItem(state, layoutTarget)?.type !== 'chair') return;
+    state = placeChairAtDesk(state, layoutTarget);
     roomChanged(true);
     scene?.setLayoutEditing(layoutEditing, layoutTarget, true);
     setActiveView('top');
     toast('Silla colocada frente al escritorio');
   });
   $('#roomDelete')?.addEventListener('click', () => {
-    const item = roomItem(state, layoutTarget);
-    if (!item) return;
-    const list = isFeature(item) ? 'roomFeatures' : 'roomFurniture';
-    state = { ...state, [list]: state[list].filter((v) => v.id !== item.id) };
+    if (!roomItem(state, layoutTarget)) return;
+    state = deleteRoomItem(state, layoutTarget);
     layoutTarget = 'desk';
     roomChanged(true);
     scene?.setLayoutEditing(layoutEditing, layoutTarget, true);
@@ -442,16 +320,7 @@ function bindRoomEditor() {
     setActiveView('top');
   });
   $('#roomCenter')?.addEventListener('click', () => {
-    const e = evaluation,
-      dx = state.roomX + state.roomW / 2 - (e.allLeft + e.allRight) / 2,
-      dz = state.roomZ + state.roomD / 2 - (e.allBack + e.allFront) / 2;
-    state = {
-      ...state,
-      deskX: round(state.deskX + dx),
-      deskZ: round(state.deskZ + dz),
-      cockpitX: round(state.cockpitX + dx),
-      cockpitZ: round(state.cockpitZ + dz),
-    };
+    state = centerInRoom(state, evaluation);
     roomChanged(true);
     setActiveView('top');
     toast('Mesa y cockpit centrados conservando su distribución');
