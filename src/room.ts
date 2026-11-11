@@ -652,14 +652,14 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
       add(
         'room-out-' + item.id,
         item.name,
-        'Fuera de habitación',
+        'Outside the room',
         'error',
-        'Sobresale de una pared o del techo',
+        'Sticks out of a wall or the ceiling',
       );
     const hits = uniqueLabels(setupSolids.filter((solid) => collides(item, solid)));
     if (hits.length) {
       collisions.push(item.id);
-      add('room-furniture-' + item.id, item.name, 'Interferencia', 'error', hits.join(' · '));
+      add('room-furniture-' + item.id, item.name, 'Interference', 'error', hits.join(' · '));
     }
   }
   for (let i = 0; i < furniture.length; i++)
@@ -668,8 +668,8 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
         collisions.push(furniture[i].id, furniture[j].id);
         add(
           'room-pair-' + furniture[i].id + '-' + furniture[j].id,
-          'Muebles superpuestos',
-          'Revisar',
+          'Overlapping furniture',
+          'Check',
           'error',
           furniture[i].name + ' / ' + furniture[j].name,
         );
@@ -690,7 +690,7 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
       add(
         'room-mount-' + item.id,
         item.name,
-        'Anclaje sobre hueco',
+        'Mounted over an opening',
         'error',
         hits.map((feature) => feature.name).join(' · '),
       );
@@ -712,10 +712,10 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
     const blocked = hits.length > 0 || outside;
     add(
       'room-chair-' + item.id,
-      'Retirar ' + item.name,
-      blocked ? 'Reserva ocupada' : `${item.pullback} cm libres`,
+      'Pulling back ' + item.name,
+      blocked ? 'Clearance taken' : `${item.pullback} cm clear`,
       blocked ? 'warning' : 'ok',
-      `${item.pullback} cm hacia atrás${outside ? ' · fuera de habitación' : ''}${hits.length ? ' · ' + hits.join(' · ') : ''}; reserva orientativa`,
+      `${item.pullback} cm back${outside ? ' · outside the room' : ''}${hits.length ? ' · ' + hits.join(' · ') : ''}; approximate clearance`,
     );
   }
 
@@ -736,20 +736,20 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
       add(
         'room-door-' + item.id,
         item.name,
-        hits.length ? 'Apertura bloqueada' : `${item.openAngle}° libres`,
+        hits.length ? 'Swing blocked' : `${item.openAngle}° clear`,
         hits.length ? 'error' : 'ok',
         hits.length
           ? hits.join(' · ')
-          : `Barrido de 0° a ${item.openAngle}° · ${item.swing === 'out' ? 'hacia fuera' : 'hacia dentro'}`,
+          : `Swing from 0° to ${item.openAngle}° · ${item.swing === 'out' ? 'outwards' : 'inwards'}`,
       );
     } else if (item.type === 'wardrobeAccess') {
       if (item.clearance <= 0) {
         add(
           'room-access-' + item.id,
           item.name,
-          'Reserva desactivada',
+          'Clearance off',
           'warning',
-          'Puertas correderas sin barrido; configura una franja libre delante para comprobar el acceso',
+          'Sliding doors have no swing; set a clear band in front to check the access',
         );
         continue;
       }
@@ -765,9 +765,9 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
       add(
         'room-access-' + item.id,
         item.name,
-        hits.length ? 'Acceso ocupado' : outside ? 'Reserva fuera de habitación' : 'Acceso libre',
+        hits.length ? 'Access blocked' : outside ? 'Clearance outside the room' : 'Access clear',
         hits.length || outside ? 'warning' : 'ok',
-        `Reserva de ${item.clearance} cm delante · puertas correderas sin barrido${hits.length ? ' · ' + hits.join(' · ') : ''}${outside ? ' · la franja sale de la habitación' : ''}; reserva de acceso, sin volumen interior`,
+        `${item.clearance} cm clearance in front · sliding doors without a swing${hits.length ? ' · ' + hits.join(' · ') : ''}${outside ? ' · the band leaves the room' : ''}; access clearance only, no inside volume`,
       );
     } else if (item.clearance > 0) {
       const hits = uniqueLabels(
@@ -782,9 +782,9 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
       add(
         'room-window-' + item.id,
         item.name,
-        hits.length ? 'Reserva ocupada' : 'Reserva libre',
+        hits.length ? 'Clearance taken' : 'Clearance free',
         hits.length ? 'warning' : 'ok',
-        `${item.clearance} cm delante${hits.length ? ' · ' + hits.join(' · ') : ''}; hojas de ventana sin simular`,
+        `${item.clearance} cm in front${hits.length ? ' · ' + hits.join(' · ') : ''}; window sashes not simulated`,
       );
     }
   }
@@ -801,8 +801,8 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
       )
         add(
           'room-openings-' + a.id + '-' + b.id,
-          'Huecos superpuestos',
-          'Revisar',
+          'Overlapping openings',
+          'Check',
           'error',
           a.name + ' / ' + b.name,
         );
@@ -810,10 +810,10 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
   if (!collisions.length)
     add(
       'room-furniture',
-      'Muebles y conjunto',
-      'Sin cruce',
+      'Furniture and setup',
+      'No clash',
       'ok',
-      'Envolventes con giro y altura; no se calcula resistencia',
+      'Envelopes with rotation and height; strength is not calculated',
     );
   return {
     features,

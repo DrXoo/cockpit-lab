@@ -50,7 +50,7 @@ test('El empotrado reserva acceso hacia dentro de cada pared sin interior ni bar
     assert.ok(Math.abs(Math.max(...normal) - 80) < 1e-8);
     assert.ok(Math.abs(Math.min(...along) - 50) < 1e-8);
     assert.ok(Math.abs(Math.max(...along) - 230) < 1e-8);
-    assert.equal(e.checks.find((c) => c.id === 'room-access-armario').value, 'Acceso libre');
+    assert.equal(e.checks.find((c) => c.id === 'room-access-armario').value, 'Access clear');
     const inward = obstacle(item.center.x + f.nx * 30, item.center.z + f.nz * 30),
       behind = obstacle(item.center.x - f.nx * 30, item.center.z - f.nz * 30);
     assert.deepEqual(evaluateRoom(s, [inward]).accessHits, ['armario']);
@@ -66,7 +66,7 @@ test('El acceso ocupado avisa sin inventar una colisión física ni una ventana'
       obstacle(130, 40, 'Escritorio'),
     ]),
     check = e.checks.find((c) => c.id === 'room-access-armario');
-  assert.equal(check.value, 'Acceso ocupado');
+  assert.equal(check.value, 'Access blocked');
   assert.equal(check.level, 'warning');
   assert.ok(check.detail.includes('Escritorio · Cockpit'));
   assert.deepEqual(e.collisions, []);
@@ -125,10 +125,7 @@ test('El arrastre conserva la pared y admite frentes anchos sin pedir medidas in
   const disabled = evaluateRoom(room({ roomFeatures: [access({ clearance: 0 })] }), [
     obstacle(100, 10),
   ]);
-  assert.equal(
-    disabled.checks.find((c) => c.id === 'room-access-armario').value,
-    'Reserva desactivada',
-  );
+  assert.equal(disabled.checks.find((c) => c.id === 'room-access-armario').value, 'Clearance off');
   assert.deepEqual(disabled.accessHits, []);
   const outside = evaluateRoom(
     room({ roomD: 120, roomFeatures: [access({ clearance: 200 })] }),
@@ -136,7 +133,7 @@ test('El arrastre conserva la pared y admite frentes anchos sin pedir medidas in
   );
   assert.equal(
     outside.checks.find((c) => c.id === 'room-access-armario').value,
-    'Reserva fuera de habitación',
+    'Clearance outside the room',
   );
   assert.deepEqual(evaluateRoom({ ...s, roomEnabled: false }, [obstacle(100, 40)]).checks, []);
 });

@@ -56,7 +56,7 @@ test('Los elementos pendientes no obstruyen muebles ni puertas ni contaminan las
   };
   const e = evaluate(s);
   assert.equal(e.errors, 0);
-  assert.equal(e.checks.find((c) => c.id === 'room-door-puerta').value, '90° libres');
+  assert.equal(e.checks.find((c) => c.id === 'room-door-puerta').value, '90° clear');
   assert.deepEqual(e.bodyCheck, []);
   assert.deepEqual(e.spaceCheck, []);
   assert.deepEqual(e.parts, []);

@@ -254,35 +254,35 @@ function bodyChecks(
   const checks = [
     check(
       'knee',
-      'Ángulo de rodilla',
-      body.legs.reachable ? `${Math.round(body.legs.angle)}°` : 'Sin alcance',
+      'Knee angle',
+      body.legs.reachable ? `${Math.round(body.legs.angle)}°` : 'Out of reach',
       !body.legs.reachable
         ? 'error'
         : body.legs.angle < 100 || body.legs.angle > 145
           ? 'warning'
           : 'ok',
-      'Guía 100–145° · proporciones medias',
+      'Guide 100–145° · average proportions',
     ),
     check(
       'hip',
-      'Apertura de cadera',
+      'Hip angle',
       `${Math.round(body.hipAngle)}°`,
       body.hipAngle < 85 || body.hipAngle > 125 ? 'warning' : 'ok',
-      'Guía 85–125° · respaldo incluido',
+      'Guide 85–125° · backrest included',
     ),
   ];
   if (s.wheel)
     checks.push(
       check(
         'elbow',
-        'Ángulo de codo',
-        body.arms.reachable ? `${Math.round(body.arms.angle)}°` : 'Sin alcance',
+        'Elbow angle',
+        body.arms.reachable ? `${Math.round(body.arms.angle)}°` : 'Out of reach',
         !body.arms.reachable
           ? 'error'
           : body.arms.angle < 85 || body.arms.angle > 140
             ? 'warning'
             : 'ok',
-        'Guía 85–140° · agarre lateral',
+        'Guide 85–140° · side grip',
       ),
     );
   if (s.hotas) {
@@ -294,10 +294,10 @@ function bodyChecks(
     checks.push(
       check(
         'hotas',
-        'Alcance HOTAS',
+        'HOTAS reach',
         `${Math.round(distance)} cm`,
         distance > s.height * 0.332 ? 'error' : distance > s.height * 0.3 ? 'warning' : 'ok',
-        'Hombro a empuñadura · aproximado',
+        'Shoulder to grip · approximate',
       ),
     );
   }
@@ -306,10 +306,10 @@ function bodyChecks(
     checks.push(
       check(
         'stick',
-        'Joystick central',
+        'Center stick',
         `${Math.round(distance)} cm`,
         distance > s.height * 0.332 ? 'error' : 'ok',
-        'Hombro a empuñadura · aproximado',
+        'Shoulder to grip · approximate',
       ),
     );
   }
@@ -323,10 +323,10 @@ function bodyChecks(
     checks.push(
       check(
         'eyes',
-        'Ojos a pantalla',
+        'Eyes to screen',
         `${Math.round(distance)} cm`,
         distance < 50 || distance > 110 ? 'warning' : 'ok',
-        'Distancia geométrica · guía 50–110 cm',
+        'Straight-line distance · guide 50–110 cm',
       ),
     );
   }
@@ -352,21 +352,21 @@ function spaceChecks(
     checks.push(
       check(
         'side',
-        'Separación en planta',
-        sideGap < 0 ? `${Math.ceil(-sideGap)} cm de solape` : `${Math.round(sideGap)} cm`,
+        'Gap in the plan',
+        sideGap < 0 ? `${Math.ceil(-sideGap)} cm overlap` : `${Math.round(sideGap)} cm`,
         sideGap < 5 ? 'warning' : 'ok',
         sideGap < 0
-          ? 'Huellas superpuestas; comprueba las alturas'
-          : 'Distancia mínima entre huellas giradas',
+          ? 'Footprints overlap; check the heights'
+          : 'Smallest distance between the rotated footprints',
       ),
       check(
         'collision',
-        'Interferencias',
+        'Interference',
         collisionCount > 0
-          ? `${collisionCount} cruce${collisionCount > 1 ? 's' : ''}`
-          : 'Sin cruce',
+          ? `${collisionCount} clash${collisionCount > 1 ? 'es' : ''}`
+          : 'No clash',
         collisionCount > 0 ? 'error' : 'ok',
-        'Volúmenes aproximados · giro incluido',
+        'Approximate volumes · rotation included',
       ),
     );
   }
@@ -374,17 +374,17 @@ function spaceChecks(
   checks.push(
     check(
       'arm',
-      'Brazo de monitor',
-      armPose.reachable ? (s.monitorMode === 'manual' ? 'Manual' : 'Alcanza') : 'No alcanza',
+      'Monitor arm',
+      armPose.reachable ? (s.monitorMode === 'manual' ? 'Manual' : 'Reaches') : 'Out of reach',
       !armPose.reachable ? 'error' : reach > s.armReach * 0.9 ? 'warning' : 'ok',
-      `${Math.round(reach)} cm en planta · rango ${round(armPose.minReach)}–${s.armReach} cm; tramos ${round(armPose.first)} + ${round(armPose.second)} cm`,
+      `${Math.round(reach)} cm in the plan · range ${round(armPose.minReach)}–${s.armReach} cm; segments ${round(armPose.first)} + ${round(armPose.second)} cm`,
     ),
     check(
       'lift',
-      'Altura del brazo',
+      'Arm height',
       `${Math.round(lift)} cm`,
       lift < s.armMinH || lift > s.armMaxH ? 'error' : 'ok',
-      `Centro VESA sobre tablero · ${s.armMinH}–${s.armMaxH} cm`,
+      `VESA center above the desktop · ${s.armMinH}–${s.armMaxH} cm`,
     ),
   );
   if (s.monitorMode === 'cockpit' && presence.hasRig) {
@@ -392,15 +392,15 @@ function spaceChecks(
     checks.push(
       check(
         'screen',
-        'Pantalla / volante',
-        s.wheel ? `${Math.round(monitorClearance)} cm` : 'Libre',
+        'Screen / wheel',
+        s.wheel ? `${Math.round(monitorClearance)} cm` : 'Clear',
         s.wheel && monitorClearance < 2 ? 'warning' : 'ok',
-        'Separación vertical de envolventes',
+        'Vertical gap between envelopes',
       ),
     );
   }
   if (s.monitorMode === 'vr')
-    checks.push(check('vr', 'Modo VR', 'Frontal libre', 'ok', 'Monitor aparcado sobre la mesa'));
+    checks.push(check('vr', 'VR mode', 'Front clear', 'ok', 'Monitor parked over the desk'));
   return checks;
 }
 
@@ -440,31 +440,31 @@ function desktopChecks(
   const checks = [
     check(
       'desktop-fit',
-      'Dentro del tablero',
-      outsideItems.length ? 'Revisar bordes' : 'Todo dentro',
+      'On the desktop',
+      outsideItems.length ? 'Check the edges' : 'All on it',
       outsideItems.length ? 'warning' : 'ok',
       outsideItems.length
         ? outsideItems.map((item) => item.label).join(', ')
-        : `Envolventes y giros sobre ${s.deskWidth} × ${s.deskDepth} cm`,
+        : `Envelopes and rotations on ${s.deskWidth} × ${s.deskDepth} cm`,
     ),
     check(
       'desktop-overlap',
-      'Objetos sobre la mesa',
+      'Items on the desk',
       desktopOverlaps.length
-        ? `${desktopOverlaps.length} solape${desktopOverlaps.length > 1 ? 's' : ''}`
-        : 'Sin solapes',
+        ? `${desktopOverlaps.length} overlap${desktopOverlaps.length > 1 ? 's' : ''}`
+        : 'No overlaps',
       desktopOverlaps.length ? 'warning' : 'ok',
-      desktopOverlaps.length ? desktopOverlaps.join(' · ') : 'La alfombrilla admite objetos encima',
+      desktopOverlaps.length ? desktopOverlaps.join(' · ') : 'Items may rest on the desk mat',
     ),
   ];
   if (layout.hasMatAndMouse)
     checks.push(
       check(
         'mouse-mat',
-        'Ratón y alfombrilla',
-        mouseOnMat ? 'Dentro' : 'Fuera',
+        'Mouse and desk mat',
+        mouseOnMat ? 'On it' : 'Off it',
         mouseOnMat ? 'ok' : 'warning',
-        `${s.matWidth} × ${s.matDepth} cm · cobertura del ratón`,
+        `${s.matWidth} × ${s.matDepth} cm · mouse coverage`,
       ),
     );
   if (presence.hasMonitor) {
@@ -478,12 +478,12 @@ function desktopChecks(
     checks.push(
       check(
         'mount',
-        'Fijación del brazo',
-        s.clampMount === 'grommet' ? 'Pasante' : onEdge ? 'En borde' : 'Revisar',
+        'Arm mount',
+        s.clampMount === 'grommet' ? 'Grommet' : onEdge ? 'On the edge' : 'Check',
         s.clampMount === 'clamp' && !onEdge ? 'warning' : 'ok',
         s.clampMount === 'grommet'
-          ? 'Requiere taladro o pasacables compatible'
-          : 'Mordaza al borde · compatibilidad por comprobar',
+          ? 'Needs a drilled hole or a compatible cable grommet'
+          : 'Edge clamp · check compatibility',
       ),
     );
   }
@@ -517,7 +517,7 @@ function setupObstacles(
   const { rigSolids, deskSolids, desktopItems, monitorPolygon, monitorH, monitor } = parts;
   const obstacles: Obstacle[] = [
     ...rigSolids.map((volume) => ({ ...volume, label: 'Cockpit' })),
-    ...deskSolids.map((volume) => ({ ...volume, label: 'Escritorio' })),
+    ...deskSolids.map((volume) => ({ ...volume, label: 'Desk' })),
     ...desktopItems
       .filter((item) => item.id !== 'mat')
       .map((item) => ({
@@ -540,7 +540,7 @@ function setupObstacles(
     ...[
       [monitor.anchor, arm.elbow],
       [arm.elbow, arm.end],
-    ].map(([a, b]) => ({ ...segmentVolume(a, b, 1.5, s.monitorH), label: 'Brazo de monitor' })),
+    ].map(([a, b]) => ({ ...segmentVolume(a, b, 1.5, s.monitorH), label: 'Monitor arm' })),
   ];
 }
 
@@ -585,20 +585,20 @@ function otherChecks(
     checks.push(
       check(
         'overhang',
-        'Pedalera',
-        `Sobresale ${Math.ceil(rig.pedalEnd - s.length)} cm`,
+        'Pedals',
+        `Sticks out ${Math.ceil(rig.pedalEnd - s.length)} cm`,
         'error',
-        'Alarga el chasis o retrasa la pedalera',
+        'Lengthen the chassis or move the pedals back',
       ),
     );
   if (presence.hasRig && rig.seatBackZ < 0)
     checks.push(
       check(
         'seatback',
-        'Respaldo',
-        `Sobresale ${Math.ceil(-rig.seatBackZ)} cm`,
+        'Backrest',
+        `Sticks out ${Math.ceil(-rig.seatBackZ)} cm`,
         'warning',
-        'La huella del conjunto incluye este saliente',
+        'The setup footprint includes this overhang',
       ),
     );
   if (room.hasSetup && s.roomEnabled !== false)
@@ -606,27 +606,27 @@ function otherChecks(
       room.roomFits
         ? check(
             'room',
-            'Reserva lateral',
-            room.aisleFits ? `${s.aisle} cm posibles` : 'Insuficiente',
+            'Side clearance',
+            room.aisleFits ? `${s.aisle} cm available` : 'Not enough',
             room.aisleFits ? 'ok' : 'warning',
-            'Banda sin muebles ni barrido de puerta; no verifica una ruta de acceso',
+            'A band free of furniture and door swings; does not check a way in',
           )
         : check(
             'room',
-            'Zona disponible',
-            'Fuera de zona',
+            'Available area',
+            'Outside the area',
             'error',
-            'Mueve los elementos o ajusta el origen y tamaño de la zona',
+            'Move the items or adjust the origin and size of the area',
           ),
     );
   if (presence.hasRig && s.centerStick && s.wheel && Math.abs(s.stickZ - s.wheelZ) < 24)
     checks.push(
       check(
         'mode',
-        'Mandos centrales',
-        'Revisar montaje',
+        'Center controls',
+        'Check the mounting',
         'warning',
-        'El joystick y volante comparten zona: desmontaje alterno',
+        'The stick and the wheel share the same space: fit one at a time',
       ),
     );
   return checks;
