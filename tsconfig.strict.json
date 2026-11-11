@@ -25,6 +25,9 @@
     "src/model.ts",
     "src/project.ts",
     "src/project-storage.ts",
+    "src/html.ts",
+    "src/check-view.ts",
+    "src/project-summary.ts",
     "playwright.config.ts"
   ]
 }

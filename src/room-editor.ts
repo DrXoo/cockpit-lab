@@ -1,10 +1,8 @@
 import { round } from './geometry.ts';
 import { wallFrame, wallNames, furnitureNames } from './room.ts';
-export const escapeHTML = (v) =>
-  String(v).replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
-  );
+import { escapeHTML } from './html.ts';
+
+export { escapeHTML };
 export function roomItem(s, target) {
   return target.startsWith('feature:')
     ? s.roomFeatures.find((v) => v.id === target.slice(8))
