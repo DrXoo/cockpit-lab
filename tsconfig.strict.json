@@ -37,6 +37,10 @@
     "src/setup-actions.ts",
     "src/inspector-view.ts",
     "src/scene-camera.ts",
+    "src/render-list.ts",
+    "src/render-profile.ts",
+    "src/render-rig.ts",
+    "src/three-adapter.ts",
     "playwright.config.ts"
   ]
 }

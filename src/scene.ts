@@ -9,12 +9,13 @@ import {
   round,
   clampEdge,
   overlapDepth,
-  drivingMount,
   rigLift,
   floorHeight,
-  baseSupports,
 } from './model.ts';
 import { sceneBounds, viewHeight, cameraPose } from './scene-camera.ts';
+import { createRenderList, ROOT } from './render-list.ts';
+import { drawRig } from './render-rig.ts';
+import { addPrimitives } from './three-adapter.ts';
 const radians = (d) => (d * Math.PI) / 180;
 const V = (...[x, y, z]: number[]) => new T.Vector3(x, y, z);
 export class CockpitScene {
@@ -386,77 +387,9 @@ export class CockpitScene {
     const w = s.width,
       l = s.length;
     if (s.cockpitEnabled !== false) {
-      // Four feet, continuous longitudinal rails, crossmembers between inner faces.
-      for (const x of [-w / 2 + 2, w / 2 - 2]) {
-        for (const z of [10, l - 10]) {
-          if (s.feet === 'casters') {
-            const wheel = this.cylinder(3.3, 3.5, x, 3.4, z, this.mat.rubber);
-            wheel.rotation.z = Math.PI / 2;
-            this.box(4, 2, 6, x, 6, z, this.mat.dark);
-          } else {
-            this.cylinder(3.6, 2, x, 1.4, z, this.mat.rubber);
-            this.cylinder(0.6, 4, x, 4, z, this.mat.silver);
-          }
-        }
-      }
-      for (const p of baseSupports(s)) this.beam('y', p.length, p.x, p.y, p.z, '40x40');
-      const assembly = new T.Group();
-      assembly.position.y = rigLift(s);
-      this.rigGroup.add(assembly);
-      this.group = assembly;
-      for (const x of [-w / 2 + 2, w / 2 - 2]) this.beam('z', l, x, 10, l / 2, '40x80');
-      for (const z of [10, l / 2, l - 10]) this.beam('x', w - 8, 0, 10, z, '40x80');
-      for (const z of [s.seatZ - 12, s.seatZ + 18]) {
-        this.beam('x', w - 8, 0, s.seatH - 10, z);
-        for (const x of [-w / 2 + 8, w / 2 - 8]) {
-          this.beam('y', Math.max(4, s.seatH - 18), x, (s.seatH - 18) / 2 + 14, z);
-          this.box(5, 5, 0.5, x, 16, z + 2.2, this.mat.orange);
-        }
-      }
-      for (const x of [-18, 18]) this.box(3, 2.2, 40, x, s.seatH - 6, s.seatZ + 3, this.mat.dark);
-      this.buildSeat(s);
-      const pedalGroup = new T.Group();
-      pedalGroup.position.set(0, s.pedalH, s.pedalZ);
-      pedalGroup.rotation.x = -radians(s.pedalTilt);
-      this.group.add(pedalGroup);
-      this.box(w - 8, 1.1, 38, 0, 0, 0, this.mat.dark, pedalGroup, true);
-      for (const x of [-(w - 18) / 2, (w - 18) / 2])
-        this.beam('z', 38, x, -2.5, 0, '40x40', pedalGroup);
-      for (const z of [-14, 14]) this.beam('x', w - 8, 0, -2.5, z, '40x40', pedalGroup);
-      // The driver sits at -Z. The contact face is the head's -Z face;
-      // +35° here offsets the platform's -0…35° tilt, so it faces the driver/up.
-      for (const x of [-15, 0, 15]) {
-        this.box(7, 2, 22, x, 2, 0, this.mat.dark, pedalGroup);
-        const pivot = this.cylinder(1.5, 7, x, 3, 9, this.mat.dark, pedalGroup);
-        pivot.rotation.z = Math.PI / 2;
-        this.tube([x, 3, 9], [x, 9, 3], 1, this.mat.silver, pedalGroup);
-        const head = new T.Group();
-        head.position.set(x, 12, 5);
-        head.rotation.x = radians(35);
-        pedalGroup.add(head);
-        this.box(7, 11, 1.2, 0, 0, 0, this.mat.silver, head, true);
-        // Grip strips belong to the contact face and follow the same inclination.
-        for (const y of [-3, 0, 3]) this.box(4.8, 0.4, 0.3, 0, y, -0.7, this.mat.groove, head);
-      }
-      for (const x of [-w / 2 + 8, w / 2 - 8])
-        this.beam('y', Math.max(4, s.pedalH - 10), x, (s.pedalH - 10) / 2 + 8, s.pedalZ);
-      if (s.wheel) this.buildWheel(s);
-      if (s.hotas) {
-        for (const sign of [-1, 1])
-          this.buildSideMount(
-            sign,
-            s,
-            s.hotasZ + (sign === drivingMount(s).sign && (s.shifter || s.handbrake) ? 24 : 0),
-          );
-      }
-      if (s.shifter || s.handbrake) this.buildShifter(s);
-      if (s.centerStick) {
-        this.beam('y', s.stickH - 10, 0, (s.stickH - 10) / 2 + 10, s.stickZ);
-        this.beam('z', 24, 0, s.stickH - 2, s.stickZ - 4);
-        this.box(18, 0.8, 20, 0, s.stickH, s.stickZ, this.mat.orange);
-        this.joystick(0, s.stickH + 1, s.stickZ);
-      }
-      if (this.person) this.buildPerson(s, e);
+      const rig = createRenderList();
+      drawRig(rig, ROOT, s, e, { person: this.person });
+      addPrimitives(rig.primitives, this.rigGroup, this.mat);
       this.rigGroup.position.set(s.cockpitX, 0, s.cockpitZ);
       this.rigGroup.rotation.y = radians(s.cockpitAngle);
     }
@@ -1002,112 +935,6 @@ export class CockpitScene {
       this.label(`RESERVA ${s.aisle} cm`, c.x, 1, c.z).topOnly = true;
     }
   }
-  buildSeat(s) {
-    const y = s.seatH,
-      z = s.seatZ;
-    this.box(48, 8, 42, 0, y - 4, z + 3, this.mat.seat);
-    this.box(34, 2.5, 34, 0, y + 0.8, z + 5, this.mat.fabric);
-    for (const x of [-22, 22]) {
-      const bolster = this.box(6, 10, 36, x, y + 1, z + 2, this.mat.seat);
-      bolster.rotation.z = radians(x > 0 ? -8 : 8);
-      this.tube([x, y + 6, z - 12], [x, y + 6, z + 18], 0.22, this.mat.orange);
-    }
-    const back = new T.Group();
-    back.position.set(0, y, z - 12);
-    back.rotation.x = -radians(s.recline);
-    this.group.add(back);
-    this.box(46, 49, 8, 0, 24.5, 0, this.mat.seat, back);
-    this.box(33, 36, 3, 0, 22, 4.7, this.mat.fabric, back);
-    for (const x of [-21, 21]) {
-      const b = this.box(8, 40, 13, x, 26, 2, this.mat.seat, back);
-      b.rotation.z = radians(x > 0 ? 5 : -5);
-      this.tube([x, 8, 8], [x, 45, 8], 0.23, this.mat.orange, back);
-    }
-    for (const x of [-8, 8]) this.cylinder(0.6, 8, x, 51, 0, this.mat.silver, back);
-    this.box(27, 14, 9, 0, 57, 0, this.mat.seat, back);
-    this.box(21, 9, 1, 0, 57, 5, this.mat.fabric, back);
-    for (const x of [-24, 24]) {
-      const screw = this.cylinder(2, 1, x, y - 4, z - 12, this.mat.silver);
-      screw.rotation.z = Math.PI / 2;
-    }
-  }
-  buildWheel(s) {
-    for (const x of [-s.width / 2 + 2, s.width / 2 - 2]) {
-      this.beam('y', s.wheelH - 22, x, 14 + (s.wheelH - 22) / 2, s.wheelZ + 18, '40x80');
-      this.box(7, 10, 0.8, x, 21, s.wheelZ + 20.5, this.mat.orange);
-    }
-    this.beam('x', s.width - 8, 0, s.wheelH - 10, s.wheelZ + 18, '40x80');
-    const pivot = new T.Group();
-    pivot.position.set(0, s.wheelH, s.wheelZ);
-    pivot.rotation.x = -radians(s.wheelTilt);
-    this.group.add(pivot);
-    const mount = new T.Group();
-    mount.position.z = 13;
-    pivot.add(mount);
-    this.box(s.width - 8, 1.3, 22, 0, -9, 5, this.mat.dark, mount);
-    for (const x of [-s.width / 2 + 7, s.width / 2 - 7])
-      this.box(0.8, 8, 19, x, -4.5, 5, this.mat.orange, mount);
-    this.box(15, 12, 18, 0, -1, 7, this.mat.dark, mount, true);
-    for (const x of [-7.7, 7.7])
-      for (const yy of [-3, 0, 3]) this.box(0.15, 0.6, 14, x, yy, 7, this.mat.groove, mount);
-    this.tube([0, 0, -1], [0, 0, -12], 2, this.mat.silver, mount);
-    const wheel = new T.Mesh(new T.TorusGeometry(14.5, 1.65, 10, 48), this.mat.rubber);
-    wheel.position.set(0, 0, -13);
-    wheel.castShadow = true;
-    mount.add(wheel);
-    this.box(14, 7, 2, 0, 0, -13, this.mat.dark, mount);
-    this.tube([-12, 2, -13], [0, 0, -13], 1.1, this.mat.silver, mount);
-    this.tube([12, 2, -13], [0, 0, -13], 1.1, this.mat.silver, mount);
-    this.tube([0, -13, -13], [0, -1, -13], 1, this.mat.silver, mount);
-    this.box(2, 3, 0.4, 0, 13.3, -14.2, this.mat.orange, mount);
-    for (const x of [-4.5, 4.5])
-      for (const yy of [-1.5, 1.5])
-        this.sphere(0.6, x, yy, -14.3, yy > 0 ? this.mat.orange : this.mat.silver, mount);
-  }
-  buildSideMount(sign, s, z) {
-    const x = sign * (s.width / 2 + s.hotasOut);
-    this.beam('y', s.hotasH - 13, sign * (s.width / 2 - 2), 10 + (s.hotasH - 13) / 2, z);
-    this.beam('x', s.hotasOut + 12, sign * (s.width / 2 + s.hotasOut / 2 - 2), s.hotasH - 3, z);
-    this.box(18, 1, 25, x, s.hotasH, z, this.mat.orange);
-    this.box(16, 1, 23, x, s.hotasH + 0.8, z, this.mat.dark);
-    if (sign === -1) this.joystick(x, s.hotasH + 2, z);
-    else {
-      this.box(12, 5, 18, x, s.hotasH + 4, z, this.mat.dark);
-      this.tube([x, s.hotasH + 7, z - 3], [x, s.hotasH + 12, z + 2], 1.5);
-      this.box(12, 4, 6, x, s.hotasH + 12, z + 2, this.mat.rubber);
-    }
-  }
-  joystick(x, y, z) {
-    this.box(11, 3, 13, x, y + 1, z, this.mat.dark);
-    this.cylinder(2, 4, x, y + 4, z, this.mat.rubber);
-    this.tube([x, y + 5, z], [x, y + 16, z - 2], 1.8);
-    this.sphere(2.9, x, y + 17, z - 2);
-    this.box(5, 2, 4, x, y + 19, z - 2, this.mat.dark);
-    this.sphere(0.7, x + 2, y + 19, z - 4, this.mat.orange);
-  }
-  buildShifter(s) {
-    const { sign, x, z } = drivingMount(s),
-      inner = x - sign * 3,
-      outer = x + sign * 5;
-    this.beam('y', s.hotasH - 13, sign * (s.width / 2 - 2), 10 + (s.hotasH - 13) / 2, z);
-    this.beam('x', 30, x - sign * 7, s.hotasH - 3, z);
-    this.box(20, 1, 30, x, s.hotasH, z, this.mat.orange);
-    if (s.shifter) {
-      this.box(10, 7, 12, inner, s.hotasH + 4, z - 5, this.mat.dark);
-      this.cylinder(0.8, 11, inner, s.hotasH + 13, z - 5, this.mat.silver);
-      this.sphere(2.8, inner, s.hotasH + 19, z - 5, this.mat.dark);
-    }
-    if (s.handbrake) {
-      this.box(5, 5, 12, outer, s.hotasH + 3, z + 6, this.mat.dark);
-      this.tube([outer, s.hotasH + 5, z + 6], [outer, s.hotasH + 22, z + 10], 1.2, this.mat.silver);
-      this.tube(
-        [outer, s.hotasH + 16, z + 8],
-        [outer, s.hotasH + 25, z + 11],
-        1.7,
-        this.mat.rubber,
-      );
-    }
-  }
   buildDesk(s, e) {
     const x = 0,
       z = s.deskZ,
@@ -1317,30 +1144,6 @@ export class CockpitScene {
     }
     this.line(arc, this.mat.dim, this.armDims, true);
     this.armDims.visible = this.view === 'top';
-  }
-  buildPerson(s, e) {
-    const b = e.body,
-      m = this.mat.blue;
-    const hip = b.hip,
-      shoulder = b.shoulder;
-    this.tube([0, hip.y + 5, hip.z], [0, shoulder.y - 3, shoulder.z], 10, m);
-    this.sphere(8, 0, b.eye.y, b.eye.z, m);
-    this.box(17, 9, 9, 0, b.eye.y, b.eye.z + 6, this.mat.dark);
-    for (const x of [-12, 12]) {
-      this.sphere(4, x, hip.y, hip.z, m);
-      this.tube([x, hip.y, hip.z], [x, b.legs.joint.y, b.legs.joint.z], 4.7, m);
-      this.tube([x, b.legs.joint.y, b.legs.joint.z], [x, b.foot.y, b.foot.z], 3.5, m);
-      this.box(8, 5, 18, x, b.foot.y - 2, b.foot.z + 3, m);
-      if (s.wheel) {
-        const elbow = b.arms.joint;
-        this.tube([x, shoulder.y, shoulder.z], [x * 1.4, elbow.y, elbow.z], 3.2, m);
-        this.tube([x * 1.4, elbow.y, elbow.z], [x * 1.1, b.hand.y, b.hand.z], 2.6, m);
-      } else {
-        const elbow = { y: shoulder.y - 25, z: shoulder.z + 12 };
-        this.tube([x, shoulder.y, shoulder.z], [x * 1.7, elbow.y, elbow.z], 3.2, m);
-        this.tube([x * 1.7, elbow.y, elbow.z], [x * 2.5, s.hotasH + 18, s.hotasZ], 2.6, m);
-      }
-    }
   }
   setView(view) {
     this.view = view;
