@@ -19,7 +19,7 @@ export default defineConfig({
     channel: 'chrome',
     viewport: { width: 1400, height: 900 },
     deviceScaleFactor: 1,
-    locale: 'es-ES',
+    locale: 'en-US',
     timezoneId: 'Europe/Madrid',
     launchOptions: {
       // Software WebGL keeps screenshots identical between runs on the same machine.

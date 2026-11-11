@@ -1,6 +1,7 @@
 // The printable project summary: a partial one while the project is incomplete, and the full
 // one with geometry, cut list and checks. Lengths in cm unless a column says mm.
 import { escapeHTML as esc } from './html.ts';
+import { formatNumber } from './number-format.ts';
 import { checkLineHTML } from './check-view.ts';
 import { steps, type SetupProgress } from './project.ts';
 import { presets, type CockpitConfig } from './config.ts';
@@ -157,10 +158,7 @@ export function partialSummary(
             : 'Derecha del piloto'
           : 'Desactivados',
       ],
-      [
-        'Perfil neto orientativo',
-        `${(e.totalMm / 1000).toLocaleString('es-ES')} m · ${e.cuts} cortes`,
-      ],
+      ['Perfil neto orientativo', `${formatNumber(e.totalMm / 1000)} m · ${e.cuts} cortes`],
     ]);
     html +=
       title('Lista de cortes orientativa') +
@@ -197,7 +195,7 @@ export function roomSummaryHTML(s: CockpitConfig): string {
 }
 
 export function fullSummaryHTML(s: CockpitConfig, e: CockpitEvaluation): string {
-  const fmt = (v: number) => v.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+  const fmt = (v: number) => formatNumber(v, 2);
   const dims = [
     ['Preset', presets[s.preset].label],
     ['Estatura de referencia', `${s.height} cm`],

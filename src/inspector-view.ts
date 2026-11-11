@@ -1,6 +1,7 @@
 // The validation banner and the headline metrics of the checks panel.
 import type { CockpitConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
+import { formatNumber } from './number-format.ts';
 
 const EMPTY_PROJECT =
   '<span class="status-icon">1</span><div><strong>Define tu espacio</strong><small>Las comprobaciones aparecerán al añadir elementos.</small></div>';
@@ -52,7 +53,7 @@ export function metricsView(state: CockpitConfig, e: CockpitEvaluation): Metrics
       ? `${Math.ceil(e.rigRight - e.rigLeft)} cm con accesorios`
       : 'Medidas interiores',
     spaceHTML: `${Math.ceil(e.spaceW)} <small>×</small> ${Math.ceil(e.spaceD)} <small>cm</small>`,
-    profilesHTML: `${(e.totalMm / 1000).toLocaleString('es-ES', { maximumFractionDigits: 2 })} <small>m</small>`,
+    profilesHTML: `${formatNumber(e.totalMm / 1000, 2)} <small>m</small>`,
     piecesText: `${e.cuts} cortes · serie 40`,
   };
 }
