@@ -41,6 +41,7 @@ import {
 } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import { cutListCsv } from './cut-list-csv.ts';
+import { createProjectStore } from './project-storage.ts';
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -74,7 +75,7 @@ function icons(root = document) {
     );
 }
 icons();
-const KEY = 'cockpit-lab-v2';
+const store = createProjectStore(() => window.localStorage);
 let project = createProject(),
   state: any = project.config,
   setup: any = project.setup,
@@ -84,17 +85,14 @@ let project = createProject(),
   scene,
   layoutTarget = '',
   layoutEditing = false;
-try {
-  const saved = localStorage.getItem(KEY) || localStorage.getItem('cockpit-lab-v1');
-  if (saved) {
-    project = readProject(JSON.parse(saved), { stored: true });
-    state = project.config;
-    setup = project.setup;
-    setSaveStatus('Diseño recuperado de este navegador');
-  }
-} catch {
+const loaded = store.load();
+if (loaded.status === 'loaded') {
+  project = loaded.project;
+  state = project.config;
+  setup = project.setup;
+  setSaveStatus('Diseño recuperado de este navegador');
+} else if (loaded.status === 'invalid')
   setSaveStatus('No se pudo recuperar el guardado. Puedes abrir una copia JSON.', 'error');
-}
 if (setup.step === 'complete') view = 'iso';
 else
   section = ['room', 'openings', 'furniture'].includes(setup.step)
@@ -116,12 +114,8 @@ function setSaveStatus(message, status = 'ok') {
   $('.save-info').dataset.state = status;
 }
 function persist() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(projectData(state, setup)));
-    setSaveStatus('Guardado en este navegador');
-  } catch {
-    setSaveStatus('Sin autoguardado · exporta un JSON', 'error');
-  }
+  if (store.save({ config: state, setup })) setSaveStatus('Guardado en este navegador');
+  else setSaveStatus('Sin autoguardado · exporta un JSON', 'error');
 }
 function queueSave() {
   setSaveStatus('Guardando…');

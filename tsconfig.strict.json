@@ -24,6 +24,7 @@
     "src/evaluate.ts",
     "src/model.ts",
     "src/project.ts",
+    "src/project-storage.ts",
     "playwright.config.ts"
   ]
 }
