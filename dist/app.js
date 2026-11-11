@@ -52,6 +52,7 @@ import {
   setRigHeight,
 } from './model.js?v=14-base-height';
 import { CockpitScene } from './scene.js?v=14-base-height';
+import { cutListCsv } from './cut-list-csv.js';
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -1377,26 +1378,7 @@ $$('dialog').forEach((d) =>
 );
 $('#saveConfig').addEventListener('click', exportConfig);
 $('#csvBtn').addEventListener('click', () => {
-  const esc = (v) => `"${String(v).replaceAll('"', '""')}"`,
-    rows = [
-      ['Pieza', 'Perfil (mm)', 'Cantidad', 'Longitud neta (mm)', 'Longitud total (mm)', 'Detalle'],
-      ...evaluation.parts.map((p) => [
-        p.name,
-        p.profile,
-        p.qty,
-        p.mm,
-        p.total,
-        'Verificar antes de fabricar',
-      ]),
-      [],
-      ['Piezas y fijaciones', '', 'Cantidad', '', '', 'Detalle'],
-      ...evaluation.accessories.map((p) => [p.name, '', p.qty, '', '', p.note]),
-    ];
-  download(
-    'cockpit-lab-lista-cortes.csv',
-    '\ufeff' + rows.map((r) => r.map(esc).join(';')).join('\r\n'),
-    'text/csv;charset=utf-8',
-  );
+  download('cockpit-lab-lista-cortes.csv', cutListCsv(evaluation), 'text/csv;charset=utf-8');
   toast('Lista de cortes descargada');
 });
 $('#printBtn').addEventListener('click', () => window.print());
