@@ -62,6 +62,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | --- | --- |
 | `src/index.html`, `src/styles.css`, `src/ui.css` | Markup and styles |
 | `src/app.ts` | DOM wiring: events, panels and exports |
+| `src/dom-input.ts`, `src/setting-change.ts` | Validating what the panels send, and applying a setting change |
 | `src/project.ts`, `src/project-storage.ts` | Project format and autosave |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |

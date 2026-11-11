@@ -371,6 +371,10 @@ const CHOICE_SETTINGS = {
 
 type ChoiceSetting = keyof typeof CHOICE_SETTINGS;
 
+/** The values a choice setting accepts, or undefined when `key` is not a choice setting. */
+export const choiceOptions = (key: string): readonly string[] | undefined =>
+  Object.hasOwn(CHOICE_SETTINGS, key) ? CHOICE_SETTINGS[key as ChoiceSetting] : undefined;
+
 /**
  * Validates a saved configuration. Missing settings take their defaults, numbers are clamped
  * to their range, and a value of the wrong type is rejected.

@@ -46,6 +46,9 @@
     "src/render-model.ts",
     "src/layout-picking.ts",
     "src/scene.ts",
+    "src/dom-input.ts",
+    "src/setting-change.ts",
+    "src/app.ts",
     "src/three-adapter.ts",
     "playwright.config.ts"
   ]
