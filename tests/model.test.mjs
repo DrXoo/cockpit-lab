@@ -26,7 +26,7 @@ import {
   editArm,
   moveArmJoint,
   drivingMount,
-} from '../dist/model.js';
+} from '../src/model.js';
 
 test('The initial GT preset has reachable limbs, a reachable monitor and fits the zone', () => {
   const e = evaluate(defaults);

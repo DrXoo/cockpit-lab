@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, rectangle, evaluate } from '../dist/model.js';
-import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../dist/room.js';
-import { roomControls, roomItems } from '../dist/room-editor.js';
-import { createProject, readProject, projectData } from '../dist/project.js';
+import { defaults, rectangle, evaluate } from '../src/model.js';
+import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../src/room.js';
+import { roomControls, roomItems } from '../src/room-editor.js';
+import { createProject, readProject, projectData } from '../src/project.js';
 
 const access = (more = {}) => ({
   id: 'armario',

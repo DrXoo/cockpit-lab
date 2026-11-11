@@ -1,32 +1,20 @@
-import { deskElementControls, monitorShortcuts } from './desk-editor.js?v=13-desk';
-import {
-  steps,
-  createProject,
-  readProject,
-  projectData,
-  advanceSetup,
-} from './project.js?v=12-setup';
+import { deskElementControls, monitorShortcuts } from './desk-editor.js';
+import { steps, createProject, readProject, projectData, advanceSetup } from './project.js';
 import {
   creationControls,
   accessoryControls,
   placementControls,
   progressHTML,
-} from './setup-editor.js?v=12-setup';
-import { partialSummary } from './project-summary.js?v=14-base-height';
+} from './setup-editor.js';
+import { partialSummary } from './project-summary.js';
 import {
   normalizeRoom,
   moveRoomTarget,
   wallFrame,
   furnitureNames,
   officeChairPlacement,
-} from './room.js?v=9-office-chair';
-import {
-  roomControls,
-  roomItem,
-  roomItems,
-  roomValue,
-  escapeHTML,
-} from './room-editor.js?v=12-setup';
+} from './room.js';
+import { roomControls, roomItem, roomItems, roomValue, escapeHTML } from './room-editor.js';
 import {
   defaults,
   presets,
@@ -50,8 +38,8 @@ import {
   rigLift,
   floorHeight,
   setRigHeight,
-} from './model.js?v=14-base-height';
-import { CockpitScene } from './scene.js?v=14-base-height';
+} from './model.js';
+import { CockpitScene } from './scene.js';
 import { cutListCsv } from './cut-list-csv.js';
 
 const $ = (s) => document.querySelector(s),

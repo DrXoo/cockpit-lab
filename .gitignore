@@ -11,3 +11,4 @@ configuraciones-personales/
 *.bundle
 *.tar.gz
 *.zip
+dist/

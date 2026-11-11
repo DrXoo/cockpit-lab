@@ -8,12 +8,18 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "node scripts/dev-server.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "node --test",
     "check": "node scripts/check.mjs && prettier --check .",
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "vite": "8.3.8"
+  },
+  "dependencies": {
+    "three": "0.186.1"
   }
 }

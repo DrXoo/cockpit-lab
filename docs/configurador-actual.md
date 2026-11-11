@@ -2,10 +2,10 @@
 
 Configurador estático de cockpit DIY compacto, simracing y vuelo VR. Interfaz española, dimensiones en cm, despiece en mm. No requiere servicios externos ni CDN. El estado se guarda localmente en el navegador y se exporta en JSON/CSV o se imprime.
 
-- `dist/model.js`: geometría, postura antropométrica, comprobaciones y despiece.
-- `dist/scene.js`: modelo 3D con Three.js, OrbitControls y alternativa SVG sin WebGL.
-- `dist/app.js`: ajustes, presets, persistencia y exportaciones.
-- `dist/vendor/`: Three.js 0.186.1 y sus componentes, con licencia MIT.
+- `src/model.js`: geometría, postura antropométrica, comprobaciones y despiece.
+- `src/scene.js`: modelo 3D con Three.js, OrbitControls y alternativa SVG sin WebGL.
+- `src/app.js`: ajustes, presets, persistencia y exportaciones.
+- Three.js 0.186.1 y sus componentes se instalan desde npm, con licencia MIT.
 
 Verificación: `node --test tests/model.test.mjs`.
 

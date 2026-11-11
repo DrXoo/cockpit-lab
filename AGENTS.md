@@ -50,8 +50,9 @@ These principles serve readability and change. Don't add abstractions, layers or
 
 ## Architecture and build
 
-- Right now `dist/` holds the hand-written source, served directly by `npm run dev`. Don't treat it as a regenerable folder or delete it during a build.
-- The planned migration moves the source to TypeScript in `src/`, with Vite for the dev server and build. After that migration `dist/` becomes generated output and stops being committed. Update this file, `README.md` and the scripts in the same change that performs the switch.
+- The source lives in `src/`. Vite runs the dev server (`npm run dev`) and builds the app into `dist/` (`npm run build`). `dist/` is generated output: never edit it or commit it.
+- Third-party code comes from npm with exact pinned versions. Don't vendor copies into `src/`.
+- The modules are still JavaScript. The next steps rename them to TypeScript and then type them strictly, one module at a time. New modules can already be written in TypeScript once the rename lands.
 - There is no external deployment. The app runs locally and can be served by any static file server.
 
 ## Domain rules
@@ -65,5 +66,5 @@ These principles serve readability and change. Don't add abstractions, layers or
 
 ## Repository hygiene
 
-- Keep the licenses of third-party code (`dist/vendor/LICENSE`, and those of npm packages once they replace it).
+- Keep the licenses of third-party code. The build emits the license of each bundled dependency to `dist/licenses/` (see `vite.config.js`). Add new runtime dependencies there.
 - Never commit credentials, personal files, local hosting configuration or private screenshots. Personal designs belong in `configuraciones-personales/`, which Git ignores.

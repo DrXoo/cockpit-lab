@@ -11,9 +11,9 @@ import {
   setRigHeight,
   fieldSpec,
   baseSupports,
-} from '../dist/model.js';
-import { readProject, projectData, completeSetup } from '../dist/project.js';
-import { partialSummary } from '../dist/project-summary.js';
+} from '../src/model.js';
+import { readProject, projectData, completeSetup } from '../src/project.js';
+import { partialSummary } from '../src/project-summary.js';
 
 test('La elevación conserva la postura y los ajustes locales y muestra alturas desde suelo', () => {
   const s = { ...defaults, baseLift: 25, hotas: true, centerStick: true },

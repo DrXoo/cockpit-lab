@@ -4,17 +4,17 @@
 
 La importación toma el código del configurador existente del commit `aebf0a0711f041078d41d9878c65c8fc7718e99f`. Los archivos de aplicación y sus tres suites de pruebas se copian sin cambios. El historial del repositorio público comienza con esta importación; no se publica el historial interno del alojamiento.
 
-Se conserva `dist/vendor/LICENSE`. Se excluyen la configuración del alojamiento original, las credenciales, las capturas de comprobación internas y los JSON personales. El README original del configurador se conserva como `docs/configurador-actual.md`, con su alcance y limitaciones.
+La licencia de Three.js se conserva; ahora se instala desde npm y el build la incluye en `dist/licenses/`. Se excluyen la configuración del alojamiento original, las credenciales, las capturas de comprobación internas y los JSON personales. El README original del configurador se conserva como `docs/configurador-actual.md`, con su alcance y limitaciones.
 
 ## Puesta en marcha
 
 1. Clona el repositorio y abre la carpeta en VS Code.
-2. Ejecuta `npm run dev` en la terminal integrada.
+2. Ejecuta `npm install` y después `npm run dev` en la terminal integrada.
 3. Abre la dirección indicada, normalmente `http://127.0.0.1:5173`.
-4. Guarda los cambios y recarga la página.
+4. Guarda los cambios; la página se recarga sola.
 5. Ejecuta `npm run check` y `npm test` antes de crear un commit.
 
-`npm run dev` no necesita `npm install`. Las comprobaciones sí: ejecuta `npm install` una vez para instalar Prettier, y `npm run format` para formatear el código. El servidor solo escucha en la interfaz local y sirve el contenido de `dist/`.
+Ejecuta `npm install` una vez tras clonar. `npm run dev` arranca el servidor de desarrollo de Vite, que solo escucha en la interfaz local, sirve `src/` y recarga la página al guardar. `npm run build` genera la versión estática en `dist/`, que no se versiona, y `npm run format` formatea el código.
 
 ## Flujo de trabajo
 

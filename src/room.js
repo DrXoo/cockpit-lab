@@ -1,10 +1,4 @@
-import {
-  clamp,
-  round,
-  rectangle,
-  overlapDepth,
-  transformPoint,
-} from './geometry.js?v=9-office-chair';
+import { clamp, round, rectangle, overlapDepth, transformPoint } from './geometry.js';
 
 export const wallNames = {
   north: 'AB · arriba',

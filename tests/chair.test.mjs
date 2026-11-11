@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, sanitize, rectangle, inversePoint } from '../dist/model.js';
-import { officeChairPlacement, normalizeRoom, evaluateRoom } from '../dist/room.js';
+import { defaults, sanitize, rectangle, inversePoint } from '../src/model.js';
+import { officeChairPlacement, normalizeRoom, evaluateRoom } from '../src/room.js';
 const room = () => ({
   ...structuredClone(defaults),
   roomX: -200,

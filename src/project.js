@@ -1,4 +1,4 @@
-import { defaults, sanitize } from './model.js?v=12-setup';
+import { defaults, sanitize } from './model.js';
 
 export const steps = [
   {

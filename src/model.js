@@ -6,8 +6,8 @@ import {
   rectangle,
   overlapDepth,
   polygonDistance,
-} from './geometry.js?v=9-office-chair';
-import { normalizeRoom, evaluateRoom } from './room.js?v=9-office-chair';
+} from './geometry.js';
+import { normalizeRoom, evaluateRoom } from './room.js';
 const rad = (d) => (d * Math.PI) / 180;
 // Coordinate system in cm: X lateral, Y from floor, Z from rear chassis edge.
 export const fields = {

@@ -13,16 +13,22 @@ Requires Git and Node.js 22.12 or later (Node.js 24 LTS recommended).
 ```sh
 git clone https://github.com/DrXoo/cockpit-lab.git
 cd cockpit-lab
+npm install
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173>. To use another port: `npm run dev -- --port 5174`.
+Open <http://127.0.0.1:5173>. To use another port: `npm run dev -- --port 5174`. The [Vite](https://vite.dev) dev server reloads the page when you save a file.
 
-Running the app needs no build step. The dev server serves `dist/` and doesn't reload automatically, so refresh the page after saving.
+To build a static version:
+
+```sh
+npm run build    # writes the app to dist/
+npm run preview  # serves dist/ at http://127.0.0.1:4173
+```
+
+`dist/` is generated output and isn't committed. Any static file server can serve it, from any folder.
 
 ## Checks
-
-Run `npm install` once to get the development tools (Prettier).
 
 ```sh
 npm run check   # syntax and formatting check
@@ -30,7 +36,7 @@ npm run format  # format the code with Prettier
 npm test        # automated tests (Node's built-in test runner)
 ```
 
-The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, doors, furniture, chair, project loading and the local server. UI changes also need a check in the browser.
+The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, doors, furniture, chair, project loading and the cut list export. UI changes also need a check in the browser.
 
 ## Features
 
@@ -51,22 +57,23 @@ These checks are approximate. They don't validate loads, stiffness or structural
 
 | Path | Responsibility |
 | --- | --- |
-| `dist/index.html`, `dist/styles.css`, `dist/ui.css` | Markup and styles |
-| `dist/app.js` | Controls, state and exports |
-| `dist/project.js`, `dist/setup-editor.js`, `dist/project-summary.js` | Project format, guided setup and summary |
-| `dist/model.js`, `dist/geometry.js` | Cockpit geometry, posture and calculations |
-| `dist/room.js`, `dist/room-editor.js`, `dist/desk-editor.js` | Room, furniture and desk model and editors |
-| `dist/scene.js` | Three.js rendering, with an SVG fallback |
-| `dist/vendor/` | Three.js 0.186.1 and its MIT license |
+| `src/index.html`, `src/styles.css`, `src/ui.css` | Markup and styles |
+| `src/app.js` | Controls, state and exports |
+| `src/project.js`, `src/setup-editor.js`, `src/project-summary.js` | Project format, guided setup and summary |
+| `src/cut-list-csv.js` | Cut list CSV export |
+| `src/model.js`, `src/geometry.js` | Cockpit geometry, posture and calculations |
+| `src/room.js`, `src/room-editor.js`, `src/desk-editor.js` | Room, furniture and desk model and editors |
+| `src/scene.js` | Three.js rendering, with an SVG fallback |
 | `tests/` | Automated tests |
-| `scripts/` | Dev server and checks |
+| `scripts/` | Project checks |
+| `vite.config.js` | Dev server and build configuration |
 | `docs/` | Detailed documentation and the mini CAD plan |
 
-Right now `dist/` holds the hand-written source and is served as is.
+Three.js 0.186.1 is installed from npm.
 
 ## Roadmap
 
-1. **TypeScript migration.** Format the code, move the source to `src/` with Vite as dev server and build, and type it module by module. After that, `dist/` becomes build output.
+1. **TypeScript migration.** Done so far: Prettier formatting, and the move to `src/` with Vite. Next: rename the modules to TypeScript, then type them strictly one by one.
 2. **English UI.** Translate the interface and the documentation.
 3. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
 
@@ -91,4 +98,4 @@ These documents are still in Spanish and their translation is pending:
 
 ## License
 
-Three.js and the components in `dist/vendor/` keep their [MIT license](dist/vendor/LICENSE). The project's own code doesn't have a license yet.
+Three.js is distributed under the MIT license. The build ships it in `dist/licenses/three.txt`, because minification removes the license header from the bundle. The project's own code doesn't have a license yet.

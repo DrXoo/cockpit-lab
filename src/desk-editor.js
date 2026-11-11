@@ -1,4 +1,4 @@
-import { desktopTargets, clampEdge } from './model.js?v=12-setup';
+import { desktopTargets, clampEdge } from './model.js';
 const group = (title, html, hint = '') =>
   `<div class="control-group"><h3 class="group-title">${title}${hint ? `<span>${hint}</span>` : ''}</h3>${html}</div>`;
 

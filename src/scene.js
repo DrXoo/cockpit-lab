@@ -1,7 +1,7 @@
-import { wallFrame } from './room.js?v=9-office-chair';
+import { wallFrame } from './room.js';
 import * as T from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js';
-import { SVGRenderer } from './vendor/SVGRenderer.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
 import {
   transformPoint,
   inversePoint,
@@ -13,7 +13,7 @@ import {
   rigLift,
   floorHeight,
   baseSupports,
-} from './model.js?v=14-base-height';
+} from './model.js';
 const radians = (d) => (d * Math.PI) / 180;
 const V = (x, y, z) => new T.Vector3(x, y, z);
 export class CockpitScene {
