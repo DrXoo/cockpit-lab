@@ -1,13 +1,10 @@
 # Cockpit Lab
 
-A static configurator for compact DIY cockpits for sim racing and VR flight. Spanish interface, dimensions in cm, part list in mm. It needs no external services or CDN. The state is saved locally in the browser, and can be exported as JSON/CSV or printed.
+A static configurator for compact DIY cockpits for sim racing and VR flight. US English interface, dimensions in cm, part list in mm. It needs no external services or CDN. The state is saved locally in the browser, and can be exported as JSON/CSV or printed.
 
-- `src/model.js`: geometry, anthropometric posture, checks and part list.
-- `src/scene.js`: 3D model with Three.js and OrbitControls, with an SVG fallback without WebGL.
-- `src/app.js`: settings, presets, persistence and exports.
-- Three.js 0.186.1 and its components are installed from npm, under the MIT license.
+The model (geometry, anthropometric posture, checks and part list), the render model and Three.js scene, and the app shell live in separate TypeScript modules in `src/`; the [README](../README.md#project-structure) lists them. Three.js 0.186.1 is installed from npm, under the MIT license.
 
-Verification: `node --test tests/model.test.mjs`.
+Verification: `npm test`, and `npm run test:e2e` for the interface and the 3D view.
 
 An approximate design model: it does not validate loads, stiffness, holes, the full sweep of the arm or real access. Check the physical dimensions before building. E7 Pro reference: 140 × 80 × 2.5 cm desktop and a 63.5–128.5 cm frame; the exact version is still to be confirmed. The arm does not match a commercial product.
 
@@ -27,7 +24,7 @@ The optional `baseLift` field is saved in cm in the current JSON; earlier files 
 
 ## Room
 
-The **Room** tab sets the inside dimensions of a rectangular room and its height. The walls are named AB, BC, CD and DA, clockwise from the top left corner of the plan. Each door or window is placed by its wall, its distance from the starting corner and its width.
+The **Room** tab sets the inside dimensions of a rectangular room, its height and its doors and windows; the **Furniture** tab adds furniture. The walls are named AB, BC, CD and DA, clockwise from the top left corner of the plan. Each door or window is placed by its wall, its distance from the starting corner and its width.
 
 - Doors: width, height, hinge at the start or end, opening inwards or outwards and an angle of 0–180°. The check covers the swing from closed to the configured angle, in sectors of up to 2°.
 - Windows: width, height, sill and access clearance in front. The window sashes are not simulated.
@@ -37,10 +34,10 @@ The **Room** tab sets the inside dimensions of a rectangular room and its height
 
 The data is saved in the browser and in the exported JSON files. Earlier files remain compatible; loading them adds a room without openings or furniture. The model is approximate and does not calculate loads, strength, hardware details or precise collisions of real parts.
 
-Verification: `node --test tests/*.test.mjs`, and a browser test of creating, editing, dragging, saving and the summary.
+Verification: `npm test` and `npm run test:e2e`, which cover creating, editing, dragging, saving and the summary.
 
 ### Office chair
 
-**Room → ＋ Office chair** adds a 65 × 65 cm chair on casters, 115 cm tall overall with the seat at 47 cm, placed in front of the desk and facing it. It can be dragged and turned on its own; **Place in front of the desk** lines it up again after the desk moves. Its dimensions can be adjusted to the real chair.
+**Furniture → ＋ Office chair** adds a 65 × 65 cm chair on casters, 115 cm tall overall with the seat at 47 cm, placed in front of the desk and facing it. It can be dragged and turned on its own; **Place in front of the desk** lines it up again after the desk moves. Its dimensions can be adjusted to the real chair.
 
 The chair's collisions tell apart the base, seat, backrest and armrests, so that it can sit partly under the desktop when the heights allow it. The configurable rear band keeps space to push it back, and you are warned if it reaches a wall or another item. It is an approximate rectangular clearance, not a simulation of a person moving. The chair and its clearance are included in the JSON and the summary.

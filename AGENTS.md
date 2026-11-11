@@ -5,7 +5,7 @@ Cockpit Lab is a self-hosted web app for designing compact aluminium-profile coc
 ## Language
 
 - Everything in the repository is written in US English: UI copy, code, comments, tests, documentation and commit messages.
-- The existing UI and several documents in `docs/` are still in Spanish. Write new strings and documents in English. Translate existing ones in dedicated changes instead of mixing a translation into a feature or bug fix.
+- Names that users type into their designs (rooms, furniture) are data: keep them as saved, in any language.
 
 ## Workflow
 

@@ -38,7 +38,7 @@ Proposed entities:
 
 The domain model is the source of dimensions, exports and quantities. The 3D scene is a view of the model. Old saved files are migrated through an adapter, keeping the configurator import.
 
-The choice of TypeScript, interface and geometry libraries will be made in a separate technical stage. Three.js can keep drawing the scene. A 2D library can produce plate drawings; a full CAD kernel for STEP will be evaluated when that interoperability is needed.
+The code is TypeScript; interface and geometry libraries will be chosen in a separate technical stage. Three.js can keep drawing the scene. A 2D library can produce plate drawings; a full CAD kernel for STEP will be evaluated when that interoperability is needed.
 
 ## Stages and acceptance criteria
 
