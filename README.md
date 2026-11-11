@@ -88,13 +88,12 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `vite.config.js` | Dev server and build configuration |
 | `docs/` | Detailed documentation and the mini CAD plan |
 
-The source is TypeScript, type-checked by `tsc` but not compiled by it: Vite builds the app and Node runs the tests. Three.js 0.186.1 is installed from npm.
+The source is strict TypeScript, type-checked by `tsc` but not compiled by it: Vite builds the app and Node runs the tests. Three.js 0.186.1 is installed from npm.
 
 ## Roadmap
 
-1. **TypeScript migration.** Done so far: Prettier formatting, the move to `src/` with Vite, the rename to TypeScript, and strict typing of the domain modules (geometry, room, model, project, units). Next: the editors, the summary, the 3D scene and the app shell.
-2. **English UI.** Translate the interface and the documentation.
-3. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
+1. **English UI.** Translate the interface and the documentation.
+2. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
 
 ## Development principles
 

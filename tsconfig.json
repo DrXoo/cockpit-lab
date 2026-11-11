@@ -14,10 +14,8 @@
     "isolatedModules": true,
     "skipLibCheck": true,
 
-    // Loose while the code moves from JavaScript; modules become strict one by one.
-    "strict": false,
-    "noImplicitAny": false,
+    "strict": true,
     "allowJs": false
   },
-  "include": ["src"]
+  "include": ["src", "e2e", "playwright.config.ts"]
 }

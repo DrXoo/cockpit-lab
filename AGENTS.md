@@ -58,8 +58,7 @@ These principles serve readability and change. Don't add abstractions, layers or
   - import local modules with their `.ts` extension;
   - use only erasable syntax: no `enum`, `namespace` or constructor parameter properties;
   - prefer `declare` for class fields that the constructor assigns.
-- `tsconfig.json` is still loose (`strict: false`) because the code comes from JavaScript. `tsconfig.strict.json` lists the modules already typed strictly; `npm run typecheck` checks both. To migrate a module, type it, add it to that list, and prove the behavior is unchanged (tests, or a comparison against the previous version). Go bottom-up through the imports: tsc also checks every imported module strictly.
-- Add every new module to `tsconfig.strict.json` from the start.
+- Type checking is strict (`tsconfig.json`, `npm run typecheck`) for `src/`, `e2e/` and the Playwright configuration. Don't loosen compiler options, and don't silence an error with `any` or a cast: values from outside the code (DOM, files, storage) are validated where they enter, as `src/dom-input.ts` and `src/project.ts` do.
 - Lengths in the configurator model are cm; use the `Cm`/`Mm` types and the conversions in `src/units.ts` wherever both units meet.
 - There is no external deployment. The app runs locally and can be served by any static file server.
 

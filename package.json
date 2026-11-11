@@ -14,7 +14,7 @@
     "test": "node --test",
     "check": "node scripts/check.mjs && npm run typecheck && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc -p . && tsc -p tsconfig.strict.json",
+    "typecheck": "tsc -p .",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
