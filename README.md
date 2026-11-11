@@ -18,12 +18,15 @@ npm run dev
 
 Open <http://127.0.0.1:5173>. To use another port: `npm run dev -- --port 5174`.
 
-The current version needs no `npm install` and no build step. The dev server serves `dist/` and doesn't reload automatically, so refresh the page after saving.
+Running the app needs no build step. The dev server serves `dist/` and doesn't reload automatically, so refresh the page after saving.
 
 ## Checks
 
+Run `npm install` once to get the development tools (Prettier).
+
 ```sh
-npm run check   # syntax check of the project's own code
+npm run check   # syntax and formatting check
+npm run format  # format the code with Prettier
 npm test        # automated tests (Node's built-in test runner)
 ```
 

@@ -14,7 +14,7 @@ const types = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.webp': 'image/webp',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
 };
 
 export function createDevServer(root = defaultRoot) {
@@ -35,12 +35,18 @@ export function createDevServer(root = defaultRoot) {
       return fail(400, 'Ruta no válida');
     }
     const segments = pathname.split('/').filter(Boolean);
-    if (segments.some(segment => segment.startsWith('.') || segment.includes('\\') || segment.includes('\0'))) {
+    if (
+      segments.some(
+        (segment) => segment.startsWith('.') || segment.includes('\\') || segment.includes('\0'),
+      )
+    ) {
       return fail(403, 'Ruta no permitida');
     }
     try {
       const base = await rootPromise;
-      const target = await realpath(resolve(base, ...segments, ...(pathname.endsWith('/') ? ['index.html'] : [])));
+      const target = await realpath(
+        resolve(base, ...segments, ...(pathname.endsWith('/') ? ['index.html'] : [])),
+      );
       if (!target.startsWith(base + sep)) return fail(403, 'Ruta no permitida');
       if (!(await stat(target)).isFile()) return fail(404, 'Archivo no encontrado');
       const bytes = await readFile(target);
@@ -48,7 +54,7 @@ export function createDevServer(root = defaultRoot) {
         'Content-Type': types[extname(target)] || 'application/octet-stream',
         'Content-Length': bytes.length,
         'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff'
+        'X-Content-Type-Options': 'nosniff',
       });
       response.end(request.method === 'HEAD' ? undefined : bytes);
     } catch (error) {
@@ -62,9 +68,10 @@ export function createDevServer(root = defaultRoot) {
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const index = process.argv.indexOf('--port');
   const port = index < 0 ? 5173 : Number(process.argv[index + 1]);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('El puerto debe estar entre 1 y 65535.');
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error('El puerto debe estar entre 1 y 65535.');
   const server = createDevServer();
-  server.on('error', error => {
+  server.on('error', (error) => {
     console.error(`No se pudo iniciar el servidor: ${error.message}`);
     process.exitCode = 1;
   });

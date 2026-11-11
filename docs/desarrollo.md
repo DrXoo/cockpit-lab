@@ -14,7 +14,7 @@ Se conserva `dist/vendor/LICENSE`. Se excluyen la configuración del alojamiento
 4. Guarda los cambios y recarga la página.
 5. Ejecuta `npm run check` y `npm test` antes de crear un commit.
 
-No hace falta `npm install` para esta versión, que no añade dependencias de Node. El servidor solo escucha en la interfaz local y sirve el contenido de `dist/`.
+`npm run dev` no necesita `npm install`. Las comprobaciones sí: ejecuta `npm install` una vez para instalar Prettier, y `npm run format` para formatear el código. El servidor solo escucha en la interfaz local y sirve el contenido de `dist/`.
 
 ## Flujo de trabajo
 
