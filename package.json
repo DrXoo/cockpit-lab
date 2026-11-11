@@ -2,7 +2,7 @@
   "name": "cockpit-lab",
   "version": "0.1.0",
   "private": true,
-  "description": "Configurador web de cockpits compactos para simracing y vuelo VR.",
+  "description": "Web configurator for compact sim racing and VR flight cockpits.",
   "type": "module",
   "engines": { "node": ">=22.12.0" },
   "scripts": {

@@ -1,12 +1,14 @@
 # Cockpit Lab
 
-Aplicación web para explorar un cockpit DIY compacto de perfiles de aluminio, alternar simracing y vuelo VR y comprobar su distribución junto al escritorio y dentro de una habitación.
+Cockpit Lab is a web app for designing a compact DIY cockpit built from aluminium profiles. You can switch between sim racing and VR flight, and check how the rig fits next to your desk and inside your room.
 
-Este repositorio recoge el configurador existente como punto de partida para un **mini CAD de perfilería, periféricos y placas personalizadas**. El editor CAD está planificado; todavía no está implementado.
+It runs entirely in your browser, with no accounts, servers or external services. Designs are saved locally and can be exported as JSON.
 
-## Ejecutar en tu PC
+> **Status:** the configurator below works today. The project is being turned into a **mini CAD for profiles, peripherals and custom plates**: precise parts, joints, cut lists and plate drawings. The CAD editor isn't implemented yet. The UI is still in Spanish and is being migrated to US English.
 
-Requisitos: Git y Node.js 22.12 o posterior. Node.js 24 LTS es una opción adecuada. La versión actual incluye sus dependencias de navegador y no necesita instalar paquetes ni compilar.
+## Getting started
+
+Requires Git and Node.js 22.12 or later (Node.js 24 LTS recommended).
 
 ```sh
 git clone https://github.com/DrXoo/cockpit-lab.git
@@ -14,61 +16,76 @@ cd cockpit-lab
 npm run dev
 ```
 
-Abre <http://127.0.0.1:5173>. Para usar otro puerto: `npm run dev -- --port 5174`.
+Open <http://127.0.0.1:5173>. To use another port: `npm run dev -- --port 5174`.
 
-Para trabajar en VS Code, abre la carpeta clonada o ejecuta `code .` desde ella. El servidor permite recargar la página después de guardar los cambios; no incluye recarga automática.
+The current version needs no `npm install` and no build step. The dev server serves `dist/` and doesn't reload automatically, so refresh the page after saving.
 
-## Verificar cambios
+## Checks
 
 ```sh
-npm run check
-npm test
+npm run check   # syntax check of the project's own code
+npm test        # automated tests (Node's built-in test runner)
 ```
 
-Las comprobaciones revisan la sintaxis del código propio y las pruebas de geometría, ergonomía aproximada, brazo, escritorio, habitación, puertas, muebles, silla y servidor local. Los cambios en la interfaz también requieren una comprobación en el navegador.
+The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, doors, furniture, chair, project loading and the local server. UI changes also need a check in the browser.
 
-## Qué incluye ahora
+## Features
 
-- Presets GT, vuelo, híbrido y espacio mínimo.
-- Creación guiada: habitación, huecos, muebles, mesa y cockpit, con recuperación del progreso.
-- Medidas y posiciones del asiento, volante, pedales y soportes laterales.
-- Escritorio de tamaño regulable, PC, teclado, ratón y alfombrilla XL.
-- Brazo de monitor genérico articulado y posiciones de trabajo, cockpit y VR.
-- Habitación rectangular con puertas, ventanas, muebles, estanterías de pared con altura de montaje y silla de PC.
-- Acceso a armarios empotrados de puertas correderas, con reserva libre delante y sin modelar el interior.
-- Vistas 3D, planta, mesa y perfil; distribución mediante arrastre.
-- Comprobaciones geométricas orientativas, resumen y exportación JSON/CSV.
+- Presets: GT, flight, hybrid and minimum footprint.
+- Guided setup (room, openings, furniture, desk and cockpit) that resumes where you left off.
+- Dimensions and positions of the seat, wheel, pedals and side mounts.
+- Cockpit base elevation from 0 to 50 cm, applied to the whole rig.
+- Adjustable desk with PC, keyboard, mouse and XL mouse pad.
+- Generic articulated monitor arm with desk, cockpit and VR positions.
+- Rectangular room with doors, windows, furniture, wall shelves at a set mounting height, and an office chair.
+- Built-in sliding-door wardrobes with a clearance zone kept free in front of them.
+- 3D, plan, desk and side views, with drag-and-drop layout.
+- Approximate geometric checks, a summary, and JSON/CSV export.
 
-La documentación detallada está en [docs/configurador-actual.md](docs/configurador-actual.md).
+These checks are approximate. They don't validate loads, stiffness or structural safety, and the current cut list is indicative only. Verify real measurements before building anything.
 
-## Estructura
+## Project structure
 
-| Ruta | Responsabilidad |
+| Path | Responsibility |
 | --- | --- |
-| `dist/index.html`, `dist/styles.css`, `dist/ui.css` | Interfaz, estilos base y ajustes de legibilidad y navegación |
-| `dist/app.js` | Controles, estado y exportaciones |
-| `dist/model.js`, `dist/geometry.js` | Geometría, postura y cálculos del configurador |
-| `dist/room.js`, `dist/room-editor.js` | Modelo y edición de habitación y muebles |
-| `dist/scene.js` | Representación con Three.js y alternativa SVG |
-| `dist/vendor/` | Dependencias de navegador y licencia de Three.js |
-| `tests/` | Pruebas automatizadas |
-| `scripts/` | Servidor de desarrollo y comprobaciones |
-| `docs/` | Desarrollo, alcance y plan del mini CAD |
+| `dist/index.html`, `dist/styles.css`, `dist/ui.css` | Markup and styles |
+| `dist/app.js` | Controls, state and exports |
+| `dist/project.js`, `dist/setup-editor.js`, `dist/project-summary.js` | Project format, guided setup and summary |
+| `dist/model.js`, `dist/geometry.js` | Cockpit geometry, posture and calculations |
+| `dist/room.js`, `dist/room-editor.js`, `dist/desk-editor.js` | Room, furniture and desk model and editors |
+| `dist/scene.js` | Three.js rendering, with an SVG fallback |
+| `dist/vendor/` | Three.js 0.186.1 and its MIT license |
+| `tests/` | Automated tests |
+| `scripts/` | Dev server and checks |
+| `docs/` | Detailed documentation and the mini CAD plan |
 
-`dist/` contiene actualmente el código fuente servido directamente. Se conserva esta estructura en la importación para facilitar la comparación con la aplicación original. Una futura separación entre `src/` y salida compilada se hará como un cambio independiente.
+Right now `dist/` holds the hand-written source and is served as is.
 
-## Desarrollo del mini CAD
+## Roadmap
 
-Lee [el plan por etapas](docs/mini-cad.md) y [la guía de desarrollo](docs/desarrollo.md). El primer hito es un montaje de dos perfiles, una placa y un periférico con dimensiones y agujeros propios, representado en 3D y exportado con las mismas cotas.
+1. **TypeScript migration.** Format the code, move the source to `src/` with Vite as dev server and build, and type it module by module. After that, `dist/` becomes build output.
+2. **English UI.** Translate the interface and the documentation.
+3. **Mini CAD.** A parts and joints model in mm with a versioned schema, profile editor, plates and holes, joints and bill of materials, and racing/flight modes. See [the staged plan](docs/mini-cad.md).
 
-El modelo actual aproxima los periféricos y las placas; estima fijaciones y no define sus taladros. La lista de cortes actual es orientativa. Todavía no es un plano de fabricación validado ni un cálculo de resistencia.
+## Development principles
 
-## Configuraciones y alojamiento
+New code is written test-first (TDD), following Clean Code and pragmatic SOLID. Domain logic stays free of DOM and Three.js so it can be tested in Node. The full rules are in [AGENTS.md](AGENTS.md).
 
-Los proyectos se guardan en el navegador bajo `cockpit-lab-v2` y se pueden exportar/importar en JSON v2 con unidades explícitas en cm. Se conservan la importación de archivos v1 y la recuperación del guardado anterior `cockpit-lab-v1`. Los diseños anteriores entran directamente en el editor; los nuevos recuperan su paso de creación. Consulta [el recorrido y el adaptador de guardado](docs/creacion-guiada.md). Cada origen (dominio y puerto) tiene su propio almacenamiento. Para llevar un diseño de la web alojada al entorno local, expórtalo allí e impórtalo aquí. Los archivos personales pueden guardarse en `configuraciones-personales/`, excluida de Git.
+## Saved designs
 
-El repositorio es público. La publicación original en Sites mantiene su propio control de acceso y su proceso de despliegue. Un push a GitHub **no despliega** esa web. El autoguardado de diseños es local al navegador y no implementa autenticación ni control de acceso.
+Projects are stored in the browser's `localStorage` under `cockpit-lab-v2`, and can be exported and imported as JSON v2 with explicit units (cm). Older v1 files, and designs saved under `cockpit-lab-v1`, still load. See [guided setup and the save format](docs/creacion-guiada.md).
 
-## Dependencias y licencia
+Browser storage is tied to the origin (host and port), so a design saved on one port doesn't appear on another. Export it to JSON to move it. Keep personal design files in `configuraciones-personales/`, which Git ignores.
 
-Three.js y los componentes incluidos en `dist/vendor/` conservan su [licencia MIT](dist/vendor/LICENSE). No se añade una licencia al código propio en esta importación; la elección de licencia del proyecto queda pendiente.
+## Documentation
+
+These documents are still in Spanish and their translation is pending:
+
+- [Current configurator](docs/configurador-actual.md): scope, conventions and limitations.
+- [Guided setup](docs/creacion-guiada.md): setup steps and the v1 → v2 adapter.
+- [Development](docs/desarrollo.md): starting point and workflow.
+- [Mini CAD](docs/mini-cad.md): goals, data model and stages.
+
+## License
+
+Three.js and the components in `dist/vendor/` keep their [MIT license](dist/vendor/LICENSE). The project's own code doesn't have a license yet.
