@@ -78,13 +78,22 @@ test('the screen faces the monitor angle', () => {
   assert.ok(Math.abs(holder.rotation[1] - (evaluation.monitorAngle * Math.PI) / 180) < 1e-12);
 });
 
-test('an arm that cannot reach the monitor shows the gap as a dashed line', () => {
-  const dashed = (r) => r.primitives.filter((p) => p.kind === 'line' && p.material === 'dashed');
+test('an arm that cannot reach the monitor shows the gap as an orange dashed line', () => {
+  const warningSpec = (r, line) =>
+    r.primitives.find((p) => p.kind === 'material' && p.id === line.material)?.spec;
+  const gaps = (r) =>
+    r.primitives.filter((p) => p.kind === 'line' && warningSpec(r, p)?.kind === 'dashed');
   const far = monitor({ armReach: 40, clampZ: defaults.clampZ + 80 });
   assert.equal(far.evaluation.armPose.reachable, false);
-  assert.equal(dashed(far.r).length, 1);
+  const [gap] = gaps(far.r);
+  assert.deepEqual(warningSpec(far.r, gap), {
+    kind: 'dashed',
+    color: 0xc26a46,
+    dashSize: 2,
+    gapSize: 2,
+  });
   assert.equal(monitor().evaluation.armPose.reachable, true);
-  assert.equal(dashed(monitor().r).length, 0);
+  assert.deepEqual(gaps(monitor().r), []);
 });
 
 test('the arm joints become handles only while editing the arm', () => {

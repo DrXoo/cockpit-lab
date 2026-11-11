@@ -27,6 +27,12 @@ function createMaterial(spec: MaterialSpec): T.Material {
     });
   if (spec.kind === 'matte')
     return new T.MeshStandardMaterial({ color: spec.color, roughness: spec.roughness });
+  if (spec.kind === 'dashed')
+    return new T.LineDashedMaterial({
+      color: spec.color,
+      dashSize: spec.dashSize,
+      gapSize: spec.gapSize,
+    });
   return spec.opacity === undefined
     ? new T.LineBasicMaterial({ color: spec.color })
     : new T.LineBasicMaterial({ color: spec.color, transparent: true, opacity: spec.opacity });
@@ -132,11 +138,12 @@ export function addPrimitives(
       }
       case 'line': {
         const geometry = new T.BufferGeometry().setFromPoints(p.points.map(vector));
-        if (p.material === 'dashed') {
-          const line = new T.Line(geometry, new T.LineDashedMaterial(DASHED_LINE));
-          line.computeLineDistances();
-          parentOf(p.parent).add(line);
-        } else parentOf(p.parent).add(new T.Line(geometry, materialOf(p.material)));
+        const material =
+          p.material === 'dashed' ? new T.LineDashedMaterial(DASHED_LINE) : materialOf(p.material);
+        const line = new T.Line(geometry, material);
+        // Dashes are laid out along the line's length.
+        if (material instanceof T.LineDashedMaterial) line.computeLineDistances();
+        parentOf(p.parent).add(line);
         break;
       }
       case 'fill': {

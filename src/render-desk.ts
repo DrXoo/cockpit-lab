@@ -28,6 +28,8 @@ const KEY_COLUMNS = 12;
 /** Rotation of the clamp so that it grips the edge it is mounted on. */
 const CLAMP_EDGE_ANGLE_DEG = { xmin: 0, xmax: 180, zmin: -90, zmax: 90 };
 const REACH_CIRCLE_SEGMENTS = 64;
+/** The gap between the arm's end and a monitor it cannot reach, drawn as a warning. */
+const REACH_GAP_LINE = { kind: 'dashed', color: 0xc26a46, dashSize: 2, gapSize: 2 } as const;
 
 export function drawDesk(
   r: RenderList,
@@ -205,7 +207,7 @@ export function drawMonitor(
         [actual.x, target.y, actual.z],
         [target.x, target.y, target.z],
       ],
-      'dashed',
+      r.material({ ...REACH_GAP_LINE }),
       parent,
     );
   const screen = r.group(parent, {
