@@ -1,5 +1,5 @@
 import { deskElementControls, monitorShortcuts } from './desk-editor.ts';
-import { steps, createProject, readProject, projectData, advanceSetup } from './project.ts';
+import { steps, createProject, readProject, projectData } from './project.ts';
 import {
   creationControls,
   accessoryControls,
@@ -48,6 +48,14 @@ import {
 } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import { cutListCsv } from './cut-list-csv.ts';
+import {
+  sectionOfStep,
+  setupButtons,
+  nextSetupStep,
+  withRoomSize,
+  withDesk,
+  withCockpitPreset,
+} from './setup-actions.ts';
 import {
   addRoomItem,
   canAddRoomItem,
@@ -120,12 +128,7 @@ if (loaded.status === 'loaded') {
 } else if (loaded.status === 'invalid')
   setSaveStatus('No se pudo recuperar el guardado. Puedes abrir una copia JSON.', 'error');
 if (setup.step === 'complete') view = 'iso';
-else
-  section = ['room', 'openings', 'furniture'].includes(setup.step)
-    ? 'room'
-    : setup.step === 'desk'
-      ? 'desk'
-      : 'rig';
+else section = sectionOfStep(setup.step);
 if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
 let evaluation = evaluate(state);
 let pendingSave, toastTimer;
@@ -328,11 +331,7 @@ function bindRoomEditor() {
 }
 function enterStep(id) {
   setup = { ...setup, step: id };
-  section = ['room', 'openings', 'furniture'].includes(id)
-    ? 'room'
-    : id === 'desk'
-      ? 'desk'
-      : 'rig';
+  section = sectionOfStep(id);
   layoutTarget = id === 'desk' ? 'desk' : id === 'cockpit' ? 'cockpit' : '';
   layoutEditing = state.roomEnabled;
   showWorkspace('config');
@@ -342,16 +341,13 @@ function enterStep(id) {
   setActiveView(id === 'desk' && state.deskEnabled ? 'desk' : 'top');
 }
 function continueSetup(defer = false) {
-  const step = setup.step;
-  if (step === 'room' && !state.roomEnabled) {
+  const result = nextSetupStep(setup, state, { defer });
+  if (result.status === 'needs-room') {
     $('#setupRoomForm')?.reportValidity();
     return;
   }
-  if (step === 'desk' && !state.deskEnabled && !defer) return;
-  if (step === 'cockpit' && !state.cockpitEnabled && !defer) return;
-  if (step === 'openings' && !roomItems(state, 'openings').length) defer = true;
-  if (step === 'furniture' && !roomItems(state, 'furniture').length) defer = true;
-  setup = advanceSetup(setup, { defer });
+  if (result.status === 'blocked') return;
+  setup = result.setup;
   persist();
   if (setup.step === 'complete') {
     layoutEditing = false;
@@ -384,13 +380,12 @@ function bindCreationControls() {
   $('#setupRoomForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!event.target.reportValidity()) return;
-    state = normalizeRoom({
-      ...state,
-      roomEnabled: true,
-      roomW: Number($('#setupRoomW').value),
-      roomD: Number($('#setupRoomD').value),
-      roomH: Number($('#setupRoomH').value),
-    });
+    state = withRoomSize(
+      state,
+      Number($('#setupRoomW').value),
+      Number($('#setupRoomD').value),
+      Number($('#setupRoomH').value),
+    );
     setup = { ...setup, drafts: { ...setup.drafts, room: undefined } };
     modified = true;
     persist();
@@ -399,17 +394,11 @@ function bindCreationControls() {
   $('#setupDeskForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!event.target.reportValidity()) return;
-    state = resizeDesk(
-      {
-        ...state,
-        deskEnabled: true,
-        deskH: Number($('#setupDeskH').value),
-        deskX: state.roomX + state.roomW / 2,
-        deskZ: state.roomZ + state.roomD / 2,
-        monitorMode: 'desk',
-      },
+    state = withDesk(
+      state,
       Number($('#setupDeskW').value),
       Number($('#setupDeskD').value),
+      Number($('#setupDeskH').value),
     );
     setup = {
       ...setup,
@@ -428,16 +417,7 @@ function bindCreationControls() {
   $('#setupCockpitForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!event.target.reportValidity()) return;
-    const preset = $('#setupPreset').value,
-      values = presets[preset].values;
-    state = {
-      ...state,
-      ...values,
-      preset,
-      cockpitEnabled: true,
-      cockpitX: state.roomX + state.roomW / 2,
-      cockpitZ: state.roomZ + Math.max(0, (state.roomD - values.length) / 2),
-    };
+    state = withCockpitPreset(state, $('#setupPreset').value);
     setup = { ...setup, deferred: setup.deferred.filter((id) => id !== 'cockpit') };
     layoutTarget = 'cockpit';
     modified = false;
@@ -461,20 +441,12 @@ function renderWorkflow() {
   $('#setupGuide').hidden = !guided;
   $('#setupGuideTitle').textContent = step?.title || '';
   $('#setupGuideHint').textContent = step?.hint || '';
-  $('#setupBack').disabled = setup.step === 'room';
-  $('#setupNext').textContent = setup.step === 'cockpit' ? 'Terminar' : 'Continuar';
-  $('#setupNext').disabled =
-    setup.step === 'desk'
-      ? !state.deskEnabled
-      : setup.step === 'cockpit'
-        ? !state.cockpitEnabled
-        : false;
-  const canDefer =
-    ['openings', 'furniture'].includes(setup.step) ||
-    (setup.step === 'desk' && !state.deskEnabled) ||
-    (setup.step === 'cockpit' && !state.cockpitEnabled);
-  $('#setupSkip').hidden = !canDefer;
-  $('#setupSkip').textContent = setup.step === 'desk' ? 'No necesito mesa' : 'Añadir después';
+  const buttons = setupButtons(setup, state);
+  $('#setupBack').disabled = buttons.backDisabled;
+  $('#setupNext').textContent = buttons.nextLabel;
+  $('#setupNext').disabled = buttons.nextDisabled;
+  $('#setupSkip').hidden = buttons.skipHidden;
+  $('#setupSkip').textContent = buttons.skipLabel;
   const hasScene = state.roomEnabled || state.deskEnabled || state.cockpitEnabled;
   $('#emptyScene').hidden = hasScene;
   $('#personBtn').hidden = !state.cockpitEnabled;
