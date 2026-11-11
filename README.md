@@ -80,7 +80,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/render-rig.ts`, `src/render-desk.ts`, `src/render-room.ts`, `src/render-profile.ts` | Drawings of the rig, desk and monitor, room and aluminium profiles |
 | `src/render-annotations.ts` | Measurements, labels and the selection outline |
 | `src/three-adapter.ts` | Turns the render model into Three.js objects |
-| `src/scene-camera.ts` | Camera framing for each view |
+| `src/scene-camera.ts`, `src/layout-picking.ts` | Camera framing for each view, and what a drag in the plan grabs |
 | `tests/` | Unit tests |
 | `e2e/` | End-to-end tests and the project files they use |
 | `scripts/` | Project checks |

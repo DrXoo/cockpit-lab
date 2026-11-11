@@ -44,6 +44,7 @@
     "src/render-room.ts",
     "src/render-annotations.ts",
     "src/render-model.ts",
+    "src/layout-picking.ts",
     "src/three-adapter.ts",
     "playwright.config.ts"
   ]

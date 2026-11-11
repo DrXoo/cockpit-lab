@@ -1,7 +1,8 @@
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
-import { inversePoint, clamp, round } from './model.ts';
+import { inversePoint } from './model.ts';
+import { pickLayoutItem, draggedPosition } from './layout-picking.ts';
 import { sceneBounds, viewHeight, cameraPose } from './scene-camera.ts';
 import { renderModel } from './render-model.ts';
 import { addPrimitives } from './three-adapter.ts';
@@ -339,126 +340,17 @@ export class CockpitScene {
             return;
           }
         }
-        if (this.roomEditing) {
-          const distance = (p, a, b) => {
-            const dx = b.x - a.x,
-              dz = b.z - a.z,
-              t = clamp(((p.x - a.x) * dx + (p.z - a.z) * dz) / (dx * dx + dz * dz || 1), 0, 1);
-            return Math.hypot(p.x - a.x - t * dx, p.z - a.z - t * dz);
-          };
-          const candidates = [
-            ...this.e.room.furniture.map((i) => ({
-              id: 'furniture:' + i.id,
-              item: i,
-              furniture: true,
-            })),
-            ...this.e.room.features.map((i) => ({
-              id: 'feature:' + i.id,
-              item: i,
-              furniture: false,
-            })),
-          ].sort((a, b) => (a.id === this.layoutTarget ? -1 : b.id === this.layoutTarget ? 1 : 0));
-          for (const candidate of candidates) {
-            const item = candidate.item,
-              local = candidate.furniture
-                ? inversePoint(floor, { x: item.x, z: item.z, angle: item.angle })
-                : null,
-              hit = candidate.furniture
-                ? Math.abs(local.x) <= item.width / 2 && Math.abs(local.z) <= item.depth / 2
-                : distance(floor, item.a, item.b) < 8 ||
-                  (item.type === 'door' && distance(floor, item.hingePoint, item.tip) < 6);
-            if (!hit) continue;
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            this.controls.enabled = false;
-            this.layoutTarget = candidate.id;
-            this.onLayoutSelect?.(candidate.id);
-            const center = candidate.furniture ? item : item.center;
-            this.drag = {
-              pointer: event.pointerId,
-              target: candidate.id,
-              start: { x: floor.x, z: floor.z },
-              x: center.x,
-              z: center.z,
-              desktop: false,
-            };
-            element.setPointerCapture(event.pointerId);
-            element.style.cursor = 'grabbing';
-            return;
-          }
-        }
-        const deskLocal = inversePoint(top, this.e.deskPose),
-          ids = this.roomEditing ? [] : this.e.desktopItems.map((item) => item.id),
-          order = [
-            ...new Set([
-              ...(this.roomEditing
-                ? []
-                : [...this.e.desktopItems]
-                    .sort(
-                      (a, b) =>
-                        b.height - a.height ||
-                        (a.id === this.layoutTarget ? -1 : b.id === this.layoutTarget ? 1 : 0),
-                    )
-                    .map((item) => item.id)),
-              ...(this.layoutTarget === 'cockpit' ? ['cockpit'] : []),
-              'desk',
-              'cockpit',
-            ]),
-          ];
-        let target, start, x, z;
-        for (const id of order) {
-          if (
-            (id === 'desk' && this.s.deskEnabled === false) ||
-            (id === 'cockpit' && this.s.cockpitEnabled === false) ||
-            (id === 'arm' && this.s.monitorEnabled === false)
-          )
-            continue;
-          const item = this.roomEditing ? null : this.e.desktopItems.find((i) => i.id === id);
-          if (item) {
-            const local = inversePoint(deskLocal, item.local);
-            if (
-              Math.abs(local.x) <= item.sizeX / 2 + 1 &&
-              Math.abs(local.z) <= item.sizeZ / 2 + 1
-            ) {
-              target = id;
-              start = deskLocal;
-              x = item.local.x;
-              z = item.local.z;
-              break;
-            }
-          } else if (id === 'desk' || id === 'cockpit') {
-            const local = inversePoint(floor, id === 'desk' ? this.e.deskPose : this.e.rigPose),
-              hit =
-                id === 'desk'
-                  ? Math.abs(local.x) <= this.e.deskBounds.halfX &&
-                    Math.abs(local.z) <= this.e.deskBounds.halfZ
-                  : local.x >= this.e.rigLeft &&
-                    local.x <= this.e.rigRight &&
-                    local.z >= this.e.lowerZ &&
-                    local.z <= this.e.upperZ;
-            if (hit) {
-              target = id;
-              start = floor;
-              x = id === 'desk' ? this.s.deskX : this.s.cockpitX;
-              z = id === 'desk' ? this.s.deskZ : this.s.cockpitZ;
-              break;
-            }
-          }
-        }
-        if (!target) return;
+        const grab = pickLayoutItem(floor, top, this.s, this.e, {
+          layoutTarget: this.layoutTarget,
+          roomEditing: !!this.roomEditing,
+        });
+        if (!grab) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         this.controls.enabled = false;
-        this.layoutTarget = target;
-        this.onLayoutSelect?.(target);
-        this.drag = {
-          pointer: event.pointerId,
-          target,
-          start: { x: start.x, z: start.z },
-          x,
-          z,
-          desktop: ids.includes(target),
-        };
+        this.layoutTarget = grab.target;
+        this.onLayoutSelect?.(grab.target);
+        this.drag = { pointer: event.pointerId, ...grab };
         element.setPointerCapture(event.pointerId);
         element.style.cursor = 'grabbing';
       },
@@ -477,12 +369,10 @@ export class CockpitScene {
         }
         let p: any = point(event, this.drag.desktop ? this.s.deskH : 0);
         if (p && this.drag.desktop) p = inversePoint(p, this.e.deskPose);
-        if (p)
-          this.onLayoutMove?.(
-            this.drag.target,
-            round(this.drag.x + p.x - this.drag.start.x),
-            round(this.drag.z + p.z - this.drag.start.z),
-          );
+        if (p) {
+          const { x, z } = draggedPosition(this.drag, p);
+          this.onLayoutMove?.(this.drag.target, x, z);
+        }
       },
       true,
     );
