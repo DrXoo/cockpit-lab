@@ -13,6 +13,7 @@
     "src/checks.ts",
     "src/room.ts",
     "src/units.ts",
-    "src/model.ts"
+    "src/model.ts",
+    "src/project.ts"
   ]
 }
