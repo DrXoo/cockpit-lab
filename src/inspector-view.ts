@@ -4,9 +4,9 @@ import type { CockpitEvaluation } from './evaluate.ts';
 import { formatNumber } from './number-format.ts';
 
 const EMPTY_PROJECT =
-  '<span class="status-icon">1</span><div><strong>Define tu espacio</strong><small>Las comprobaciones aparecerán al añadir elementos.</small></div>';
+  '<span class="status-icon">1</span><div><strong>Set up your space</strong><small>Checks appear as you add items.</small></div>';
 const NOTHING_TO_FIX =
-  '<span class="status-icon">✓</span><div><strong>Sin interferencias detectadas</strong><small>Solo se revisan los elementos añadidos.</small></div>';
+  '<span class="status-icon">✓</span><div><strong>No interference found</strong><small>Only the items you added are checked.</small></div>';
 
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? 's' : ''}`;
 
@@ -25,13 +25,13 @@ export function validationBanner(
   const className = `validation-banner ${errors ? 'error' : warnings ? 'warning' : ''}`;
   if (!state.cockpitEnabled && !errors && !warnings) return { className, html: NOTHING_TO_FIX };
   const title = errors
-    ? `${plural(errors, 'ajuste')} ${errors > 1 ? 'pendientes' : 'pendiente'}`
+    ? `${plural(errors, 'issue')} to fix`
     : warnings
-      ? `${plural(warnings, 'detalle')} por revisar`
-      : 'Buen punto de partida';
+      ? `${plural(warnings, 'detail')} to review`
+      : 'A good starting point';
   return {
     className,
-    html: `<span class="status-icon">${errors ? '×' : warnings ? '!' : '✓'}</span><div><strong>${title}</strong><small>${errors ? 'Consulta las comprobaciones de abajo.' : 'Valida la postura con tu equipo real.'}</small></div>`,
+    html: `<span class="status-icon">${errors ? '×' : warnings ? '!' : '✓'}</span><div><strong>${title}</strong><small>${errors ? 'See the checks below.' : 'Confirm the posture with your real equipment.'}</small></div>`,
   };
 }
 
@@ -50,10 +50,10 @@ export function metricsView(state: CockpitConfig, e: CockpitEvaluation): Metrics
       ? `${state.length} <small>×</small> ${state.width} <small>cm</small>`
       : `${state.roomW} × ${state.roomD} cm`,
     widthNote: state.cockpitEnabled
-      ? `${Math.ceil(e.rigRight - e.rigLeft)} cm con accesorios`
-      : 'Medidas interiores',
+      ? `${Math.ceil(e.rigRight - e.rigLeft)} cm with accessories`
+      : 'Inside dimensions',
     spaceHTML: `${Math.ceil(e.spaceW)} <small>×</small> ${Math.ceil(e.spaceD)} <small>cm</small>`,
     profilesHTML: `${formatNumber(e.totalMm / 1000, 2)} <small>m</small>`,
-    piecesText: `${e.cuts} cortes · serie 40`,
+    piecesText: `${e.cuts} cuts · 40 series`,
   };
 }

@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#f7f7f3" />
     <meta
       name="description"
-      content="Diseña tu cockpit compacto de aluminio para simracing y vuelo VR. Configura la geometría, comprueba el espacio y prepara tu lista de cortes."
+      content="Design a compact aluminium cockpit for sim racing and VR flight. Set up the geometry, check the space and prepare your cut list."
     />
-    <title>Cockpit Lab — Tu setup, a medida</title>
+    <title>Cockpit Lab — Your setup, made to measure</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23db6437'/%3E%3Cpath d='M10 28V14l10-5 10 5v14l-10 5Z M10 14l10 5 10-5 M20 19v14' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"
@@ -17,67 +17,57 @@
     <link rel="stylesheet" href="./ui.css" />
   </head>
   <body data-workspace="view">
-    <a class="skip-link" href="#configPanel">Ir a los ajustes</a>
+    <a class="skip-link" href="#configPanel">Skip to settings</a>
     <header class="app-header">
-      <a class="brand" href="./" aria-label="Cockpit Lab inicio"
+      <a class="brand" href="./" aria-label="Cockpit Lab home"
         ><span class="brand-mark"
           ><svg viewBox="0 0 32 32">
             <path d="M5 23V10l11-6 11 6v13l-11 6Z M5 10l11 6 11-6 M16 16v13" /></svg></span
         ><strong>cockpit<span>lab</span></strong></a
       >
       <div class="header-actions">
-        <button class="text-button" id="newProject">Nuevo proyecto</button
-        ><button class="text-button" id="helpBtn" aria-label="Cómo funciona">
-          <i data-icon="help"></i><span>Ayuda</span></button
-        ><button class="button button-dark" id="openSummary" aria-label="Resumen y piezas">
-          <i data-icon="export"></i><span>Resumen y piezas</span>
+        <button class="text-button" id="newProject">New project</button
+        ><button class="text-button" id="helpBtn" aria-label="How it works">
+          <i data-icon="help"></i><span>Help</span></button
+        ><button class="button button-dark" id="openSummary" aria-label="Summary and parts">
+          <i data-icon="export"></i><span>Summary and parts</span>
         </button>
       </div>
     </header>
 
-    <nav id="setupProgress" class="setup-progress" aria-label="Pasos de creación" hidden></nav>
-    <nav class="studio-nav" aria-label="Panel del estudio">
+    <nav id="setupProgress" class="setup-progress" aria-label="Setup steps" hidden></nav>
+    <nav class="studio-nav" aria-label="Studio panel">
       <button data-workspace="view" class="active" aria-pressed="true" aria-controls="visualPanel">
-        Diseño</button
+        Design</button
       ><button data-workspace="config" aria-pressed="false" aria-controls="configPanel">
-        Ajustes</button
+        Settings</button
       ><button data-workspace="checks" aria-pressed="false" aria-controls="inspector">
-        Comprobaciones
+        Checks
       </button>
     </nav>
     <main class="studio">
-      <aside
-        class="config-panel"
-        id="configPanel"
-        tabindex="-1"
-        aria-label="Configuración del proyecto"
-      >
+      <aside class="config-panel" id="configPanel" tabindex="-1" aria-label="Project settings">
         <div class="panel-heading">
-          <h2>Configuración</h2>
-          <button
-            class="icon-button"
-            id="resetBtn"
-            aria-label="Nuevo proyecto"
-            title="Nuevo proyecto"
-          >
+          <h2>Settings</h2>
+          <button class="icon-button" id="resetBtn" aria-label="New project" title="New project">
             <i data-icon="reset"></i>
           </button>
         </div>
         <div class="preset-area" hidden>
-          <label for="preset">Base del cockpit</label>
+          <label for="preset">Cockpit base</label>
           <div class="select-wrap">
             <i data-icon="wheel"></i
             ><select id="preset" aria-describedby="presetDescription presetHint">
-              <option value="gt">GT compacto</option>
-              <option value="flight">Vuelo VR</option>
-              <option value="hybrid">Híbrido GT + vuelo</option>
-              <option value="small">Espacio mínimo</option>
+              <option value="gt">Compact GT</option>
+              <option value="flight">VR flight</option>
+              <option value="hybrid">GT + flight hybrid</option>
+              <option value="small">Smallest footprint</option>
             </select>
           </div>
-          <p id="presetDescription">Asiento de coche, tres pedales y mandos a mano.</p>
-          <small id="presetHint">Cambiar de base sustituye los ajustes del cockpit.</small>
+          <p id="presetDescription">Car seat, three pedals and controls within reach.</p>
+          <small id="presetHint">Changing the base replaces the cockpit settings.</small>
         </div>
-        <div class="config-tabs" role="tablist" aria-label="Secciones de ajustes">
+        <div class="config-tabs" role="tablist" aria-label="Settings sections">
           <button
             id="tab-room"
             class="active"
@@ -86,7 +76,7 @@
             aria-selected="true"
             aria-controls="controls"
           >
-            Habitación
+            Room
           </button>
           <button
             id="tab-furniture"
@@ -96,7 +86,7 @@
             aria-selected="false"
             aria-controls="controls"
           >
-            Muebles
+            Furniture
           </button>
           <button
             id="tab-desk"
@@ -106,7 +96,7 @@
             aria-selected="false"
             aria-controls="controls"
           >
-            Mesa
+            Desk
           </button>
           <button
             id="tab-rig"
@@ -128,29 +118,21 @@
         ></div>
         <div id="setupActions" class="setup-actions" hidden>
           <div>
-            <button id="setupBack" class="button button-light">Atrás</button
-            ><button id="setupNext" class="button button-dark">Continuar</button>
+            <button id="setupBack" class="button button-light">Back</button
+            ><button id="setupNext" class="button button-dark">Continue</button>
           </div>
-          <button id="setupSkip" class="text-button" hidden>Añadir después</button>
+          <button id="setupSkip" class="text-button" hidden>Add later</button>
         </div>
         <div class="config-footer">
           <div class="save-info">
-            <span id="saveStatus" role="status">Autoguardado en este navegador</span
-            ><small>Ajustes en cm · cortes en mm</small>
+            <span id="saveStatus" role="status">Saved automatically in this browser</span
+            ><small>Settings in cm · cuts in mm</small>
           </div>
           <div class="file-actions">
-            <button
-              class="text-button"
-              id="loadConfig"
-              title="Abrir un archivo de configuración JSON"
-            >
-              <i data-icon="upload"></i>Abrir JSON</button
-            ><button
-              class="text-button"
-              id="saveConfig"
-              title="Descargar una copia de la configuración"
-            >
-              <i data-icon="download"></i>Exportar JSON
+            <button class="text-button" id="loadConfig" title="Open a JSON design file">
+              <i data-icon="upload"></i>Open JSON</button
+            ><button class="text-button" id="saveConfig" title="Download a copy of the design">
+              <i data-icon="download"></i>Export JSON
             </button>
           </div>
         </div>
@@ -160,59 +142,59 @@
         class="visual-panel"
         id="visualPanel"
         tabindex="-1"
-        aria-label="Vista interactiva del diseño"
+        aria-label="Interactive view of the design"
       >
         <div class="view-toolbar" hidden>
-          <div class="view-tabs" role="group" aria-label="Vista de cámara">
+          <div class="view-tabs" role="group" aria-label="Camera view">
             <button class="active" data-view="iso" aria-pressed="true">3D</button
-            ><button data-view="top" aria-pressed="false">Planta</button
-            ><button data-view="desk" aria-pressed="false">Mesa</button
-            ><button data-view="side" aria-pressed="false">Perfil</button>
+            ><button data-view="top" aria-pressed="false">Top</button
+            ><button data-view="desk" aria-pressed="false">Desk</button
+            ><button data-view="side" aria-pressed="false">Side</button>
           </div>
           <div class="scene-options">
             <button
               class="layout-button"
               id="layoutBtn"
               aria-pressed="false"
-              title="Mover objetos en planta"
+              title="Move items in the plan"
             >
-              <i data-icon="expand"></i><span>Distribuir</span></button
+              <i data-icon="expand"></i><span>Arrange</span></button
             ><button
               class="icon-button active"
               id="dimensionBtn"
-              aria-label="Ocultar cotas"
+              aria-label="Hide dimensions"
               aria-pressed="true"
-              title="Cotas"
+              title="Dimensions"
             >
               <i data-icon="ruler"></i></button
             ><button
               class="icon-button"
               id="personBtn"
-              aria-label="Mostrar piloto"
+              aria-label="Show driver"
               aria-pressed="false"
-              title="Piloto"
+              title="Driver"
             >
               <i data-icon="person"></i></button
-            ><button class="icon-button" id="fitBtn" aria-label="Centrar cámara" title="Centrar">
+            ><button class="icon-button" id="fitBtn" aria-label="Center the camera" title="Center">
               <i data-icon="expand"></i>
             </button>
           </div>
         </div>
         <div class="viewport" id="viewport">
           <div id="emptyScene" class="empty-scene">
-            <strong>Tu espacio empieza aquí</strong
-            ><span>Define tu habitación para empezar a distribuirla.</span>
+            <strong>Your space starts here</strong
+            ><span>Set up your room to start arranging it.</span>
           </div>
           <div class="scene-badge" hidden>
-            <span class="live-dot"></span><span id="sceneTitle">GT compacto</span
-            ><span class="scene-badge-divider"></span><span>Escala real</span>
+            <span class="live-dot"></span><span id="sceneTitle">Compact GT</span
+            ><span class="scene-badge-divider"></span><span>True scale</span>
           </div>
           <div id="webglFallback" hidden>
-            La vista 3D necesita WebGL. Los ajustes, cálculos y el resumen siguen disponibles.
+            The 3D view needs WebGL. Settings, calculations and the summary are still available.
           </div>
           <div class="scene-labels" id="sceneLabels"></div>
           <div class="viewport-note" hidden>
-            <i data-icon="rotate"></i><span>Arrastra para girar · rueda para acercar</span>
+            <i data-icon="rotate"></i><span>Drag to orbit · scroll to zoom</span>
           </div>
           <div class="compass" aria-hidden="true">
             <svg viewBox="0 0 55 55">
@@ -225,29 +207,29 @@
           </div>
         </div>
         <div class="scene-legend" hidden>
-          <span><b class="legend-frame"></b>Perfil 40 × 80</span
-          ><span><b class="legend-orange"></b>Soportes regulables</span
-          ><span><b class="legend-desk"></b>Escritorio</span>
+          <span><b class="legend-frame"></b>40 × 80 profile</span
+          ><span><b class="legend-orange"></b>Adjustable mounts</span
+          ><span><b class="legend-desk"></b>Desk</span>
         </div>
         <div class="metrics" hidden>
           <div>
-            <span>HUELLA DEL COCKPIT</span
+            <span>COCKPIT FOOTPRINT</span
             ><strong id="metricFootprint">145 <small>×</small> 64 <small>cm</small></strong
-            ><small id="metricWidthNote">Chasis · sin accesorios</small>
+            ><small id="metricWidthNote">Chassis · without accessories</small>
           </div>
           <div>
-            <span>ESPACIO DEL CONJUNTO</span><strong id="metricSpace">—</strong
-            ><small>Mesa + cockpit, sin paso libre</small>
+            <span>SETUP FOOTPRINT</span><strong id="metricSpace">—</strong
+            ><small>Desk + cockpit, without walkway</small>
           </div>
           <div>
-            <span>PERFIL DE ALUMINIO</span><strong id="metricProfiles">—</strong
-            ><small id="metricPieces">— cortes · serie 40</small>
+            <span>ALUMINIUM PROFILE</span><strong id="metricProfiles">—</strong
+            ><small id="metricPieces">— cuts · 40 series</small>
           </div>
         </div>
       </section>
 
-      <aside class="inspector" id="inspector" tabindex="-1" aria-label="Comprobaciones del diseño">
-        <div class="inspector-heading"><h2>Comprobaciones</h2></div>
+      <aside class="inspector" id="inspector" tabindex="-1" aria-label="Design checks">
+        <div class="inspector-heading"><h2>Checks</h2></div>
         <div id="setupGuide" class="setup-guide" hidden>
           <h3 id="setupGuideTitle"></h3>
           <p id="setupGuideHint"></p>
@@ -255,56 +237,54 @@
         <div class="validation-banner" id="validationBanner">
           <span class="status-icon">✓</span>
           <div>
-            <strong>Buen punto de partida</strong
-            ><small>Revisa los detalles antes de construir.</small>
+            <strong>A good starting point</strong
+            ><small>Review the details before you build.</small>
           </div>
         </div>
         <section class="inspector-section">
           <div class="section-line">
-            <h3><i data-icon="person"></i>Tu postura</h3>
+            <h3><i data-icon="person"></i>Your posture</h3>
             <span class="tag neutral" id="heightTag">178 cm</span>
           </div>
           <div id="ergonomics"></div>
           <button class="subtle-link" id="adjustBody">
-            Ajustar asiento y mandos <span>→</span>
+            Adjust seat and controls <span>→</span>
           </button>
         </section>
         <section class="inspector-section">
           <div class="section-line">
-            <h3><i data-icon="desk"></i>Mesa y monitor</h3>
+            <h3><i data-icon="desk"></i>Desk and monitor</h3>
             <span class="mini-label" id="deskSizeTag">140 × 80</span>
           </div>
           <div id="spaceChecks"></div>
           <div class="reach-card">
-            <div><span>Alcance horizontal del brazo</span><strong id="reachValue">—</strong></div>
+            <div><span>Horizontal arm reach</span><strong id="reachValue">—</strong></div>
             <div class="meter"><span id="reachMeter"></span><b></b></div>
-            <div class="meter-label">
-              <span>Necesario</span><span id="reachMax">Máx. 85 cm</span>
-            </div>
+            <div class="meter-label"><span>Needed</span><span id="reachMax">Max. 85 cm</span></div>
           </div>
           <button class="subtle-link" id="editArmBtn">
-            Articular brazo / llevar al cockpit <span>→</span></button
-          ><button class="subtle-link" id="adjustDesk">Ajustar distribución <span>→</span></button>
+            Pose the arm / bring it to the cockpit <span>→</span></button
+          ><button class="subtle-link" id="adjustDesk">Adjust the layout <span>→</span></button>
         </section>
         <section class="inspector-section" id="roomInspector">
           <div class="section-line">
-            <h3><i data-icon="frame"></i>Habitación y acceso</h3>
+            <h3><i data-icon="frame"></i>Room and access</h3>
             <span class="tag neutral" id="roomSizeTag"></span>
           </div>
           <div id="roomChecks"></div>
-          <button class="subtle-link" id="adjustRoom">Editar habitación <span>→</span></button>
+          <button class="subtle-link" id="adjustRoom">Edit the room <span>→</span></button>
         </section>
         <section class="inspector-section">
           <div class="section-line">
-            <h3><i data-icon="parts"></i>Sobre la mesa</h3>
+            <h3><i data-icon="parts"></i>On the desk</h3>
             <span class="tag neutral" id="matTag">90 × 40</span>
           </div>
           <div id="desktopChecks"></div>
-          <button class="subtle-link" id="adjustDesktop">Colocar objetos <span>→</span></button>
+          <button class="subtle-link" id="adjustDesktop">Place items <span>→</span></button>
         </section>
         <div class="build-note">
           <i data-icon="info"></i>
-          <p>Comprobaciones y despiece orientativos. Verifica anclajes y medidas reales.</p>
+          <p>Checks and part list are approximate. Verify mounts and real measurements.</p>
         </div>
       </aside>
     </main>
@@ -316,41 +296,38 @@
       aria-describedby="resetDescription"
     >
       <div class="dialog-header">
-        <h2 id="resetTitle">¿Crear un proyecto nuevo?</h2>
-        <button class="icon-button" data-close="resetDialog" aria-label="Cerrar confirmación">
+        <h2 id="resetTitle">Start a new project?</h2>
+        <button class="icon-button" data-close="resetDialog" aria-label="Close confirmation">
           <i data-icon="close"></i>
         </button>
       </div>
       <p id="resetDescription">
-        Empezarás con un espacio vacío. Exporta un JSON si quieres conservar el diseño actual.
+        You will start with an empty space. Export a JSON file to keep the current design.
       </p>
       <div class="dialog-actions">
-        <button class="button button-light" data-close="resetDialog" autofocus>
-          Seguir editando</button
-        ><button class="button button-dark" id="confirmReset">Crear proyecto</button>
+        <button class="button button-light" data-close="resetDialog" autofocus>Keep editing</button
+        ><button class="button button-dark" id="confirmReset">Create project</button>
       </div>
     </dialog>
     <input type="file" id="importFile" accept=".json,application/json" hidden />
     <dialog id="summaryDialog" class="summary-dialog" aria-labelledby="summaryTitle">
       <div class="dialog-header">
         <div>
-          <span class="section-kicker">03 / DEL DISEÑO AL TALLER</span>
-          <h2 id="summaryTitle">Tu cockpit, pieza a pieza<span>.</span></h2>
+          <span class="section-kicker">03 / FROM DESIGN TO WORKSHOP</span>
+          <h2 id="summaryTitle">Your cockpit, piece by piece<span>.</span></h2>
         </div>
-        <button class="icon-button" data-close="summaryDialog" aria-label="Cerrar resumen">
+        <button class="icon-button" data-close="summaryDialog" aria-label="Close summary">
           <i data-icon="close"></i>
         </button>
       </div>
       <div id="summaryContent"></div>
       <div class="dialog-actions">
-        <button class="text-button" id="importBtn">
-          <i data-icon="upload"></i>Cargar configuración
-        </button>
+        <button class="text-button" id="importBtn"><i data-icon="upload"></i>Load a design</button>
         <div>
           <button class="button button-light" id="csvBtn">
-            <i data-icon="download"></i>Lista CSV</button
+            <i data-icon="download"></i>CSV list</button
           ><button class="button button-dark" id="printBtn">
-            <i data-icon="print"></i>Imprimir / PDF
+            <i data-icon="print"></i>Print / PDF
           </button>
         </div>
       </div>
@@ -358,85 +335,85 @@
     <dialog id="helpDialog" class="help-dialog">
       <div class="dialog-header">
         <div>
-          <span class="section-kicker">BIENVENIDO AL TALLER</span>
-          <h2>Del espacio al cockpit.</h2>
+          <span class="section-kicker">WELCOME TO THE WORKSHOP</span>
+          <h2>From your space to your cockpit.</h2>
         </div>
-        <button class="icon-button" data-close="helpDialog" aria-label="Cerrar ayuda">
+        <button class="icon-button" data-close="helpDialog" aria-label="Close help">
           <i data-icon="close"></i>
         </button>
       </div>
       <ol class="help-steps">
         <li>
-          <b>Define tu habitación</b>
+          <b>Set up your room</b>
           <p>
-            Un proyecto nuevo empieza vacío. Introduce ancho y fondo interiores, en cm. La altura de
-            techo es una referencia editable. Si ya tienes un proyecto guardado, entrarás
-            directamente al editor o recuperarás tu paso de creación.
+            A new project starts empty. Enter the inside width and depth, in cm. The ceiling height
+            is an editable reference. If you already have a saved project, you go straight to the
+            editor or back to your setup step.
           </p>
         </li>
         <li>
-          <b>Coloca huecos y muebles</b>
+          <b>Place openings and furniture</b>
           <p>
-            Añade puertas y ventanas, selecciona su pared y ajusta medidas y apertura. Después
-            coloca cama, armarios y otros muebles. Puedes arrastrarlos en planta o escribir sus
-            posiciones. Las paredes AB, BC, CD y DA se recorren en sentido horario. El área naranja
-            representa el barrido de una puerta; la franja azul reserva acceso a una ventana.
+            Add doors and windows, choose their wall and set their size and swing. Then place the
+            bed, wardrobes and other furniture. You can drag them in the plan or type their
+            positions. Walls AB, BC, CD and DA run clockwise. The orange area is a door's swing; the
+            blue band keeps access to a window clear.
           </p>
         </li>
         <li>
-          <b>Añade tu mesa</b>
+          <b>Add your desk</b>
           <p>
-            Introduce sus medidas y colócala. Activa solo los accesorios que utilizas: monitor y
-            brazo, teclado, PC, ratón y alfombrilla. También puedes continuar sin mesa. Los objetos
-            del tablero conservan sus medidas al redimensionarlo.
+            Enter its size and place it. Turn on only the accessories you use: monitor and arm,
+            keyboard, PC, mouse and desk mat. You can also go on without a desk. Items on the
+            desktop keep their size when you resize it.
           </p>
         </li>
         <li>
-          <b>Diseña el cockpit</b>
+          <b>Design the cockpit</b>
           <p>
-            Elige GT, vuelo, híbrido o espacio mínimo. Ajusta chasis y postura y distribuye el
-            cockpit en el espacio restante. En Base de aluminio, la elevación sube juntos asiento,
-            volante, pedales y mandos sin cambiar tu postura. La mesa y el monitor mantienen su
-            altura. Las alturas parten del suelo e incluyen esa elevación; las posiciones del
-            asiento, pedales y mandos parten del extremo trasero del chasis. Distribuir activa el
-            arrastre en planta. En Mesa, con monitor y brazo activados, puedes ajustar o arrastrar
-            las articulaciones CODO y VESA.
+            Choose GT, flight, hybrid or smallest footprint. Adjust the chassis and posture and
+            arrange the cockpit in the remaining space. In Aluminium base, the lift raises the seat,
+            wheel, pedals and controls together without changing your posture. The desk and the
+            monitor keep their height. Heights are measured from the floor and include that lift;
+            seat, pedal and control positions are measured from the rear end of the chassis. Arrange
+            turns on dragging in the plan. In Desk, with the monitor and arm on, you can set or drag
+            the ELBOW and VESA joints.
           </p>
         </li>
         <li>
-          <b>Continúa cuando quieras</b>
+          <b>Carry on whenever you like</b>
           <p>
-            Puedes volver a los pasos visitados sin perder elementos o dejar huecos y muebles para
-            después. Se guardan el progreso y los formularios a medio rellenar. Al terminar queda el
-            editor libre con las secciones Habitación, Muebles, Mesa y Cockpit. Exporta un JSON para
-            conservar una copia o llevar el proyecto a otro dispositivo; el CSV y el resumen
-            incluyen solo los elementos añadidos.
+            You can go back to the steps you visited without losing anything, or leave openings and
+            furniture for later. Progress and half-filled forms are saved. When you finish, the
+            editor opens with the Room, Furniture, Desk and Cockpit sections. Export a JSON file to
+            keep a copy or move the project to another device; the CSV and the summary only include
+            the items you added.
           </p>
         </li>
       </ol>
       <div class="method-note">
-        <b>Qué se comprueba</b>
+        <b>What is checked</b>
         <p>
-          Modelo corporal de dos segmentos para piernas y brazos, con proporciones medias a partir
-          de tu estatura. Los rangos son guías de diseño ajustables en la práctica, no una
-          evaluación clínica. Se comprueban interferencias aproximadas mediante volúmenes
-          envolventes orientados, alcance horizontal y altura del monitor. El brazo conserva la
-          longitud de dos tramos y permite girar base, codo y VESA en planta. No se simulan
-          esfuerzos, deformación, cableado, topes propios de un fabricante, barrido completo del
-          brazo ni resistencia de los anclajes. La habitación comprueba envolventes de muebles y el
-          barrido de las puertas; las ventanas usan una franja de acceso configurable. No verifica
-          rutas de evacuación, pasos continuos, hojas de ventana, cajones o puertas de armario.
+          A two-segment body model for legs and arms, with average proportions from your height. The
+          ranges are design guides you can adjust in practice, not a clinical assessment.
+          Interference is checked approximately with oriented bounding volumes, along with the
+          horizontal reach and the monitor height. The arm keeps the length of its two segments and
+          lets the base, elbow and VESA mount turn in the plan. Loads, deflection, cabling,
+          manufacturer-specific stops, the arm's full sweep and the strength of the mounts are not
+          simulated. In the room, furniture envelopes and door swings are checked; windows use a
+          configurable access band. Escape routes, continuous walkways, window sashes, drawers and
+          wardrobe doors are not checked.
         </p>
         <p>
-          El tablero admite medidas de 120–200 cm de ancho y 60–80 cm de fondo, con 2,5 cm de
-          espesor y la estructura E7 Pro con un recorrido de 63,5–128,5 cm sin tablero.
+          The desktop can be 120–200 cm wide and 60–80 cm deep, 2.5 cm thick, on the E7 Pro frame
+          with a 63.5–128.5 cm travel without the desktop.
           <a
             href="https://www.flexispot.es/blog/descubre-la-serie-e7-la-revolucion-de-los-escritorios-elevables"
             target="_blank"
             rel="noopener"
-            >Referencia oficial Flexispot ↗</a
-          >. Comprueba la versión exacta de tu mesa. Monitor de 34″ 21:9 aproximado; brazo genérico,
-          sin modelo comercial seleccionado.
+            >Official Flexispot reference (Spanish) ↗</a
+          >. Check the exact version of your desk. The 34″ 21:9 monitor is approximate; the arm is
+          generic, with no commercial model selected.
         </p>
       </div>
     </dialog>

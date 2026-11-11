@@ -246,7 +246,7 @@ export class CockpitScene {
     const element = renderer.domElement;
     element.setAttribute(
       'aria-label',
-      'Vista del proyecto y los elementos añadidos. Usa los botones para cambiar entre 3D y planta; arrastra para girar o distribuir.',
+      'View of the project and the items added. Use the buttons to switch between 3D and the plan; drag to orbit or arrange.',
     );
     element.tabIndex = 0;
     container.prepend(element);

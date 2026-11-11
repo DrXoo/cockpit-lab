@@ -173,9 +173,9 @@ if (loaded.status === 'loaded') {
   project = loaded.project;
   state = project.config;
   setup = project.setup;
-  setSaveStatus('Diseño recuperado de este navegador');
+  setSaveStatus('Design restored from this browser');
 } else if (loaded.status === 'invalid')
-  setSaveStatus('No se pudo recuperar el guardado. Puedes abrir una copia JSON.', 'error');
+  setSaveStatus('The saved design could not be restored. You can open a JSON copy.', 'error');
 if (setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(setup.step);
 if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
@@ -193,11 +193,11 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
   $('.save-info').dataset.state = status;
 }
 function persist() {
-  if (store.save({ config: state, setup })) setSaveStatus('Guardado en este navegador');
-  else setSaveStatus('Sin autoguardado · exporta un JSON', 'error');
+  if (store.save({ config: state, setup })) setSaveStatus('Saved in this browser');
+  else setSaveStatus('Not saved automatically · export a JSON file', 'error');
 }
 function queueSave() {
-  setSaveStatus('Guardando…');
+  setSaveStatus('Saving…');
   clearTimeout(pendingSave);
   pendingSave = setTimeout(persist, 250);
 }
@@ -320,7 +320,7 @@ function bindRoomEditor() {
           crypto.randomUUID?.() ||
           'room-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
       if (!canAddRoomItem(state, type)) {
-        toast('Límite de elementos alcanzado');
+        toast('Item limit reached');
         return;
       }
       const added = addRoomItem(state, type, id);
@@ -334,10 +334,10 @@ function bindRoomEditor() {
       selectRoomTarget(layoutTarget);
       toast(
         type === 'wardrobeAccess'
-          ? 'Acceso añadido. Ajusta las puertas y el espacio libre delante.'
+          ? 'Access added. Adjust the doors and the clear space in front.'
           : stepOfRoomItem(type) === 'openings'
-            ? 'Hueco añadido. Ajusta su pared y medidas.'
-            : 'Mueble añadido. Arrástralo en planta.',
+            ? 'Opening added. Adjust its wall and size.'
+            : 'Furniture added. Drag it in the plan.',
       );
     }),
   );
@@ -347,7 +347,7 @@ function bindRoomEditor() {
     roomChanged(true);
     scene?.setLayoutEditing(layoutEditing, layoutTarget, true);
     setActiveView('top');
-    toast('Silla colocada frente al escritorio');
+    toast('Chair placed in front of the desk');
   });
   $optional('#roomDelete')?.addEventListener('click', () => {
     if (!roomItem(state, layoutTarget)) return;
@@ -364,7 +364,7 @@ function bindRoomEditor() {
     state = centerInRoom(state, evaluation);
     roomChanged(true);
     setActiveView('top');
-    toast('Mesa y cockpit centrados conservando su distribución');
+    toast('Desk and cockpit centered, keeping their layout');
   });
 }
 function enterStep(id: StepId) {
@@ -487,8 +487,8 @@ function renderWorkflow() {
   $('#setupActions').hidden = !guided;
   $('.config-tabs').hidden = guided;
   $('.preset-area').hidden = !state.cockpitEnabled || (section !== 'rig' && section !== 'body');
-  $('.panel-heading h2').textContent = guided ? stepLabel : 'Configuración';
-  $('#controls').setAttribute('aria-label', guided ? (step?.title ?? '') : 'Ajustes');
+  $('.panel-heading h2').textContent = guided ? stepLabel : 'Settings';
+  $('#controls').setAttribute('aria-label', guided ? (step?.title ?? '') : 'Settings');
   $('#setupGuide').hidden = !guided;
   $('#setupGuideTitle').textContent = step?.title || '';
   $('#setupGuideHint').textContent = step?.hint || '';
@@ -511,7 +511,7 @@ function renderWorkflow() {
   inspectorSectionOf('#deskSizeTag').hidden =
     !state.deskEnabled || (guided && !['desk', 'cockpit'].includes(setup.step));
   inspectorSectionOf('#deskSizeTag').querySelector('h3')!.lastChild!.textContent =
-    state.monitorEnabled ? 'Mesa y monitor' : 'Mesa';
+    state.monitorEnabled ? 'Desk and monitor' : 'Desk';
   inspectorSectionOf('#matTag').hidden =
     !state.deskEnabled ||
     !evaluation.desktopItems.length ||
@@ -521,10 +521,10 @@ function renderWorkflow() {
   const metrics = $$('.metrics>div');
   metrics[0].hidden = !state.cockpitEnabled && !state.roomEnabled;
   metrics[0].querySelector('span')!.textContent = state.cockpitEnabled
-    ? 'HUELLA DEL COCKPIT'
-    : 'HABITACIÓN';
+    ? 'COCKPIT FOOTPRINT'
+    : 'ROOM';
   metrics[1].hidden = !state.cockpitEnabled && !state.deskEnabled;
-  metrics[1].querySelector(':scope > small')!.textContent = 'Elementos añadidos, sin paso libre';
+  metrics[1].querySelector(':scope > small')!.textContent = 'Added items, without walkway';
   metrics[2].hidden = !state.cockpitEnabled;
   $('.scene-legend').hidden = !state.deskEnabled && !state.cockpitEnabled;
   $('.metrics').hidden = !state.roomEnabled && !state.deskEnabled && !state.cockpitEnabled;
@@ -539,7 +539,7 @@ function renderWorkflow() {
     ? stepLabel
     : state.cockpitEnabled
       ? presets[state.preset].label
-      : 'Tu habitación';
+      : 'Your room';
 }
 function renderControls() {
   const guided = setup.step !== 'complete',
@@ -603,7 +603,7 @@ function renderControls() {
     if (wrap) {
       wrap.querySelector('.number-wrap span')!.textContent = '″';
       wrap.querySelector('.control-range-label span:last-child')!.textContent = '49 ″';
-      node.setAttribute('aria-label', 'Diagonal de pantalla en pulgadas');
+      node.setAttribute('aria-label', 'Screen diagonal in inches');
     }
   }
   controlsAll<HTMLInputElement>('input[type=range][data-key]').forEach((el) =>
@@ -682,8 +682,8 @@ function renderControls() {
       focusArmControls();
       toast(
         pose === 'cockpit'
-          ? 'Monitor orientado hacia el cockpit. Revisa el alcance del brazo.'
-          : 'Monitor colocado sobre el escritorio.',
+          ? 'Monitor turned towards the cockpit. Check the arm reach.'
+          : 'Monitor placed on the desk.',
       );
     }),
   );
@@ -714,7 +714,7 @@ function renderControls() {
     renderControls();
     refresh();
     setActiveView('desk');
-    toast(`Tablero de ${width} × ${depth} cm aplicado`);
+    toast(`${width} × ${depth} cm desktop applied`);
   });
   const matPresetSelect = $optional<HTMLSelectElement>('#matPreset');
   matPresetSelect?.addEventListener('change', () => {
@@ -735,7 +735,7 @@ function renderControls() {
     renderControls();
     refresh();
     setActiveView('top');
-    toast('Distribución aplicada. Puedes mover y girar ambos elementos.');
+    toast('Layout applied. You can move and turn both items.');
   });
 }
 function switchSection(value: Section) {
@@ -807,10 +807,10 @@ function refresh() {
   if (bend) bend.value = state.armBend;
   const lengths = $optional('#armLengths');
   if (lengths)
-    lengths.textContent = `Primer tramo: ${round(e.armPose.first)} cm · segundo tramo: ${round(e.armPose.second)} cm. El codo a 0° deja el brazo estirado; ±180° lo pliega.`;
+    lengths.textContent = `First segment: ${round(e.armPose.first)} cm · second segment: ${round(e.armPose.second)} cm. An elbow at 0° keeps the arm straight; ±180° folds it.`;
   const coordinateHint = $optional('[data-desktop-hint]');
   if (coordinateHint)
-    coordinateHint.innerHTML = `Referencia: centro del tablero, que gira con la mesa. X recorre los ${state.deskDepth} cm de fondo; Z los ${state.deskWidth} cm de ancho. Selecciona y arrastra en las vistas <b>Mesa</b> o <b>Planta</b>. También puedes escribir la posición y el giro aquí.`;
+    coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${state.deskDepth} cm depth; Z along its ${state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
   $('#heightTag').textContent = `${state.height} cm`;
   $('#ergonomics').innerHTML = e.bodyCheck.map(checkRowHTML).join('');
   $('#spaceChecks').innerHTML = [
@@ -823,7 +823,7 @@ function refresh() {
   $('#validationBanner').className = banner.className;
   $('#validationBanner').innerHTML = banner.html;
   $('#reachValue').textContent = `${Math.round(e.reach)} / ${state.armReach} cm`;
-  $('#reachMax').textContent = `Máx. ${state.armReach} cm`;
+  $('#reachMax').textContent = `Max. ${state.armReach} cm`;
   $('#reachMeter').style.width = `${Math.min(100, (e.reach / state.armReach) * 100)}%`;
   $('#reachMeter').classList.toggle('over', e.reach > state.armReach);
   const metrics = metricsView(state, e);
@@ -845,11 +845,11 @@ function download(filename: string, text: string, type: string) {
 }
 function exportConfig() {
   download(
-    'cockpit-lab-configuracion.json',
+    'cockpit-lab-design.json',
     JSON.stringify(projectData(state, setup), null, 2),
     'application/json',
   );
-  toast('JSON exportado. Usa Abrir JSON para recuperar este diseño.');
+  toast('JSON exported. Use Open JSON to bring this design back.');
 }
 function summary() {
   const heading = summaryHeading(state);
@@ -896,7 +896,7 @@ $('#preset').addEventListener('change', () => {
   persist();
   renderControls();
   refresh();
-  toast(`Preset ${presets[key].label} aplicado`);
+  toast(`${presets[key].label} preset applied`);
 });
 $('#resetBtn').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
 $('#confirmReset').addEventListener('click', () => {
@@ -910,7 +910,7 @@ $('#confirmReset').addEventListener('click', () => {
   persist();
   $<HTMLDialogElement>('#resetDialog').close();
   enterStep('room');
-  toast('Proyecto nuevo. Empieza por tu habitación.');
+  toast('New project. Start with your room.');
 });
 function setActiveView(next: SceneView) {
   view = next;
@@ -922,13 +922,12 @@ function setActiveView(next: SceneView) {
   scene?.setView(view);
   $('.viewport-note span').textContent =
     view === 'iso'
-      ? 'Arrastra para girar · rueda para acercar'
+      ? 'Drag to orbit · scroll to zoom'
       : (view === 'top' || view === 'desk') && layoutEditing
         ? layoutTarget === 'arm'
-          ? 'Arrastra CODO o VESA · anclaje sobre el tablero'
-          : 'Arrastra un elemento · selecciona y gira en ' +
-            (isRoomSection(section) ? 'Habitación' : 'Mesa')
-        : 'Rueda para acercar · arrastra para desplazar';
+          ? 'Drag ELBOW or VESA · mount on the desktop'
+          : 'Drag an item · select and turn it in ' + (isRoomSection(section) ? 'Room' : 'Desk')
+        : 'Scroll to zoom · drag to pan';
 }
 $$('[data-view]').forEach((b) =>
   b.addEventListener('click', () => setActiveView(viewOf(dataOf(b, 'view')))),
@@ -947,14 +946,14 @@ $('#layoutBtn').addEventListener('click', () => {
 $('#dimensionBtn').addEventListener('click', () => {
   const on = $('#dimensionBtn').getAttribute('aria-pressed') !== 'true';
   $('#dimensionBtn').setAttribute('aria-pressed', String(on));
-  $('#dimensionBtn').setAttribute('aria-label', on ? 'Ocultar cotas' : 'Mostrar cotas');
+  $('#dimensionBtn').setAttribute('aria-label', on ? 'Hide dimensions' : 'Show dimensions');
   $('#dimensionBtn').classList.toggle('active', on);
   scene?.setDimensions(on);
 });
 $('#personBtn').addEventListener('click', () => {
   const on = $('#personBtn').getAttribute('aria-pressed') !== 'true';
   $('#personBtn').setAttribute('aria-pressed', String(on));
-  $('#personBtn').setAttribute('aria-label', on ? 'Ocultar piloto' : 'Mostrar piloto');
+  $('#personBtn').setAttribute('aria-label', on ? 'Hide driver' : 'Show driver');
   $('#personBtn').classList.toggle('active', on);
   scene?.setPerson(on);
 });
@@ -986,7 +985,7 @@ function startArmEditing() {
   scene?.setLayoutEditing(true, 'arm');
   setActiveView('top');
   focusArmControls();
-  toast('Arrastra CODO o VESA; también puedes usar sus controles de giro.');
+  toast('Drag ELBOW or VESA; you can also use their rotation controls.');
 }
 $('#editArmBtn').addEventListener('click', startArmEditing);
 $('#adjustRoom').addEventListener('click', () => {
@@ -1029,8 +1028,8 @@ $$<HTMLDialogElement>('dialog').forEach((d) =>
 );
 $('#saveConfig').addEventListener('click', exportConfig);
 $('#csvBtn').addEventListener('click', () => {
-  download('cockpit-lab-lista-cortes.csv', cutListCsv(evaluation), 'text/csv;charset=utf-8');
-  toast('Lista de cortes descargada');
+  download('cockpit-lab-cut-list.csv', cutListCsv(evaluation), 'text/csv;charset=utf-8');
+  toast('Cut list downloaded');
 });
 $('#printBtn').addEventListener('click', () => window.print());
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
@@ -1040,7 +1039,7 @@ importFile.addEventListener('change', async () => {
   const file = importFile.files?.[0];
   if (!file) return;
   try {
-    if (file.size > 100000) throw new Error('Archivo demasiado grande');
+    if (file.size > 100000) throw new Error('File too large');
     const data = readProject(JSON.parse(await file.text()));
     state = data.config;
     setup = data.setup;
@@ -1054,9 +1053,9 @@ importFile.addEventListener('change', async () => {
       switchSection('room');
       setActiveView('iso');
     }
-    toast('Configuración cargada');
+    toast('Design loaded');
   } catch {
-    toast('No se pudo cargar: usa un JSON exportado por Cockpit Lab.');
+    toast('Could not load the file: use a JSON file exported by Cockpit Lab.');
   }
   importFile.value = '';
 });
