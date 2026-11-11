@@ -6,7 +6,7 @@
     "strict": true,
     "noImplicitAny": true
   },
-  "include": [],
+  "include": ["e2e"],
   "files": [
     "src/geometry.ts",
     "src/cut-list-csv.ts",
@@ -23,6 +23,7 @@
     "src/parts.ts",
     "src/evaluate.ts",
     "src/model.ts",
-    "src/project.ts"
+    "src/project.ts",
+    "playwright.config.ts"
   ]
 }

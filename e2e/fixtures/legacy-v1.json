@@ -1,0 +1,15 @@
+{
+  "app": "Cockpit Lab",
+  "version": 1,
+  "units": "cm",
+  "config": {
+    "length": 150,
+    "width": 66,
+    "seatH": 34,
+    "wheel": true,
+    "hotas": true,
+    "preset": "hybrid",
+    "roomW": 300,
+    "roomD": 300
+  }
+}

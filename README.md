@@ -33,8 +33,11 @@ npm run preview  # serves dist/ at http://127.0.0.1:4173
 ```sh
 npm run check   # type check (tsc), syntax and formatting
 npm run format  # format the code with Prettier
-npm test        # automated tests (Node's built-in test runner)
+npm test        # unit tests (Node's built-in test runner)
+npm run test:e2e  # end-to-end tests in Chrome (Playwright)
 ```
+
+The end-to-end tests drive the real app in your installed Chrome: guided setup, opening and saving projects, presets, views and the summary. They also compare each view's rendering and the text of the panels with reference copies. Those references live in `e2e/__screenshots__/` and are not committed: the first run on a machine creates them, so create them before changing anything you want to check. After an intended change, review the differences and accept them with `npx playwright test --update-snapshots`.
 
 The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, doors, furniture, chair, project loading and the cut list export. UI changes also need a check in the browser.
 
@@ -69,7 +72,8 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
 | `src/scene.ts` | Three.js rendering, with an SVG fallback |
-| `tests/` | Automated tests |
+| `tests/` | Unit tests |
+| `e2e/` | End-to-end tests and the project files they use |
 | `scripts/` | Project checks |
 | `vite.config.js` | Dev server and build configuration |
 | `docs/` | Detailed documentation and the mini CAD plan |

@@ -1463,7 +1463,8 @@ try {
   console.error(error);
   $('#webglFallback').hidden = false;
 }
-// Read-only view of current calculations, useful for verifying a configuration.
+// Read-only view of the current state and calculations, for checking a configuration.
+// The end-to-end tests read the app through it (e2e/support.ts): keep its shape.
 (window as any).cockpitLab = {
   getState: () => structuredClone(state),
   getEvaluation: () => structuredClone(evaluation),

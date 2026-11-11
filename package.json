@@ -14,9 +14,11 @@
     "test": "node --test",
     "check": "node scripts/check.mjs && npm run typecheck && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc -p . && tsc -p tsconfig.strict.json"
+    "typecheck": "tsc -p . && tsc -p tsconfig.strict.json",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@types/node": "24.19.2",
     "@types/three": "0.186.0",
     "prettier": "3.9.10",

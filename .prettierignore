@@ -4,3 +4,6 @@ coverage/
 package-lock.json
 configuraciones-personales/
 *.md
+test-results/
+playwright-report/
+e2e/__screenshots__/
