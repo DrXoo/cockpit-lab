@@ -4,7 +4,7 @@
 
 La importación toma el código del configurador existente del commit `aebf0a0711f041078d41d9878c65c8fc7718e99f`. Los archivos de aplicación y sus tres suites de pruebas se copian sin cambios. El historial del repositorio público comienza con esta importación; no se publica el historial interno del alojamiento.
 
-La licencia de Three.js se conserva; ahora se instala desde npm y el build la incluye en `dist/licenses/`. Se excluyen la configuración del alojamiento original, las credenciales, las capturas de comprobación internas y los JSON personales. El README original del configurador se conserva como `docs/configurador-actual.md`, con su alcance y limitaciones.
+La licencia de Three.js se conserva; ahora se instala desde npm y el build la incluye en `dist/licenses/`. Se excluyen la configuración del alojamiento original, las credenciales, las capturas de comprobación internas y los JSON personales. El README original del configurador se conserva como `docs/configurator.md`, con su alcance y limitaciones.
 
 ## Puesta en marcha
 

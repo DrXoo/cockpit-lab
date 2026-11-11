@@ -101,7 +101,7 @@ New code is written test-first (TDD), following Clean Code and pragmatic SOLID. 
 
 ## Saved designs
 
-Projects are stored in the browser's `localStorage` under `cockpit-lab-v2`, and can be exported and imported as JSON v2 with explicit units (cm). Older v1 files, and designs saved under `cockpit-lab-v1`, still load. See [guided setup and the save format](docs/creacion-guiada.md).
+Projects are stored in the browser's `localStorage` under `cockpit-lab-v2`, and can be exported and imported as JSON v2 with explicit units (cm). Older v1 files, and designs saved under `cockpit-lab-v1`, still load. See [guided setup and the save format](docs/guided-setup.md).
 
 Browser storage is tied to the origin (host and port), so a design saved on one port doesn't appear on another. Export it to JSON to move it. Keep personal design files in `configuraciones-personales/`, which Git ignores.
 
@@ -109,9 +109,9 @@ Browser storage is tied to the origin (host and port), so a design saved on one 
 
 These documents are still in Spanish and their translation is pending:
 
-- [Current configurator](docs/configurador-actual.md): scope, conventions and limitations.
-- [Guided setup](docs/creacion-guiada.md): setup steps and the v1 → v2 adapter.
-- [Development](docs/desarrollo.md): starting point and workflow.
+- [Current configurator](docs/configurator.md): scope, conventions and limitations.
+- [Guided setup](docs/guided-setup.md): setup steps and the v1 → v2 adapter.
+- [Development](docs/development.md): starting point and workflow.
 - [Mini CAD](docs/mini-cad.md): goals, data model and stages.
 
 ## License
