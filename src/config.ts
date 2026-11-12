@@ -1,6 +1,7 @@
 // Configurator settings: ranges, defaults, presets and validation of saved data. Lengths in cm.
 import { clamp } from './geometry.ts';
 import { normalizeRoom, type FurnitureItem, type RoomFeature } from './room.ts';
+import { readArmPoses, type ArmPose } from './arm-poses.ts';
 
 /** Allowed range of a numeric setting: [min, max, step]. */
 export type FieldRange = readonly [min: number, max: number, step: number];
@@ -105,6 +106,8 @@ export interface CockpitConfig extends Record<NumericField, number> {
   clampMount: ClampMount;
   clampSide: ClampSide;
   monitorMode: MonitorMode;
+  /** Named arm positions saved by the user; each layout keeps its own. */
+  armPoses: ArmPose[];
   roomEnabled: boolean;
   roomFullWalls: boolean;
   roomFeatures: RoomFeature[];
@@ -199,6 +202,7 @@ export const defaults: CockpitConfig = {
   roomFullWalls: false,
   roomFeatures: [],
   roomFurniture: [],
+  armPoses: [],
   aisle: 60,
   preset: 'gt',
 };
@@ -409,5 +413,6 @@ export function sanitize(input: unknown): CockpitConfig {
     // The value is one of the allowed literals, so the assignment keeps the setting's type.
     if (allowed.includes(raw[key])) (s as Record<ChoiceSetting, unknown>)[key] = raw[key];
   }
+  if ('armPoses' in raw) s.armPoses = readArmPoses(raw.armPoses);
   return normalizeRoom(s, raw);
 }

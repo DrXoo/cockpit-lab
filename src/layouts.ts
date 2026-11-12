@@ -14,7 +14,7 @@ import {
 } from './room.ts';
 import { cleanUserText } from './user-text.ts';
 
-/** Settings that place things in the room or on the desk, or pose the monitor arm. */
+/** Settings that place things in the room or on the desk, or pose the monitor arm, and the saved arm poses. */
 const LAYOUT_SETTING_KEYS = [
   'deskX',
   'deskZ',
@@ -45,6 +45,7 @@ const LAYOUT_SETTING_KEYS = [
   'monitorYaw',
   'monitorAhead',
   'monitorH',
+  'armPoses',
 ] as const satisfies readonly (keyof CockpitConfig)[];
 
 export type LayoutSettings = Pick<CockpitConfig, (typeof LAYOUT_SETTING_KEYS)[number]>;
@@ -158,6 +159,7 @@ function splitSettings(config: CockpitConfig): {
     monitorYaw,
     monitorAhead,
     monitorH,
+    armPoses,
     roomFurniture,
     ...shared
   } = config;
@@ -193,6 +195,7 @@ function splitSettings(config: CockpitConfig): {
       monitorYaw,
       monitorAhead,
       monitorH,
+      armPoses,
     },
   };
 }

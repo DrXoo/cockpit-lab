@@ -14,6 +14,7 @@ import {
   showFurniture,
   layoutById,
 } from '../src/layouts.ts';
+import { saveArmPose } from '../src/arm-poses.ts';
 
 const room = sanitize({
   ...defaults,
@@ -88,6 +89,24 @@ test('desktop items and the monitor arm pose are stored per layout', () => {
   assert.equal(original.monitorMode, room.monitorMode);
   assert.equal(original.armBaseAngle, room.armBaseAngle);
   assert.equal(original.clampSide, room.clampSide);
+});
+
+test('each layout keeps its own arm poses, and a duplicate starts with a copy', () => {
+  const base = recordLayout(createLayoutLibrary(room), saveArmPose(room, 'Racing'));
+  const copy = duplicateLayout(base, 'Trial');
+  assert.deepEqual(
+    layoutConfig(copy).armPoses.map((pose) => pose.name),
+    ['Racing'],
+  );
+  const edited = recordLayout(copy, saveArmPose(layoutConfig(copy), 'Desk'));
+  assert.deepEqual(
+    layoutConfig(edited).armPoses.map((pose) => pose.name),
+    ['Racing', 'Desk'],
+  );
+  assert.deepEqual(
+    layoutConfig(edited, 'layout-1').armPoses.map((pose) => pose.name),
+    ['Racing'],
+  );
 });
 
 test('a wall shelf keeps its wall, offset and height per layout', () => {

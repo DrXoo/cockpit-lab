@@ -16,10 +16,11 @@ test('importing a v2 project restores its configuration and survives a reload', 
 }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
-  const fixture = readFixture('gt-room.json');
-  expect(await getState(page)).toEqual(fixture.config);
+  // A v2 file has no saved arm poses, so the project opens without any.
+  const expected = { ...readFixture('gt-room.json').config, armPoses: [] };
+  expect(await getState(page)).toEqual(expected);
   await page.reload();
-  expect(await getState(page)).toEqual(fixture.config);
+  expect(await getState(page)).toEqual(expected);
 });
 
 test('a v1 file opens with a desk and a cockpit, as earlier projects always had', async ({

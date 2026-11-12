@@ -23,6 +23,7 @@ import {
   hideFurniture,
 } from '../src/layouts.ts';
 import { partialSummary } from '../src/project-summary.ts';
+import { saveArmPose } from '../src/arm-poses.ts';
 
 const configOf = (project) => layoutConfig(project.library);
 
@@ -204,7 +205,8 @@ const designWithLayouts = () => {
     ],
   });
   let library = duplicateLayout(createLayoutLibrary(config), 'Prueba');
-  library = recordLayout(library, { ...layoutConfig(library), cockpitX: 30, keyboardZ: 5 });
+  const moved = { ...layoutConfig(library), cockpitX: 30, keyboardZ: 5 };
+  library = recordLayout(library, saveArmPose(moved, 'Racing'));
   return hideFurniture(library, 'bed');
 };
 
