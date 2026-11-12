@@ -357,7 +357,7 @@ function bindRoomEditor() {
     layoutTarget = 'desk';
     roomChanged(true);
     scene?.setLayoutEditing(layoutEditing, layoutTarget, true);
-    toast('Elemento eliminado');
+    toast('Item deleted');
   });
   $optional('#roomFrame')?.addEventListener('click', () => {
     setActiveView('top');

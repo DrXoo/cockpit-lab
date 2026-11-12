@@ -21,6 +21,7 @@ test('furniture can be added, moved from the walls and deleted', async ({ page }
 
   await page.locator('#roomDelete').click();
   expect((await getState(page)).roomFurniture).toEqual(before.roomFurniture);
+  await expect(page.locator('#toast')).toHaveText('Item deleted');
 });
 
 test('an opening can be moved to another wall', async ({ page }) => {
