@@ -67,6 +67,14 @@ import {
 } from './room-actions.ts';
 import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from './settings-panels.ts';
 import { createProjectStore } from './project-storage.ts';
+import {
+  nextThemePreference,
+  parseThemePreference,
+  resolveTheme,
+  THEME_PREFERENCE_LABELS,
+  THEME_STORAGE_KEY,
+  type ThemePreference,
+} from './theme-preference.ts';
 import { checkRowHTML } from './check-view.ts';
 import {
   unitFor,
@@ -123,8 +131,12 @@ const paths: Record<string, string> = {
   arrow: 'M3 9h12m-5-5 5 5-5 5',
   close: 'm4 4 10 10M14 4 4 14',
   print: 'M5 6V2h8v4M5 13H2V7h14v6h-3M5 10h8v6H5zM13 8h.01',
+  themeSystem: 'M9 16A7 7 0 1 0 9 2a7 7 0 0 0 0 14ZM9 2v14M9 5h4M9 9h7M9 13h4',
+  themeLight:
+    'M12 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM9 1.5v2m0 11v2M1.5 9h2m11 0h2M3.7 3.7l1.4 1.4m7.8 7.8 1.4 1.4M3.7 14.3l1.4-1.4m7.8-7.8 1.4-1.4',
+  themeDark: 'M15.5 11.3A6.5 6.5 0 0 1 6.7 2.5a6.5 6.5 0 1 0 8.8 8.8Z',
 };
-function icons(root = document) {
+function icons(root: ParentNode = document) {
   root
     .querySelectorAll<HTMLElement>('i[data-icon]')
     .forEach(
@@ -133,6 +145,47 @@ function icons(root = document) {
     );
 }
 icons();
+
+// The color theme is a preference of this browser, not part of the design.
+const systemPrefersDark = matchMedia('(prefers-color-scheme: dark)');
+const THEME_ICONS: Record<ThemePreference, string> = {
+  system: 'themeSystem',
+  light: 'themeLight',
+  dark: 'themeDark',
+};
+function storedThemePreference(): ThemePreference {
+  try {
+    return parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
+  } catch {
+    return 'system';
+  }
+}
+let themePreference = storedThemePreference();
+function applyTheme() {
+  const root = document.documentElement;
+  root.dataset.theme = resolveTheme(themePreference, systemPrefersDark.matches);
+  const label = THEME_PREFERENCE_LABELS[themePreference];
+  const button = $('#themeBtn');
+  button.setAttribute('aria-label', `Color theme: ${label}`);
+  $('#themeBtn span').textContent = label;
+  $('#themeBtn i').dataset.icon = THEME_ICONS[themePreference];
+  icons(button);
+  const pageColor = getComputedStyle(root).getPropertyValue('--surface-page').trim();
+  $('meta[name="theme-color"]').setAttribute('content', pageColor);
+  scene?.applyTheme();
+}
+$('#themeBtn').addEventListener('click', () => {
+  themePreference = nextThemePreference(themePreference);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, themePreference);
+  } catch {
+    // Without storage the choice lasts until the page is closed.
+  }
+  applyTheme();
+});
+systemPrefersDark.addEventListener('change', () => {
+  if (themePreference === 'system') applyTheme();
+});
 const store = createProjectStore(() => window.localStorage);
 /** The settings tabs, plus the posture panel inside the rig tab. */
 type Section = SettingsSection | 'furniture' | 'body';
@@ -1113,6 +1166,7 @@ try {
   console.error(error);
   $('#webglFallback').hidden = false;
 }
+applyTheme();
 declare global {
   interface Window {
     cockpitLab: { getState(): CockpitConfig; getEvaluation(): CockpitEvaluation };

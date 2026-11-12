@@ -6,6 +6,8 @@ The model (geometry, anthropometric posture, checks and part list), the render m
 
 Verification: `npm test`, and `npm run test:e2e` for the interface and the 3D view.
 
+Color theme: light or dark, following the system until the theme button in the header picks one. The choice is kept in the browser, not in the design or its files. The 3D view's background, grid and room floor follow the theme; the parts keep their colors. Printing always uses the light colors. The colors are tokens in `src/theme.css`, and a test keeps both themes at WCAG AA contrast.
+
 An approximate design model: it does not validate loads, stiffness, holes, the full sweep of the arm or real access. Check the physical dimensions before building. E7 Pro reference: 140 × 80 × 2.5 cm desktop and a 63.5–128.5 cm frame; the exact version is still to be confirmed. The arm does not match a commercial product.
 
 Free layout: the desk and the cockpit have independent X/Z positions and rotations; dragging in the plan, layout presets, a fixed area and migration of earlier designs. Reach and interference use the transforms of both items; intersections are checked with oriented volumes.

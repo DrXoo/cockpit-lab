@@ -1,5 +1,5 @@
-// The whole page, panels included, compared with local references (not committed). The
-// viewport tests in rendering.spec.ts only cover the 3D view.
+// The whole page, panels included, in both color themes, compared with local references (not
+// committed). The viewport tests in rendering.spec.ts only cover the 3D view.
 import { test, expect, openApp, importProject } from './support.ts';
 import type { Page } from '@playwright/test';
 
@@ -13,51 +13,60 @@ async function expectPage(page: Page, name: string) {
   await expect(page).toHaveScreenshot(name, { fullPage: true });
 }
 
-test.describe('wide screen', () => {
-  test('guided setup', async ({ page }) => {
-    await openApp(page);
-    await expectPage(page, 'guided-room.png');
-    await page.locator('#setupRoomW').fill('340');
-    await page.locator('#setupRoomD').fill('320');
-    await page.locator('#setupNext').click();
-    await page.locator('[data-add-room="door"]').click();
-    await expectPage(page, 'guided-openings.png');
-  });
+/** The theme follows the system scheme that each run emulates. */
+const THEMES = { light: '', dark: 'dark-' } as const;
 
-  test('editor sections', async ({ page }) => {
-    await openApp(page);
-    await importProject(page, 'gt-room.json');
-    for (const section of ['room', 'furniture', 'desk', 'rig']) {
-      await page.locator(`#tab-${section}`).click();
-      await expectPage(page, `editor-${section}.png`);
-    }
-  });
+for (const [colorScheme, prefix] of Object.entries(THEMES)) {
+  test.describe(`${colorScheme} theme`, () => {
+    test.use({ colorScheme: colorScheme === 'dark' ? 'dark' : 'light' });
 
-  test('layout mode and warnings', async ({ page }) => {
-    await openApp(page);
-    await importProject(page, 'flight-lifted.json');
-    await page.locator('#layoutBtn').click();
-    await expectPage(page, 'layout-mode.png');
-  });
+    test.describe('wide screen', () => {
+      test('guided setup', async ({ page }) => {
+        await openApp(page);
+        await expectPage(page, `${prefix}guided-room.png`);
+        await page.locator('#setupRoomW').fill('340');
+        await page.locator('#setupRoomD').fill('320');
+        await page.locator('#setupNext').click();
+        await page.locator('[data-add-room="door"]').click();
+        await expectPage(page, `${prefix}guided-openings.png`);
+      });
 
-  test('summary dialog', async ({ page }) => {
-    await openApp(page);
-    await importProject(page, 'gt-room.json');
-    await page.locator('#openSummary').click();
-    await expect(page.locator('#summaryDialog')).toBeVisible();
-    await expectPage(page, 'summary.png');
-  });
-});
+      test('editor sections', async ({ page }) => {
+        await openApp(page);
+        await importProject(page, 'gt-room.json');
+        for (const section of ['room', 'furniture', 'desk', 'rig']) {
+          await page.locator(`#tab-${section}`).click();
+          await expectPage(page, `${prefix}editor-${section}.png`);
+        }
+      });
 
-test.describe('phone', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+      test('layout mode and warnings', async ({ page }) => {
+        await openApp(page);
+        await importProject(page, 'flight-lifted.json');
+        await page.locator('#layoutBtn').click();
+        await expectPage(page, `${prefix}layout-mode.png`);
+      });
 
-  test('studio panels', async ({ page }) => {
-    await openApp(page);
-    await importProject(page, 'gt-room.json');
-    for (const workspace of ['view', 'config', 'checks']) {
-      await page.locator(`.studio-nav [data-workspace="${workspace}"]`).click();
-      await expectPage(page, `phone-${workspace}.png`);
-    }
+      test('summary dialog', async ({ page }) => {
+        await openApp(page);
+        await importProject(page, 'gt-room.json');
+        await page.locator('#openSummary').click();
+        await expect(page.locator('#summaryDialog')).toBeVisible();
+        await expectPage(page, `${prefix}summary.png`);
+      });
+    });
+
+    test.describe('phone', () => {
+      test.use({ viewport: { width: 390, height: 844 } });
+
+      test('studio panels', async ({ page }) => {
+        await openApp(page);
+        await importProject(page, 'gt-room.json');
+        for (const workspace of ['view', 'config', 'checks']) {
+          await page.locator(`.studio-nav [data-workspace="${workspace}"]`).click();
+          await expectPage(page, `${prefix}phone-${workspace}.png`);
+        }
+      });
+    });
   });
-});
+}

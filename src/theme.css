@@ -65,3 +65,66 @@
   --shadow-knob: #00000022;
   --shadow: #26301d30;
 }
+
+/*
+ * The dark theme, set by the theme button or by the system preference (see
+ * theme-preference.ts). Print always uses the light colors.
+ */
+@media screen {
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --surface-page: #151a17;
+    --surface: #1c221f;
+    --surface-subtle: #202723;
+    --surface-sunken: #121714;
+    --surface-strong: #2e3732;
+    --surface-inverse: #e3e9de;
+    --surface-inverse-hover: #c9d3c2;
+    --backdrop: #050807b3;
+
+    --text: #e6ebe2;
+    --text-secondary: #c7d1c0;
+    --text-muted: #a3af9b;
+    --text-faint: #75806f;
+    --text-inverse: #151a17;
+
+    --border: #313a35;
+    --border-subtle: #262e2a;
+    --border-strong: #4a564e;
+
+    --accent: #e27a4f;
+    --accent-text: #ef9b74;
+    --accent-fill: #ca6036;
+    --accent-surface: #33231b;
+    --accent-surface-strong: #45291c;
+    --accent-border: #7b4730;
+    --on-accent: #ffffff;
+    --switch-knob: #f1f4ee;
+
+    --ok: #9cc58b;
+    --ok-fill: #7d9b6f;
+    --ok-surface: #1f2c1f;
+    --warning: #ddb66c;
+    --warning-surface: #2c2618;
+    --warning-border: #4f4226;
+    --error: #f1907d;
+    --error-surface: #33201c;
+    --error-border: #5b3129;
+
+    --legend-frame: #a5ada0;
+    --legend-desk: #c0a87d;
+    --opening: #86bccb;
+    --opening-border: #3c5a62;
+
+    --scene-background: #0d110f;
+    --scene-grid: #1e2622;
+    --scene-grid-center: #28312c;
+    --scene-ground-light: #3b4339;
+    --scene-room-floor: #333c36;
+
+    --shadow-soft: #00000040;
+    --shadow-knob: #00000066;
+    --shadow: #00000099;
+  }
+}

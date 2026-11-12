@@ -1,4 +1,4 @@
-// The theme keeps text readable: WCAG AA contrast for text, 3:1 for icons and fills.
+// Both themes keep text readable: WCAG AA contrast for text, 3:1 for icons and fills.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -16,7 +16,8 @@ function tokensOf(opening) {
 }
 
 const light = tokensOf(':root {');
-const THEMES = { light };
+const dark = tokensOf(":root[data-theme='dark'] {");
+const THEMES = { light, dark };
 
 function luminance(hex) {
   const channel = (i) => {
@@ -57,6 +58,10 @@ const GRAPHICS = [
   ['--text-faint', '--surface'],
   ['--on-accent', '--accent-fill'],
 ];
+
+test('the dark theme redefines every color token', () => {
+  assert.deepEqual(Object.keys(dark).sort(), Object.keys(light).sort());
+});
 
 for (const [name, tokens] of Object.entries(THEMES)) {
   for (const [minimum, pairs] of [
