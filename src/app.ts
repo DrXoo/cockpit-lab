@@ -138,8 +138,9 @@ const store = createProjectStore(() => window.localStorage);
 type Section = SettingsSection | 'furniture' | 'body';
 const SECTIONS: readonly string[] = ['room', 'furniture', 'desk', 'rig', 'body'];
 const VIEWS: readonly string[] = ['iso', 'top', 'desk', 'side'];
-const WORKSPACES: readonly string[] = ['config', 'view'];
-type Workspace = 'config' | 'view';
+/** The panels that narrow screens show one at a time, through the studio nav. */
+const WORKSPACES = ['view', 'config', 'checks'] as const;
+type Workspace = (typeof WORKSPACES)[number];
 function sectionOf(value: string): Section {
   if (!SECTIONS.includes(value)) throw new Error(`Unknown section: ${value}`);
   return value as Section;
@@ -149,8 +150,9 @@ function viewOf(value: string): SceneView {
   return value as SceneView;
 }
 function workspaceOf(value: string): Workspace {
-  if (!WORKSPACES.includes(value)) throw new Error(`Unknown workspace: ${value}`);
-  return value as Workspace;
+  const workspace = WORKSPACES.find((known) => known === value);
+  if (!workspace) throw new Error(`Unknown workspace: ${value}`);
+  return workspace;
 }
 function stepOf(value: string): StepId {
   const step = steps.find((s) => s.id === value);
