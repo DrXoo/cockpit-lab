@@ -647,14 +647,6 @@ body {
   color: #657455;
   line-height: 1.7;
 }
-.parts-link b {
-  font-size: 13px;
-  color: #4a653a;
-}
-.parts-link small {
-  font-size: 11px;
-  color: #627653;
-}
 .target-picker label,
 .room-name label,
 .room-reference summary {
