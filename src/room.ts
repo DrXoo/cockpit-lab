@@ -13,6 +13,14 @@ import {
   type Solid,
 } from './geometry.ts';
 import type { Check, CheckLevel } from './checks.ts';
+import {
+  describeInterference,
+  findInterferences,
+  solidOverlap,
+  type ContactTolerance,
+  type Interference,
+  type NamedSolid,
+} from './interference.ts';
 import { cleanUserText } from './user-text.ts';
 
 export type WallId = 'north' | 'east' | 'south' | 'west';
@@ -44,6 +52,10 @@ const HEIGHT_OVERLAP_CM = 0.1;
 const WALL_SPAN_OVERLAP_CM = 0.1;
 /** Minimum plan penetration for furniture and clearance zones to interfere. */
 const FOOTPRINT_OVERLAP_CM = 0.15;
+const FURNITURE_CONTACT: ContactTolerance = {
+  heightCm: HEIGHT_OVERLAP_CM,
+  planCm: FOOTPRINT_OVERLAP_CM,
+};
 /** Minimum plan penetration for an obstacle to block a door sweep. */
 const DOOR_SWEEP_OVERLAP_CM = 0.1;
 
@@ -148,7 +160,10 @@ export type FurnitureItem = Chair | WallShelf | FloorFurniture;
 
 /** Anything that can block furniture, openings or clearance zones. */
 export interface Obstacle extends Solid {
+  /** The group shown when the obstacle blocks a door or a clearance: "Cockpit", "Desk". */
   label: string;
+  /** The specific part, named when it interferes with furniture: "Pedals", "Desk column". */
+  part?: string;
   id?: string;
   type?: string;
   /** Finer volumes that replace the bounding prism in collision checks. */
@@ -588,9 +603,19 @@ const sharesHeight = (a: { y0: number; y1: number }, b: { y0: number; y1: number
 
 const collides = (a: Obstacle, b: Obstacle): boolean =>
   (a.solids || [a]).some((x) =>
-    (b.solids || [b]).some(
-      (y) => sharesHeight(x, y) && overlapDepth(x.polygon, y.polygon) > FOOTPRINT_OVERLAP_CM,
-    ),
+    (b.solids || [b]).some((y) => solidOverlap(x, y, FURNITURE_CONTACT) !== null),
+  );
+
+/** The volumes of an obstacle, each named by `name`. */
+const namedSolids = (obstacle: Obstacle, name: string): NamedSolid[] =>
+  (obstacle.solids || [obstacle]).map((volume) => ({ ...volume, label: name }));
+
+/** The setup parts that reach into a piece of furniture, deepest first. */
+const furnitureInterferences = (item: FurnitureGeometry, setup: Obstacle[]): Interference[] =>
+  findInterferences(
+    setup.flatMap((obstacle) => namedSolids(obstacle, obstacle.part ?? obstacle.label)),
+    namedSolids(item, item.name),
+    FURNITURE_CONTACT,
   );
 
 const wallSpanOverlap = (
@@ -645,10 +670,16 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
         'error',
         'Sticks out of a wall or the ceiling',
       );
-    const hits = uniqueLabels(setupSolids.filter((solid) => collides(item, solid)));
-    if (hits.length) {
+    const interferences = furnitureInterferences(item, setupSolids);
+    if (interferences.length) {
       collisions.push(item.id);
-      add('room-furniture-' + item.id, item.name, 'Interference', 'error', hits.join(' · '));
+      add(
+        'room-furniture-' + item.id,
+        item.name,
+        'Interference',
+        'error',
+        interferences.map(describeInterference).join(' · '),
+      );
     }
   }
   for (let i = 0; i < furniture.length; i++)
@@ -800,7 +831,7 @@ export function evaluateRoom(room: RoomState, setupSolids: Obstacle[]): RoomEval
     add(
       'room-furniture',
       'Furniture and setup',
-      'No clash',
+      'No interference',
       'ok',
       'Envelopes with rotation and height; strength is not calculated',
     );

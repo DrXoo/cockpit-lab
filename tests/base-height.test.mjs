@@ -63,8 +63,8 @@ test('the four supports join the original floor to the chassis and set the added
 
 test('interference with the desk is checked again at the real height', () => {
   const s = { ...defaults, deskX: 60, deskZ: 160, wheel: false, shifter: false, handbrake: false };
-  assert.equal(evaluate(s).collisionCount, 0);
-  assert.ok(evaluate({ ...s, baseLift: 50 }).collisionCount > 0);
+  assert.equal(evaluate(s).deskInterferences.length, 0);
+  assert.ok(evaluate({ ...s, baseLift: 50 }).deskInterferences.length > 0);
 });
 
 test('older v1 and v2 JSON keep their height and new files store the lift', () => {

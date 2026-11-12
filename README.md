@@ -75,6 +75,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/model.ts` | Public entry point of the configurator model |
 | `src/config.ts` | Settings, ranges, defaults, presets and validation |
 | `src/evaluate.ts` | Envelopes, interferences and checks for a configuration |
+| `src/interference.ts` | How far two volumes overlap and which part reaches into which item |
 | `src/rig.ts`, `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Cockpit rig, placement, desk, monitor arm and seated posture |
 | `src/parts.ts`, `src/field-spec.ts` | Bill of materials and per-setting ranges |
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |

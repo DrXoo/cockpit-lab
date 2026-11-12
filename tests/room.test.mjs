@@ -178,3 +178,37 @@ test('Disabling the room suppresses room limits and opening/furniture checks', (
   assert.deepEqual(e.room.checks, []);
   assert.ok(!e.extra.some((c) => c.id === 'room'));
 });
+test('furniture interference names the part that reaches into it and the way out', () => {
+  const s = normalizeRoom({
+    ...base(),
+    roomFurniture: [
+      {
+        id: 'shelf',
+        name: 'Baja',
+        type: 'shelf',
+        x: 200,
+        z: 200,
+        width: 100,
+        depth: 30,
+        height: 50,
+      },
+    ],
+  });
+  const pedals = { ...obstacle(200, 200, 10, 10, 0, 40), label: 'Cockpit', part: 'Pedals' };
+  const monitor = { ...obstacle(200, 200, 10, 10, 45, 80), label: 'Monitor' };
+  const check = evaluateRoom(s, [monitor, pedals]).checks.find(
+    (c) => c.id === 'room-furniture-shelf',
+  );
+  assert.equal(check.value, 'Interference');
+  assert.equal(
+    check.detail,
+    'Pedals into Baja: 20 cm in the plan · Monitor into Baja: 5 cm vertically',
+  );
+});
+test('a blocked door names the group of the obstacle, not each part', () => {
+  const s = normalizeRoom({ ...base(), roomFeatures: [door()] });
+  const seat = { ...obstacle(90, 40, 30, 30), label: 'Cockpit', part: 'Cockpit seat' };
+  const check = evaluateRoom(s, [seat]).checks.find((c) => c.id === 'room-door-door');
+  assert.equal(check.value, 'Swing blocked');
+  assert.equal(check.detail, 'Cockpit');
+});

@@ -14,6 +14,13 @@ import {
   type Solid,
 } from './geometry.ts';
 import { evaluateRoom, type Obstacle, type RoomEvaluation } from './room.ts';
+import {
+  describeInterference,
+  findInterferences,
+  type ContactTolerance,
+  type Interference,
+  type NamedSolid,
+} from './interference.ts';
 import type { Check, CheckLevel } from './checks.ts';
 import type { CockpitConfig } from './config.ts';
 import { anatomy } from './anatomy.ts';
@@ -26,6 +33,10 @@ import { baseSupports, drivingMount, floorHeight, rigLift } from './rig.ts';
 // Tolerances. Below these values two volumes are in contact, not interfering.
 /** Minimum vertical and plan overlap for a rig volume to interfere with the desk. */
 const RIG_DESK_OVERLAP_CM = 0.1;
+const RIG_DESK_CONTACT: ContactTolerance = {
+  heightCm: RIG_DESK_OVERLAP_CM,
+  planCm: RIG_DESK_OVERLAP_CM,
+};
 /** The whole setup may stick out of the room by this much and still fit. */
 const ROOM_FIT_TOLERANCE_CM = 0.01;
 /** Minimum plan overlap between two hard items on the tabletop. */
@@ -54,6 +65,8 @@ interface Presence {
 type DrivingMount = ReturnType<typeof drivingMount>;
 type Body = ReturnType<typeof anatomy>;
 type DesktopItem = ReturnType<typeof getDesktopItems>[number];
+
+const named = (label: string, volume: Solid): NamedSolid => ({ ...volume, label });
 
 const solid = (
   x0: number,
@@ -150,6 +163,10 @@ function setupExtent(s: CockpitConfig, setupPoints: PlanPoint[]) {
   };
 }
 
+/** Sides of the cockpit along X: the driver's right is −X. */
+const DRIVER_RIGHT = -1;
+const DRIVER_LEFT = 1;
+
 /** Volumes of the chassis, seat, pedals and controls, raised by the base elevation. */
 function rigVolumes(
   s: CockpitConfig,
@@ -157,42 +174,71 @@ function rigVolumes(
   driving: DrivingMount,
   seatBackZ: number,
   rigPose: Placement,
-): Solid[] {
+): NamedSolid[] {
   if (!presence.hasRig) return baseSupportVolumes(s, rigPose);
   const volumes = [
-    solid(-s.width / 2, s.width / 2, 0, s.length, 6, 14, rigPose),
-    solid(-25, 25, seatBackZ, s.seatZ + 25, s.seatH - 8, s.seatH + 64, rigPose),
-    solid(
-      -s.width / 2 + 4,
-      s.width / 2 - 4,
-      s.pedalZ - 19,
-      s.pedalZ + 19,
-      s.pedalH - 5,
-      s.pedalH + 24,
-      rigPose,
+    named('Cockpit frame', solid(-s.width / 2, s.width / 2, 0, s.length, 6, 14, rigPose)),
+    named(
+      'Cockpit seat',
+      solid(-25, 25, seatBackZ, s.seatZ + 25, s.seatH - 8, s.seatH + 64, rigPose),
+    ),
+    named(
+      'Pedals',
+      solid(
+        -s.width / 2 + 4,
+        s.width / 2 - 4,
+        s.pedalZ - 19,
+        s.pedalZ + 19,
+        s.pedalH - 5,
+        s.pedalH + 24,
+        rigPose,
+      ),
     ),
   ];
   if (s.wheel) {
     volumes.push(
-      solid(-16, 16, s.wheelZ - 3, s.wheelZ + 32, s.wheelH - 10, s.wheelH + 16, rigPose),
+      named(
+        'Wheel',
+        solid(-16, 16, s.wheelZ - 3, s.wheelZ + 32, s.wheelH - 10, s.wheelH + 16, rigPose),
+      ),
     );
-    for (const sign of [-1, 1]) {
+    for (const sign of [DRIVER_RIGHT, DRIVER_LEFT]) {
       const x = sign * (s.width / 2 - 2);
-      volumes.push(solid(x - 4, x + 4, s.wheelZ + 15, s.wheelZ + 21, 14, s.wheelH - 8, rigPose));
+      volumes.push(
+        named(
+          'Wheel stand',
+          solid(x - 4, x + 4, s.wheelZ + 15, s.wheelZ + 21, 14, s.wheelH - 8, rigPose),
+        ),
+      );
     }
   }
   if (s.hotas)
-    for (const sign of [-1, 1]) {
+    for (const sign of [DRIVER_RIGHT, DRIVER_LEFT]) {
       const x = sign * (s.width / 2 + s.hotasOut);
       const z = s.hotasZ + (sign === driving.sign && presence.hasDriving ? 24 : 0);
-      volumes.push(solid(x - 9, x + 9, z - 12.5, z + 12.5, s.hotasH - 4, s.hotasH + 22, rigPose));
+      volumes.push(
+        named(
+          sign === DRIVER_RIGHT ? 'Joystick' : 'Throttle',
+          solid(x - 9, x + 9, z - 12.5, z + 12.5, s.hotasH - 4, s.hotasH + 22, rigPose),
+        ),
+      );
     }
   if (presence.hasDriving) {
     const { x, z } = driving;
-    volumes.push(solid(x - 10, x + 10, z - 15, z + 15, s.hotasH - 4, s.hotasH + 25, rigPose));
+    volumes.push(
+      named(
+        'Shifter and handbrake',
+        solid(x - 10, x + 10, z - 15, z + 15, s.hotasH - 4, s.hotasH + 25, rigPose),
+      ),
+    );
   }
   if (s.centerStick)
-    volumes.push(solid(-9, 9, s.stickZ - 10, s.stickZ + 10, s.stickH - 3, s.stickH + 22, rigPose));
+    volumes.push(
+      named(
+        'Center stick',
+        solid(-9, 9, s.stickZ - 10, s.stickZ + 10, s.stickH - 3, s.stickH + 22, rigPose),
+      ),
+    );
   for (const volume of volumes) {
     volume.y0 += rigLift(s);
     volume.y1 += rigLift(s);
@@ -201,9 +247,12 @@ function rigVolumes(
 }
 
 /** The base extensions already sit at their final height. */
-function baseSupportVolumes(s: CockpitConfig, rigPose: Placement): Solid[] {
+function baseSupportVolumes(s: CockpitConfig, rigPose: Placement): NamedSolid[] {
   return baseSupports(s).map((p) =>
-    solid(p.x - 2, p.x + 2, p.z - 2, p.z + 2, p.y - p.length / 2, p.y + p.length / 2, rigPose),
+    named(
+      'Base extension',
+      solid(p.x - 2, p.x + 2, p.z - 2, p.z + 2, p.y - p.length / 2, p.y + p.length / 2, rigPose),
+    ),
   );
 }
 
@@ -212,35 +261,26 @@ function deskVolumes(
   s: CockpitConfig,
   bounds: ReturnType<typeof deskBounds>,
   deskPose: Placement,
-): Solid[] {
+): NamedSolid[] {
   const volumes = [
-    solid(
-      -bounds.halfX,
-      bounds.halfX,
-      -bounds.halfZ,
-      bounds.halfZ,
-      s.deskH - 2.5,
-      s.deskH,
-      deskPose,
+    named(
+      'Desktop',
+      solid(
+        -bounds.halfX,
+        bounds.halfX,
+        -bounds.halfZ,
+        bounds.halfZ,
+        s.deskH - 2.5,
+        s.deskH,
+        deskPose,
+      ),
     ),
   ];
   for (const z of [-bounds.columnZ, bounds.columnZ]) {
-    volumes.push(solid(0, 10, z - 4.5, z + 4.5, 6, s.deskH - 4, deskPose));
-    volumes.push(solid(-33, 33, z - 4, z + 4, 1, 6, deskPose));
+    volumes.push(named('Desk column', solid(0, 10, z - 4.5, z + 4.5, 6, s.deskH - 4, deskPose)));
+    volumes.push(named('Desk foot', solid(-33, 33, z - 4, z + 4, 1, 6, deskPose)));
   }
   return volumes;
-}
-
-function countCollisions(a: Solid[], b: Solid[]): number {
-  let count = 0;
-  for (const x of a)
-    for (const y of b)
-      if (
-        Math.min(x.y1, y.y1) - Math.max(x.y0, y.y0) > RIG_DESK_OVERLAP_CM &&
-        overlapDepth(x.polygon, y.polygon) > RIG_DESK_OVERLAP_CM
-      )
-        count++;
-  return count;
 }
 
 /** Joint angles and reach, against approximate comfort guides for average proportions. */
@@ -334,20 +374,39 @@ function bodyChecks(
   return checks;
 }
 
+function deskInterferenceCheck(interferences: Interference[]): Check {
+  const count = interferences.length;
+  if (count === 0)
+    return check(
+      'collision',
+      'Interference',
+      'No interference',
+      'ok',
+      'Approximate volumes · rotation included',
+    );
+  return check(
+    'collision',
+    'Interference',
+    `${count} interference${count > 1 ? 's' : ''}`,
+    'error',
+    interferences.map(describeInterference).join(' · '),
+  );
+}
+
 /** Rig-to-desk separation, interferences and the monitor arm. */
 function spaceChecks(
   s: CockpitConfig,
   presence: Presence,
   layout: {
     sideGap: number;
-    collisionCount: number;
+    deskInterferences: Interference[];
     armPose: ReturnType<typeof monitorGeometry>['arm'];
     reach: number;
     lift: number;
     monitorH: number;
   },
 ): Check[] {
-  const { sideGap, collisionCount, armPose, reach, lift, monitorH } = layout;
+  const { sideGap, deskInterferences, armPose, reach, lift, monitorH } = layout;
   const checks: Check[] = [];
   if (presence.hasRig && presence.hasDesk) {
     checks.push(
@@ -360,15 +419,7 @@ function spaceChecks(
           ? 'Footprints overlap; check the heights'
           : 'Smallest distance between the rotated footprints',
       ),
-      check(
-        'collision',
-        'Interference',
-        collisionCount > 0
-          ? `${collisionCount} clash${collisionCount > 1 ? 'es' : ''}`
-          : 'No clash',
-        collisionCount > 0 ? 'error' : 'ok',
-        'Approximate volumes · rotation included',
-      ),
+      deskInterferenceCheck(deskInterferences),
     );
   }
   if (!presence.hasMonitor) return checks;
@@ -507,8 +558,8 @@ function setupObstacles(
   s: CockpitConfig,
   presence: Presence,
   parts: {
-    rigSolids: Solid[];
-    deskSolids: Solid[];
+    rigSolids: NamedSolid[];
+    deskSolids: NamedSolid[];
     desktopItems: DesktopItem[];
     monitorPolygon: Point3[];
     monitorH: number;
@@ -517,8 +568,8 @@ function setupObstacles(
 ): Obstacle[] {
   const { rigSolids, deskSolids, desktopItems, monitorPolygon, monitorH, monitor } = parts;
   const obstacles: Obstacle[] = [
-    ...rigSolids.map((volume) => ({ ...volume, label: 'Cockpit' })),
-    ...deskSolids.map((volume) => ({ ...volume, label: 'Desk' })),
+    ...rigSolids.map((volume) => ({ ...volume, label: 'Cockpit', part: volume.label })),
+    ...deskSolids.map((volume) => ({ ...volume, label: 'Desk', part: volume.label })),
     ...desktopItems
       .filter((item) => item.id !== 'mat')
       .map((item) => ({
@@ -682,7 +733,7 @@ export function evaluate(s: CockpitConfig) {
 
   const rigSolids = rigVolumes(s, presence, driving, rig.seatBackZ, rigPose);
   const deskSolids = hasDesk ? deskVolumes(s, bounds, deskPose) : [];
-  const collisionCount = countCollisions(rigSolids, deskSolids);
+  const deskInterferences = findInterferences(rigSolids, deskSolids, RIG_DESK_CONTACT);
 
   const desktop = desktopLayout(desktopItems);
   const room = evaluateRoom(
@@ -702,7 +753,7 @@ export function evaluate(s: CockpitConfig) {
   const bodyCheck = bodyChecks(s, body, presence, monitorPoint, rigPose);
   const spaceCheck = spaceChecks(s, presence, {
     sideGap,
-    collisionCount,
+    deskInterferences,
     armPose,
     reach,
     lift,
@@ -756,7 +807,7 @@ export function evaluate(s: CockpitConfig) {
     monitorAngle,
     armPose,
     drivingMount: driving,
-    collisionCount,
+    deskInterferences,
     roomFits: extent.roomFits,
     roomBounds: extent.roomBounds,
     clearances: extent.clearances,

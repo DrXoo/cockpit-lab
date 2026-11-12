@@ -150,6 +150,14 @@ test('Rotated rectangles use oriented intersection rather than their global boxe
   assert.equal(overlapDepth(a, b), 0);
   assert.ok(overlapDepth(a, a) > 0);
 });
+/** The same parts in the same order, with depths equal up to floating point noise. */
+function assertSameInterferences(actual, expected) {
+  const parts = (list) => list.map(({ part, item, axis }) => ({ part, item, axis }));
+  assert.deepEqual(parts(actual), parts(expected));
+  actual.forEach((interference, i) =>
+    assert.ok(Math.abs(interference.depthCm - expected[i].depthCm) < 1e-8),
+  );
+}
 test('Moving the desk changes reach, while moving both together preserves physical checks', () => {
   const before = evaluate(defaults),
     moved = evaluate({ ...defaults, deskX: defaults.deskX + 80 });
@@ -165,7 +173,7 @@ test('Moving the desk changes reach, while moving both together preserves physic
   });
   assert.ok(Math.abs(translated.reach - before.reach) < 1e-8);
   assert.ok(Math.abs(translated.spaceW - before.spaceW) < 1e-8);
-  assert.equal(translated.collisionCount, before.collisionCount);
+  assertSameInterferences(translated.deskInterferences, before.deskInterferences);
   assert.equal(translated.roomFits, before.roomFits);
 });
 test('Rotating the entire layout preserves reach and collisions while swapping its bounds', () => {
@@ -184,7 +192,7 @@ test('Rotating the entire layout preserves reach and collisions while swapping i
   assert.ok(Math.abs(before.reach - after.reach) < 1e-8);
   assert.ok(Math.abs(before.spaceW - after.spaceD) < 1e-8);
   assert.ok(Math.abs(before.spaceD - after.spaceW) < 1e-8);
-  assert.equal(after.collisionCount, before.collisionCount);
+  assertSameInterferences(after.deskInterferences, before.deskInterferences);
   assert.equal(after.roomFits, true);
 });
 test('Room placement remains fixed when moving objects out of its boundaries', () => {
