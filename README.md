@@ -77,6 +77,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/evaluate.ts` | Envelopes, interferences and checks for a configuration |
 | `src/interference.ts` | How far two volumes overlap and which part reaches into which item |
 | `src/rig.ts`, `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Cockpit rig, placement, desk, monitor arm and seated posture |
+| `src/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
 | `src/parts.ts`, `src/field-spec.ts` | Bill of materials and per-setting ranges |
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |

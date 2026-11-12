@@ -3,10 +3,44 @@ import type { CockpitConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { clampEdge, desktopTargets } from './desk.ts';
 import { groupHTML as group, type ControlTemplates } from './controls-view.ts';
+import {
+  activeArmPose,
+  armPoseMountMoved,
+  MAX_ARM_POSE_NAME_LENGTH,
+  type ArmPose,
+} from './arm-poses.ts';
+import { escapeHTML } from './html.ts';
+
+/** Multiplication sign, the delete mark of a saved pose. */
+const CROSS = '×';
 
 export function monitorShortcuts(s: CockpitConfig): string {
   if (s.deskEnabled === false || s.monitorEnabled === false) return '';
   return `<div class="arm-shortcuts"><button data-monitor-pose="cockpit" aria-pressed="${s.monitorMode === 'cockpit' && s.cockpitEnabled !== false}" ${s.cockpitEnabled === false ? 'disabled' : ''}>Bring to the cockpit</button><button data-monitor-pose="desk" aria-pressed="${s.monitorMode === 'desk'}">Bring to the desk</button></div>${s.cockpitEnabled === false ? '<p class="layout-hint">Add a cockpit to bring the monitor to it.</p>' : ''}`;
+}
+
+function armPoseHTML(s: CockpitConfig, pose: ArmPose, active: ArmPose | undefined): string {
+  const name = escapeHTML(pose.name);
+  const moved = armPoseMountMoved(s, pose)
+    ? `<small data-mount-moved="${escapeHTML(pose.id)}">Saved with the arm mounted elsewhere</small>`
+    : '';
+  return `<li class="arm-pose"><button class="arm-pose-apply" data-arm-pose="${escapeHTML(pose.id)}" aria-pressed="${pose === active}">${name}</button><button class="arm-pose-delete" data-delete-arm-pose="${escapeHTML(pose.id)}" aria-label="Delete the pose ${name}">${CROSS}</button>${moved}</li>`;
+}
+
+/**
+ * The saved arm poses of the layout, or a hint when there are none. It changes as the arm or its
+ * mount moves, so it is redrawn on its own, apart from the field to save a pose.
+ */
+export function armPoseListHTML(s: CockpitConfig): string {
+  if (!s.armPoses.length)
+    return '<p class="layout-hint" id="armPoseHint">Place the monitor and save the pose to come back to it exactly. Each layout keeps its own poses.</p>';
+  const active = activeArmPose(s);
+  return `<ul class="arm-poses">${s.armPoses.map((pose) => armPoseHTML(s, pose, active)).join('')}</ul>`;
+}
+
+/** The saved arm poses of the layout, and the field to save the current one. */
+export function armPosesHTML(s: CockpitConfig): string {
+  return `<div class="arm-pose-area" id="armPoseArea"><p class="arm-pose-title">Saved poses</p><div id="armPoseList">${armPoseListHTML(s)}</div><div class="arm-pose-save"><input type="text" id="armPoseName" maxlength="${MAX_ARM_POSE_NAME_LENGTH}" placeholder="Pose name" aria-label="Pose name" autocomplete="off"><button id="saveArmPose">Save pose</button></div></div>`;
 }
 
 // Shared by step 4 and the complete editor; positions remain local to the desk.

@@ -35,19 +35,14 @@ test('the cockpit target is enabled once added and the buttons follow whether th
   assert.equal(monitorShortcuts({ ...s, monitorEnabled: false }), '');
 });
 
-test('going back from manual editing to a target updates the shortcuts in both interfaces', () => {
+test('going back from manual editing to a target updates the shortcuts of the Desk step', () => {
   let s = editArm({ ...defaults }, 'armBaseAngle', 45);
   assert.equal(s.monitorMode, 'manual');
   for (const mode of ['desk', 'cockpit']) {
     s = editArm(s, 'monitorMode', mode);
-    const guided = render(s, 'keyboard'),
-      complete = monitorShortcuts(s);
-    for (const html of [guided, complete]) {
-      assert.ok(button(html, mode).includes('aria-pressed="true"'));
-      assert.ok(
-        button(html, mode === 'desk' ? 'cockpit' : 'desk').includes('aria-pressed="false"'),
-      );
-    }
+    const html = render(s, 'keyboard');
+    assert.ok(button(html, mode).includes('aria-pressed="true"'));
+    assert.ok(button(html, mode === 'desk' ? 'cockpit' : 'desk').includes('aria-pressed="false"'));
     assert.equal(s.monitorMode, mode);
   }
 });

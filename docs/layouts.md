@@ -13,7 +13,7 @@ Everything that exists is shared by every layout. Each layout stores only where 
 | Which pieces of furniture exist | Which of them the layout leaves out |
 | Desk size and height, and which accessories exist and their sizes | Position and rotation of the desk, the keyboard, the mouse, the PC and the desk mat |
 | Cockpit design: chassis, seat, wheel, pedals, flight controls, base lift and posture | Position and rotation of the cockpit |
-| Monitor arm hardware: reach, segment split, height range and monitor size | Arm mount position and type, monitor mode, joint angles, bend, monitor yaw, distance and height |
+| Monitor arm hardware: reach, segment split, height range and monitor size | Arm mount position and type, monitor mode, joint angles, bend, monitor yaw, distance and height, and the saved arm poses |
 | Free aisle width and display options | — |
 
 `src/layouts.ts` holds this split. It is the only place that knows which settings belong to a layout.

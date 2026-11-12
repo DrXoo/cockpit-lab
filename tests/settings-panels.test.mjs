@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from '../src/settings-panels.ts';
 import { defaults, evaluate } from '../src/model.ts';
+import { saveArmPose, applyArmPose } from '../src/arm-poses.ts';
 
 const viewOf = (overrides = {}) => {
   const state = { ...defaults, ...overrides };
@@ -57,5 +58,39 @@ test('the desk panel marks the current tabletop size and offers layouts next to 
   assert.doesNotMatch(
     deskPanelHTML(viewOf({ cockpitEnabled: false }), 'desk'),
     /id="layoutPreset"/,
+  );
+});
+
+test('the desk panel lists the saved arm poses instead of the automatic shortcuts', () => {
+  let state = saveArmPose(saveArmPose(defaults, 'Racing'), 'Desk <2>');
+  state = applyArmPose(state, 'pose-1');
+  const html = deskPanelHTML({ state, evaluation: evaluate(state) }, 'desk');
+  assert.doesNotMatch(html, /data-monitor-pose/);
+  assert.match(
+    html,
+    /<button[^>]*data-arm-pose="pose-1"[^>]*aria-pressed="true"[^>]*>Racing<\/button>/,
+  );
+  assert.match(
+    html,
+    /<button[^>]*data-arm-pose="pose-2"[^>]*aria-pressed="false"[^>]*>Desk 2<\/button>/,
+  );
+  assert.match(html, /data-delete-arm-pose="pose-1" aria-label="Delete the pose Racing"/);
+  assert.match(html, /<input[^>]*id="armPoseName"[^>]*maxlength="40"/);
+  assert.match(html, /<button[^>]*id="saveArmPose"/);
+  assert.doesNotMatch(html, /data-mount-moved/);
+});
+
+test('without saved poses the desk panel explains how to save one', () => {
+  const html = deskPanelHTML(viewOf(), 'desk');
+  assert.doesNotMatch(html, /data-arm-pose=/);
+  assert.match(html, /id="armPoseHint"/);
+});
+
+test('a pose saved with the arm mounted elsewhere says so in text', () => {
+  const state = { ...saveArmPose(defaults, 'Racing'), clampX: defaults.clampX + 10 };
+  const html = deskPanelHTML({ state, evaluation: evaluate(state) }, 'desk');
+  assert.match(
+    html,
+    /<small data-mount-moved="pose-1">Saved with the arm mounted elsewhere<\/small>/,
   );
 });

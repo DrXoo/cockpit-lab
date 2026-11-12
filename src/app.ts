@@ -51,6 +51,13 @@ import {
   showFurniture,
   type LayoutLibrary,
 } from './layouts.ts';
+import {
+  applyArmPose,
+  armPoseMountMoved,
+  deleteArmPose,
+  MAX_ARM_POSES,
+  saveArmPose,
+} from './arm-poses.ts';
 import { layoutOptionsHTML } from './layouts-view.ts';
 import type { SettingsSection } from './setup-actions.ts';
 import { applySetting, type SettingChange } from './setting-change.ts';
@@ -82,6 +89,7 @@ import {
   centerInRoom,
 } from './room-actions.ts';
 import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from './settings-panels.ts';
+import { armPoseListHTML } from './desk-editor.ts';
 import { createProjectStore } from './project-storage.ts';
 import {
   nextThemePreference,
@@ -311,6 +319,13 @@ const range: ControlTemplates['range'] = (key, label) => rangeHTML(controlView()
 const toggle: ControlTemplates['toggle'] = (key, label) => toggleHTML(controlView(), key, label);
 const select: ControlTemplates['select'] = (key, label, options) =>
   selectHTML(controlView(), key, label, options);
+/** Applies a change to the monitor arm or its saved poses, and redraws the arm controls. */
+function changeArm(next: CockpitConfig) {
+  state = next;
+  queueSave();
+  renderControls();
+  refresh();
+}
 function roomChanged(redraw = false) {
   state = normalizeRoom(state);
   queueSave();
@@ -813,6 +828,21 @@ function renderControls() {
       );
     }),
   );
+  const armPoseName = $optional<HTMLInputElement>('#armPoseName');
+  const saveCurrentArmPose = () => {
+    try {
+      changeArm(saveArmPose(state, armPoseName?.value));
+      toast('Pose saved in this layout.');
+    } catch {
+      toast(
+        `A layout keeps up to ${MAX_ARM_POSES} poses. Delete one, or save under an existing name.`,
+      );
+    }
+  };
+  $optional('#saveArmPose')?.addEventListener('click', saveCurrentArmPose);
+  armPoseName?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') saveCurrentArmPose();
+  });
   controlsAll('#armDragBtn,#armControlsDragBtn').forEach((button) =>
     button.addEventListener('click', startArmEditing),
   );
@@ -885,6 +915,16 @@ function switchSection(value: Section) {
   $('#controls').scrollTop = 0;
   scene?.setLayoutEditing(layoutEditing, layoutTarget, isRoomSection(section));
 }
+/** What each pose list element shows, so it is only rewritten when that changes. */
+const shownArmPoseLists = new WeakMap<Element, string>();
+function refreshArmPoseList() {
+  const list = $optional('#armPoseList');
+  if (!list) return;
+  const html = armPoseListHTML(state);
+  if (shownArmPoseLists.get(list) === html) return;
+  list.innerHTML = html;
+  shownArmPoseLists.set(list, html);
+}
 function refresh() {
   evaluation = evaluate(state);
   const e = evaluation;
@@ -926,6 +966,7 @@ function refresh() {
   if (mode) mode.value = state.monitorMode;
   const bend = $optional<HTMLSelectElement>('#armBend');
   if (bend) bend.value = state.armBend;
+  refreshArmPoseList();
   const lengths = $optional('#armLengths');
   if (lengths)
     lengths.textContent = `First segment: ${round(e.armPose.first)} cm · second segment: ${round(e.armPose.second)} cm. An elbow at 0° keeps the arm straight; ±180° folds it.`;
@@ -1190,6 +1231,30 @@ $('#csvBtn').addEventListener('click', () => {
   toast('Cut list downloaded');
 });
 $('#printBtn').addEventListener('click', () => window.print());
+// The saved pose list is redrawn as the arm moves, so its buttons are handled here, once.
+$('#controls').addEventListener('click', (event) => {
+  if (!(event.target instanceof Element)) return;
+  const apply = event.target.closest<HTMLElement>('[data-arm-pose]');
+  if (apply) goToArmPose(dataOf(apply, 'armPose'));
+  const remove = event.target.closest<HTMLElement>('[data-delete-arm-pose]');
+  if (remove) removeArmPose(dataOf(remove, 'deleteArmPose'));
+});
+function goToArmPose(id: string) {
+  const pose = state.armPoses.find((candidate) => candidate.id === id);
+  if (!pose) return;
+  changeArm(applyArmPose(state, id));
+  toast(
+    armPoseMountMoved(state, pose)
+      ? `Arm in the pose ${pose.name}. It was saved with the arm mounted elsewhere, so the monitor is not where it was.`
+      : `Arm in the pose ${pose.name}.`,
+  );
+}
+function removeArmPose(id: string) {
+  const pose = state.armPoses.find((candidate) => candidate.id === id);
+  if (!pose) return;
+  changeArm(deleteArmPose(state, id));
+  toast(`Pose ${pose.name} deleted.`);
+}
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
 $('#loadConfig').addEventListener('click', () => $('#importFile').click());
 /** Generous for a full project: 20 layouts of 30 pieces of furniture export to about 100 kB. */

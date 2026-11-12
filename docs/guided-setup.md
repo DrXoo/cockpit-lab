@@ -6,7 +6,7 @@ The flow has five steps: room, doors and windows, existing furniture, desk and c
 
 A desk's dimensions are entered before it is added. The monitor and arm, keyboard, PC, mouse and desk mat are turned on one by one. The limits of the current configurator still apply: a 120–200 × 60–80 cm desktop, a height of 66–131 cm and reference legs 66 cm deep. This is not a catalog of real desks.
 
-With the monitor on, the Desk step always shows "Bring to the cockpit" and "Bring to the desk", whichever item is selected. The first button stays disabled until the cockpit is added. Both shortcuts are kept in the full editor.
+With the monitor on, the Desk step always shows "Bring to the cockpit" and "Bring to the desk", whichever item is selected. The first button stays disabled until the cockpit is added. The full editor replaces them with saved arm poses, and keeps the automatic positions in **Monitor position**.
 
 In step 4, the "Item to move" selector picks the whole desk or any of its active accessories. Selecting from the menu turns dragging on and opens the Desk view for the accessories. They can also be selected and dragged directly in the Desk and Top views; items take priority over the desk mat and the desktop. The panel shows the accessory's local coordinates and its rotation. The mount keeps the constraints of its fixing; "Move monitor and arm" lets you drag ELBOW or VESA and adjust their rotations. Accessories keep their size and stay on the desktop when they fit.
 

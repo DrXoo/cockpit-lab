@@ -2,7 +2,7 @@
 import { round } from './geometry.ts';
 import { bindControls, groupHTML as group, type ControlView } from './controls-view.ts';
 import { accessoryControls, placementControls } from './setup-editor.ts';
-import { deskElementControls, monitorShortcuts } from './desk-editor.ts';
+import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 
 export function rigPanelHTML(view: ControlView): string {
   const { range, toggle, select } = bindControls(view);
@@ -99,7 +99,7 @@ export function deskPanelHTML(view: ControlView, layoutTarget: string): string {
   if (state.monitorEnabled !== false) {
     html += group(
       'Monitor and arm',
-      monitorShortcuts(state) +
+      armPosesHTML(state) +
         select('monitorMode', 'Monitor position', [
           ['cockpit', 'Facing the cockpit'],
           ['desk', 'On the desk'],
@@ -117,7 +117,7 @@ export function deskPanelHTML(view: ControlView, layoutTarget: string): string {
         range('monitorH', 'VESA center height') +
         range('monitorAhead', 'Screen ahead of the wheel') +
         range('monitorInches', 'Screen diagonal') +
-        '<p class="layout-hint">Drag <b>ELBOW</b> to turn the first segment or <b>VESA</b> to move the end. The rotation controls switch to manual mode. The placement buttons work out the pose towards the target again.</p>',
+        '<p class="layout-hint">Drag <b>ELBOW</b> to turn the first segment or <b>VESA</b> to move the end. The rotation controls switch to manual mode. The automatic positions work out the angles towards the target; save a pose to keep the angles you choose.</p>',
     ).replace('<div class="control-group">', '<div class="control-group" id="armControls">');
     html += group(
       'Arm dimensions',
