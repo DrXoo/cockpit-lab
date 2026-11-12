@@ -1,0 +1,60 @@
+/*
+ * The color tokens of the interface. Stylesheets use these instead of color values, so a
+ * theme only has to redefine them here.
+ */
+:root {
+  /* Surfaces, from the page background to the panels and the dark buttons. */
+  --surface-page: #f6f7f3;
+  --surface: #ffffff;
+  --surface-subtle: #f8f9f4;
+  --surface-sunken: #f0f2ec;
+  --surface-strong: #e2e6da;
+  --surface-inverse: #2b342e;
+  --surface-inverse-hover: #405042;
+  --backdrop: #242d295c;
+
+  /* Text. Muted text keeps WCAG AA contrast; faint is for decoration and disabled items. */
+  --text: #272f2b;
+  --text-secondary: #44533b;
+  --text-muted: #5d6c50;
+  --text-faint: #7b8373;
+  --text-inverse: #ffffff;
+
+  /* Lines. */
+  --border: #dde2d6;
+  --border-subtle: #edf0e7;
+  --border-strong: #c6cfbb;
+
+  /* The accent, its fill matching the orange parts of the 3D scene. */
+  --accent: #b94b25;
+  --accent-text: #9c4824;
+  --accent-fill: #ca6036;
+  --accent-surface: #fbf0e8;
+  --accent-surface-strong: #f5e0d0;
+  --accent-border: #d6a485;
+  /* Content on the accent fill, such as the brand mark, and the switch knob stay white. */
+  --on-accent: #ffffff;
+  --switch-knob: #ffffff;
+
+  /* Check states. */
+  --ok: #466037;
+  --ok-fill: #7f9470;
+  --ok-surface: #edf2e7;
+  --warning: #795c24;
+  --warning-surface: #faf2e2;
+  --warning-border: #efe2cd;
+  --error: #a04332;
+  --error-surface: #faede6;
+  --error-border: #e9d5c9;
+
+  /* Legend swatches and scene labels that stand for parts of the 3D scene. */
+  --legend-frame: #a5ada0;
+  --legend-desk: #c0a87d;
+  --opening: #537f8b;
+  --opening-border: #bad0d3;
+
+  /* Shadows. */
+  --shadow-soft: #29342a13;
+  --shadow-knob: #00000022;
+  --shadow: #26301d30;
+}
