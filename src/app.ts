@@ -166,7 +166,6 @@ let project = createProject(),
   setup: SetupProgress = project.setup,
   section: Section = 'room',
   view: SceneView = 'top',
-  modified = false,
   scene: CockpitScene | undefined,
   layoutTarget = '',
   layoutEditing = false;
@@ -206,7 +205,6 @@ function queueSave() {
 function update(change: SettingChange) {
   state = applySetting(state, change);
   if (change.key.startsWith('room')) state = normalizeRoom(state);
-  modified = true;
   queueSave();
   refresh();
 }
@@ -219,7 +217,6 @@ const select: ControlTemplates['select'] = (key, label, options) =>
   selectHTML(controlView(), key, label, options);
 function roomChanged(redraw = false) {
   state = normalizeRoom(state);
-  modified = true;
   queueSave();
   if (redraw) renderControls();
   refresh();
@@ -431,7 +428,6 @@ function bindCreationControls() {
       Number($<HTMLInputElement>('#setupRoomH').value),
     );
     setup = { ...setup, drafts: { ...setup.drafts, room: undefined } };
-    modified = true;
     persist();
     continueSetup();
   });
@@ -452,7 +448,6 @@ function bindCreationControls() {
     };
     layoutTarget = 'desk';
     layoutEditing = true;
-    modified = true;
     persist();
     renderControls();
     refresh();
@@ -466,7 +461,6 @@ function bindCreationControls() {
     state = withCockpitPreset(state, presetId($<HTMLSelectElement>('#setupPreset').value));
     setup = { ...setup, deferred: setup.deferred.filter((id) => id !== 'cockpit') };
     layoutTarget = 'cockpit';
-    modified = false;
     persist();
     renderControls();
     refresh();
@@ -701,7 +695,6 @@ function renderControls() {
     const b = deskBounds(state);
     if (edge === 'xmin' || edge === 'xmax') state.clampX = edge === 'xmin' ? -b.anchorX : b.anchorX;
     else state.clampZ = edge === 'zmin' ? -b.anchorZ : b.anchorZ;
-    modified = true;
     persist();
     renderControls();
     refresh();
@@ -711,7 +704,6 @@ function renderControls() {
     if (deskSizePresetSelect.value === 'custom') return;
     const [width, depth] = deskSizePresetSelect.value.split('x').map(Number);
     state = resizeDesk(state, width, depth);
-    modified = true;
     persist();
     renderControls();
     refresh();
@@ -723,7 +715,6 @@ function renderControls() {
     if (matPresetSelect.value === 'custom') return;
     const [width, depth] = matPresetSelect.value.split('x').map(Number);
     state = updateDeskItem({ ...state, matWidth: width }, 'matDepth', depth);
-    modified = true;
     persist();
     renderControls();
     refresh();
@@ -732,7 +723,6 @@ function renderControls() {
   layoutPresetSelect?.addEventListener('change', () => {
     if (layoutPresetSelect.value === 'free') return;
     state = layoutPreset(state, layoutPresetName(layoutPresetSelect.value));
-    modified = true;
     persist();
     renderControls();
     refresh();
@@ -776,7 +766,6 @@ function refresh() {
     .join('');
   $<HTMLSelectElement>('#preset').value = state.preset;
   $('#presetDescription').textContent = presets[state.preset].description;
-  $('#sceneTitle').textContent = presets[state.preset].label + (modified ? ' · ajustado' : '');
   $('#desktopChecks').innerHTML = e.desktopChecks.map(checkRowHTML).join('');
   $('#matTag').textContent = `${state.matWidth} × ${state.matDepth}`;
   $('#deskSizeTag').textContent = `${state.deskWidth} × ${state.deskDepth}`;
@@ -894,7 +883,6 @@ $('.config-tabs').addEventListener('keydown', (event) => {
 $('#preset').addEventListener('change', () => {
   const key = presetId($<HTMLSelectElement>('#preset').value);
   state = { ...state, ...presets[key].values, preset: key, cockpitEnabled: true };
-  modified = false;
   persist();
   renderControls();
   refresh();
@@ -905,7 +893,6 @@ $('#confirmReset').addEventListener('click', () => {
   project = createProject();
   state = project.config;
   setup = project.setup;
-  modified = false;
   layoutTarget = '';
   layoutEditing = false;
   clearTimeout(pendingSave);
@@ -1045,7 +1032,6 @@ importFile.addEventListener('change', async () => {
     const data = readProject(JSON.parse(await file.text()));
     state = data.config;
     setup = data.setup;
-    modified = true;
     persist();
     renderControls();
     refresh();
@@ -1090,7 +1076,6 @@ try {
   scene.setLayoutEditing(layoutEditing, layoutTarget, isRoomSection(section));
   scene.onArmMove = (joint, x, z) => {
     state = moveArmJoint(state, joint, x, z);
-    modified = true;
     queueSave();
     refresh();
   };
@@ -1119,7 +1104,6 @@ try {
       state[numericField(target + 'X')] = round(clamp(x, -1500, 1500));
       state[numericField(target + 'Z')] = round(clamp(z, -1500, 1500));
     }
-    modified = true;
     queueSave();
     if (target === 'arm' && previousEdge !== clampEdge(state) && section === 'desk')
       renderControls();
