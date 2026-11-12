@@ -22,6 +22,13 @@ export interface Placement {
 
 export type Polygon = readonly PlanPoint[];
 
+/** A prism: a footprint extruded from y0 to y1. */
+export interface Solid {
+  polygon: Polygon;
+  y0: number;
+  y1: number;
+}
+
 export const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 

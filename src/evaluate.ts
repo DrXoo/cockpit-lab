@@ -11,8 +11,9 @@ import {
   type PlanPoint,
   type Placement,
   type Point3,
+  type Solid,
 } from './geometry.ts';
-import { evaluateRoom, type Obstacle, type RoomEvaluation, type Solid } from './room.ts';
+import { evaluateRoom, type Obstacle, type RoomEvaluation } from './room.ts';
 import type { Check, CheckLevel } from './checks.ts';
 import type { CockpitConfig } from './config.ts';
 import { anatomy } from './anatomy.ts';

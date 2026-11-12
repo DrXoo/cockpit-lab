@@ -10,6 +10,7 @@ import {
   type PlanPoint,
   type Point3,
   type Polygon,
+  type Solid,
 } from './geometry.ts';
 import type { Check, CheckLevel } from './checks.ts';
 import { cleanUserText } from './user-text.ts';
@@ -144,13 +145,6 @@ export interface FloorFurniture extends FurnitureBase {
 }
 
 export type FurnitureItem = Chair | WallShelf | FloorFurniture;
-
-/** A prism: a footprint extruded from y0 to y1. */
-export interface Solid {
-  polygon: Polygon;
-  y0: number;
-  y1: number;
-}
 
 /** Anything that can block furniture, openings or clearance zones. */
 export interface Obstacle extends Solid {
