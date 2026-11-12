@@ -53,6 +53,13 @@
   --opening: #537f8b;
   --opening-border: #bad0d3;
 
+  /* The canvas of the 3D view (see scene-theme.ts). The parts keep their own colors. */
+  --scene-background: #f0f2ec;
+  --scene-grid: #e3e7dc;
+  --scene-grid-center: #dde2d4;
+  --scene-ground-light: #b0b8a2;
+  --scene-room-floor: #e5e9dd;
+
   /* Shadows. */
   --shadow-soft: #29342a13;
   --shadow-knob: #00000022;

@@ -5,6 +5,7 @@ import { drawRoom } from '../src/render-room.ts';
 import { defaults, evaluate, sanitize } from '../src/model.ts';
 
 const DIMS = 99;
+const FLOOR = '#123456';
 const draw = (changes = {}) => {
   // Without a cockpit or a desk, only the room's own items can block each other.
   const state = sanitize({
@@ -16,12 +17,18 @@ const draw = (changes = {}) => {
   });
   const evaluation = evaluate(state);
   const r = createRenderList();
-  drawRoom(r, ROOT, DIMS, state, evaluation);
+  drawRoom(r, ROOT, DIMS, state, evaluation, FLOOR);
   return { state, evaluation, r };
 };
 const flatColor = (r, ref) =>
   r.primitives.find((p) => p.kind === 'material' && p.id === ref)?.spec.color;
 const labelText = (r) => r.labels.map((l) => l.text);
+
+test('the room floor takes the color of the theme', () => {
+  const { r } = draw();
+  const floor = r.primitives.find((p) => p.kind === 'plane');
+  assert.equal(flatColor(r, floor.material), FLOOR);
+});
 
 test('without a room nothing is drawn', () => {
   const { r } = draw({ roomEnabled: false });

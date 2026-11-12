@@ -18,6 +18,7 @@ import {
   type SceneBounds,
   type SceneView,
 } from './scene-camera.ts';
+import { readSceneTheme, type SceneTheme } from './scene-theme.ts';
 import { addPrimitives, type Palette } from './three-adapter.ts';
 
 type ArmJoint = ArmHandle['id'];
@@ -31,7 +32,13 @@ interface LabelItem extends SceneLabel {
 /** A monitor arm joint, or a layout item, being dragged. */
 type Drag = { kind: 'arm'; joint: ArmJoint } | { kind: 'layout'; grab: LayoutGrab };
 
-const BACKGROUND = '#f0f2ec';
+/** The parts of the surroundings whose colors follow the theme. */
+interface Environment {
+  hemisphere: T.HemisphereLight;
+  ground: T.Mesh<T.PlaneGeometry, T.MeshBasicMaterial | T.MeshStandardMaterial>;
+  grid: T.GridHelper;
+}
+
 const MAX_PIXEL_RATIO = 2;
 /** An arm joint can be grabbed this many px from its marker or from its label. */
 const ARM_HANDLE_GRAB_RADIUS_PX = 20;
@@ -44,7 +51,14 @@ const PRIMARY_BUTTON = 0;
 
 const isPlanView = (view: SceneView) => view === 'top' || view === 'desk';
 
-function createRenderer(): { renderer: T.WebGLRenderer | SVGRenderer; vectorFallback: boolean } {
+/** The scene colors defined by the page's stylesheet. */
+const themeOfPage = () =>
+  readSceneTheme((token) => getComputedStyle(document.documentElement).getPropertyValue(token));
+
+function createRenderer(background: string): {
+  renderer: T.WebGLRenderer | SVGRenderer;
+  vectorFallback: boolean;
+} {
   const canvas = document.createElement('canvas');
   let context: WebGL2RenderingContext | null = null;
   try {
@@ -56,7 +70,7 @@ function createRenderer(): { renderer: T.WebGLRenderer | SVGRenderer; vectorFall
     const renderer = new SVGRenderer();
     renderer.setQuality('high');
     // The SVG renderer ignores the alpha.
-    renderer.setClearColor(new T.Color(BACKGROUND), 1);
+    renderer.setClearColor(new T.Color(background), 1);
     return { renderer, vectorFallback: true };
   }
   const renderer = new T.WebGLRenderer({ canvas, context, antialias: true, alpha: false });
@@ -147,8 +161,9 @@ function screenTexture(): T.CanvasTexture {
 }
 
 /** Ground, grid and lights, which do not depend on the configuration. */
-function addEnvironment(scene: T.Scene, vectorFallback: boolean) {
-  scene.add(new T.HemisphereLight(0xffffff, 0xb0b8a2, vectorFallback ? 0 : 2.5));
+function addEnvironment(scene: T.Scene, vectorFallback: boolean, theme: SceneTheme): Environment {
+  const hemisphere = new T.HemisphereLight(0xffffff, theme.groundLight, vectorFallback ? 0 : 2.5);
+  scene.add(hemisphere);
   const sun = new T.DirectionalLight(0xffffff, vectorFallback ? 0.65 : 3.2);
   sun.position.set(-150, 300, 100);
   sun.castShadow = true;
@@ -166,22 +181,28 @@ function addEnvironment(scene: T.Scene, vectorFallback: boolean) {
   sun.shadow.radius = 4;
   scene.add(sun);
   scene.add(new T.AmbientLight(0xffffff, vectorFallback ? 0.7 : 0.3));
-  const floor = new T.Mesh(
+  const ground = new T.Mesh(
     new T.PlaneGeometry(1500, 1500),
     vectorFallback
-      ? new T.MeshBasicMaterial({ color: BACKGROUND })
-      : new T.MeshStandardMaterial({ color: BACKGROUND, roughness: 1 }),
+      ? new T.MeshBasicMaterial({ color: theme.background })
+      : new T.MeshStandardMaterial({ color: theme.background, roughness: 1 }),
   );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -0.25;
-  floor.receiveShadow = true;
-  if (!vectorFallback) scene.add(floor);
-  const grid = new T.GridHelper(800, 80, 0xdde2d4, 0xe3e7dc);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.25;
+  ground.receiveShadow = true;
+  if (!vectorFallback) scene.add(ground);
+  const grid = createGrid(theme);
+  scene.add(grid);
+  return { hemisphere, ground, grid };
+}
+
+function createGrid(theme: SceneTheme): T.GridHelper {
+  const grid = new T.GridHelper(800, 80, theme.gridCenter, theme.grid);
   grid.position.set(0, 0, 50);
   grid.material.transparent = true;
   grid.material.opacity = 0.65;
   grid.renderOrder = -1;
-  scene.add(grid);
+  return grid;
 }
 
 export class CockpitScene {
@@ -193,6 +214,8 @@ export class CockpitScene {
   declare controls: OrbitControls;
   declare vectorFallback: boolean;
   declare mat: Palette;
+  declare theme: SceneTheme;
+  declare environment: Environment;
   declare resizeObserver: ResizeObserver;
   declare view: SceneView;
   declare dimensions: boolean;
@@ -237,10 +260,11 @@ export class CockpitScene {
     this.onArmMove = undefined;
     this.onLayoutMove = undefined;
     this.onLayoutSelect = undefined;
+    this.theme = themeOfPage();
     this.scene = new T.Scene();
-    this.scene.background = new T.Color(BACKGROUND);
+    this.scene.background = new T.Color(this.theme.background);
     this.camera = new T.OrthographicCamera(-180, 180, 180, -180, 0.1, 2000);
-    const { renderer, vectorFallback } = createRenderer();
+    const { renderer, vectorFallback } = createRenderer(this.theme.background);
     this.renderer = renderer;
     this.vectorFallback = vectorFallback;
     const element = renderer.domElement;
@@ -257,7 +281,7 @@ export class CockpitScene {
     this.controls.minZoom = 0.5;
     this.controls.maxZoom = 4;
     this.controls.enablePan = true;
-    addEnvironment(this.scene, vectorFallback);
+    this.environment = addEnvironment(this.scene, vectorFallback, this.theme);
     this.mat = createPalette(vectorFallback);
     this.revision = 0;
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -337,12 +361,33 @@ export class CockpitScene {
       person: this.person,
       layoutEditing: this.layoutEditing,
       layoutTarget: this.layoutTarget,
+      roomFloor: this.theme.roomFloor,
     });
     this.dims = addPrimitives(model.primitives, root, this.mat).dimensions;
     if (this.dims) this.dims.visible = this.dimensions;
     this.addLabels(model.labels);
     this.armHandles = model.armHandles;
     this.setFrustum();
+  }
+
+  /** Takes the scene colors from the stylesheet again, after the interface theme changed. */
+  applyTheme() {
+    const theme = themeOfPage();
+    if (JSON.stringify(theme) === JSON.stringify(this.theme)) return;
+    this.theme = theme;
+    this.scene.background = new T.Color(theme.background);
+    if (this.renderer instanceof SVGRenderer)
+      this.renderer.setClearColor(new T.Color(theme.background), 1);
+    const { hemisphere, ground, grid } = this.environment;
+    hemisphere.groundColor.set(theme.groundLight);
+    ground.material.color.set(theme.background);
+    this.scene.remove(grid);
+    grid.dispose();
+    const next = createGrid(theme);
+    this.scene.add(next);
+    this.environment = { hemisphere, ground, grid: next };
+    this.revision++;
+    this.redraw();
   }
 
   /** Rebuilds the drawing for the current options, once there is something to draw. */

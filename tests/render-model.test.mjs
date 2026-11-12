@@ -5,7 +5,13 @@ import { ROOT } from '../src/render-list.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import { degToRad } from '../src/geometry.ts';
 
-const options = { view: 'iso', person: false, layoutEditing: false, layoutTarget: 'cockpit' };
+const options = {
+  view: 'iso',
+  person: false,
+  layoutEditing: false,
+  layoutTarget: 'cockpit',
+  roomFloor: '#e5e9dd',
+};
 const render = (changes = {}, extra = {}) => {
   const state = { ...defaults, ...changes };
   return { state, model: renderModel(state, evaluate(state), { ...options, ...extra }) };

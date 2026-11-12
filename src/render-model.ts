@@ -17,6 +17,8 @@ import { drawRoom } from './render-room.ts';
 export interface RenderOptions extends LayoutSelection {
   /** Draws the seated person in the cockpit. */
   person: boolean;
+  /** The room floor follows the interface theme. */
+  roomFloor: string;
 }
 
 export interface RenderModel {
@@ -57,7 +59,7 @@ export function renderModel(
   drawDeskDimensions(r, dimensions, s, e);
   drawSetupLabels(r, s, e);
   const room = r.group(ROOT, {}, { visible: s.roomEnabled !== false });
-  drawRoom(r, room, dimensions, s, e);
+  drawRoom(r, room, dimensions, s, e, options.roomFloor);
   drawLayoutSelection(r, ROOT, s, e, options);
   return { primitives: r.primitives, labels: r.labels, armHandles };
 }

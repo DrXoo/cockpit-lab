@@ -59,6 +59,7 @@ export function drawRoom(
   dimensions: ParentRef,
   s: CockpitConfig,
   e: CockpitEvaluation,
+  floorColor: string,
 ): void {
   if (s.roomEnabled === false) return;
   const materials: RoomMaterials = {
@@ -72,7 +73,7 @@ export function drawRoom(
     s.roomW,
     s.roomD,
     [s.roomX + s.roomW / 2, 0.08, s.roomZ + s.roomD / 2],
-    flat(r, '#e5e9dd', 0.8),
+    flat(r, floorColor, 0.8),
     parent,
   );
   const wallHeight = s.roomFullWalls ? s.roomH : LOW_WALL_HEIGHT_CM;
