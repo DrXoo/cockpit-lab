@@ -11,9 +11,14 @@ export default defineConfig({
   updateSnapshots: 'missing',
   snapshotPathTemplate: 'e2e/__screenshots__/{testFilePath}/{arg}{ext}',
   expect: {
-    // The default threshold (0.2) lets small color changes pass unnoticed. 0.02 still absorbs
-    // the ±1 level noise of software WebGL on antialiased edges.
-    toHaveScreenshot: { maxDiffPixels: 0, threshold: 0.02, animations: 'disabled' },
+    toHaveScreenshot: {
+      // The default threshold (0.2) lets small color changes pass unnoticed. 0.02 still absorbs
+      // the ±1 level noise of software WebGL on antialiased edges.
+      maxDiffPixels: 0,
+      threshold: 0.02,
+      animations: 'disabled',
+      stylePath: './e2e/screenshot.css',
+    },
   },
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

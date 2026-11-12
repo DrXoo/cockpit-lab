@@ -1,0 +1,5 @@
+/* Applied only while Playwright takes a screenshot. The toast hides after a timer, so whether it
+   shows depends on timing; the screenshots compare the page, not the notices shown over it. */
+#toast {
+  visibility: hidden !important;
+}

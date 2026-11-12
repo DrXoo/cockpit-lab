@@ -4,13 +4,26 @@ import { test, expect, openApp, importProject } from './support.ts';
 import type { Page } from '@playwright/test';
 
 /**
- * Waits for the toast to go, since it shows for a fixed time, and keeps the pointer from
- * leaving a hover state on the last button clicked.
+ * With software WebGL and every worker busy, a full-page screenshot can take longer than the
+ * default 5 s. How long it takes is not what these tests check.
+ */
+const FULL_PAGE_SCREENSHOT_TIMEOUT_MS = 15_000;
+
+/**
+ * Waits for the pending autosave, whose status shows in the page, and keeps the pointer from
+ * leaving a hover state on the last button clicked. The toast is left out of every screenshot by
+ * e2e/screenshot.css, so there is no need to wait for it to go.
  */
 async function expectPage(page: Page, name: string) {
-  await expect(page.locator('#toast')).not.toHaveClass(/visible/, { timeout: 5000 });
+  await expect(page.locator('#saveStatus')).not.toHaveText('Saving…');
   await page.mouse.move(0, 0);
-  await expect(page).toHaveScreenshot(name, { fullPage: true });
+  await expect(page).toHaveScreenshot(name, {
+    fullPage: true,
+    timeout: FULL_PAGE_SCREENSHOT_TIMEOUT_MS,
+    // Under load, Chrome rasterizes the diagonal strokes of the brand mark one of two ways. The
+    // mask covers only the strokes: the mark's colored box still shows around them.
+    mask: [page.locator('.brand-mark svg')],
+  });
 }
 
 /** The theme follows the system scheme that each run emulates. */
