@@ -105,7 +105,7 @@ New code is written test-first (TDD), following Clean Code and pragmatic SOLID. 
 
 ## Saved designs
 
-Projects are stored in the browser's `localStorage` under `cockpit-lab-v3`, and can be exported and imported as JSON v3 with explicit units (cm). Older v1 and v2 files, and designs saved under `cockpit-lab-v1` or `cockpit-lab-v2`, still load. See [guided setup and the save format](docs/guided-setup.md).
+Projects are stored in the browser's `localStorage` under `cockpit-lab-v3`, and can be exported and imported as JSON v3 with explicit units (cm). Older v1 and v2 files, and designs saved under `cockpit-lab-v1` or `cockpit-lab-v2`, still load. A saved design that can't be read is kept under a key of its own instead of being overwritten, and the app offers it for download. See [guided setup and the save format](docs/guided-setup.md).
 
 Browser storage is tied to the origin (host and port), so a design saved on one port doesn't appear on another. Export it to JSON to move it. Keep personal design files in `configuraciones-personales/`, which Git ignores.
 

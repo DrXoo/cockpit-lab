@@ -8,9 +8,15 @@ export const STORAGE_KEY = 'cockpit-lab-v3';
  * left as they were.
  */
 export const LEGACY_STORAGE_KEYS = ['cockpit-lab-v2', 'cockpit-lab-v1'] as const;
+/** Prefix of the copies of saved projects that could not be read. */
+export const UNREADABLE_KEY_PREFIX = 'cockpit-lab-unreadable-';
 
 export type LoadResult =
-  { status: 'empty' } | { status: 'loaded'; project: Project } | { status: 'invalid' };
+  | { status: 'empty' }
+  | { status: 'loaded'; project: Project }
+  /** The saved text is kept, untouched, under `keptAs`. */
+  | { status: 'unreadable'; keptAs: string; text: string }
+  | { status: 'unavailable' };
 
 export interface ProjectStore {
   load(): LoadResult;
@@ -20,30 +26,67 @@ export interface ProjectStore {
 
 type KeyValueStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
-function newestSavedProject(storage: KeyValueStorage): string | null {
+interface StoreOptions {
+  now?: () => Date;
+}
+
+function newestSavedProject(storage: KeyValueStorage): { key: string; text: string } | null {
   for (const key of [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]) {
-    const saved = storage.getItem(key);
-    if (saved) return saved;
+    const text = storage.getItem(key);
+    if (text) return { key, text };
   }
   return null;
 }
 
+const unreadableKey = (date: Date): string =>
+  UNREADABLE_KEY_PREFIX + date.toISOString().replace(/[:.]/g, '-');
+
 /**
  * `getStorage` is a function because merely reading `window.localStorage` throws when the
  * browser blocks site data.
+ *
+ * A saved project that can't be read is never overwritten: saving would replace it with the new
+ * project, so it is copied to a key of its own first. If even that copy fails, saving stays off.
  */
-export function createProjectStore(getStorage: () => KeyValueStorage): ProjectStore {
+export function createProjectStore(
+  getStorage: () => KeyValueStorage,
+  { now = () => new Date() }: StoreOptions = {},
+): ProjectStore {
+  let savingPaused = false;
+
+  /** Where the unreadable text stays: its own key unless saving would overwrite it. */
+  function keepUnreadable(storage: KeyValueStorage, key: string, text: string): string {
+    if (key !== STORAGE_KEY) return key;
+    const copyKey = unreadableKey(now());
+    try {
+      storage.setItem(copyKey, text);
+      return copyKey;
+    } catch {
+      savingPaused = true;
+      return key;
+    }
+  }
+
   return {
     load() {
+      let storage: KeyValueStorage;
+      let saved: { key: string; text: string } | null;
       try {
-        const saved = newestSavedProject(getStorage());
-        if (!saved) return { status: 'empty' };
-        return { status: 'loaded', project: readProject(JSON.parse(saved), { stored: true }) };
+        storage = getStorage();
+        saved = newestSavedProject(storage);
       } catch {
-        return { status: 'invalid' };
+        return { status: 'unavailable' };
+      }
+      if (!saved) return { status: 'empty' };
+      try {
+        return { status: 'loaded', project: readProject(JSON.parse(saved.text), { stored: true }) };
+      } catch {
+        const keptAs = keepUnreadable(storage, saved.key, saved.text);
+        return { status: 'unreadable', keptAs, text: saved.text };
       }
     },
     save({ library, setup }) {
+      if (savingPaused) return false;
       try {
         getStorage().setItem(STORAGE_KEY, JSON.stringify(projectData(library, setup)));
         return true;

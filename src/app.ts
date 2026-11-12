@@ -90,7 +90,7 @@ import {
 } from './room-actions.ts';
 import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from './settings-panels.ts';
 import { armPoseListHTML } from './desk-editor.ts';
-import { createProjectStore } from './project-storage.ts';
+import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
 import {
   nextThemePreference,
   parseThemePreference,
@@ -257,8 +257,8 @@ const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
   setSaveStatus('Design restored from this browser');
-} else if (loaded.status === 'invalid')
-  setSaveStatus('The saved design could not be restored. You can open a JSON copy.', 'error');
+} else if (loaded.status === 'unavailable')
+  setSaveStatus('This browser blocks saving · export a JSON file', 'error');
 if (setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(setup.step);
 if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
@@ -1005,6 +1005,17 @@ function download(filename: string, text: string, type: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+/** Explains that the saved design could not be read and where it is kept. */
+function reportUnreadableSave(keptAs: string, text: string) {
+  $('#unreadableKept').textContent =
+    keptAs === STORAGE_KEY
+      ? `it stays in this browser, and automatic saving is off so that nothing replaces it. Export a JSON file to keep new changes.`
+      : `it stays in this browser as "${keptAs}", and new changes are saved separately.`;
+  $('#downloadUnreadable').onclick = () =>
+    download('cockpit-lab-unreadable-design.json', text, 'application/json');
+  $<HTMLDialogElement>('#unreadableDialog').showModal();
+  setSaveStatus('The saved design could not be opened · it was kept', 'error');
+}
 function exportConfig() {
   download(
     'cockpit-lab-design.json',
@@ -1303,6 +1314,7 @@ $('#newProject').addEventListener('click', () => $<HTMLDialogElement>('#resetDia
 if (setup.step !== 'complete') showWorkspace('config');
 renderControls();
 refresh();
+if (loaded.status === 'unreadable') reportUnreadableSave(loaded.keptAs, loaded.text);
 try {
   scene = new CockpitScene($('#viewport'), $('#sceneLabels'));
   scene.update(state, evaluation);

@@ -38,6 +38,8 @@ New projects are saved as JSON **version 3, units `cm`**. Version 2 added item p
 
 `src/project.ts` adapts v1 files explicitly: it keeps their dimensions and positions, and treats the desk, the cockpit and the accessories that version always created as present. It opens them directly in the full editor. v2 files and designs open as a single layout called "Base". The storage uses `cockpit-lab-v3`; if it does not exist, `cockpit-lab-v2` or else `cockpit-lab-v1` is restored without deleting it. A v2 or v3 file resumes its current step. Unknown units or versions are rejected.
 
+A design saved in the browser that can't be read is never overwritten. If it is under `cockpit-lab-v3`, which the next save would replace, it is first copied to `cockpit-lab-unreadable-<date and time>`; if the copy fails, for example because the storage is full, automatic saving stays off for the session. Designs under the older keys are never written, so they stay where they are. A dialog says where the design is kept and offers it for download. This is what `src/project-storage.ts` does on load, and `tests/project-storage.test.mjs` covers each case.
+
 ## Verification
 
 `tests/project.test.mjs` checks empty projects, the absence of phantom interference and part lists, a desk without accessories, a cockpit without a desk, restoring progress, the v1 adapter and the rejection of inconsistent data. The earlier tests keep covering the full configurator. The end-to-end tests in `e2e/` cover the full flow, dragging the cockpit and desktop items, saving and resuming.

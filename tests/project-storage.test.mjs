@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectStore, STORAGE_KEY, LEGACY_STORAGE_KEYS } from '../src/project-storage.ts';
-import { createProject, completeSetup } from '../src/project.ts';
+import { createProject, completeSetup, projectData } from '../src/project.ts';
 import { layoutConfig } from '../src/layouts.ts';
 import { defaults } from '../src/model.ts';
 
@@ -73,18 +73,65 @@ test('the newest key takes precedence and older keys are left untouched', () => 
   assert.equal(storage.data.get(V1_STORAGE_KEY), v1);
 });
 
-test('unreadable or invalid saved data is reported, not thrown', () => {
-  for (const text of ['{not json', JSON.stringify({ version: 9, config: {} })])
-    assert.deepEqual(createProjectStore(() => memoryStorage({ [STORAGE_KEY]: text })).load(), {
-      status: 'invalid',
-    });
+const NOW = new Date('2026-11-12T16:52:03.120Z');
+const BACKUP_KEY = 'cockpit-lab-unreadable-2026-11-12T16-52-03-120Z';
+const storeAt = (storage) => createProjectStore(() => storage, { now: () => NOW });
+
+test('an unreadable save is set aside before anything is saved over it', () => {
+  for (const text of ['{not json', JSON.stringify({ version: 9, config: {} })]) {
+    const storage = memoryStorage({ [STORAGE_KEY]: text });
+    const store = storeAt(storage);
+    assert.deepEqual(store.load(), { status: 'unreadable', keptAs: BACKUP_KEY, text });
+    assert.equal(store.save(createProject()), true);
+    assert.equal(storage.data.get(BACKUP_KEY), text);
+    assert.equal(store.load().status, 'loaded');
+  }
+});
+
+test('a save the reader rejects is kept, as when a layout setting sat among the shared ones', () => {
+  const file = projectData(createProject().library, completeSetup());
+  const misplaced = JSON.stringify({ ...file, shared: { ...file.shared, armPoses: [] } });
+  const storage = memoryStorage({ [STORAGE_KEY]: misplaced });
+  const store = storeAt(storage);
+  assert.equal(store.load().status, 'unreadable');
+  store.save(createProject());
+  assert.equal(storage.data.get(BACKUP_KEY), misplaced);
+});
+
+test('when the unreadable save cannot be copied, automatic saving pauses instead of overwriting it', () => {
+  const storage = memoryStorage({ [STORAGE_KEY]: '{not json' });
+  // Full storage: a new key fails, but overwriting the current one would still succeed.
+  const full = {
+    getItem: storage.getItem,
+    setItem: (key, value) => {
+      if (key !== STORAGE_KEY) throw new Error('QuotaExceededError');
+      storage.setItem(key, value);
+    },
+  };
+  const store = createProjectStore(() => full, { now: () => NOW });
+  assert.deepEqual(store.load(), { status: 'unreadable', keptAs: STORAGE_KEY, text: '{not json' });
+  assert.equal(store.save(createProject()), false);
+  assert.equal(storage.data.get(STORAGE_KEY), '{not json');
+});
+
+test('an unreadable save from an earlier version stays under its own key', () => {
+  const storage = memoryStorage({ [V2_STORAGE_KEY]: '{not json' });
+  const store = storeAt(storage);
+  assert.deepEqual(store.load(), {
+    status: 'unreadable',
+    keptAs: V2_STORAGE_KEY,
+    text: '{not json',
+  });
+  assert.equal(store.save(createProject()), true);
+  assert.equal(storage.data.get(V2_STORAGE_KEY), '{not json');
+  assert.equal(storage.data.has(BACKUP_KEY), false);
 });
 
 test('a blocked storage is reported on load and save', () => {
   const blocked = () => {
     throw new Error('SecurityError');
   };
-  assert.deepEqual(createProjectStore(blocked).load(), { status: 'invalid' });
+  assert.deepEqual(createProjectStore(blocked).load(), { status: 'unavailable' });
   assert.equal(createProjectStore(blocked).save(createProject()), false);
   const full = { getItem: () => null, setItem: () => blocked() };
   assert.equal(createProjectStore(() => full).save(createProject()), false);

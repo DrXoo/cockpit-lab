@@ -421,6 +421,29 @@
         ><button class="button button-dark" id="confirmDeleteLayout">Delete layout</button>
       </div>
     </dialog>
+    <dialog
+      id="unreadableDialog"
+      class="reset-dialog"
+      aria-labelledby="unreadableTitle"
+      aria-describedby="unreadableDescription"
+    >
+      <div class="dialog-header">
+        <h2 id="unreadableTitle">The saved design could not be opened</h2>
+        <button class="icon-button" data-close="unreadableDialog" aria-label="Close message">
+          <i data-icon="close"></i>
+        </button>
+      </div>
+      <p id="unreadableDescription">
+        The design saved in this browser is in a form this version can't read. It has not been
+        deleted: <span id="unreadableKept"></span> Download it to keep it as a file.
+      </p>
+      <div class="dialog-actions">
+        <button class="button button-light" data-close="unreadableDialog">Close</button
+        ><button class="button button-dark" id="downloadUnreadable" autofocus>
+          Download the saved copy
+        </button>
+      </div>
+    </dialog>
     <input type="file" id="importFile" accept=".json,application/json" hidden />
     <dialog id="summaryDialog" class="summary-dialog" aria-labelledby="summaryTitle">
       <div class="dialog-header">
