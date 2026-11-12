@@ -12,6 +12,7 @@ Cockpit Lab is a self-hosted web app for designing compact aluminium-profile coc
 - This is a single-developer project. Commit directly to `main` in small, reviewable commits. Use a short-lived branch only when a change needs several steps before it works.
 - Keep migrations, refactors and new features in separate commits. A refactor must not change behavior.
 - Run `npm run check` and `npm test` before every commit. Changes to the UI or the 3D scene also need `npm run test:e2e` and a check in the browser.
+- A new or changed screenshot test needs a clean `npm run test:e2e:stress` before it is committed. When an end-to-end test fails now and then, run the stress command first and fix every cause it lists, instead of one failure at a time.
 - The end-to-end tests compare the rendering and the panel text with local references (`e2e/__screenshots__/`, not committed). A refactor must pass them without updating the references. Update them (`--update-snapshots`) only for an intended change, after reviewing the differences.
 - In end-to-end tests, select elements by id, data attribute or role, never by visible text, so they survive the translation of the UI.
 - Preserve the existing configurator's functionality while the CAD evolves.

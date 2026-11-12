@@ -35,9 +35,12 @@ npm run check   # type check (tsc), syntax and formatting
 npm run format  # format the code with Prettier
 npm test        # unit tests (Node's built-in test runner)
 npm run test:e2e  # end-to-end tests in Chrome (Playwright)
+npm run test:e2e:stress  # the screenshot tests, repeated under load, failures grouped by kind
 ```
 
 The end-to-end tests drive the real app in your installed Chrome: guided setup, opening and saving projects, presets, views and the summary. They also compare each view's rendering and the text of the panels with reference copies. Those references live in `e2e/__screenshots__/` and are not committed: the first run on a machine creates them, so create them before changing anything you want to check. After an intended change, review the differences and accept them with `npx playwright test --update-snapshots`.
+
+The tests run as two Playwright projects. `functional` drives the app and checks its state, on every worker. `visual` compares screenshots (`page-appearance`, `rendering` and `theme`) on three workers at most, because screenshots render WebGL in software and time out when they all compete for the CPU. `npm run test:e2e:stress` repeats the visual tests four times under load and lists every failure grouped by kind (screenshot differs, never stable, test or assertion timeout), with the diff images, in `e2e-stress-results/`. Run it before committing a new or changed screenshot test: a flaky screenshot shows up there instead of weeks later. Arguments replace the default selection, for example `npm run test:e2e:stress -- --project=functional --repeat-each=2`.
 
 The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, doors, furniture, chair, project loading and the cut list export. UI changes also need a check in the browser.
 

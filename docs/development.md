@@ -12,7 +12,7 @@ The Three.js license is kept; Three.js is now installed from npm and the build i
 2. Run `npm install` and then `npm run dev` in the integrated terminal.
 3. Open the address shown, usually `http://127.0.0.1:5173`.
 4. Save your changes; the page reloads by itself.
-5. Run `npm run check` (types, syntax and formatting) and `npm test` before you commit, and `npm run test:e2e` when you change the interface or the 3D view.
+5. Run `npm run check` (types, syntax and formatting) and `npm test` before you commit, and `npm run test:e2e` when you change the interface or the 3D view. A new or changed screenshot test also needs a clean `npm run test:e2e:stress`.
 
 Run `npm install` once after cloning. `npm run dev` starts the Vite dev server, which only listens on the local interface, serves `src/` and reloads the page when you save. `npm run build` produces the static version in `dist/`, which is not versioned, and `npm run format` formats the code.
 

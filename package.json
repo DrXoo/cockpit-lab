@@ -15,7 +15,8 @@
     "check": "node scripts/check.mjs && npm run typecheck && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc -p .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:stress": "node scripts/e2e-stress.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",
