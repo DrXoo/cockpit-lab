@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, openApp, STORAGE_KEY } from './support.ts';
 
-const UNREADABLE = '{"app":"Cockpit Lab","version":3,"shared":';
+const UNREADABLE = '{"app":"Cockpit Lab","version":4,"cockpit":';
 
 test('a saved design that cannot be read is kept, offered for download and not overwritten', async ({
   page,

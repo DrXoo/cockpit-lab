@@ -2,12 +2,12 @@
 // tested without a browser, and so a blocked or full storage degrades to "no autosave".
 import { projectData, readProject, type Project } from './project.ts';
 
-export const STORAGE_KEY = 'cockpit-lab-v3';
+export const STORAGE_KEY = 'cockpit-lab-v4';
 /**
  * Keys used by earlier versions, newest first. Their designs are still recovered, and they are
  * left as they were.
  */
-export const LEGACY_STORAGE_KEYS = ['cockpit-lab-v2', 'cockpit-lab-v1'] as const;
+export const LEGACY_STORAGE_KEYS = ['cockpit-lab-v3', 'cockpit-lab-v2', 'cockpit-lab-v1'] as const;
 /** Prefix of the copies of saved projects that could not be read. */
 export const UNREADABLE_KEY_PREFIX = 'cockpit-lab-unreadable-';
 

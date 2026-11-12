@@ -39,6 +39,6 @@ The checks, the metrics, the summary and the cut list always describe the active
 
 ## File format
 
-Format v3 stores the shared settings in `shared` and each layout in `layouts`, with `activeLayoutId` naming the layout that opens. See [the save format](guided-setup.md#model-and-saving). The reader validates each layout by combining it with the shared settings and checking the result as it checks any configuration. It rejects a layout that is missing the placement of a piece of furniture, hides furniture that does not exist, repeats another layout's id or stores a setting that is not a placement.
+Format v4 stores the cockpit design in `cockpit`, or `null` when the project has none, and the room in `room`: the shared settings in `room.shared` and each layout in `room.layouts`, with `room.activeLayoutId` naming the layout that opens. The reader rejects a cockpit setting stored in the room, or a room setting stored in the cockpit design. See [the save format](guided-setup.md#model-and-saving). The reader validates each layout by combining it with the shared settings and checking the result as it checks any configuration. It rejects a layout that is missing the placement of a piece of furniture, hides furniture that does not exist, repeats another layout's id or stores a setting that is not a placement.
 
-A v1 or v2 file holds a single configuration and opens as one layout called "Base".
+A v3 file keeps the cockpit design among the shared settings and opens with the same layouts. A v1 or v2 file holds a single configuration and opens as one layout called "Base".

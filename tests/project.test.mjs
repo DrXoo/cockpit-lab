@@ -19,6 +19,11 @@ import {
   completeSetup,
 } from '../src/project.ts';
 import { duplicateLayout, hideFurniture } from '../src/layouts.ts';
+import {
+  COCKPIT_DESIGN_KEYS,
+  cockpitSettings,
+  isCockpitDesignSetting,
+} from '../src/cockpit-design.ts';
 import { partialSummary } from '../src/project-summary.ts';
 import { saveArmPose } from '../src/arm-poses.ts';
 
@@ -211,8 +216,57 @@ const designWithLayouts = () => {
 test('a project with several layouts reads back with the same layouts', () => {
   const project = designWithLayouts();
   const file = JSON.parse(JSON.stringify(projectData(project)));
-  assert.equal(file.version, 3);
   assert.deepEqual(readProject(file), { ...project, setup: { ...completeSetup(), drafts: {} } });
+});
+
+test('a project is written as v4, with the cockpit design apart from the room', () => {
+  const project = designWithLayouts();
+  const file = JSON.parse(JSON.stringify(projectData(project)));
+  assert.equal(file.version, 4);
+  assert.equal(file.units, 'cm');
+  assert.deepEqual(Object.keys(file.cockpit).sort(), [...COCKPIT_DESIGN_KEYS].sort());
+  assert.equal(file.cockpit.seatH, 40);
+  assert.deepEqual(Object.keys(file.room).sort(), ['activeLayoutId', 'layouts', 'shared']);
+  for (const key of Object.keys(file.room.shared))
+    assert.ok(!isCockpitDesignSetting(key) && key !== 'cockpitEnabled', key);
+});
+
+/** The same project as the v3 writer stored it: the design among the shared settings. */
+const asVersion3 = ({ cockpit, library, setup }) =>
+  JSON.parse(
+    JSON.stringify({
+      app: 'Cockpit Lab',
+      version: 3,
+      units: 'cm',
+      ...library,
+      shared: { ...library.shared, ...cockpitSettings(cockpit) },
+      setup,
+    }),
+  );
+
+test('a v3 file opens with the same layouts and its cockpit design', () => {
+  const project = designWithLayouts();
+  const restored = readProject(asVersion3(project));
+  assert.deepEqual(restored, { ...project, setup: { ...completeSetup(), drafts: {} } });
+  const noCockpit = projectFromConfig(
+    sanitize({ ...defaults, cockpitEnabled: false }),
+    completeSetup(),
+  );
+  assert.equal(readProject(asVersion3(noCockpit)).cockpit, null);
+});
+
+test('the v4 reader rejects settings in the wrong place', () => {
+  const file = JSON.parse(JSON.stringify(projectData(designWithLayouts())));
+  const withRoomShared = (change) => ({
+    ...file,
+    room: { ...file.room, shared: { ...file.room.shared, ...change } },
+  });
+  assert.throws(() => readProject({ ...file, cockpit: { ...file.cockpit, roomW: 300 } }), /roomW/);
+  assert.throws(() => readProject({ ...file, cockpit: 'GT' }), /cockpit/);
+  assert.throws(() => readProject(withRoomShared({ seatH: 40 })), /seatH/);
+  assert.throws(() => readProject(withRoomShared({ cockpitEnabled: true })), /cockpitEnabled/);
+  assert.throws(() => readProject(withRoomShared({ cockpitX: 10 })), /cockpitX/);
+  assert.throws(() => readProject({ ...file, room: null }), /room/);
 });
 
 test('the cockpit design is the same in every layout, wherever it was changed', () => {
@@ -246,23 +300,23 @@ test('a v2 file opens as a single layout called Base', () => {
 
 test('the reader rejects layouts that do not match the shared furniture', () => {
   const file = JSON.parse(JSON.stringify(projectData(designWithLayouts())));
-  const withLayout = (change) => ({
-    ...file,
-    layouts: [{ ...file.layouts[0], ...change }, file.layouts[1]],
-  });
-  assert.throws(() => readProject({ ...file, layouts: [] }), /layouts/);
+  const withRoom = (change) => ({ ...file, room: { ...file.room, ...change } });
+  const withLayout = (change) =>
+    withRoom({ layouts: [{ ...file.room.layouts[0], ...change }, file.room.layouts[1]] });
+  assert.throws(() => readProject(withRoom({ layouts: [] })), /layouts/);
   assert.throws(() => readProject(withLayout({ furniture: {} })), /placement/);
   assert.throws(() => readProject(withLayout({ hiddenFurniture: ['sofa'] })), /hidden/);
-  assert.throws(() => readProject(withLayout({ id: file.layouts[1].id })), /layout id/);
+  assert.throws(() => readProject(withLayout({ id: file.room.layouts[1].id })), /layout id/);
   assert.throws(() => readProject(withLayout({ settings: { cockpitX: 'far' } })), /cockpitX/);
-  assert.throws(() => readProject({ ...file, activeLayoutId: 'layout-9' }), /active layout/);
-  assert.throws(() =>
-    readProject({
-      ...file,
-      shared: {
-        ...file.shared,
-        roomFurniture: [...file.shared.roomFurniture, file.shared.roomFurniture[0]],
-      },
-    }),
+  assert.throws(() => readProject(withRoom({ activeLayoutId: 'layout-9' })), /active layout/);
+  const furniture = file.room.shared.roomFurniture;
+  assert.throws(
+    () =>
+      readProject(
+        withRoom({
+          shared: { ...file.room.shared, roomFurniture: [...furniture, furniture[0]] },
+        }),
+      ),
+    /furniture/,
   );
 });

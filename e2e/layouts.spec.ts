@@ -109,7 +109,7 @@ test('an exported project brings back every layout', async ({ page }) => {
   ]);
   const path = await download.path();
   const file = JSON.parse(await readFile(path, 'utf8'));
-  expect(file.layouts).toHaveLength(2);
+  expect(file.room.layouts).toHaveLength(2);
   expect(activeLayoutConfig(file)).toEqual(moved);
 
   await page.locator('#newProject').click();
@@ -118,5 +118,5 @@ test('an exported project brings back every layout', async ({ page }) => {
   await page.locator('#importFile').setInputFiles(path);
   await expect(page.locator('#layoutSelect option')).toHaveText(['Base', 'Trial']);
   expect(await getState(page)).toEqual(moved);
-  expect((await getSavedProject(page)).layouts).toHaveLength(2);
+  expect((await getSavedProject(page)).room.layouts).toHaveLength(2);
 });

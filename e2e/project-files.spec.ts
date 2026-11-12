@@ -35,7 +35,7 @@ test('a v1 file opens with a desk and a cockpit, as earlier projects always had'
     width: 66,
     preset: 'hybrid',
   });
-  expect((await getSavedProject(page)).version).toBe(3);
+  expect((await getSavedProject(page)).version).toBe(4);
 });
 
 test('a file from another program is rejected and the project is kept', async ({ page }) => {
@@ -51,7 +51,7 @@ test('a file from another program is rejected and the project is kept', async ({
   expect(await getState(page)).toEqual(before);
 });
 
-test('exporting JSON writes the current project as a v3 file', async ({ page }) => {
+test('exporting JSON writes the current project as a v4 file', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'flight-lifted.json');
   const [download] = await Promise.all([
@@ -59,7 +59,7 @@ test('exporting JSON writes the current project as a v3 file', async ({ page }) 
     page.locator('#saveConfig').click(),
   ]);
   const file = JSON.parse(await readFile(await download.path(), 'utf8'));
-  expect(file).toMatchObject({ app: 'Cockpit Lab', version: 3, units: 'cm' });
+  expect(file).toMatchObject({ app: 'Cockpit Lab', version: 4, units: 'cm' });
   expect(activeLayoutConfig(file)).toEqual(await getState(page));
   expect(file.setup.step).toBe('complete');
 });

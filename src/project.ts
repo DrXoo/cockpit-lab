@@ -1,6 +1,7 @@
-// Project file format and guided-setup progress. Lengths are in cm (`units: 'cm'`). Format v3
-// stores the shared settings and every layout; v1 and v2 files hold a single configuration and
-// open as one layout.
+// Project file format and guided-setup progress. Lengths are in cm (`units: 'cm'`). Format v4
+// stores the cockpit design apart from the room and its layouts. v3 files keep the design among
+// the room's shared settings; v1 and v2 files hold a single configuration and open as one
+// layout.
 import { defaults, presets, sanitize, type CockpitConfig, type PresetId } from './config.ts';
 import {
   FURNITURE_PLACEMENT_KEYS,
@@ -12,9 +13,8 @@ import {
   recordLayout,
   type LayoutEntry,
   type LayoutLibrary,
-  type SharedSettings,
 } from './layouts.ts';
-import { cockpitSettings, splitCockpit, type CockpitDesign } from './cockpit-design.ts';
+import { isCockpitDesignSetting, splitCockpit, type CockpitDesign } from './cockpit-design.ts';
 
 export type StepId = 'room' | 'openings' | 'furniture' | 'desk' | 'cockpit';
 export type SetupStep = StepId | 'complete';
@@ -91,10 +91,11 @@ export interface Project {
   setup: SetupProgress;
 }
 
-export interface ProjectFile extends Omit<LayoutLibrary, 'shared'> {
-  shared: SharedSettings & ReturnType<typeof cockpitSettings>;
+export interface ProjectFile {
+  cockpit: CockpitDesign | null;
+  room: LayoutLibrary;
   app: 'Cockpit Lab';
-  version: 3;
+  version: 4;
   units: 'cm';
   setup: SetupProgress;
 }
@@ -301,10 +302,12 @@ function readLayoutEntry(
   return { id: input.id, name: input.name, config, hiddenFurniture };
 }
 
-/** A v3 file: the settings every layout shares, and each layout's placements. */
-function readVersion3(data: RawRecord): Project {
-  const { shared, layouts, activeLayoutId } = data;
-  if (!isPlainRecord(shared)) throw new Error('Invalid configuration');
+/**
+ * The room of a v3 or v4 file: the settings every layout shares, with the cockpit design among
+ * them, and each layout's placements. Returns the project it describes.
+ */
+function readRoom(shared: RawRecord, room: RawRecord, rawSetup: unknown): Project {
+  const { layouts, activeLayoutId } = room;
   for (const key of Object.keys(shared))
     if (isLayoutSetting(key)) throw new Error(`Layout setting in the shared settings: ${key}`);
   readPresence(shared);
@@ -315,21 +318,41 @@ function readVersion3(data: RawRecord): Project {
   const entries = layouts.map((layout: unknown) => readLayoutEntry(layout, shared, specs, seenIds));
   if (typeof activeLayoutId !== 'string') throw new Error('Unknown active layout');
   const library = libraryFromLayouts(entries, activeLayoutId);
-  // The cockpit design is among the shared settings, so every layout has the same one.
+  // Every layout was read with the same design, so the first one has it.
   const { cockpit } = splitCockpit(entries[0].config);
-  return { cockpit, library, setup: readSetup(data.setup, layoutConfig(library, cockpit)) };
+  return { cockpit, library, setup: readSetup(rawSetup, layoutConfig(library, cockpit)) };
+}
+
+/** A v3 file: the cockpit design is among the shared settings of the room. */
+function readVersion3(data: RawRecord): Project {
+  if (!isPlainRecord(data.shared)) throw new Error('Invalid configuration');
+  return readRoom(data.shared, data, data.setup);
+}
+
+/** A v4 file: the cockpit design, or null, apart from the room and its layouts. */
+function readVersion4(data: RawRecord): Project {
+  const { cockpit, room } = data;
+  if (cockpit !== null && !isPlainRecord(cockpit)) throw new Error('Invalid cockpit design');
+  for (const key of Object.keys(cockpit ?? {}))
+    if (!isCockpitDesignSetting(key)) throw new Error(`Not a cockpit setting: ${key}`);
+  if (!isPlainRecord(room) || !isPlainRecord(room.shared)) throw new Error('Invalid room');
+  for (const key of Object.keys(room.shared))
+    if (isCockpitDesignSetting(key) || key === 'cockpitEnabled')
+      throw new Error(`Cockpit setting in the room: ${key}`);
+  const shared = { ...room.shared, ...cockpit, cockpitEnabled: cockpit !== null };
+  return readRoom(shared, room, data.setup);
 }
 
 /**
- * Reads a project file (v1, v2 or v3). `stored` skips the app check for the browser's own
- * saved copy. Throws a user-facing message when the file can't be used.
+ * Reads a project file (v1 to v4). `stored` skips the app check for the browser's own saved
+ * copy. Throws a user-facing message when the file can't be used.
  */
 export function readProject(data: unknown, { stored = false } = {}): Project {
   if (!isRecord(data) || (!stored && data.app !== 'Cockpit Lab'))
     throw new Error('File from another program');
-  if (data.version === 3) {
+  if (data.version === 3 || data.version === 4) {
     if (data.units !== 'cm') throw new Error('Unsupported version or units');
-    return readVersion3(data);
+    return data.version === 4 ? readVersion4(data) : readVersion3(data);
   }
   const rawConfig = data.config;
   if (!isPlainRecord(rawConfig)) throw new Error('Invalid configuration');
@@ -339,8 +362,7 @@ export function readProject(data: unknown, { stored = false } = {}): Project {
 }
 
 export function projectData({ cockpit, library, setup }: Project): ProjectFile {
-  const shared = { ...library.shared, ...cockpitSettings(cockpit) };
-  return { app: 'Cockpit Lab', version: 3, units: 'cm', ...library, shared, setup };
+  return { app: 'Cockpit Lab', version: 4, units: 'cm', cockpit, room: library, setup };
 }
 
 /** Moves to the next step; with `defer`, the current one is kept to revisit later. */

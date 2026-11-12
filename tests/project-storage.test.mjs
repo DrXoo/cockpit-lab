@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectStore, STORAGE_KEY, LEGACY_STORAGE_KEYS } from '../src/project-storage.ts';
-import { createProject, completeSetup, projectData, projectConfig } from '../src/project.ts';
-import { defaults } from '../src/model.ts';
+import {
+  createProject,
+  completeSetup,
+  projectData,
+  projectConfig,
+  projectFromConfig,
+} from '../src/project.ts';
+import { defaults, sanitize } from '../src/model.ts';
 
-const [V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
+const [V3_STORAGE_KEY, V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
 
 function memoryStorage(entries = {}) {
   const data = new Map(Object.entries(entries));
@@ -30,13 +36,14 @@ test('a saved project loads back unchanged', () => {
   assert.deepEqual(store.load(), { status: 'loaded', project: asLoaded(project) });
 });
 
-test('the project is saved as a v3 file under the current key', () => {
+test('the project is saved as a v4 file under the current key', () => {
   const storage = memoryStorage();
   createProjectStore(() => storage).save(createProject());
   const saved = JSON.parse(storage.data.get(STORAGE_KEY));
-  assert.equal(STORAGE_KEY, 'cockpit-lab-v3');
+  assert.equal(STORAGE_KEY, 'cockpit-lab-v4');
+  assert.deepEqual(LEGACY_STORAGE_KEYS, ['cockpit-lab-v3', 'cockpit-lab-v2', 'cockpit-lab-v1']);
   assert.equal(saved.app, 'Cockpit Lab');
-  assert.equal(saved.version, 3);
+  assert.equal(saved.version, 4);
   assert.equal(saved.units, 'cm');
 });
 
@@ -49,9 +56,22 @@ test('designs saved by earlier versions are recovered from their keys', () => {
     config: { ...defaults, seatH: 31 },
     setup: completeSetup(),
   };
+  // As the v3 writer stored it: the cockpit design among the room's shared settings.
+  const current = projectData(
+    projectFromConfig(sanitize({ ...defaults, seatH: 32 }), completeSetup()),
+  );
+  const v3 = {
+    ...current,
+    ...current.room,
+    version: 3,
+    shared: { ...current.room.shared, ...current.cockpit, cockpitEnabled: true },
+  };
+  delete v3.room;
+  delete v3.cockpit;
   for (const [key, file, seatH] of [
     [V1_STORAGE_KEY, v1, 30],
     [V2_STORAGE_KEY, v2, 31],
+    [V3_STORAGE_KEY, v3, 32],
   ]) {
     const result = createProjectStore(() => memoryStorage({ [key]: JSON.stringify(file) })).load();
     assert.equal(result.status, 'loaded');
@@ -89,7 +109,8 @@ test('an unreadable save is set aside before anything is saved over it', () => {
 
 test('a save the reader rejects is kept, as when a layout setting sat among the shared ones', () => {
   const file = projectData({ ...createProject(), setup: completeSetup() });
-  const misplaced = JSON.stringify({ ...file, shared: { ...file.shared, armPoses: [] } });
+  const room = { ...file.room, shared: { ...file.room.shared, armPoses: [] } };
+  const misplaced = JSON.stringify({ ...file, room });
   const storage = memoryStorage({ [STORAGE_KEY]: misplaced });
   const store = storeAt(storage);
   assert.equal(store.load().status, 'unreadable');
