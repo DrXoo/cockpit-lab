@@ -3,8 +3,13 @@ import assert from 'node:assert/strict';
 import { defaults, sanitize, rectangle } from '../src/model.ts';
 import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../src/room.ts';
 import { roomControls } from '../src/room-editor.ts';
-import { createProject, readProject, projectData } from '../src/project.ts';
-import { createLayoutLibrary, layoutConfig } from '../src/layouts.ts';
+import {
+  createProject,
+  readProject,
+  projectData,
+  projectConfig,
+  projectFromConfig,
+} from '../src/project.ts';
 
 const room = (more = {}) =>
   normalizeRoom({
@@ -162,17 +167,17 @@ test('saving keeps the wall, height and position, and v1 furniture still imports
   });
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
   const restored = readProject(
-    JSON.parse(JSON.stringify(projectData(createLayoutLibrary(config), p.setup))),
+    JSON.parse(JSON.stringify(projectData(projectFromConfig(config, p.setup)))),
   );
-  assert.deepEqual(layoutConfig(restored.library), config);
+  assert.deepEqual(projectConfig(restored), config);
   assert.equal(restored.setup.step, 'furniture');
   const old = readProject({
     app: 'Cockpit Lab',
     version: 1,
     config: { ...defaults, roomFurniture: [low()] },
   });
-  assert.equal(layoutConfig(old.library).roomFurniture[0].type, 'shelf');
-  assert.equal(evaluateRoom(layoutConfig(old.library), []).furniture[0].y0, 0);
+  assert.equal(projectConfig(old).roomFurniture[0].type, 'shelf');
+  assert.equal(evaluateRoom(projectConfig(old), []).furniture[0].y0, 0);
   const invalid = sanitize({
     ...config,
     roomFurniture: [shelf({ mountWall: 'desconocida', offset: Infinity, elevation: NaN })],

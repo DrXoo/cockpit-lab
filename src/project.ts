@@ -9,9 +9,12 @@ import {
   isLayoutSetting,
   layoutConfig,
   libraryFromLayouts,
+  recordLayout,
   type LayoutEntry,
   type LayoutLibrary,
+  type SharedSettings,
 } from './layouts.ts';
+import { cockpitSettings, splitCockpit, type CockpitDesign } from './cockpit-design.ts';
 
 export type StepId = 'room' | 'openings' | 'furniture' | 'desk' | 'cockpit';
 export type SetupStep = StepId | 'complete';
@@ -81,12 +84,15 @@ export interface SetupProgress {
   drafts?: SetupDrafts;
 }
 
+/** A cockpit design, or none, and the room whose layouts place it. */
 export interface Project {
+  cockpit: CockpitDesign | null;
   library: LayoutLibrary;
   setup: SetupProgress;
 }
 
-export interface ProjectFile extends LayoutLibrary {
+export interface ProjectFile extends Omit<LayoutLibrary, 'shared'> {
+  shared: SharedSettings & ReturnType<typeof cockpitSettings>;
   app: 'Cockpit Lab';
   version: 3;
   units: 'cm';
@@ -157,6 +163,24 @@ function readDrafts(input: unknown = {}): SetupDrafts {
   return drafts;
 }
 
+/** The configuration of a layout of the project, the active one by default. */
+export const projectConfig = (project: Project, layoutId?: string): CockpitConfig =>
+  layoutConfig(project.library, project.cockpit, layoutId);
+
+/** Stores an edited configuration of the active layout: its cockpit design and its room. */
+export const recordProject = (project: Project, config: CockpitConfig): Project => ({
+  ...project,
+  cockpit: splitCockpit(config).cockpit,
+  library: recordLayout(project.library, config),
+});
+
+/** A project from a single configuration, as v1 and v2 files and new projects have. */
+export const projectFromConfig = (config: CockpitConfig, setup: SetupProgress): Project => ({
+  cockpit: splitCockpit(config).cockpit,
+  library: createLayoutLibrary(config),
+  setup,
+});
+
 /** A new, empty project: only the room is shown until the guided setup adds more. */
 export function createProject(): Project {
   const config = sanitize({
@@ -172,10 +196,7 @@ export function createProject(): Project {
     mouseEnabled: false,
     matEnabled: false,
   });
-  return {
-    library: createLayoutLibrary(config),
-    setup: { step: 'room', furthest: 0, deferred: [] },
-  };
+  return projectFromConfig(config, { step: 'room', furthest: 0, deferred: [] });
 }
 
 /** Explicit v1 adapter: earlier projects always had a desk and a cockpit, and used cm. */
@@ -191,7 +212,7 @@ function readVersion1(data: RawRecord & { config: RawRecord }): Project {
     mouseEnabled: true,
     matEnabled: true,
   });
-  return { library: createLayoutLibrary(config), setup: completeSetup() };
+  return projectFromConfig(config, completeSetup());
 }
 
 function readSetup(input: unknown, config: CockpitConfig): SetupProgress {
@@ -227,7 +248,7 @@ function readPresence(config: RawRecord): void {
 function readVersion2(data: RawRecord, rawConfig: RawRecord): Project {
   readPresence(rawConfig);
   const config = sanitize(rawConfig);
-  return { library: createLayoutLibrary(config), setup: readSetup(data.setup, config) };
+  return projectFromConfig(config, readSetup(data.setup, config));
 }
 
 type RawSpec = RawRecord & { id: string };
@@ -294,7 +315,9 @@ function readVersion3(data: RawRecord): Project {
   const entries = layouts.map((layout: unknown) => readLayoutEntry(layout, shared, specs, seenIds));
   if (typeof activeLayoutId !== 'string') throw new Error('Unknown active layout');
   const library = libraryFromLayouts(entries, activeLayoutId);
-  return { library, setup: readSetup(data.setup, layoutConfig(library)) };
+  // The cockpit design is among the shared settings, so every layout has the same one.
+  const { cockpit } = splitCockpit(entries[0].config);
+  return { cockpit, library, setup: readSetup(data.setup, layoutConfig(library, cockpit)) };
 }
 
 /**
@@ -315,8 +338,9 @@ export function readProject(data: unknown, { stored = false } = {}): Project {
   return readVersion2(data, rawConfig);
 }
 
-export function projectData(library: LayoutLibrary, setup: SetupProgress): ProjectFile {
-  return { app: 'Cockpit Lab', version: 3, units: 'cm', ...library, setup };
+export function projectData({ cockpit, library, setup }: Project): ProjectFile {
+  const shared = { ...library.shared, ...cockpitSettings(cockpit) };
+  return { app: 'Cockpit Lab', version: 3, units: 'cm', ...library, shared, setup };
 }
 
 /** Moves to the next step; with `defer`, the current one is kept to revisit later. */

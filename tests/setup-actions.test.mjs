@@ -8,12 +8,11 @@ import {
   withDesk,
   withCockpitPreset,
 } from '../src/setup-actions.ts';
-import { createProject } from '../src/project.ts';
-import { layoutConfig } from '../src/layouts.ts';
+import { createProject, projectConfig } from '../src/project.ts';
 import { presets } from '../src/model.ts';
 
 const fresh = createProject();
-const freshConfig = layoutConfig(fresh.library);
+const freshConfig = projectConfig(fresh);
 const atStep = (step, furthest = 4) => ({ step, furthest, deferred: [] });
 const withRoom = withRoomSize(freshConfig, 300, 400, 250);
 

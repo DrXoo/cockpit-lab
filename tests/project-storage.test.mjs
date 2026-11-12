@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectStore, STORAGE_KEY, LEGACY_STORAGE_KEYS } from '../src/project-storage.ts';
-import { createProject, completeSetup, projectData } from '../src/project.ts';
-import { layoutConfig } from '../src/layouts.ts';
+import { createProject, completeSetup, projectData, projectConfig } from '../src/project.ts';
 import { defaults } from '../src/model.ts';
 
 const [V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
@@ -56,7 +55,7 @@ test('designs saved by earlier versions are recovered from their keys', () => {
   ]) {
     const result = createProjectStore(() => memoryStorage({ [key]: JSON.stringify(file) })).load();
     assert.equal(result.status, 'loaded');
-    assert.equal(layoutConfig(result.project.library).seatH, seatH);
+    assert.equal(projectConfig(result.project).seatH, seatH);
     assert.equal(result.project.setup.step, 'complete');
   }
 });
@@ -89,7 +88,7 @@ test('an unreadable save is set aside before anything is saved over it', () => {
 });
 
 test('a save the reader rejects is kept, as when a layout setting sat among the shared ones', () => {
-  const file = projectData(createProject().library, completeSetup());
+  const file = projectData({ ...createProject(), setup: completeSetup() });
   const misplaced = JSON.stringify({ ...file, shared: { ...file.shared, armPoses: [] } });
   const storage = memoryStorage({ [STORAGE_KEY]: misplaced });
   const store = storeAt(storage);

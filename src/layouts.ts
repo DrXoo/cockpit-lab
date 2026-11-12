@@ -1,8 +1,15 @@
 // Layouts: alternative arrangements of one room. What exists is shared by every layout: the
 // room and its openings, each piece of furniture and its size, the desk and its accessories,
-// the cockpit design and the monitor arm's hardware. Each layout stores only where things are,
-// and which pieces of furniture it leaves out.
+// and the monitor arm's hardware. Each layout stores only where things are, and which pieces of
+// furniture it leaves out. The cockpit design is not part of the room: the project holds it,
+// and every layout places that same design.
 import type { CockpitConfig } from './config.ts';
+import {
+  placeCockpit,
+  splitCockpit,
+  type CockpitDesign,
+  type RoomConfig,
+} from './cockpit-design.ts';
 import { resizeDesk } from './desk.ts';
 import {
   normalizeRoom,
@@ -79,8 +86,8 @@ export type FurnitureSpec =
   | Omit<WallShelf, 'x' | 'z' | 'angle' | 'mountWall' | 'offset' | 'elevation'>
   | Omit<FloorFurniture, 'x' | 'z' | 'angle'>;
 
-/** Every setting that is not a layout setting, with the furniture as specs. */
-export type SharedSettings = Omit<CockpitConfig, keyof LayoutSettings | 'roomFurniture'> & {
+/** Every room setting that is not a layout setting, with the furniture as specs. */
+export type SharedSettings = Omit<RoomConfig, keyof LayoutSettings | 'roomFurniture'> & {
   roomFurniture: FurnitureSpec[];
 };
 
@@ -162,7 +169,7 @@ function splitSettings(config: CockpitConfig): {
     armPoses,
     roomFurniture,
     ...shared
-  } = config;
+  } = splitCockpit(config).room;
   return {
     shared: { ...shared, roomFurniture: roomFurniture.map(specOf) },
     settings: {
@@ -256,11 +263,13 @@ export const activeLayout = (library: LayoutLibrary): Layout =>
   layoutById(library, library.activeLayoutId);
 
 /**
- * The configuration of a layout: the shared settings with the layout's placements. Shared
- * changes made in another layout, such as a smaller room or desk, are fitted here.
+ * The configuration of a layout: the shared settings with the layout's placements, and the
+ * project's cockpit design, or none, placed in it. Shared changes made in another layout, such as
+ * a smaller room or desk, are fitted here.
  */
 export function layoutConfig(
   library: LayoutLibrary,
+  cockpit: CockpitDesign | null,
   layoutId: string = library.activeLayoutId,
 ): CockpitConfig {
   const layout = layoutById(library, layoutId);
@@ -268,13 +277,14 @@ export function layoutConfig(
   const roomFurniture = library.shared.roomFurniture
     .filter((spec) => !hidden.has(spec.id))
     .map((spec) => ({ ...spec, ...layout.furniture[spec.id] }));
-  const config = normalizeRoom({ ...library.shared, ...layout.settings, roomFurniture });
+  const room = normalizeRoom({ ...library.shared, ...layout.settings, roomFurniture });
+  const config = placeCockpit(room, cockpit);
   return resizeDesk(config, config.deskWidth, config.deskDepth);
 }
 
 /**
- * Stores an edited configuration of the active layout. Placements go to the active layout and
- * everything else is shared: furniture added here appears in every layout where it was
+ * Stores an edited configuration of the active layout. Its cockpit design is left out: the
+ * project keeps it. Placements go to the active layout and everything else is shared: furniture added here appears in every layout where it was
  * created, and furniture deleted here is deleted from every layout.
  */
 export function recordLayout(library: LayoutLibrary, config: CockpitConfig): LayoutLibrary {

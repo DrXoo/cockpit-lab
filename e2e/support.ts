@@ -3,7 +3,7 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { layoutConfig, type LayoutLibrary } from '../src/layouts.ts';
+import { projectConfig, readProject } from '../src/project.ts';
 
 export const STORAGE_KEY = 'cockpit-lab-v3';
 
@@ -48,4 +48,4 @@ export const getSavedProject = (page: Page) =>
   page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), STORAGE_KEY);
 
 /** The configuration of the active layout in a saved or exported project file. */
-export const activeLayoutConfig = (file: LayoutLibrary) => layoutConfig(file);
+export const activeLayoutConfig = (file: unknown) => projectConfig(readProject(file));

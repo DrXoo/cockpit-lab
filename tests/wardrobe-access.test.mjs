@@ -3,8 +3,13 @@ import assert from 'node:assert/strict';
 import { defaults, rectangle, evaluate } from '../src/model.ts';
 import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../src/room.ts';
 import { roomControls, roomItems } from '../src/room-editor.ts';
-import { createProject, readProject, projectData } from '../src/project.ts';
-import { createLayoutLibrary, layoutConfig } from '../src/layouts.ts';
+import {
+  createProject,
+  readProject,
+  projectData,
+  projectConfig,
+  projectFromConfig,
+} from '../src/project.ts';
 
 const access = (more = {}) => ({
   id: 'armario',
@@ -18,7 +23,7 @@ const access = (more = {}) => ({
 });
 const room = (more = {}) =>
   normalizeRoom({
-    ...layoutConfig(createProject().library),
+    ...projectConfig(createProject()),
     roomEnabled: true,
     roomX: 0,
     roomZ: 0,
@@ -180,16 +185,16 @@ test('the project keeps the access and older files still open', () => {
   });
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
   const restored = readProject(
-    JSON.parse(JSON.stringify(projectData(createLayoutLibrary(config), p.setup))),
+    JSON.parse(JSON.stringify(projectData(projectFromConfig(config, p.setup)))),
   );
-  assert.deepEqual(layoutConfig(restored.library), config);
+  assert.deepEqual(projectConfig(restored), config);
   assert.equal(restored.setup.step, 'furniture');
   const old = readProject({
     app: 'Cockpit Lab',
     version: 1,
     config: { ...defaults, roomFeatures: [] },
   });
-  assert.deepEqual(layoutConfig(old.library).roomFeatures, []);
+  assert.deepEqual(projectConfig(old).roomFeatures, []);
   const resized = normalizeRoom({ ...config, roomH: 280 });
   assert.equal(resized.roomFeatures[0].height, 250);
 });
@@ -251,15 +256,15 @@ test('the edited height is saved and limited to the ceiling; accesses without a 
   const config = room({ roomFeatures: [access({ height: 212.5 })] });
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
   const restored = readProject(
-    JSON.parse(JSON.stringify(projectData(createLayoutLibrary(config), p.setup))),
+    JSON.parse(JSON.stringify(projectData(projectFromConfig(config, p.setup)))),
   );
-  assert.equal(layoutConfig(restored.library).roomFeatures[0].height, 212.5);
+  assert.equal(projectConfig(restored).roomFeatures[0].height, 212.5);
   assert.equal(
-    normalizeRoom({ ...layoutConfig(restored.library), roomH: 280 }).roomFeatures[0].height,
+    normalizeRoom({ ...projectConfig(restored), roomH: 280 }).roomFeatures[0].height,
     212.5,
   );
   assert.equal(
-    normalizeRoom({ ...layoutConfig(restored.library), roomH: 200 }).roomFeatures[0].height,
+    normalizeRoom({ ...projectConfig(restored), roomH: 200 }).roomFeatures[0].height,
     200,
   );
   assert.equal(room({ roomFeatures: [access()] }).roomFeatures[0].height, 250);

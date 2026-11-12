@@ -85,10 +85,10 @@ export function createProjectStore(
         return { status: 'unreadable', keptAs, text: saved.text };
       }
     },
-    save({ library, setup }) {
+    save(project) {
       if (savingPaused) return false;
       try {
-        getStorage().setItem(STORAGE_KEY, JSON.stringify(projectData(library, setup)));
+        getStorage().setItem(STORAGE_KEY, JSON.stringify(projectData(project)));
         return true;
       } catch {
         return false;

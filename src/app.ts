@@ -1,4 +1,5 @@
-import { steps, createProject, readProject, projectData } from './project.ts';
+import { steps, createProject, readProject, projectData, recordProject } from './project.ts';
+import type { CockpitDesign } from './cockpit-design.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import {
   partialSummary,
@@ -45,7 +46,6 @@ import {
   hiddenFurnitureOf,
   hideFurniture,
   layoutConfig,
-  recordLayout,
   renameLayout,
   selectLayout,
   showFurniture,
@@ -246,10 +246,11 @@ function stepOf(value: string): StepId {
 const isRoomSection = (value: Section) => value === 'room' || value === 'furniture';
 
 const newProject = createProject();
-// `state` is the active layout as it is being edited; `library` keeps every layout as last
-// recorded. Saving and exporting record `state` into the library first.
+// `state` is the active layout as it is being edited; `cockpit` and `library` keep the cockpit
+// design and every layout as last recorded. Saving and exporting record `state` into them first.
 let library: LayoutLibrary = newProject.library,
-  state: CockpitConfig = layoutConfig(library),
+  cockpit: CockpitDesign | null = newProject.cockpit,
+  state: CockpitConfig = layoutConfig(library, cockpit),
   setup: SetupProgress = newProject.setup,
   section: Section = 'room',
   view: SceneView = 'top',
@@ -286,20 +287,22 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
 /** Makes `project` the open one, editing its active layout. */
 function openProject(project: Project) {
   library = project.library;
-  state = layoutConfig(library);
+  cockpit = project.cockpit;
+  state = layoutConfig(library, cockpit);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
 }
 /** The open project, with the edits to the active layout recorded. */
 function recordedProject(): Project {
-  library = recordLayout(library, state);
-  return { library, setup };
+  ({ cockpit, library } = recordProject({ cockpit, library, setup }, state));
+  return { cockpit, library, setup };
 }
 /** Records the edits, applies `change` to the layouts and opens the resulting active layout. */
 function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
   clearTimeout(pendingSave);
-  library = change(recordLayout(library, state));
-  state = layoutConfig(library);
+  const recorded = recordedProject();
+  library = change(recorded.library);
+  state = layoutConfig(library, cockpit);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   if (layoutTarget.startsWith('furniture:') && !roomItem(state, layoutTarget)) layoutTarget = '';
   persist();
@@ -1031,7 +1034,7 @@ function reportUnreadableSave(keptAs: string, text: string) {
 function exportConfig() {
   download(
     'cockpit-lab-design.json',
-    JSON.stringify(projectData(recordedProject().library, setup), null, 2),
+    JSON.stringify(projectData(recordedProject()), null, 2),
     'application/json',
   );
   toast('JSON exported. Use Open JSON to bring this design back.');

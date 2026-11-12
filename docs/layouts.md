@@ -16,7 +16,7 @@ Everything that exists is shared by every layout. Each layout stores only where 
 | Monitor arm hardware: reach, segment split, height range and monitor size | Arm mount position and type, monitor mode, joint angles, bend, monitor yaw, distance and height, and the saved arm poses |
 | Free aisle width and display options | — |
 
-`src/layouts.ts` holds this split. It is the only place that knows which settings belong to a layout.
+`src/layouts.ts` holds this split. It is the only place that knows which settings belong to a layout. The cockpit design is not part of the room: the project holds it apart, `src/cockpit-design.ts` knows which settings make it up, and every layout places that same design.
 
 ## Using layouts
 
