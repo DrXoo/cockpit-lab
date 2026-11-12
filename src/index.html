@@ -72,6 +72,42 @@
             <i data-icon="reset"></i>
           </button>
         </div>
+        <div class="layout-area" id="layoutArea" hidden>
+          <div class="layout-heading">
+            <label for="layoutSelect">Layout</label>
+            <div class="layout-actions">
+              <button
+                class="icon-button"
+                id="duplicateLayout"
+                aria-label="Duplicate layout"
+                title="Duplicate layout"
+              >
+                <i data-icon="copy"></i></button
+              ><button
+                class="icon-button"
+                id="renameLayout"
+                aria-label="Rename layout"
+                title="Rename layout"
+              >
+                <i data-icon="edit"></i></button
+              ><button
+                class="icon-button"
+                id="deleteLayout"
+                aria-label="Delete layout"
+                title="Delete layout"
+              >
+                <i data-icon="trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="select-wrap">
+            <i data-icon="layers"></i
+            ><select id="layoutSelect" aria-describedby="layoutHint"></select>
+          </div>
+          <small id="layoutHint"
+            >Duplicate this layout to try another arrangement and keep this one.</small
+          >
+        </div>
         <div class="preset-area" hidden>
           <label for="preset">Cockpit base</label>
           <div class="select-wrap">
@@ -326,6 +362,63 @@
       <div class="dialog-actions">
         <button class="button button-light" data-close="resetDialog" autofocus>Keep editing</button
         ><button class="button button-dark" id="confirmReset">Create project</button>
+      </div>
+    </dialog>
+    <dialog
+      id="layoutNameDialog"
+      class="reset-dialog"
+      aria-labelledby="layoutNameTitle"
+      aria-describedby="layoutNameDescription"
+    >
+      <form method="dialog" id="layoutNameForm" class="layout-name-form">
+        <div class="dialog-header">
+          <h2 id="layoutNameTitle">Duplicate layout</h2>
+          <button
+            type="button"
+            class="icon-button"
+            data-close="layoutNameDialog"
+            aria-label="Close without saving"
+          >
+            <i data-icon="close"></i>
+          </button>
+        </div>
+        <p id="layoutNameDescription" class="layout-name-description">
+          The copy shares the room, the furniture, the desk and the cockpit. Moving things in it
+          leaves the original as it is.
+        </p>
+        <div class="layout-name-field">
+          <label for="layoutName">Layout name</label>
+          <input id="layoutName" maxlength="40" autocomplete="off" required />
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="button button-light" data-close="layoutNameDialog">
+            Cancel</button
+          ><button type="submit" class="button button-dark" id="confirmLayoutName">
+            Duplicate
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog
+      id="deleteLayoutDialog"
+      class="reset-dialog"
+      aria-labelledby="deleteLayoutTitle"
+      aria-describedby="deleteLayoutDescription"
+    >
+      <div class="dialog-header">
+        <h2 id="deleteLayoutTitle">Delete this layout?</h2>
+        <button class="icon-button" data-close="deleteLayoutDialog" aria-label="Close confirmation">
+          <i data-icon="close"></i>
+        </button>
+      </div>
+      <p id="deleteLayoutDescription">
+        Only this arrangement is deleted. The room, the furniture, the desk, the cockpit and the
+        other layouts stay as they are.
+      </p>
+      <div class="dialog-actions">
+        <button class="button button-light" data-close="deleteLayoutDialog" autofocus>
+          Keep it</button
+        ><button class="button button-dark" id="confirmDeleteLayout">Delete layout</button>
       </div>
     </dialog>
     <input type="file" id="importFile" accept=".json,application/json" hidden />

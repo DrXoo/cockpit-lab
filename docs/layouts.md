@@ -18,6 +18,17 @@ Everything that exists is shared by every layout. Each layout stores only where 
 
 `src/layouts.ts` holds this split. It is the only place that knows which settings belong to a layout.
 
+## Using layouts
+
+The layout picker sits at the top of the settings once the guided setup is done. A new or imported project starts with one layout, "Base".
+
+- **Duplicate** copies the active layout under a new name and opens the copy. Your changes go to the copy from then on.
+- **Choose a layout** in the picker to see it. The camera and the open view stay as they are, so switching back and forth compares two arrangements in the same view. The scene label names the active layout when there is more than one.
+- **Rename** and **Delete** act on the active layout. The last layout can't be deleted.
+- In **Furniture**, "Hide in this layout" leaves the selected piece out of the active layout. Hidden pieces are listed under "Hidden in this layout", each with a button to show it again. With more than one layout, deleting a piece says that it deletes it from every layout.
+
+The checks, the metrics, the summary and the cut list always describe the active layout.
+
 ## Rules
 
 - Duplicating a layout copies the active one and makes the copy active.

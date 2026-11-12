@@ -370,6 +370,14 @@ function setFurnitureHidden(
   };
 }
 
+/** The furniture the active layout leaves out, in the shared order. */
+export function hiddenFurnitureOf(library: LayoutLibrary): { id: string; name: string }[] {
+  const hidden = new Set(activeLayout(library).hiddenFurniture);
+  return library.shared.roomFurniture
+    .filter((spec) => hidden.has(spec.id))
+    .map(({ id, name }) => ({ id, name }));
+}
+
 /** Leaves a piece of furniture out of the active layout only. */
 export const hideFurniture = (library: LayoutLibrary, itemId: string): LayoutLibrary =>
   setFurnitureHidden(library, itemId, true);

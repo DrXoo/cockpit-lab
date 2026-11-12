@@ -52,6 +52,7 @@ The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, d
 - Rectangular room with doors, windows, furniture, wall shelves at a set mounting height, and an office chair.
 - Built-in sliding-door wardrobes with a clearance zone kept free in front of them.
 - 3D, plan, desk and side views, with drag-and-drop layout.
+- Several layouts of the same room, to try another arrangement and compare it with the one you started from. Furniture can be left out of a single layout.
 - Approximate geometric checks, a summary, and JSON/CSV export.
 
 These checks are approximate. They don't validate loads, stiffness or structural safety, and the current cut list is indicative only. Verify real measurements before building anything.
@@ -64,7 +65,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/app.ts` | DOM wiring: events, panels and exports |
 | `src/dom-input.ts`, `src/setting-change.ts` | Validating what the panels send, and applying a setting change |
 | `src/project.ts`, `src/project-storage.ts` | Project format and autosave |
-| `src/layouts.ts` | Layouts: what each arrangement of the room places, and what they share |
+| `src/layouts.ts`, `src/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
 | `src/user-text.ts` | Cleaning names typed by users |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |

@@ -58,13 +58,30 @@ export function roomValue(
   if (key === 'z') return round((item as { z: number }).z - s.roomZ);
   return (item as unknown as Record<string, string | number | undefined>)[key];
 }
+export interface RoomControlOptions {
+  mode?: string;
+  /** Furniture the active layout leaves out. Hiding is offered only when this is given. */
+  hiddenFurniture?: readonly { id: string; name: string }[];
+  layoutCount?: number;
+}
+
+function hiddenFurnitureHTML(hidden: readonly { id: string; name: string }[]): string {
+  const buttons = hidden
+    .map(
+      (item) =>
+        `<button data-show-furniture="${escapeHTML(item.id)}">Show ${escapeHTML(item.name)}</button>`,
+    )
+    .join('');
+  return `<div class="control-group"><h3 class="group-title">Hidden in this layout</h3><div class="hidden-furniture">${buttons}</div><p class="layout-hint">Other layouts still have this furniture. Showing it puts it back where it was.</p></div>`;
+}
+
 export function roomControls(
   s: CockpitConfig,
   e: CockpitEvaluation,
   target: string,
   range: ControlTemplates['range'],
   toggle: ControlTemplates['toggle'],
-  { mode = 'all' } = {},
+  { mode = 'all', hiddenFurniture, layoutCount = 1 }: RoomControlOptions = {},
 ): string {
   const items = roomItems(s, mode);
   const choices = [
@@ -131,6 +148,7 @@ export function roomControls(
         : '<p class="room-empty">You have not added any items in this step yet.</p>'
     }`,
   );
+  if (hiddenFurniture?.length) html += hiddenFurnitureHTML(hiddenFurniture);
   if (!active) return html;
   let editor = '';
   if (item)
@@ -220,7 +238,10 @@ export function roomControls(
         num('angle', 'Rotation in the plan', 0, 359, 1, '°') +
         `<div class="rotate-actions"><button data-room-rotate="-90">↶ −90°</button><button data-room-rotate="90">+90° ↷</button></div><p class="layout-hint">${active === 'cockpit' ? 'Reference: the center of the rear end of the chassis.' : 'Reference: the center of the item.'} Drag in the plan or type the distances to the walls.</p>`;
   }
-  if (item) editor += '<button class="room-delete" id="roomDelete">Delete this item</button>';
+  if (item && hiddenFurniture && !isFeature(item))
+    editor += '<button class="room-hide" id="roomHide">Hide in this layout</button>';
+  if (item)
+    editor += `<button class="room-delete" id="roomDelete">${layoutCount > 1 ? 'Delete from every layout' : 'Delete this item'}</button>`;
   html += group(
     item ? escapeHTML(item.name) : active === 'cockpit' ? 'Place the cockpit' : 'Place the desk',
     editor,

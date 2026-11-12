@@ -297,6 +297,94 @@ body {
   line-height: 1.5;
   min-height: 0;
 }
+.layout-area {
+  padding: 0 20px 14px;
+}
+.layout-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.layout-heading label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.layout-actions {
+  display: flex;
+  gap: 2px;
+}
+.layout-actions .icon-button {
+  width: 34px;
+  height: 34px;
+}
+.layout-actions .icon-button:disabled {
+  opacity: 0.4;
+  background: none;
+}
+.layout-area small {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.layout-name-description {
+  padding: 0 30px;
+  margin: 22px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+.layout-name-field {
+  padding: 0 30px;
+  margin: 22px 0;
+}
+.layout-name-field label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.layout-name-field input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px 12px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.hidden-furniture {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+}
+.hidden-furniture button,
+.room-hide {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 9px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  text-align: left;
+  font-size: 12px;
+  min-height: 40px;
+}
+.hidden-furniture button:hover,
+.room-hide:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-surface);
+  color: var(--accent-text);
+}
+.room-hide {
+  width: 100%;
+  margin-top: 15px;
+  text-align: center;
+}
 #presetHint {
   display: block;
   margin-top: 7px;
@@ -1030,7 +1118,9 @@ body {
   .summary-table td {
     padding: 10px 4px;
   }
-  .reset-dialog > p {
+  .reset-dialog > p,
+  .layout-name-description,
+  .layout-name-field {
     padding: 0 20px;
   }
 }

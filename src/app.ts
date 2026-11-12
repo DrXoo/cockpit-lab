@@ -36,7 +36,22 @@ import type { SceneView } from './scene-camera.ts';
 import type { CockpitConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { Project, SetupProgress, StepId } from './project.ts';
-import { layoutConfig, recordLayout, type LayoutLibrary } from './layouts.ts';
+import {
+  MAX_LAYOUTS,
+  MAX_LAYOUT_NAME_LENGTH,
+  activeLayout,
+  deleteLayout,
+  duplicateLayout,
+  hiddenFurnitureOf,
+  hideFurniture,
+  layoutConfig,
+  recordLayout,
+  renameLayout,
+  selectLayout,
+  showFurniture,
+  type LayoutLibrary,
+} from './layouts.ts';
+import { layoutOptionsHTML } from './layouts-view.ts';
 import type { SettingsSection } from './setup-actions.ts';
 import { applySetting, type SettingChange } from './setting-change.ts';
 import {
@@ -136,6 +151,10 @@ const paths: Record<string, string> = {
   themeLight:
     'M12 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM9 1.5v2m0 11v2M1.5 9h2m11 0h2M3.7 3.7l1.4 1.4m7.8 7.8 1.4 1.4M3.7 14.3l1.4-1.4m7.8-7.8 1.4-1.4',
   themeDark: 'M15.5 11.3A6.5 6.5 0 0 1 6.7 2.5a6.5 6.5 0 1 0 8.8 8.8Z',
+  layers: 'M9 2 2 5.5 9 9l7-3.5ZM2 9l7 3.5L16 9M2 12.5 9 16l7-3.5',
+  copy: 'M6 6h9v9H6zM3 12V3h9',
+  edit: 'M3 15l.8-3.6L12 3.2 14.8 6l-8.2 8.2ZM10.5 4.7l2.8 2.8',
+  trash: 'M3 5h12M7 5V3h4v2M5 5l.8 11h6.4L13 5M7.5 8v5m3-5v5',
 };
 function icons(root: ParentNode = document) {
   root
@@ -258,6 +277,17 @@ function openProject(project: Project) {
 function recordedProject(): Project {
   library = recordLayout(library, state);
   return { library, setup };
+}
+/** Records the edits, applies `change` to the layouts and opens the resulting active layout. */
+function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
+  clearTimeout(pendingSave);
+  library = change(recordLayout(library, state));
+  state = layoutConfig(library);
+  if (layoutTarget.startsWith('furniture:') && !roomItem(state, layoutTarget)) layoutTarget = '';
+  persist();
+  renderControls();
+  refresh();
+  scene?.setLayoutEditing(layoutEditing, layoutTarget, isRoomSection(section));
 }
 function persist() {
   if (store.save(recordedProject())) setSaveStatus('Saved in this browser');
@@ -384,7 +414,8 @@ function bindRoomEditor() {
         id =
           crypto.randomUUID?.() ||
           'room-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
-      if (!canAddRoomItem(state, type)) {
+      const hiddenFurniture = activeLayout(library).hiddenFurniture.length;
+      if (!canAddRoomItem(state, type, { hiddenFurniture })) {
         toast('Item limit reached');
         return;
       }
@@ -414,6 +445,21 @@ function bindRoomEditor() {
     setActiveView('top');
     toast('Chair placed in front of the desk');
   });
+  $optional('#roomHide')?.addEventListener('click', () => {
+    const item = roomItem(state, layoutTarget);
+    if (!item || isFeature(item)) return;
+    changeLayouts((layouts) => hideFurniture(layouts, item.id));
+    $('#controls').scrollTop = 0;
+    toast('Hidden in this layout. You can show it again from the furniture list.');
+  });
+  controlsAll('[data-show-furniture]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const id = dataOf(el, 'showFurniture');
+      layoutTarget = `furniture:${id}`;
+      changeLayouts((layouts) => showFurniture(layouts, id));
+      toast('Back in this layout, where it was');
+    }),
+  );
   $optional('#roomDelete')?.addEventListener('click', () => {
     if (!roomItem(state, layoutTarget)) return;
     state = deleteRoomItem(state, layoutTarget);
@@ -548,6 +594,7 @@ function renderWorkflow() {
   $('#setupProgress').innerHTML = guided ? progressHTML(setup) : '';
   $('#setupActions').hidden = !guided;
   $('.config-tabs').hidden = guided;
+  renderLayoutPicker(guided);
   $('.preset-area').hidden = !state.cockpitEnabled || (section !== 'rig' && section !== 'body');
   $('.panel-heading h2').textContent = guided ? stepLabel : 'Settings';
   $('#controls').setAttribute('aria-label', guided ? (step?.title ?? '') : 'Settings');
@@ -597,11 +644,26 @@ function renderWorkflow() {
   $$('.scene-legend>span').forEach(
     (item, index) => (item.hidden = index === 2 ? !state.deskEnabled : !state.cockpitEnabled),
   );
-  $('#sceneTitle').textContent = guided
+  const sceneTitle = guided
     ? stepLabel
     : state.cockpitEnabled
       ? presets[state.preset].label
       : 'Your room';
+  $('#sceneTitle').textContent =
+    !guided && library.layouts.length > 1
+      ? `${sceneTitle} · ${activeLayout(library).name}`
+      : sceneTitle;
+}
+/** The layout picker appears once the guided setup is done. */
+function renderLayoutPicker(guided: boolean) {
+  $('#layoutArea').hidden = guided;
+  const select = $<HTMLSelectElement>('#layoutSelect');
+  const options = layoutOptionsHTML(library);
+  if (select.innerHTML !== options) select.innerHTML = options;
+  select.value = library.activeLayoutId;
+  $('#layoutHint').hidden = library.layouts.length > 1;
+  $<HTMLButtonElement>('#deleteLayout').disabled = library.layouts.length === 1;
+  $<HTMLButtonElement>('#duplicateLayout').disabled = library.layouts.length >= MAX_LAYOUTS;
 }
 function renderControls() {
   const guided = setup.step !== 'complete',
@@ -637,6 +699,8 @@ function renderControls() {
   } else if (isRoomSection(section)) {
     html = roomControls(state, evaluation, layoutTarget, range, toggle, {
       mode: section === 'furniture' ? 'furniture' : 'room',
+      hiddenFurniture: hiddenFurnitureOf(library),
+      layoutCount: library.layouts.length,
     });
   } else {
     html = deskPanelHTML(controlView(), layoutTarget);
@@ -953,6 +1017,47 @@ $('#preset').addEventListener('change', () => {
   renderControls();
   refresh();
   toast(`${presets[key].label} preset applied`);
+});
+const layoutSelect = $<HTMLSelectElement>('#layoutSelect');
+layoutSelect.addEventListener('change', () => {
+  const id = layoutSelect.value;
+  changeLayouts((layouts) => selectLayout(layouts, id));
+  toast(`Showing the layout ${activeLayout(library).name}`);
+});
+type LayoutNameAction = 'duplicate' | 'rename';
+let layoutNameAction: LayoutNameAction = 'duplicate';
+function askLayoutName(action: LayoutNameAction) {
+  layoutNameAction = action;
+  const current = activeLayout(library).name;
+  const input = $<HTMLInputElement>('#layoutName');
+  $('#layoutNameTitle').textContent = action === 'duplicate' ? 'Duplicate layout' : 'Rename layout';
+  $('#confirmLayoutName').textContent = action === 'duplicate' ? 'Duplicate' : 'Rename';
+  $('#layoutNameDescription').hidden = action !== 'duplicate';
+  input.value =
+    action === 'duplicate' ? `${current} (copy)`.slice(0, MAX_LAYOUT_NAME_LENGTH) : current;
+  $<HTMLDialogElement>('#layoutNameDialog').showModal();
+  input.select();
+}
+$('#duplicateLayout').addEventListener('click', () => askLayoutName('duplicate'));
+$('#renameLayout').addEventListener('click', () => askLayoutName('rename'));
+$('#layoutNameForm').addEventListener('submit', () => {
+  const name = $<HTMLInputElement>('#layoutName').value;
+  if (layoutNameAction === 'duplicate') {
+    changeLayouts((layouts) => duplicateLayout(layouts, name));
+    toast('Layout duplicated. Your changes now go to the copy.');
+  } else {
+    changeLayouts((layouts) => renameLayout(layouts, layouts.activeLayoutId, name));
+    toast('Layout renamed');
+  }
+});
+$('#deleteLayout').addEventListener('click', () =>
+  $<HTMLDialogElement>('#deleteLayoutDialog').showModal(),
+);
+$('#confirmDeleteLayout').addEventListener('click', () => {
+  const deleted = activeLayout(library).name;
+  changeLayouts((layouts) => deleteLayout(layouts, layouts.activeLayoutId));
+  $<HTMLDialogElement>('#deleteLayoutDialog').close();
+  toast(`Layout ${deleted} deleted`);
 });
 $('#resetBtn').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
 $('#confirmReset').addEventListener('click', () => {

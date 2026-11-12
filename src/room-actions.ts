@@ -20,10 +20,15 @@ const withItems = (
   roomFurniture: unknown[],
 ): CockpitConfig => normalizeRoom(state, { roomFeatures, roomFurniture });
 
-export const canAddRoomItem = (state: CockpitConfig, type: RoomItemType): boolean =>
+/** `hiddenFurniture` counts the furniture that the active layout leaves out of `state`. */
+export const canAddRoomItem = (
+  state: CockpitConfig,
+  type: RoomItemType,
+  { hiddenFurniture = 0 } = {},
+): boolean =>
   isOpening(type)
     ? state.roomFeatures.length < MAX_FEATURES
-    : state.roomFurniture.length < MAX_FURNITURE;
+    : state.roomFurniture.length + hiddenFurniture < MAX_FURNITURE;
 
 /** The guided-setup step where an item type is added. */
 export const stepOfRoomItem = (type: RoomItemType): 'openings' | 'furniture' =>
