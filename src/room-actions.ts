@@ -36,7 +36,7 @@ function draftItem(state: CockpitConfig, type: RoomItemType, id: string) {
     return {
       id,
       type,
-      name: 'Armario empotrado',
+      name: 'Built-in wardrobe',
       wall: 'north',
       width: Math.min(180, state.roomW),
       offset: Math.max(0, (state.roomW - 180) / 2),

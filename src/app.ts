@@ -395,7 +395,7 @@ function continueSetup(defer = false) {
     showWorkspace('view');
     setActiveView('iso');
     refresh();
-    toast('Proyecto preparado. Puedes seguir editando cada parte.');
+    toast('Project ready. You can keep editing each part.');
   } else enterStep(setup.step);
 }
 function bindCreationControls() {

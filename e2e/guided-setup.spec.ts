@@ -45,6 +45,7 @@ test('the guided setup builds a room, an opening, a desk and a cockpit', async (
   await page.locator('#setupNext').click();
 
   await expect(page.locator('body')).toHaveAttribute('data-guided', 'false');
+  await expect(page.locator('#toast')).toHaveText('Project ready. You can keep editing each part.');
   const saved = await getSavedProject(page);
   expect(saved.setup).toMatchObject({ step: 'complete', deferred: ['furniture'] });
   expect(saved.config).toEqual(await getState(page));

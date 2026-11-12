@@ -43,8 +43,9 @@ test('adding a door enables the room and selects the new, validated door', () =>
   ]);
 });
 
-test('a built-in wardrobe front starts centred on the north wall', () => {
+test('a built-in wardrobe front starts centered on the north wall', () => {
   const access = addRoomItem(room, 'wardrobeAccess', 'w1').state.roomFeatures[0];
+  assert.equal(access.name, 'Built-in wardrobe');
   assert.equal(access.wall, 'north');
   assert.equal(access.width, 180);
   assert.equal(access.offset, 60);
