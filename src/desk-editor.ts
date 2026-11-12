@@ -1,13 +1,14 @@
-// Desk tab: placing the desk, the cockpit and the items on the tabletop, and the monitor shortcuts.
+// Desk tab: placing the desk, the cockpit and the items on the tabletop, and the monitor position.
 import type { CockpitConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { clampEdge, desktopTargets } from './desk.ts';
 import { groupHTML as group, type ControlTemplates } from './controls-view.ts';
 import {
-  activeArmPose,
   armPoseMountMoved,
+  AUTOMATIC_MONITOR_MODES,
   MAX_ARM_POSE_NAME_LENGTH,
-  type ArmPose,
+  monitorPositionOf,
+  type MonitorPosition,
 } from './arm-poses.ts';
 import { escapeHTML } from './html.ts';
 
@@ -19,28 +20,68 @@ export function monitorShortcuts(s: CockpitConfig): string {
   return `<div class="arm-shortcuts"><button data-monitor-pose="cockpit" aria-pressed="${s.monitorMode === 'cockpit' && s.cockpitEnabled !== false}" ${s.cockpitEnabled === false ? 'disabled' : ''}>Bring to the cockpit</button><button data-monitor-pose="desk" aria-pressed="${s.monitorMode === 'desk'}">Bring to the desk</button></div>${s.cockpitEnabled === false ? '<p class="layout-hint">Add a cockpit to bring the monitor to it.</p>' : ''}`;
 }
 
-function armPoseHTML(s: CockpitConfig, pose: ArmPose, active: ArmPose | undefined): string {
-  const name = escapeHTML(pose.name);
+const AUTOMATIC_POSITION_LABELS: Record<(typeof AUTOMATIC_MONITOR_MODES)[number], string> = {
+  cockpit: 'Facing the cockpit',
+  desk: 'On the desk',
+  vr: 'VR · parked',
+};
+
+const optionHTML = (value: string, label: string, selected: boolean, disabled = false): string =>
+  `<option value="${escapeHTML(value)}"${selected ? ' selected' : ''}${disabled ? ' disabled' : ''}>${escapeHTML(label)}</option>`;
+
+function poseOptionsHTML(s: CockpitConfig, position: MonitorPosition): string {
+  if (!s.armPoses.length) return '';
+  const options = s.armPoses.map((pose) => {
+    const value = `pose:${pose.id}`;
+    const selected = position.choice === value;
+    const label = selected && position.changed ? `${pose.name} · changed` : pose.name;
+    return optionHTML(value, label, selected);
+  });
+  return `<optgroup label="Your poses">${options.join('')}</optgroup>`;
+}
+
+function automaticOptionsHTML(s: CockpitConfig, position: MonitorPosition): string {
+  const options = AUTOMATIC_MONITOR_MODES.map((mode) => {
+    const value = `auto:${mode}`;
+    const unavailable = mode === 'cockpit' && s.cockpitEnabled === false;
+    return optionHTML(
+      value,
+      AUTOMATIC_POSITION_LABELS[mode],
+      position.choice === value,
+      unavailable,
+    );
+  });
+  return `<optgroup label="Automatic">${options.join('')}</optgroup>`;
+}
+
+/** Update and delete for the chosen pose, and a note when its mount has moved. */
+function chosenPoseHTML(s: CockpitConfig, position: MonitorPosition): string {
+  const pose = s.armPoses.find((candidate) => position.choice === `pose:${candidate.id}`);
+  if (!pose) return '';
   const moved = armPoseMountMoved(s, pose)
     ? `<small data-mount-moved="${escapeHTML(pose.id)}">Saved with the arm mounted elsewhere</small>`
     : '';
-  return `<li class="arm-pose"><button class="arm-pose-apply" data-arm-pose="${escapeHTML(pose.id)}" aria-pressed="${pose === active}">${name}</button><button class="arm-pose-delete" data-delete-arm-pose="${escapeHTML(pose.id)}" aria-label="Delete the pose ${name}">${CROSS}</button>${moved}</li>`;
+  return `${moved}<div class="arm-pose-actions"><button id="updateArmPose"${position.changed ? '' : ' disabled'}>Update pose</button><button id="deleteArmPose">Delete pose</button></div>`;
 }
 
 /**
- * The saved arm poses of the layout, or a hint when there are none. It changes as the arm or its
- * mount moves, so it is redrawn on its own, apart from the field to save a pose.
+ * The monitor position: the layout's saved poses, then the automatic positions. It changes as
+ * the arm or its mount moves, so it is redrawn on its own, apart from the field to save a pose.
+ * `selectedPoseId` is the pose last chosen, saved or updated.
  */
-export function armPoseListHTML(s: CockpitConfig): string {
-  if (!s.armPoses.length)
-    return '<p class="layout-hint" id="armPoseHint">Place the monitor and save the pose to come back to it exactly. Each layout keeps its own poses.</p>';
-  const active = activeArmPose(s);
-  return `<ul class="arm-poses">${s.armPoses.map((pose) => armPoseHTML(s, pose, active)).join('')}</ul>`;
+export function monitorPositionHTML(s: CockpitConfig, selectedPoseId: string): string {
+  const position = monitorPositionOf(s, selectedPoseId);
+  const custom =
+    position.choice === 'custom' ? optionHTML('custom', 'Custom (not saved)', true) : '';
+  const hint = s.armPoses.length
+    ? ''
+    : '<p class="layout-hint" id="armPoseHint">Place the monitor and save the pose to come back to it exactly. Each layout keeps its own poses.</p>';
+  return `<div class="select-control"><label for="monitorPosition">Monitor position</label><select id="monitorPosition">${custom}${poseOptionsHTML(s, position)}${automaticOptionsHTML(s, position)}</select></div>${chosenPoseHTML(s, position)}${hint}`;
 }
 
-/** The saved arm poses of the layout, and the field to save the current one. */
-export function armPosesHTML(s: CockpitConfig): string {
-  return `<div class="arm-pose-area" id="armPoseArea"><p class="arm-pose-title">Saved poses</p><div id="armPoseList">${armPoseListHTML(s)}</div><div class="arm-pose-save"><input type="text" id="armPoseName" maxlength="${MAX_ARM_POSE_NAME_LENGTH}" placeholder="Pose name" aria-label="Pose name" autocomplete="off"><button id="saveArmPose">Save pose</button></div></div>`;
+/** The monitor position, and the field to save the current arm as a new pose. */
+export function armPosesHTML(s: CockpitConfig, selectedPoseId: string): string {
+  return `<div class="arm-pose-area" id="armPoseArea"><div id="monitorPositionArea">${monitorPositionHTML(s, selectedPoseId)}</div><div class="arm-pose-save"><input type="text" id="armPoseName" maxlength="${MAX_ARM_POSE_NAME_LENGTH}" placeholder="Pose name" aria-label="Pose name" autocomplete="off"><button id="saveArmPose">Save as new pose</button></div></div>`;
 }
 
 // Shared by step 4 and the complete editor; positions remain local to the desk.

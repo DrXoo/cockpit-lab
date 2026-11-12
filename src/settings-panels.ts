@@ -82,7 +82,8 @@ export function bodyPanelHTML(view: ControlView): string {
   return html;
 }
 
-export function deskPanelHTML(view: ControlView, layoutTarget: string): string {
+/** `selectedPose` is the arm pose last chosen, saved or updated, or '' for none. */
+export function deskPanelHTML(view: ControlView, layoutTarget: string, selectedPose = ''): string {
   const { range, toggle, select } = bindControls(view);
   const { state, evaluation } = view;
   let html = '';
@@ -99,13 +100,7 @@ export function deskPanelHTML(view: ControlView, layoutTarget: string): string {
   if (state.monitorEnabled !== false) {
     html += group(
       'Monitor and arm',
-      armPosesHTML(state) +
-        select('monitorMode', 'Monitor position', [
-          ['cockpit', 'Facing the cockpit'],
-          ['desk', 'On the desk'],
-          ['vr', 'VR · parked'],
-          ['manual', 'Manual joints'],
-        ]) +
+      armPosesHTML(state, selectedPose) +
         `<button class="arm-edit-action" id="armControlsDragBtn">Edit the joints in the plan ↗</button>` +
         range('armBaseAngle', 'Base rotation') +
         range('armElbowAngle', 'Elbow bend') +
@@ -117,7 +112,7 @@ export function deskPanelHTML(view: ControlView, layoutTarget: string): string {
         range('monitorH', 'VESA center height') +
         range('monitorAhead', 'Screen ahead of the wheel') +
         range('monitorInches', 'Screen diagonal') +
-        '<p class="layout-hint">Drag <b>ELBOW</b> to turn the first segment or <b>VESA</b> to move the end. The rotation controls switch to manual mode. The automatic positions work out the angles towards the target; save a pose to keep the angles you choose.</p>',
+        '<p class="layout-hint">Drag <b>ELBOW</b> to turn the first segment or <b>VESA</b> to move the end. The rotation controls switch to manual mode. The automatic positions work out the angles towards a target; save a pose to keep the angles you choose, and update it after moving the arm.</p>',
     ).replace('<div class="control-group">', '<div class="control-group" id="armControls">');
     html += group(
       'Arm dimensions',

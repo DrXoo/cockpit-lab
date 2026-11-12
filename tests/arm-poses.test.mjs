@@ -9,6 +9,9 @@ import {
   deleteArmPose,
   activeArmPose,
   armPoseMountMoved,
+  updateArmPose,
+  monitorPositionOf,
+  chooseMonitorPosition,
 } from '../src/arm-poses.ts';
 
 const EPSILON = 1e-9;
@@ -23,7 +26,10 @@ test('saving a pose records the arm as it stands, even when an automatic mode pl
   const s = { ...defaults, monitorMode: 'cockpit' };
   const g = monitorGeometry(s);
   const saved = saveArmPose(s, 'Racing');
-  assert.equal(saved.monitorMode, 'cockpit');
+  // The arm now holds the saved pose: same place, joints kept by hand.
+  assert.equal(saved.monitorMode, 'manual');
+  assert.equal(activeArmPose(saved)?.name, 'Racing');
+  samePoint(monitorGeometry(saved).point, g.point);
   assert.equal(saved.armPoses.length, 1);
   const [pose] = saved.armPoses;
   assert.equal(pose.name, 'Racing');
@@ -48,11 +54,13 @@ test('a pose puts the monitor back where it was, without working out the angles 
 });
 
 test('the active pose is the one the arm is in', () => {
-  const s = saveArmPose(saveArmPose(defaults, 'Racing'), 'Desk');
-  assert.equal(activeArmPose(s), undefined);
-  const racing = applyArmPose(s, s.armPoses[0].id);
-  assert.equal(activeArmPose(racing)?.name, 'Racing');
-  assert.equal(activeArmPose({ ...racing, monitorH: racing.monitorH + 5 }), undefined);
+  const racing = saveArmPose(defaults, 'Racing');
+  const s = saveArmPose({ ...racing, monitorH: racing.monitorH + 10 }, 'Desk');
+  assert.equal(activeArmPose(s)?.name, 'Desk');
+  const back = applyArmPose(s, 'pose-1');
+  assert.equal(activeArmPose(back)?.name, 'Racing');
+  assert.equal(activeArmPose({ ...back, monitorH: back.monitorH + 5 }), undefined);
+  assert.equal(activeArmPose({ ...back, monitorMode: 'desk' }), undefined);
 });
 
 test('saving under an existing name records that pose again in its place', () => {
@@ -111,4 +119,45 @@ test('invalid saved poses are rejected', () => {
     [{ ...pose, mount: { ...pose.mount, clampMount: 'tape' } }],
   ])
     assert.throws(() => sanitize({ armPoses }), /Invalid arm pose/, JSON.stringify(armPoses));
+});
+
+test('updating a pose records the arm as it stands now, keeping its name and place', () => {
+  const s = saveArmPose(saveArmPose(defaults, 'Racing'), 'Desk');
+  const moved = { ...applyArmPose(s, 'pose-1'), monitorH: 120, armBaseAngle: 30 };
+  const updated = updateArmPose(moved, 'pose-1');
+  assert.deepEqual(
+    updated.armPoses.map((pose) => [pose.id, pose.name]),
+    [
+      ['pose-1', 'Racing'],
+      ['pose-2', 'Desk'],
+    ],
+  );
+  assert.equal(updated.armPoses[0].monitorH, 120);
+  assert.equal(updated.armPoses[0].armBaseAngle, 30);
+  assert.equal(activeArmPose(updated)?.id, 'pose-1');
+  assert.throws(() => updateArmPose(s, 'missing'), /Unknown arm pose/);
+});
+
+test('the monitor position shows the pose the arm is in, the automatic mode or a custom pose', () => {
+  const s = saveArmPose(defaults, 'Racing');
+  assert.deepEqual(monitorPositionOf({ ...s, monitorMode: 'desk' }, 'pose-1'), {
+    choice: 'auto:desk',
+    changed: false,
+  });
+  const racing = applyArmPose(s, 'pose-1');
+  assert.deepEqual(monitorPositionOf(racing, ''), { choice: 'pose:pose-1', changed: false });
+  const nudged = { ...racing, monitorH: racing.monitorH + 4 };
+  assert.deepEqual(monitorPositionOf(nudged, 'pose-1'), { choice: 'pose:pose-1', changed: true });
+  assert.deepEqual(monitorPositionOf(nudged, ''), { choice: 'custom', changed: false });
+  assert.deepEqual(monitorPositionOf(nudged, 'deleted'), { choice: 'custom', changed: false });
+});
+
+test('choosing a monitor position applies a pose, an automatic mode or keeps the joints', () => {
+  const s = saveArmPose({ ...defaults, monitorMode: 'cockpit' }, 'Racing');
+  assert.equal(chooseMonitorPosition(s, 'auto:desk').monitorMode, 'desk');
+  assert.equal(activeArmPose(chooseMonitorPosition(s, 'pose:pose-1'))?.id, 'pose-1');
+  const custom = chooseMonitorPosition(s, 'custom');
+  assert.equal(custom.monitorMode, 'manual');
+  assert.equal(custom.armBaseAngle, s.armPoses[0].armBaseAngle);
+  assert.throws(() => chooseMonitorPosition(s, 'auto:moon'), /Unknown monitor position/);
 });

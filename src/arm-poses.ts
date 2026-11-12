@@ -1,8 +1,14 @@
 // Arm poses: named positions of the monitor arm that the user records and goes back to. A pose
 // stores the joints themselves, so going back to it never works the angles out again.
 import { clamp } from './geometry.ts';
-import { fields, type ClampMount, type ClampSide, type CockpitConfig } from './config.ts';
-import { monitorGeometry, wrapAngle } from './monitor-arm.ts';
+import {
+  fields,
+  type ClampMount,
+  type ClampSide,
+  type CockpitConfig,
+  type MonitorMode,
+} from './config.ts';
+import { monitorGeometry, setMonitorMode, wrapAngle } from './monitor-arm.ts';
 import { cleanUserText } from './user-text.ts';
 
 export const MAX_ARM_POSES = 12;
@@ -51,6 +57,12 @@ function currentJoints(s: CockpitConfig): ArmJoints {
   };
 }
 
+/** What a pose stores about the arm as it stands now. */
+const recordedArm = (s: CockpitConfig): ArmJoints & { mount: ArmMount } => ({
+  ...currentJoints(s),
+  mount: mountOf(s),
+});
+
 const sameName = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
 function nextPoseId(poses: readonly ArmPose[]): string {
@@ -59,24 +71,18 @@ function nextPoseId(poses: readonly ArmPose[]): string {
 }
 
 /**
- * Records the arm as it stands under `name`. A pose with the same name, ignoring case, is
- * recorded again in its place; otherwise the pose is added at the end.
+ * Records the arm as it stands under `name`, and holds the arm in that pose. A pose with the same
+ * name, ignoring case, is recorded again in its place; otherwise the pose is added at the end.
  */
 export function saveArmPose(s: CockpitConfig, name: unknown): CockpitConfig {
   const poses = s.armPoses;
   const cleanName = cleanUserText(name, `Pose ${poses.length + 1}`, MAX_ARM_POSE_NAME_LENGTH);
-  const recorded = { ...currentJoints(s), mount: mountOf(s) };
   const existing = poses.find((pose) => sameName(pose.name, cleanName));
-  if (existing)
-    return {
-      ...s,
-      armPoses: poses.map((pose) => (pose === existing ? { ...pose, ...recorded } : pose)),
-    };
+  if (existing) return updateArmPose(s, existing.id);
   if (poses.length >= MAX_ARM_POSES) throw new Error('Arm pose limit reached');
-  return {
-    ...s,
-    armPoses: [...poses, { id: nextPoseId(poses), name: cleanName, ...recorded }],
-  };
+  const id = nextPoseId(poses);
+  const saved = { ...s, armPoses: [...poses, { id, name: cleanName, ...recordedArm(s) }] };
+  return applyArmPose(saved, id);
 }
 
 function armPoseById(s: CockpitConfig, id: string): ArmPose {
@@ -97,6 +103,17 @@ export function applyArmPose(s: CockpitConfig, id: string): CockpitConfig {
     monitorYaw: pose.monitorYaw,
     monitorH: pose.monitorH,
   };
+}
+
+/** Records the arm as it stands into an existing pose, keeping its name and place, and holds the arm in it. */
+export function updateArmPose(s: CockpitConfig, id: string): CockpitConfig {
+  const target = armPoseById(s, id);
+  const recorded = recordedArm(s);
+  const updated = {
+    ...s,
+    armPoses: s.armPoses.map((pose) => (pose === target ? { ...pose, ...recorded } : pose)),
+  };
+  return applyArmPose(updated, id);
 }
 
 export function deleteArmPose(s: CockpitConfig, id: string): CockpitConfig {
@@ -174,4 +191,47 @@ export function readArmPoses(raw: unknown): ArmPose[] {
   const poses = raw.map(readArmPose);
   if (new Set(poses.map((pose) => pose.id)).size !== poses.length) invalid();
   return poses;
+}
+
+/** The automatic monitor modes, which work the joints out towards a target. */
+export const AUTOMATIC_MONITOR_MODES = [
+  'cockpit',
+  'desk',
+  'vr',
+] as const satisfies readonly MonitorMode[];
+type AutomaticMonitorMode = (typeof AUTOMATIC_MONITOR_MODES)[number];
+
+/**
+ * A choice of the monitor position: a saved pose (`pose:<id>`), an automatic mode
+ * (`auto:<mode>`) or the current joints when they match no pose (`custom`).
+ */
+export type MonitorPositionChoice = `pose:${string}` | `auto:${AutomaticMonitorMode}` | 'custom';
+
+export interface MonitorPosition {
+  choice: MonitorPositionChoice;
+  /** The arm has moved since the chosen pose was saved or applied. */
+  changed: boolean;
+}
+
+/**
+ * What the monitor position shows. `selectedPoseId` is the pose last chosen, saved or updated:
+ * once the arm moves away from it, it is still shown, as changed, so it can be updated.
+ */
+export function monitorPositionOf(s: CockpitConfig, selectedPoseId: string): MonitorPosition {
+  const automatic = AUTOMATIC_MONITOR_MODES.find((mode) => mode === s.monitorMode);
+  if (automatic) return { choice: `auto:${automatic}`, changed: false };
+  const active = activeArmPose(s);
+  if (active) return { choice: `pose:${active.id}`, changed: false };
+  if (s.armPoses.some((pose) => pose.id === selectedPoseId))
+    return { choice: `pose:${selectedPoseId}`, changed: true };
+  return { choice: 'custom', changed: false };
+}
+
+/** Applies a choice of the monitor position. */
+export function chooseMonitorPosition(s: CockpitConfig, choice: string): CockpitConfig {
+  if (choice === 'custom') return setMonitorMode(s, 'manual');
+  if (choice.startsWith('pose:')) return applyArmPose(s, choice.slice('pose:'.length));
+  const automatic = AUTOMATIC_MONITOR_MODES.find((mode) => `auto:${mode}` === choice);
+  if (!automatic) throw new Error(`Unknown monitor position: ${choice}`);
+  return setMonitorMode(s, automatic);
 }

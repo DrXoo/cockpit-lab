@@ -61,34 +61,81 @@ test('the desk panel marks the current tabletop size and offers layouts next to 
   );
 });
 
-test('the desk panel lists the saved arm poses instead of the automatic shortcuts', () => {
-  let state = saveArmPose(saveArmPose(defaults, 'Racing'), 'Desk <2>');
-  state = applyArmPose(state, 'pose-1');
-  const html = deskPanelHTML({ state, evaluation: evaluate(state) }, 'desk');
-  assert.doesNotMatch(html, /data-monitor-pose/);
-  assert.match(
-    html,
-    /<button[^>]*data-arm-pose="pose-1"[^>]*aria-pressed="true"[^>]*>Racing<\/button>/,
+const panelWith = (state, selectedPose = '') =>
+  deskPanelHTML({ state, evaluation: evaluate(state) }, 'desk', selectedPose);
+/** An option of the monitor position select, ignoring the other selects of the panel. */
+const optionOf = (html, value) =>
+  html
+    .match(/<select id="monitorPosition">.*?<\/select>/)?.[0]
+    .match(new RegExp(`<option value="${value}"[^>]*>[^<]*</option>`))?.[0];
+const twoPoses = () => {
+  const racing = saveArmPose(defaults, 'Racing');
+  return saveArmPose({ ...racing, monitorH: racing.monitorH + 10 }, 'Desk <2>');
+};
+
+test('the monitor position lists the saved poses first, then the automatic positions', () => {
+  const html = panelWith(twoPoses());
+  assert.match(html, /<select id="monitorPosition">/);
+  assert.doesNotMatch(html, /id="monitorMode"/);
+  assert.doesNotMatch(html, /data-monitor-pose|data-arm-pose/);
+  assert.ok(
+    html.indexOf('<optgroup label="Your poses">') < html.indexOf('<optgroup label="Automatic">'),
   );
-  assert.match(
-    html,
-    /<button[^>]*data-arm-pose="pose-2"[^>]*aria-pressed="false"[^>]*>Desk 2<\/button>/,
+  assert.equal(optionOf(html, 'pose:pose-1'), '<option value="pose:pose-1">Racing</option>');
+  assert.equal(
+    optionOf(html, 'pose:pose-2'),
+    '<option value="pose:pose-2" selected>Desk 2</option>',
   );
-  assert.match(html, /data-delete-arm-pose="pose-1" aria-label="Delete the pose Racing"/);
+  for (const mode of ['cockpit', 'desk', 'vr']) assert.ok(optionOf(html, `auto:${mode}`), mode);
+  assert.equal(optionOf(html, 'custom'), undefined);
+  assert.match(html, /<button[^>]*id="updateArmPose"[^>]*disabled/);
+  assert.match(html, /<button[^>]*id="deleteArmPose"/);
   assert.match(html, /<input[^>]*id="armPoseName"[^>]*maxlength="40"/);
   assert.match(html, /<button[^>]*id="saveArmPose"/);
-  assert.doesNotMatch(html, /data-mount-moved/);
 });
 
-test('without saved poses the desk panel explains how to save one', () => {
-  const html = deskPanelHTML(viewOf(), 'desk');
-  assert.doesNotMatch(html, /data-arm-pose=/);
+test('a pose the arm has moved away from stays chosen, marked as changed, and can be updated', () => {
+  const s = twoPoses();
+  const html = panelWith({ ...s, monitorH: s.monitorH + 4 }, 'pose-2');
+  assert.equal(
+    optionOf(html, 'pose:pose-2'),
+    '<option value="pose:pose-2" selected>Desk 2 · changed</option>',
+  );
+  assert.doesNotMatch(html, /<button[^>]*id="updateArmPose"[^>]*disabled/);
+  assert.match(html, /<button[^>]*id="updateArmPose"/);
+});
+
+test('joints that match no pose show as a custom position, without pose actions', () => {
+  const s = twoPoses();
+  const html = panelWith({ ...s, monitorH: s.monitorH + 4 });
+  assert.equal(
+    optionOf(html, 'custom'),
+    '<option value="custom" selected>Custom (not saved)</option>',
+  );
+  assert.doesNotMatch(html, /id="updateArmPose"|id="deleteArmPose"/);
+});
+
+test('an automatic position is chosen when the arm follows it', () => {
+  const html = panelWith({ ...twoPoses(), monitorMode: 'desk' }, 'pose-1');
+  assert.match(optionOf(html, 'auto:desk'), / selected>/);
+  assert.doesNotMatch(optionOf(html, 'pose:pose-1'), /selected/);
+});
+
+test('without saved poses the monitor position offers the automatic positions and a hint', () => {
+  const html = panelWith(defaults);
+  assert.doesNotMatch(html, /Your poses/);
+  assert.ok(optionOf(html, 'auto:cockpit'));
   assert.match(html, /id="armPoseHint"/);
 });
 
+test('the cockpit position is unavailable without a cockpit', () => {
+  const html = panelWith({ ...defaults, cockpitEnabled: false, monitorMode: 'desk' });
+  assert.match(optionOf(html, 'auto:cockpit'), /disabled/);
+});
+
 test('a pose saved with the arm mounted elsewhere says so in text', () => {
-  const state = { ...saveArmPose(defaults, 'Racing'), clampX: defaults.clampX + 10 };
-  const html = deskPanelHTML({ state, evaluation: evaluate(state) }, 'desk');
+  const s = saveArmPose(defaults, 'Racing');
+  const html = panelWith({ ...s, clampX: s.clampX + 10 });
   assert.match(
     html,
     /<small data-mount-moved="pose-1">Saved with the arm mounted elsewhere<\/small>/,

@@ -52,11 +52,14 @@ import {
   type LayoutLibrary,
 } from './layouts.ts';
 import {
-  applyArmPose,
+  activeArmPose,
   armPoseMountMoved,
+  chooseMonitorPosition,
   deleteArmPose,
+  monitorPositionOf,
   MAX_ARM_POSES,
   saveArmPose,
+  updateArmPose,
 } from './arm-poses.ts';
 import { layoutOptionsHTML } from './layouts-view.ts';
 import type { SettingsSection } from './setup-actions.ts';
@@ -89,7 +92,7 @@ import {
   centerInRoom,
 } from './room-actions.ts';
 import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from './settings-panels.ts';
-import { armPoseListHTML } from './desk-editor.ts';
+import { monitorPositionHTML } from './desk-editor.ts';
 import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
 import {
   nextThemePreference,
@@ -252,7 +255,12 @@ let library: LayoutLibrary = newProject.library,
   view: SceneView = 'top',
   scene: CockpitScene | undefined,
   layoutTarget = '',
-  layoutEditing = false;
+  layoutEditing = false,
+  /**
+   * The arm pose last chosen, saved or updated, or '' for none. A layout opens with the pose its
+   * arm is in, so moving the arm afterwards shows that pose as changed.
+   */
+  selectedArmPose = '';
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -279,6 +287,7 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
 function openProject(project: Project) {
   library = project.library;
   state = layoutConfig(library);
+  selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
 }
 /** The open project, with the edits to the active layout recorded. */
@@ -291,6 +300,7 @@ function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
   clearTimeout(pendingSave);
   library = change(recordLayout(library, state));
   state = layoutConfig(library);
+  selectedArmPose = activeArmPose(state)?.id ?? '';
   if (layoutTarget.startsWith('furniture:') && !roomItem(state, layoutTarget)) layoutTarget = '';
   persist();
   renderControls();
@@ -718,7 +728,7 @@ function renderControls() {
       layoutCount: library.layouts.length,
     });
   } else {
-    html = deskPanelHTML(controlView(), layoutTarget);
+    html = deskPanelHTML(controlView(), layoutTarget, selectedArmPose);
   }
   $('#controls').innerHTML = html;
   bindRoomEditor();
@@ -831,7 +841,9 @@ function renderControls() {
   const armPoseName = $optional<HTMLInputElement>('#armPoseName');
   const saveCurrentArmPose = () => {
     try {
-      changeArm(saveArmPose(state, armPoseName?.value));
+      const next = saveArmPose(state, armPoseName?.value);
+      selectedArmPose = activeArmPose(next)?.id ?? '';
+      changeArm(next);
       toast('Pose saved in this layout.');
     } catch {
       toast(
@@ -915,15 +927,15 @@ function switchSection(value: Section) {
   $('#controls').scrollTop = 0;
   scene?.setLayoutEditing(layoutEditing, layoutTarget, isRoomSection(section));
 }
-/** What each pose list element shows, so it is only rewritten when that changes. */
-const shownArmPoseLists = new WeakMap<Element, string>();
-function refreshArmPoseList() {
-  const list = $optional('#armPoseList');
-  if (!list) return;
-  const html = armPoseListHTML(state);
-  if (shownArmPoseLists.get(list) === html) return;
-  list.innerHTML = html;
-  shownArmPoseLists.set(list, html);
+/** What each monitor position area shows, so it is only rewritten when that changes. */
+const shownMonitorPositions = new WeakMap<Element, string>();
+function refreshMonitorPosition() {
+  const area = $optional('#monitorPositionArea');
+  if (!area) return;
+  const html = monitorPositionHTML(state, selectedArmPose);
+  if (shownMonitorPositions.get(area) === html) return;
+  area.innerHTML = html;
+  shownMonitorPositions.set(area, html);
 }
 function refresh() {
   evaluation = evaluate(state);
@@ -966,7 +978,7 @@ function refresh() {
   if (mode) mode.value = state.monitorMode;
   const bend = $optional<HTMLSelectElement>('#armBend');
   if (bend) bend.value = state.armBend;
-  refreshArmPoseList();
+  refreshMonitorPosition();
   const lengths = $optional('#armLengths');
   if (lengths)
     lengths.textContent = `First segment: ${round(e.armPose.first)} cm · second segment: ${round(e.armPose.second)} cm. An elbow at 0° keeps the arm straight; ±180° folds it.`;
@@ -1242,28 +1254,42 @@ $('#csvBtn').addEventListener('click', () => {
   toast('Cut list downloaded');
 });
 $('#printBtn').addEventListener('click', () => window.print());
-// The saved pose list is redrawn as the arm moves, so its buttons are handled here, once.
+// The monitor position is redrawn as the arm moves, so its controls are handled here, once.
+$('#controls').addEventListener('change', (event) => {
+  if (event.target instanceof HTMLSelectElement && event.target.id === 'monitorPosition')
+    chooseMonitorPositionOf(event.target.value);
+});
 $('#controls').addEventListener('click', (event) => {
   if (!(event.target instanceof Element)) return;
-  const apply = event.target.closest<HTMLElement>('[data-arm-pose]');
-  if (apply) goToArmPose(dataOf(apply, 'armPose'));
-  const remove = event.target.closest<HTMLElement>('[data-delete-arm-pose]');
-  if (remove) removeArmPose(dataOf(remove, 'deleteArmPose'));
+  if (event.target.closest('#updateArmPose')) updateSelectedArmPose();
+  if (event.target.closest('#deleteArmPose')) deleteSelectedArmPose();
 });
-function goToArmPose(id: string) {
-  const pose = state.armPoses.find((candidate) => candidate.id === id);
-  if (!pose) return;
-  changeArm(applyArmPose(state, id));
-  toast(
-    armPoseMountMoved(state, pose)
-      ? `Arm in the pose ${pose.name}. It was saved with the arm mounted elsewhere, so the monitor is not where it was.`
-      : `Arm in the pose ${pose.name}.`,
-  );
+function chooseMonitorPositionOf(choice: string) {
+  const poseId = choice.startsWith('pose:') ? choice.slice('pose:'.length) : '';
+  selectedArmPose = poseId;
+  changeArm(chooseMonitorPosition(state, choice));
+  const pose = state.armPoses.find((candidate) => candidate.id === poseId);
+  if (pose && armPoseMountMoved(state, pose))
+    toast(
+      `${pose.name} was saved with the arm mounted elsewhere, so the monitor is not where it was.`,
+    );
 }
-function removeArmPose(id: string) {
-  const pose = state.armPoses.find((candidate) => candidate.id === id);
+/** The pose the monitor position shows, if it shows one. */
+function shownArmPose() {
+  const { choice } = monitorPositionOf(state, selectedArmPose);
+  return state.armPoses.find((pose) => choice === `pose:${pose.id}`);
+}
+function updateSelectedArmPose() {
+  const pose = shownArmPose();
   if (!pose) return;
-  changeArm(deleteArmPose(state, id));
+  changeArm(updateArmPose(state, pose.id));
+  toast(`Pose ${pose.name} updated.`);
+}
+function deleteSelectedArmPose() {
+  const pose = shownArmPose();
+  if (!pose) return;
+  selectedArmPose = '';
+  changeArm(deleteArmPose(state, pose.id));
   toast(`Pose ${pose.name} deleted.`);
 }
 $('#importBtn').addEventListener('click', () => $('#importFile').click());

@@ -388,33 +388,22 @@ body {
 .arm-pose-area {
   margin: 14px 0;
 }
-.arm-pose-title {
-  margin: 0 0 7px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.arm-poses {
-  display: grid;
-  gap: 6px;
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-}
-.arm-pose {
-  display: grid;
-  grid-template-columns: 1fr 40px;
-  gap: 6px;
-}
-.arm-pose small {
-  grid-column: 1 / -1;
+.arm-pose-area small[data-mount-moved] {
+  display: block;
+  margin: -4px 0 8px;
   font-size: 11px;
   color: var(--text-muted);
 }
-.arm-pose small::before {
+.arm-pose-area small[data-mount-moved]::before {
   content: '! ';
 }
-.arm-pose-apply,
-.arm-pose-delete,
+.arm-pose-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.arm-pose-actions button,
 .arm-pose-save button {
   border: 1px solid var(--accent-border);
   border-radius: 5px;
@@ -423,30 +412,15 @@ body {
   padding: 9px;
   font-size: 12px;
   min-height: 40px;
-  overflow-wrap: anywhere;
 }
-.arm-pose-apply {
-  text-align: left;
-}
-.arm-pose-apply[aria-pressed='true'] {
-  background: var(--accent-surface);
-  font-weight: 600;
-}
-/* The pressed state also shows as a mark, not only as a color. */
-.arm-pose-apply[aria-pressed='true']::before {
-  content: '✓ ';
-}
-.arm-pose-delete {
-  color: var(--text-secondary);
-  border-color: var(--border);
-}
-.arm-pose-apply:hover,
+.arm-pose-actions button:hover:not(:disabled),
 .arm-pose-save button:hover {
   background: var(--accent-surface-strong);
 }
-.arm-pose-delete:hover {
-  border-color: var(--accent-border);
-  color: var(--accent-text);
+.arm-pose-actions button:disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: default;
 }
 .arm-pose-save {
   display: grid;
