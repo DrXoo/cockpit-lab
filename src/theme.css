@@ -38,7 +38,7 @@
 
   /* Check states. */
   --ok: #466037;
-  --ok-fill: #7f9470;
+  --ok-fill: #6f8466;
   --ok-surface: #edf2e7;
   --warning: #795c24;
   --warning-surface: #faf2e2;
@@ -50,7 +50,7 @@
   /* Legend swatches and scene labels that stand for parts of the 3D scene. */
   --legend-frame: #a5ada0;
   --legend-desk: #c0a87d;
-  --opening: #537f8b;
+  --opening: #46717c;
   --opening-border: #bad0d3;
 
   /* The canvas of the 3D view (see scene-theme.ts). The parts keep their own colors. */
