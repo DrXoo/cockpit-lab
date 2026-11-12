@@ -12,6 +12,7 @@ import {
   type Polygon,
 } from './geometry.ts';
 import type { Check, CheckLevel } from './checks.ts';
+import { cleanUserText } from './user-text.ts';
 
 export type WallId = 'north' | 'east' | 'south' | 'west';
 export type FurnitureType =
@@ -223,14 +224,8 @@ const isWallId = (value: unknown): value is WallId =>
 const isFurnitureType = (value: unknown): value is FurnitureType =>
   typeof value === 'string' && Object.hasOwn(furnitureNames, value);
 
-/** Clean user text: no markup or control characters, limited length. */
 const text = (value: unknown, fallback: string): string =>
-  typeof value === 'string'
-    ? value
-        .replace(/[<>\x00-\x1f]/g, '')
-        .trim()
-        .slice(0, MAX_NAME_LENGTH) || fallback
-    : fallback;
+  cleanUserText(value, fallback, MAX_NAME_LENGTH);
 
 /** A finite number clamped to [min, max]; anything else becomes the fallback, unclamped. */
 const number = (value: unknown, fallback: number, min: number, max: number): number =>
