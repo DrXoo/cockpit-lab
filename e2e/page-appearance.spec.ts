@@ -47,9 +47,19 @@ for (const [colorScheme, prefix] of Object.entries(THEMES)) {
       test('editor sections', async ({ page }) => {
         await openApp(page);
         await importProject(page, 'gt-room.json');
-        for (const section of ['room', 'furniture', 'desk', 'rig']) {
+        for (const section of ['room', 'furniture', 'desk', 'cockpit']) {
           await page.locator(`#tab-${section}`).click();
           await expectPage(page, `${prefix}editor-${section}.png`);
+        }
+      });
+
+      test('cockpit editor', async ({ page }) => {
+        await openApp(page);
+        await importProject(page, 'gt-room.json');
+        await page.locator('#cockpitEditor').click();
+        for (const section of ['frame', 'posture']) {
+          await page.locator(`#tab-${section}`).click();
+          await expectPage(page, `${prefix}cockpit-${section}.png`);
         }
       });
 

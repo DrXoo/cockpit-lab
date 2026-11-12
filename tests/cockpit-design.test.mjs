@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, presets } from '../src/model.ts';
+import { defaults, evaluate, presets } from '../src/model.ts';
 import {
   COCKPIT_DESIGN_KEYS,
+  designOnItsOwn,
   isCockpitDesignSetting,
   placeCockpit,
   splitCockpit,
@@ -42,4 +43,27 @@ test('the design is the frame, the driver and the controls, and what a base sets
     assert.equal(isCockpitDesignSetting(key), false, key);
   for (const key of Object.keys(presets.gt.values))
     assert.ok(COCKPIT_DESIGN_KEYS.includes(key), `preset value ${key}`);
+});
+
+test('a design on its own stands at the origin, with no room, desk or monitor around it', () => {
+  const placed = { ...defaults, height: 186, recline: 24, cockpitX: 140, cockpitAngle: 90 };
+  const { cockpit } = splitCockpit(placed);
+  const alone = designOnItsOwn(cockpit);
+  assert.deepEqual(splitCockpit(alone).cockpit, cockpit);
+  assert.equal(alone.cockpitEnabled, true);
+  assert.deepEqual([alone.cockpitX, alone.cockpitZ, alone.cockpitAngle], [0, 0, 0]);
+  assert.equal(alone.roomEnabled, false);
+  assert.equal(alone.deskEnabled, false);
+  assert.equal(alone.monitorEnabled, false);
+  // The posture depends on the design alone, wherever the cockpit stands; the screen belongs to
+  // the room, so the distance to it is only checked there.
+  const withoutScreen = (config) => evaluate(config).bodyCheck.filter((c) => c.id !== 'eyes');
+  assert.deepEqual(evaluate(alone).bodyCheck, withoutScreen(placed));
+});
+
+test('without a design there is nothing to show on its own', () => {
+  const alone = designOnItsOwn(null);
+  assert.equal(alone.cockpitEnabled, false);
+  assert.equal(alone.roomEnabled, false);
+  assert.equal(alone.deskEnabled, false);
 });

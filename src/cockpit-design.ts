@@ -127,3 +127,25 @@ export const placeCockpit = (room: RoomConfig, cockpit: CockpitDesign | null): C
   ...room,
   ...cockpitSettings(cockpit),
 });
+
+/** What surrounds a design in its own workspace: nothing, with the cockpit at the origin. */
+const NOTHING_AROUND: RoomConfig = {
+  ...separate(defaults).room,
+  roomEnabled: false,
+  deskEnabled: false,
+  monitorEnabled: false,
+  keyboardEnabled: false,
+  pcEnabled: false,
+  mouseEnabled: false,
+  matEnabled: false,
+  roomFeatures: [],
+  roomFurniture: [],
+  armPoses: [],
+  cockpitX: 0,
+  cockpitZ: 0,
+  cockpitAngle: 0,
+};
+
+/** A configuration that shows a cockpit design, or none, without any room. */
+export const designOnItsOwn = (cockpit: CockpitDesign | null): CockpitConfig =>
+  placeCockpit(NOTHING_AROUND, cockpit);

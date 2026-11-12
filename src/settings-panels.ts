@@ -1,15 +1,42 @@
-// Settings panels of the complete editor: cockpit rig, seated posture and desk.
+// Settings panels of the complete editor. The cockpit editor has the frame and the posture of the
+// design; the room editor has the desk and the placement of the cockpit design it links to.
 import { round } from './geometry.ts';
+import { presets } from './config.ts';
 import { bindControls, groupHTML as group, type ControlView } from './controls-view.ts';
 import { accessoryControls, placementControls } from './setup-editor.ts';
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';
+import { escapeHTML as esc } from './html.ts';
 
-export function rigPanelHTML(view: ControlView): string {
+/** A form to start a cockpit design from one of the bases. */
+export function newDesignHTML(): string {
+  const options = Object.entries(presets)
+    .map(([id, base]) => `<option value="${id}">${esc(base.label)}</option>`)
+    .join('');
+  return `<form id="newDesignForm"><p class="setup-prompt">This project has no cockpit yet.</p><label class="setup-field" for="newDesignBase">Start from a base<select id="newDesignBase" required><option value="">Choose a base</option>${options}</select></label><p class="layout-hint">You can then adjust the frame, the controls and the posture. A room in this project places the design in every layout.</p><button type="submit" class="button button-dark">Start the design</button></form>`;
+}
+
+/** The cockpit in the room: the design it links to, and where this layout puts it. */
+export function cockpitPlacementHTML(view: ControlView): string {
+  const { state } = view;
+  if (state.cockpitEnabled === false)
+    return group(
+      'Cockpit design',
+      '<p class="layout-hint">This project has no cockpit design yet. Every layout of the room places the design once there is one.</p><button class="arm-edit-action" id="editCockpitDesign">Design a cockpit →</button>',
+    );
+  const { range } = bindControls(view);
+  const design = `<p class="design-summary"><b>${esc(presets[state.preset].label)}</b> · chassis ${round(state.length)} × ${round(state.width)} cm · driver ${round(state.height)} cm</p>`;
+  return (
+    group(
+      'Cockpit design',
+      design +
+        '<button class="arm-edit-action" id="editCockpitDesign">Edit the cockpit design →</button><p class="layout-hint">The room shows the cockpit design of the project and only places it. A change to the design shows in every layout.</p>',
+    ) + placementControls('cockpit', range)
+  );
+}
+
+export function framePanelHTML(view: ControlView): string {
   const { range, toggle, select } = bindControls(view);
   let html = '';
-  html +=
-    '<button class="arm-edit-action" id="bodySettings">Adjust seat, posture and controls →</button>';
-  html += placementControls('cockpit', range);
   html += group(
     'Aluminium base',
     range('length', 'Chassis length') +
@@ -39,11 +66,10 @@ export function rigPanelHTML(view: ControlView): string {
   return html;
 }
 
-export function bodyPanelHTML(view: ControlView): string {
-  const { range, toggle, select } = bindControls(view);
+export function posturePanelHTML(view: ControlView): string {
+  const { range } = bindControls(view);
   const { state } = view;
   let html = '';
-  html += '<button class="arm-edit-action" id="rigSettings">← Back to the cockpit</button>';
   html += group('Your starting point', range('height', 'Your height'));
   html += group(
     'Seat',
@@ -78,7 +104,7 @@ export function bodyPanelHTML(view: ControlView): string {
       range('stickZ', 'Fore-aft position') + range('stickH', 'Plate height'),
     );
   html +=
-    '<p class="control-hint">Positions are measured from the rear end of the chassis and heights from the floor, including the base lift. Set the lift of the whole rig in Cockpit → Aluminium base. Recline is measured from vertical. Show the driver to explore the posture.</p>';
+    '<p class="control-hint">Positions are measured from the rear end of the chassis and heights from the floor, including the base lift. Set the lift of the whole cockpit in Frame → Aluminium base. Recline is measured from vertical. Show the driver to explore the posture.</p>';
   return html;
 }
 

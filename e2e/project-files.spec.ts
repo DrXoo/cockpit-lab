@@ -79,10 +79,10 @@ test('the cut list CSV has one row per part and accessory', async ({ page }) => 
   expect(csv.split('\r\n')).toHaveLength(3 + parts.length + accessories.length);
 });
 
-test('choosing a preset applies its rig settings', async ({ page }) => {
+test('choosing a base applies its cockpit settings', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
-  await page.locator('#tab-rig').click();
+  await page.locator('#cockpitEditor').click();
   await page.locator('#preset').selectOption('small');
   expect(await getState(page)).toMatchObject({
     preset: 'small',

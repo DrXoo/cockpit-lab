@@ -5,7 +5,7 @@ import { resizeDesk } from './desk.ts';
 import { normalizeRoom } from './room.ts';
 import { roomItems } from './room-editor.ts';
 
-export type SettingsSection = 'room' | 'desk' | 'rig';
+export type SettingsSection = 'room' | 'desk' | 'cockpit';
 
 /** The settings section a guided step opens. */
 export const sectionOfStep = (step: SetupStep): SettingsSection =>
@@ -13,7 +13,7 @@ export const sectionOfStep = (step: SetupStep): SettingsSection =>
     ? 'room'
     : step === 'desk'
       ? 'desk'
-      : 'rig';
+      : 'cockpit';
 
 /** Step 1: the interior size of the room, in cm. */
 export const withRoomSize = (

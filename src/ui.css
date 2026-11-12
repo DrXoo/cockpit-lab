@@ -1207,3 +1207,34 @@ body {
     padding: 8px;
   }
 }
+.editor-switch button {
+  font-size: 13px;
+  min-height: 34px;
+  padding: 6px 14px;
+  color: var(--text-muted);
+}
+.editor-switch button.active {
+  color: var(--text);
+}
+.design-summary {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+@media (max-width: 740px) {
+  .editor-switch button {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+}
+@media (max-width: 480px) {
+  /* The editor switch takes the room of the brand name, so only its mark stays. */
+  .brand strong {
+    display: none;
+  }
+  .brand-mark {
+    display: grid;
+  }
+}

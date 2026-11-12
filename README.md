@@ -46,6 +46,7 @@ The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, d
 
 ## Features
 
+- A cockpit editor that designs the cockpit on its own, and a room editor that places it in each layout.
 - Presets: GT, flight, hybrid and minimum footprint.
 - Guided setup (room, openings, furniture, desk and cockpit) that resumes where you left off.
 - Dimensions and positions of the seat, wheel, pedals and side mounts.
@@ -72,7 +73,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/user-text.ts` | Cleaning names typed by users |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |
-| `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the rig, posture and desk panels |
+| `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls; the frame and posture panels of the cockpit editor; the desk and cockpit placement panels of the room editor |
 | `src/project-summary.ts`, `src/inspector-view.ts`, `src/check-view.ts`, `src/html.ts` | Summary, validation banner, metrics and checks |
 | `src/cut-list-csv.ts` | Cut list CSV export |
 | `src/model.ts` | Public entry point of the configurator model |
@@ -81,7 +82,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/interference.ts` | How far two volumes overlap and which part reaches into which item |
 | `src/rig.ts`, `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Cockpit rig, placement, desk, monitor arm and seated posture |
 | `src/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
-| `src/cockpit-design.ts` | Which settings make up the cockpit design, kept apart from the room |
+| `src/cockpit-design.ts` | Which settings make up the cockpit design, kept apart from the room, and the design shown on its own |
 | `src/parts.ts`, `src/field-spec.ts` | Bill of materials and per-setting ranges |
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |

@@ -21,7 +21,7 @@ test('each step opens its settings section', () => {
   assert.equal(sectionOfStep('openings'), 'room');
   assert.equal(sectionOfStep('furniture'), 'room');
   assert.equal(sectionOfStep('desk'), 'desk');
-  assert.equal(sectionOfStep('cockpit'), 'rig');
+  assert.equal(sectionOfStep('cockpit'), 'cockpit');
 });
 
 test('the room size enables and validates the room', () => {

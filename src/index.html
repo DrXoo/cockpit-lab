@@ -42,6 +42,10 @@
             <path d="M5 23V10l11-6 11 6v13l-11 6Z M5 10l11 6 11-6 M16 16v13" /></svg></span
         ><strong>cockpit<span>lab</span></strong></a
       >
+      <nav class="editor-switch view-tabs" aria-label="Editor">
+        <button id="cockpitEditor" data-editor="cockpit" aria-pressed="false">Cockpit</button
+        ><button id="roomEditor" data-editor="room" class="active" aria-pressed="true">Room</button>
+      </nav>
       <div class="header-actions">
         <button class="text-button" id="newProject">New project</button
         ><button class="text-button" id="themeBtn" aria-label="Color theme: System">
@@ -127,6 +131,7 @@
             id="tab-room"
             class="active"
             data-section="room"
+            data-in-editor="room"
             role="tab"
             aria-selected="true"
             aria-controls="controls"
@@ -136,6 +141,7 @@
           <button
             id="tab-furniture"
             data-section="furniture"
+            data-in-editor="room"
             role="tab"
             tabindex="-1"
             aria-selected="false"
@@ -146,6 +152,7 @@
           <button
             id="tab-desk"
             data-section="desk"
+            data-in-editor="room"
             role="tab"
             tabindex="-1"
             aria-selected="false"
@@ -154,14 +161,39 @@
             Desk
           </button>
           <button
-            id="tab-rig"
-            data-section="rig"
+            id="tab-cockpit"
+            data-section="cockpit"
+            data-in-editor="room"
             role="tab"
             tabindex="-1"
             aria-selected="false"
             aria-controls="controls"
           >
             Cockpit
+          </button>
+          <button
+            id="tab-frame"
+            data-section="frame"
+            data-in-editor="cockpit"
+            role="tab"
+            tabindex="-1"
+            aria-selected="false"
+            aria-controls="controls"
+            hidden
+          >
+            Frame
+          </button>
+          <button
+            id="tab-posture"
+            data-section="posture"
+            data-in-editor="cockpit"
+            role="tab"
+            tabindex="-1"
+            aria-selected="false"
+            aria-controls="controls"
+            hidden
+          >
+            Posture
           </button>
         </div>
         <div
@@ -237,8 +269,8 @@
         </div>
         <div class="viewport" id="viewport">
           <div id="emptyScene" class="empty-scene">
-            <strong>Your space starts here</strong
-            ><span>Set up your room to start arranging it.</span>
+            <strong id="emptySceneTitle">Your space starts here</strong
+            ><span id="emptySceneHint">Set up your room to start arranging it.</span>
           </div>
           <div class="scene-badge" hidden>
             <span class="live-dot"></span><span id="sceneTitle">Compact GT</span
@@ -506,20 +538,21 @@
         <li>
           <b>Design the cockpit</b>
           <p>
-            Choose GT, flight, hybrid or smallest footprint. Adjust the chassis and posture and
-            arrange the cockpit in the remaining space. In Aluminium base, the lift raises the seat,
-            wheel, pedals and controls together without changing your posture. The desk and the
-            monitor keep their height. Heights are measured from the floor and include that lift;
-            seat, pedal and control positions are measured from the rear end of the chassis. Arrange
-            turns on dragging in the plan. In Desk, with the monitor and arm on, you can set or drag
-            the ELBOW and VESA joints.
+            Open the Cockpit editor at the top and choose GT, flight, hybrid or smallest footprint.
+            Adjust the frame and the posture there, with the cockpit on its own: you don't need a
+            room to design it. In Aluminium base, the lift raises the seat, wheel, pedals and
+            controls together without changing your posture. Heights are measured from the floor and
+            include that lift; seat, pedal and control positions are measured from the rear end of
+            the chassis. Back in the Room editor, the Cockpit section only places the design; every
+            layout shows the same design at its own position. Arrange turns on dragging in the plan.
+            In Desk, with the monitor and arm on, you can set or drag the ELBOW and VESA joints.
           </p>
         </li>
         <li>
           <b>Carry on whenever you like</b>
           <p>
             You can go back to the steps you visited without losing anything, or leave openings and
-            furniture for later. Progress and half-filled forms are saved. When you finish, the
+            furniture for later. Progress and half-filled forms are saved. When you finish, the room
             editor opens with the Room, Furniture, Desk and Cockpit sections. Export a JSON file to
             keep a copy or move the project to another device; the CSV and the summary only include
             the items you added.

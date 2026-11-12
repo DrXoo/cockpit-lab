@@ -8,7 +8,8 @@ const FIXTURES: Record<string, string[]> = {
   'flight-lifted.json': ['iso', 'top', 'desk', 'side'],
   'desk-only.json': ['iso', 'top', 'desk'],
 };
-const SECTIONS = ['room', 'furniture', 'desk', 'rig'];
+const SECTIONS = ['room', 'furniture', 'desk', 'cockpit'];
+const COCKPIT_SECTIONS = ['frame', 'posture'];
 
 const nameOf = (fixture: string) => fixture.replace('.json', '');
 
@@ -39,6 +40,24 @@ for (const [fixture, views] of Object.entries(FIXTURES)) {
         );
       }
     });
+
+    if (views.includes('side'))
+      test('cockpit editor', async ({ page }) => {
+        await page.locator('#cockpitEditor').click();
+        await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#viewport')).toHaveScreenshot(
+          `${nameOf(fixture)}-cockpit-editor.png`,
+        );
+        for (const section of COCKPIT_SECTIONS) {
+          await page.locator(`#tab-${section}`).click();
+          expect(await page.locator('#controls').innerText()).toMatchSnapshot(
+            `${nameOf(fixture)}-controls-${section}.txt`,
+          );
+        }
+        expect(await page.locator('#inspector').innerText()).toMatchSnapshot(
+          `${nameOf(fixture)}-cockpit-inspector.txt`,
+        );
+      });
 
     test('checks and metrics', async ({ page }) => {
       expect(await page.locator('#inspector').innerText()).toMatchSnapshot(

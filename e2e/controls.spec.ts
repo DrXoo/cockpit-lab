@@ -42,7 +42,7 @@ async function useEveryControl(page: Page) {
   });
 }
 
-for (const section of ['room', 'furniture', 'desk', 'rig']) {
+for (const section of ['room', 'furniture', 'desk', 'cockpit']) {
   test(`every control in the ${section} panel can be used`, async ({ page }) => {
     await openApp(page);
     await importProject(page, 'flight-lifted.json');
@@ -55,11 +55,17 @@ for (const section of ['room', 'furniture', 'desk', 'rig']) {
   });
 }
 
-test('every control in the posture panel can be used', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'flight-lifted.json');
-  await page.locator('#tab-rig').click();
-  await page.locator('#bodySettings').click();
-  await useEveryControl(page);
-  await expect(page.locator('#controls')).not.toBeEmpty();
-});
+for (const section of ['frame', 'posture']) {
+  test(`every control in the ${section} panel of the cockpit design can be used`, async ({
+    page,
+  }) => {
+    await openApp(page);
+    await importProject(page, 'flight-lifted.json');
+    await page.locator('#cockpitEditor').click();
+    await page.locator(`#tab-${section}`).click();
+    const before = await getState(page);
+    await useEveryControl(page);
+    await expect(page.locator('#controls')).not.toBeEmpty();
+    expect(Object.keys(await getState(page))).toEqual(Object.keys(before));
+  });
+}

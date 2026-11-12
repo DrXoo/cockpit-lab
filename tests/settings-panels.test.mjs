@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rigPanelHTML, bodyPanelHTML, deskPanelHTML } from '../src/settings-panels.ts';
+import {
+  framePanelHTML,
+  posturePanelHTML,
+  deskPanelHTML,
+  cockpitPlacementHTML,
+  newDesignHTML,
+} from '../src/settings-panels.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import { saveArmPose, applyArmPose } from '../src/arm-poses.ts';
 
@@ -10,25 +16,46 @@ const viewOf = (overrides = {}) => {
 };
 const keysIn = (html) => [...html.matchAll(/id="([a-zA-Z]+)-range"/g)].map((match) => match[1]);
 
-test('the rig panel sets the base, its elevation and the modules', () => {
-  const html = rigPanelHTML(viewOf());
-  for (const key of ['cockpitX', 'cockpitZ', 'cockpitAngle', 'length', 'width', 'baseLift'])
-    assert.ok(keysIn(html).includes(key), key);
+test('the frame panel sets the base, its lift and the modules, not where the cockpit stands', () => {
+  const html = framePanelHTML(viewOf());
+  assert.deepEqual(keysIn(html), ['length', 'width', 'baseLift']);
   for (const key of ['wheel', 'hotas', 'centerStick', 'shifter', 'handbrake'])
     assert.match(html, new RegExp(`type="checkbox" id="${key}"`));
   assert.match(html, /<select id="drivingSide"/);
   assert.match(html, /<select id="feet"/);
-  assert.match(html, /id="bodySettings"/);
+});
+
+test('in the room the cockpit is only placed, with a way to its design', () => {
+  const html = cockpitPlacementHTML(viewOf({ preset: 'flight', length: 150, width: 66 }));
+  assert.deepEqual(keysIn(html), ['cockpitX', 'cockpitZ', 'cockpitAngle']);
+  assert.match(html, /VR flight/);
+  assert.match(html, /150 × 66 cm/);
+  assert.match(html, /<button[^>]*id="editCockpitDesign"/);
+  assert.match(html, /data-place="cockpit"/);
+});
+
+test('a room without a cockpit design offers to design one, with nothing to place', () => {
+  const html = cockpitPlacementHTML(viewOf({ cockpitEnabled: false }));
+  assert.deepEqual(keysIn(html), []);
+  assert.match(html, /<button[^>]*id="editCockpitDesign"[^>]*>Design a cockpit/);
+});
+
+test('a new design starts from one of the bases', () => {
+  const html = newDesignHTML();
+  assert.match(html, /<form id="newDesignForm"/);
+  for (const base of ['gt', 'flight', 'hybrid', 'small'])
+    assert.match(html, new RegExp(`<option value="${base}">`), base);
+  assert.match(html, /<select id="newDesignBase" required>/);
 });
 
 test('the posture panel shows only the controls of the mounted modules', () => {
   const bare = keysIn(
-    bodyPanelHTML(
+    posturePanelHTML(
       viewOf({ wheel: false, hotas: false, shifter: false, handbrake: false, centerStick: false }),
     ),
   );
   assert.deepEqual(bare, ['height', 'seatZ', 'seatH', 'recline', 'pedalZ', 'pedalH', 'pedalTilt']);
-  const full = keysIn(bodyPanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true })));
+  const full = keysIn(posturePanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true })));
   for (const key of [
     'wheelZ',
     'wheelH',
