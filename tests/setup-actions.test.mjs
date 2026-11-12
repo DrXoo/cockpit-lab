@@ -9,11 +9,13 @@ import {
   withCockpitPreset,
 } from '../src/setup-actions.ts';
 import { createProject } from '../src/project.ts';
+import { layoutConfig } from '../src/layouts.ts';
 import { presets } from '../src/model.ts';
 
 const fresh = createProject();
+const freshConfig = layoutConfig(fresh.library);
 const atStep = (step, furthest = 4) => ({ step, furthest, deferred: [] });
-const withRoom = withRoomSize(fresh.config, 300, 400, 250);
+const withRoom = withRoomSize(freshConfig, 300, 400, 250);
 
 test('each step opens its settings section', () => {
   assert.equal(sectionOfStep('room'), 'room');
@@ -26,7 +28,7 @@ test('each step opens its settings section', () => {
 test('the room size enables and validates the room', () => {
   assert.equal(withRoom.roomEnabled, true);
   assert.deepEqual([withRoom.roomW, withRoom.roomD, withRoom.roomH], [300, 400, 250]);
-  assert.equal(withRoomSize(fresh.config, 300, 400, 9999).roomH, 400);
+  assert.equal(withRoomSize(freshConfig, 300, 400, 9999).roomH, 400);
 });
 
 test('the desk is added in the middle of the room with the monitor on it', () => {
@@ -47,7 +49,7 @@ test('the cockpit preset is applied and the rig centred along the room', () => {
 });
 
 test('the step buttons follow what has been added', () => {
-  assert.deepEqual(setupButtons(atStep('room'), fresh.config), {
+  assert.deepEqual(setupButtons(atStep('room'), freshConfig), {
     backDisabled: true,
     nextLabel: 'Continue',
     nextDisabled: false,
@@ -68,7 +70,7 @@ test('the step buttons follow what has been added', () => {
 });
 
 test('the room must be defined before continuing', () => {
-  assert.deepEqual(nextSetupStep(atStep('room', 0), fresh.config), { status: 'needs-room' });
+  assert.deepEqual(nextSetupStep(atStep('room', 0), freshConfig), { status: 'needs-room' });
 });
 
 test('the desk and the cockpit steps need their element unless skipped', () => {

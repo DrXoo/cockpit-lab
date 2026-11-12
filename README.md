@@ -64,6 +64,8 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/app.ts` | DOM wiring: events, panels and exports |
 | `src/dom-input.ts`, `src/setting-change.ts` | Validating what the panels send, and applying a setting change |
 | `src/project.ts`, `src/project-storage.ts` | Project format and autosave |
+| `src/layouts.ts` | Layouts: what each arrangement of the room places, and what they share |
+| `src/user-text.ts` | Cleaning names typed by users |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |
 | `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the rig, posture and desk panels |
@@ -100,7 +102,7 @@ New code is written test-first (TDD), following Clean Code and pragmatic SOLID. 
 
 ## Saved designs
 
-Projects are stored in the browser's `localStorage` under `cockpit-lab-v2`, and can be exported and imported as JSON v2 with explicit units (cm). Older v1 files, and designs saved under `cockpit-lab-v1`, still load. See [guided setup and the save format](docs/guided-setup.md).
+Projects are stored in the browser's `localStorage` under `cockpit-lab-v3`, and can be exported and imported as JSON v3 with explicit units (cm). Older v1 and v2 files, and designs saved under `cockpit-lab-v1` or `cockpit-lab-v2`, still load. See [guided setup and the save format](docs/guided-setup.md).
 
 Browser storage is tied to the origin (host and port), so a design saved on one port doesn't appear on another. Export it to JSON to move it. Keep personal design files in `configuraciones-personales/`, which Git ignores.
 
@@ -109,7 +111,7 @@ Browser storage is tied to the origin (host and port), so a design saved on one 
 These documents are still in Spanish and their translation is pending:
 
 - [Current configurator](docs/configurator.md): scope, conventions and limitations.
-- [Guided setup](docs/guided-setup.md): setup steps and the v1 → v2 adapter.
+- [Guided setup](docs/guided-setup.md): setup steps, the save format and the adapters for older files.
 - [Development](docs/development.md): starting point and workflow.
 - [Mini CAD](docs/mini-cad.md): goals, data model and stages.
 

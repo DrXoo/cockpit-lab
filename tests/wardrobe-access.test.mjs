@@ -4,6 +4,7 @@ import { defaults, rectangle, evaluate } from '../src/model.ts';
 import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../src/room.ts';
 import { roomControls, roomItems } from '../src/room-editor.ts';
 import { createProject, readProject, projectData } from '../src/project.ts';
+import { createLayoutLibrary, layoutConfig } from '../src/layouts.ts';
 
 const access = (more = {}) => ({
   id: 'armario',
@@ -17,7 +18,7 @@ const access = (more = {}) => ({
 });
 const room = (more = {}) =>
   normalizeRoom({
-    ...createProject().config,
+    ...layoutConfig(createProject().library),
     roomEnabled: true,
     roomX: 0,
     roomZ: 0,
@@ -174,20 +175,22 @@ test('access coexists with openings and detects overlapping mounts or fronts', (
 
 test('the project keeps the access and older files still open', () => {
   const p = createProject();
-  p.config = room({
+  const config = room({
     roomFeatures: [access({ wall: 'west', offset: 22.5, width: 200, clearance: 95 })],
   });
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
-  const restored = readProject(JSON.parse(JSON.stringify(projectData(p.config, p.setup))));
-  assert.deepEqual(restored.config, p.config);
+  const restored = readProject(
+    JSON.parse(JSON.stringify(projectData(createLayoutLibrary(config), p.setup))),
+  );
+  assert.deepEqual(layoutConfig(restored.library), config);
   assert.equal(restored.setup.step, 'furniture');
   const old = readProject({
     app: 'Cockpit Lab',
     version: 1,
     config: { ...defaults, roomFeatures: [] },
   });
-  assert.deepEqual(old.config.roomFeatures, []);
-  const resized = normalizeRoom({ ...p.config, roomH: 280 });
+  assert.deepEqual(layoutConfig(old.library).roomFeatures, []);
+  const resized = normalizeRoom({ ...config, roomH: 280 });
   assert.equal(resized.roomFeatures[0].height, 250);
 });
 
@@ -245,12 +248,20 @@ test('the door height allows a shelf above and detects intrusions below', () => 
 
 test('the edited height is saved and limited to the ceiling; accesses without a height stay compatible', () => {
   const p = createProject();
-  p.config = room({ roomFeatures: [access({ height: 212.5 })] });
+  const config = room({ roomFeatures: [access({ height: 212.5 })] });
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
-  const restored = readProject(JSON.parse(JSON.stringify(projectData(p.config, p.setup))));
-  assert.equal(restored.config.roomFeatures[0].height, 212.5);
-  assert.equal(normalizeRoom({ ...restored.config, roomH: 280 }).roomFeatures[0].height, 212.5);
-  assert.equal(normalizeRoom({ ...restored.config, roomH: 200 }).roomFeatures[0].height, 200);
+  const restored = readProject(
+    JSON.parse(JSON.stringify(projectData(createLayoutLibrary(config), p.setup))),
+  );
+  assert.equal(layoutConfig(restored.library).roomFeatures[0].height, 212.5);
+  assert.equal(
+    normalizeRoom({ ...layoutConfig(restored.library), roomH: 280 }).roomFeatures[0].height,
+    212.5,
+  );
+  assert.equal(
+    normalizeRoom({ ...layoutConfig(restored.library), roomH: 200 }).roomFeatures[0].height,
+    200,
+  );
   assert.equal(room({ roomFeatures: [access()] }).roomFeatures[0].height, 250);
   assert.equal(room({ roomFeatures: [access({ height: Infinity })] }).roomFeatures[0].height, 250);
 });

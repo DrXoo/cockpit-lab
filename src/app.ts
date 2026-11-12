@@ -35,7 +35,8 @@ import { CockpitScene } from './scene.ts';
 import type { SceneView } from './scene-camera.ts';
 import type { CockpitConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import type { SetupProgress, StepId } from './project.ts';
+import type { Project, SetupProgress, StepId } from './project.ts';
+import { layoutConfig, recordLayout, type LayoutLibrary } from './layouts.ts';
 import type { SettingsSection } from './setup-actions.ts';
 import { applySetting, type SettingChange } from './setting-change.ts';
 import {
@@ -214,9 +215,12 @@ function stepOf(value: string): StepId {
 }
 const isRoomSection = (value: Section) => value === 'room' || value === 'furniture';
 
-let project = createProject(),
-  state: CockpitConfig = project.config,
-  setup: SetupProgress = project.setup,
+const newProject = createProject();
+// `state` is the active layout as it is being edited; `library` keeps every layout as last
+// recorded. Saving and exporting record `state` into the library first.
+let library: LayoutLibrary = newProject.library,
+  state: CockpitConfig = layoutConfig(library),
+  setup: SetupProgress = newProject.setup,
   section: Section = 'room',
   view: SceneView = 'top',
   scene: CockpitScene | undefined,
@@ -224,9 +228,7 @@ let project = createProject(),
   layoutEditing = false;
 const loaded = store.load();
 if (loaded.status === 'loaded') {
-  project = loaded.project;
-  state = project.config;
-  setup = project.setup;
+  openProject(loaded.project);
   setSaveStatus('Design restored from this browser');
 } else if (loaded.status === 'invalid')
   setSaveStatus('The saved design could not be restored. You can open a JSON copy.', 'error');
@@ -246,8 +248,19 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
   $('#saveStatus').textContent = message;
   $('.save-info').dataset.state = status;
 }
+/** Makes `project` the open one, editing its active layout. */
+function openProject(project: Project) {
+  library = project.library;
+  state = layoutConfig(library);
+  setup = project.setup;
+}
+/** The open project, with the edits to the active layout recorded. */
+function recordedProject(): Project {
+  library = recordLayout(library, state);
+  return { library, setup };
+}
 function persist() {
-  if (store.save({ config: state, setup })) setSaveStatus('Saved in this browser');
+  if (store.save(recordedProject())) setSaveStatus('Saved in this browser');
   else setSaveStatus('Not saved automatically · export a JSON file', 'error');
 }
 function queueSave() {
@@ -890,7 +903,7 @@ function download(filename: string, text: string, type: string) {
 function exportConfig() {
   download(
     'cockpit-lab-design.json',
-    JSON.stringify(projectData(state, setup), null, 2),
+    JSON.stringify(projectData(recordedProject().library, setup), null, 2),
     'application/json',
   );
   toast('JSON exported. Use Open JSON to bring this design back.');
@@ -943,9 +956,7 @@ $('#preset').addEventListener('change', () => {
 });
 $('#resetBtn').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
 $('#confirmReset').addEventListener('click', () => {
-  project = createProject();
-  state = project.config;
-  setup = project.setup;
+  openProject(createProject());
   layoutTarget = '';
   layoutEditing = false;
   clearTimeout(pendingSave);
@@ -1076,15 +1087,15 @@ $('#csvBtn').addEventListener('click', () => {
 $('#printBtn').addEventListener('click', () => window.print());
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
 $('#loadConfig').addEventListener('click', () => $('#importFile').click());
+/** Generous for a full project: 20 layouts of 30 pieces of furniture export to about 100 kB. */
+const MAX_PROJECT_FILE_BYTES = 500_000;
 const importFile = $<HTMLInputElement>('#importFile');
 importFile.addEventListener('change', async () => {
   const file = importFile.files?.[0];
   if (!file) return;
   try {
-    if (file.size > 100000) throw new Error('File too large');
-    const data = readProject(JSON.parse(await file.text()));
-    state = data.config;
-    setup = data.setup;
+    if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('File too large');
+    openProject(readProject(JSON.parse(await file.text())));
     persist();
     renderControls();
     refresh();

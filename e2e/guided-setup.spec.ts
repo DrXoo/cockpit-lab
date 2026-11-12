@@ -1,4 +1,4 @@
-import { test, expect, openApp, getState, getSavedProject } from './support.ts';
+import { test, expect, openApp, getState, getSavedProject, activeLayoutConfig } from './support.ts';
 
 test('the guided setup builds a room, an opening, a desk and a cockpit', async ({ page }) => {
   await openApp(page);
@@ -48,7 +48,7 @@ test('the guided setup builds a room, an opening, a desk and a cockpit', async (
   await expect(page.locator('#toast')).toHaveText('Project ready. You can keep editing each part.');
   const saved = await getSavedProject(page);
   expect(saved.setup).toMatchObject({ step: 'complete', deferred: ['furniture'] });
-  expect(saved.config).toEqual(await getState(page));
+  expect(activeLayoutConfig(saved)).toEqual(await getState(page));
 });
 
 test('a half-finished setup resumes at the same step after a reload', async ({ page }) => {

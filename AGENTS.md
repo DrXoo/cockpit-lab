@@ -64,7 +64,7 @@ These principles serve readability and change. Don't add abstractions, layers or
 
 ## Domain rules
 
-- Current JSON files use cm. Format v2 records the units explicitly, and v1 files are still imported. The CAD model will use mm with a versioned schema and an explicit adapter. Keep importing older files.
+- Current JSON files use cm. Format v3 records the units explicitly and stores every layout; v1 and v2 files are still imported. The CAD model will use mm with a versioned schema and an explicit adapter. Keep importing older files.
 - Coordinate system: +Y is up, +Z is the front of the cockpit and −X is the pilot's right. Make conversions explicit if you introduce another convention.
 - CAD quantities and dimensions must come from the parts and joints model. Never derive them from rendered meshes or rough multipliers.
 - Store a peripheral's envelope, its mounting points and the source of its measurements separately. Don't scale mounting holes when resizing a housing.

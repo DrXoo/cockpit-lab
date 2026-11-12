@@ -1,4 +1,4 @@
-import { test, expect, openApp, importProject } from './support.ts';
+import { test, expect, openApp, importProject, STORAGE_KEY } from './support.ts';
 
 const theme = (page: import('@playwright/test').Page) =>
   page.locator('html').getAttribute('data-theme');
@@ -59,7 +59,7 @@ test('the theme preference is not part of the design', async ({ page }) => {
   await page.locator('#themeBtn').click();
   const saved = await page.evaluate(() => Object.keys(localStorage));
   expect(saved).toContain('cockpit-lab-theme');
-  const project = await page.evaluate(() => localStorage.getItem('cockpit-lab-v2') ?? '');
+  const project = await page.evaluate((key) => localStorage.getItem(key) ?? '', STORAGE_KEY);
   expect(project).not.toContain('theme');
 });
 

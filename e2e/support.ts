@@ -3,8 +3,9 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { layoutConfig, type LayoutLibrary } from '../src/layouts.ts';
 
-export const STORAGE_KEY = 'cockpit-lab-v2';
+export const STORAGE_KEY = 'cockpit-lab-v3';
 
 export const fixturePath = (name: string): string =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
@@ -45,3 +46,6 @@ export const getEvaluation = (page: Page) =>
 /** The project the app autosaved in this browser. */
 export const getSavedProject = (page: Page) =>
   page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), STORAGE_KEY);
+
+/** The configuration of the active layout in a saved or exported project file. */
+export const activeLayoutConfig = (file: LayoutLibrary) => layoutConfig(file);

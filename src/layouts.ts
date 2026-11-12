@@ -15,38 +15,43 @@ import {
 import { cleanUserText } from './user-text.ts';
 
 /** Settings that place things in the room or on the desk, or pose the monitor arm. */
-export type LayoutSettings = Pick<
-  CockpitConfig,
-  | 'deskX'
-  | 'deskZ'
-  | 'deskAngle'
-  | 'cockpitX'
-  | 'cockpitZ'
-  | 'cockpitAngle'
-  | 'keyboardX'
-  | 'keyboardZ'
-  | 'keyboardAngle'
-  | 'pcX'
-  | 'pcZ'
-  | 'pcAngle'
-  | 'mouseX'
-  | 'mouseZ'
-  | 'mouseAngle'
-  | 'matX'
-  | 'matZ'
-  | 'matAngle'
-  | 'clampX'
-  | 'clampZ'
-  | 'clampSide'
-  | 'clampMount'
-  | 'monitorMode'
-  | 'armBaseAngle'
-  | 'armElbowAngle'
-  | 'armBend'
-  | 'monitorYaw'
-  | 'monitorAhead'
-  | 'monitorH'
->;
+const LAYOUT_SETTING_KEYS = [
+  'deskX',
+  'deskZ',
+  'deskAngle',
+  'cockpitX',
+  'cockpitZ',
+  'cockpitAngle',
+  'keyboardX',
+  'keyboardZ',
+  'keyboardAngle',
+  'pcX',
+  'pcZ',
+  'pcAngle',
+  'mouseX',
+  'mouseZ',
+  'mouseAngle',
+  'matX',
+  'matZ',
+  'matAngle',
+  'clampX',
+  'clampZ',
+  'clampSide',
+  'clampMount',
+  'monitorMode',
+  'armBaseAngle',
+  'armElbowAngle',
+  'armBend',
+  'monitorYaw',
+  'monitorAhead',
+  'monitorH',
+] as const satisfies readonly (keyof CockpitConfig)[];
+
+export type LayoutSettings = Pick<CockpitConfig, (typeof LAYOUT_SETTING_KEYS)[number]>;
+
+const LAYOUT_SETTING_NAMES: ReadonlySet<string> = new Set(LAYOUT_SETTING_KEYS);
+
+export const isLayoutSetting = (key: string): boolean => LAYOUT_SETTING_NAMES.has(key);
 
 /** Where a piece of furniture stands. A wall shelf is placed by its wall, offset and height. */
 export interface FurniturePlacement {
@@ -57,6 +62,15 @@ export interface FurniturePlacement {
   offset?: number;
   elevation?: number;
 }
+
+export const FURNITURE_PLACEMENT_KEYS = [
+  'x',
+  'z',
+  'angle',
+  'mountWall',
+  'offset',
+  'elevation',
+] as const satisfies readonly (keyof FurniturePlacement)[];
 
 /** A piece of furniture without its placement: what it is and how big. */
 export type FurnitureSpec =
@@ -186,17 +200,47 @@ function splitSettings(config: CockpitConfig): {
 const cleanLayoutName = (name: unknown, fallback: string): string =>
   cleanUserText(name, fallback, MAX_LAYOUT_NAME_LENGTH);
 
+/** A layout as read from a file: its configuration includes the furniture it hides. */
+export interface LayoutEntry {
+  id: string;
+  name: unknown;
+  config: CockpitConfig;
+  hiddenFurniture: readonly string[];
+}
+
+function layoutOf(entry: LayoutEntry, fallbackName: string): Layout {
+  return {
+    id: entry.id,
+    name: cleanLayoutName(entry.name, fallbackName),
+    settings: splitSettings(entry.config).settings,
+    furniture: Object.fromEntries(
+      entry.config.roomFurniture.map((item) => [item.id, placementOf(item)]),
+    ),
+    hiddenFurniture: [...new Set(entry.hiddenFurniture)],
+  };
+}
+
 /** A library with a single layout, "Base", that reproduces `config`. */
 export function createLayoutLibrary(config: CockpitConfig): LayoutLibrary {
-  const { shared, settings } = splitSettings(config);
-  const layout: Layout = {
-    id: 'layout-1',
-    name: FIRST_LAYOUT_NAME,
-    settings,
-    furniture: Object.fromEntries(config.roomFurniture.map((item) => [item.id, placementOf(item)])),
-    hiddenFurniture: [],
-  };
-  return { shared, layouts: [layout], activeLayoutId: layout.id };
+  return libraryFromLayouts(
+    [{ id: 'layout-1', name: FIRST_LAYOUT_NAME, config, hiddenFurniture: [] }],
+    'layout-1',
+  );
+}
+
+/**
+ * Builds a library from layouts that share everything but their placements, as a project file
+ * stores them. The shared settings are taken from the first layout.
+ */
+export function libraryFromLayouts(
+  entries: readonly LayoutEntry[],
+  activeLayoutId: string,
+): LayoutLibrary {
+  if (entries.length === 0 || entries.length > MAX_LAYOUTS) throw new Error('Invalid layouts');
+  const layouts = entries.map((entry, index) => layoutOf(entry, `Layout ${index + 1}`));
+  if (!layouts.some((layout) => layout.id === activeLayoutId))
+    throw new Error('Unknown active layout');
+  return { shared: splitSettings(entries[0].config).shared, layouts, activeLayoutId };
 }
 
 export function layoutById(library: LayoutLibrary, id: string): Layout {

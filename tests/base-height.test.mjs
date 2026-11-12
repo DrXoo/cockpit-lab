@@ -13,6 +13,7 @@ import {
   baseSupports,
 } from '../src/model.ts';
 import { readProject, projectData, completeSetup } from '../src/project.ts';
+import { createLayoutLibrary, layoutConfig } from '../src/layouts.ts';
 import { partialSummary } from '../src/project-summary.ts';
 
 test('the lift keeps the posture and local settings and shows heights from the floor', () => {
@@ -70,13 +71,21 @@ test('older v1 and v2 JSON keep their height and new files store the lift', () =
   const old = { ...defaults };
   delete old.baseLift;
   for (const version of [1, 2]) {
-    const p = readProject({ ...projectData(old, completeSetup()), version });
-    assert.equal(rigLift(p.config), 0);
-    assert.equal(floorHeight(p.config, 'seatH'), old.seatH);
+    const p = readProject({
+      app: 'Cockpit Lab',
+      version,
+      units: 'cm',
+      config: old,
+      setup: completeSetup(),
+    });
+    assert.equal(rigLift(layoutConfig(p.library)), 0);
+    assert.equal(floorHeight(layoutConfig(p.library), 'seatH'), old.seatH);
   }
   const s = { ...defaults, baseLift: 25 };
-  const restored = readProject(JSON.parse(JSON.stringify(projectData(s, completeSetup()))));
-  assert.deepEqual(restored.config, sanitize(s));
+  const restored = readProject(
+    JSON.parse(JSON.stringify(projectData(createLayoutLibrary(sanitize(s)), completeSetup()))),
+  );
+  assert.deepEqual(layoutConfig(restored.library), sanitize(s));
   assert.equal(sanitize({ baseLift: 999 }).baseLift, 50);
   assert.equal(sanitize({ baseLift: -5 }).baseLift, 0);
   assert.throws(() => sanitize({ baseLift: '25' }));
