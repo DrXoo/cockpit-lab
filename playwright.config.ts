@@ -2,6 +2,15 @@ import { defineConfig } from '@playwright/test';
 
 const PORT = 5190;
 
+/** Specs that compare screenshots with local references. */
+const VISUAL_SPECS = ['**/page-appearance.spec.ts', '**/rendering.spec.ts', '**/theme.spec.ts'];
+/**
+ * Screenshots render WebGL in software and wait for the page to hold still. Run together on
+ * every worker, they starve each other of CPU and time out; a few at a time keeps them steady
+ * while the functional tests use the remaining workers.
+ */
+const VISUAL_WORKERS = 3;
+
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
@@ -33,6 +42,10 @@ export default defineConfig({
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--disable-gpu-rasterization'],
     },
   },
+  projects: [
+    { name: 'functional', testIgnore: VISUAL_SPECS },
+    { name: 'visual', testMatch: VISUAL_SPECS, workers: VISUAL_WORKERS },
+  ],
   webServer: {
     command: `npx vite --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}`,
