@@ -109,6 +109,7 @@ Browser storage is tied to the origin (host and port), so a design saved on one 
 
 ## Documentation
 
+- [Glossary](CONTEXT.md): the domain terms (project, cockpit design, room, layout, placement) and how they relate.
 - [Current configurator](docs/configurator.md): scope, conventions and limitations.
 - [Guided setup](docs/guided-setup.md): setup steps, the save format and the adapters for older files.
 - [Layouts](docs/layouts.md): what each layout stores, what is shared and the file format.
