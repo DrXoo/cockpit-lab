@@ -178,17 +178,8 @@ body[data-guided='true'] .preset-area {
     min-width: 45px;
     max-width: 62px;
   }
-  .header-actions .button {
-    padding: 8px;
-  }
-  .brand strong {
-    font-size: 18px;
-  }
   .brand-mark {
     display: none;
-  }
-  .header-actions {
-    gap: 4px;
   }
 }
 .skip-link {
