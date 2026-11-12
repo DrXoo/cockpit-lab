@@ -77,26 +77,54 @@ export function rectangle(
 const project = (polygon: Polygon, axis: { x: number; z: number }): number[] =>
   polygon.map((vertex) => vertex.x * axis.x + vertex.z * axis.z);
 
-/**
- * Minimum penetration depth between two convex polygons (separating axis test).
- * Returns 0 when they are apart or only touch.
- */
-export function overlapDepth(a: Polygon, b: Polygon): number {
-  let depth = Infinity;
+/** The edge normals of both convex polygons: the candidate separating axes. */
+function separatingAxes(a: Polygon, b: Polygon): { x: number; z: number }[] {
+  const axes = [];
   for (const polygon of [a, b])
     for (let i = 0; i < polygon.length; i++) {
       const start = polygon[i];
       const end = polygon[(i + 1) % polygon.length];
       const length = Math.hypot(end.x - start.x, end.z - start.z);
-      const normal = { x: -(end.z - start.z) / length, z: (end.x - start.x) / length };
-      const projectedA = project(a, normal);
-      const projectedB = project(b, normal);
-      const overlap =
-        Math.min(Math.max(...projectedA), Math.max(...projectedB)) -
-        Math.max(Math.min(...projectedA), Math.min(...projectedB));
-      if (overlap <= 0) return 0;
-      depth = Math.min(depth, overlap);
+      axes.push({ x: -(end.z - start.z) / length, z: (end.x - start.x) / length });
     }
+  return axes;
+}
+
+/**
+ * Width of the overlap of two convex polygons along the separating axis where it is smallest.
+ * Returns 0 when they are apart or only touch.
+ */
+export function overlapDepth(a: Polygon, b: Polygon): number {
+  let depth = Infinity;
+  for (const axis of separatingAxes(a, b)) {
+    const projectedA = project(a, axis);
+    const projectedB = project(b, axis);
+    const overlap =
+      Math.min(Math.max(...projectedA), Math.max(...projectedB)) -
+      Math.max(Math.min(...projectedA), Math.min(...projectedB));
+    if (overlap <= 0) return 0;
+    depth = Math.min(depth, overlap);
+  }
+  return depth;
+}
+
+/**
+ * Shortest distance one convex polygon must move in the plan to stop overlapping the other.
+ * Unlike `overlapDepth`, it counts the whole way out when one sits inside the other along an
+ * axis. Returns 0 when they are apart or only touch.
+ */
+export function penetrationDepth(a: Polygon, b: Polygon): number {
+  let depth = Infinity;
+  for (const axis of separatingAxes(a, b)) {
+    const projectedA = project(a, axis);
+    const projectedB = project(b, axis);
+    const push = Math.min(
+      Math.max(...projectedA) - Math.min(...projectedB),
+      Math.max(...projectedB) - Math.min(...projectedA),
+    );
+    if (push <= 0) return 0;
+    depth = Math.min(depth, push);
+  }
   return depth;
 }
 
