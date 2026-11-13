@@ -779,6 +779,7 @@ function renderControls() {
   bindRoomEditor();
   bindCreationControls();
   $optional('#editCockpitDesign')?.addEventListener('click', () => showEditor('cockpit'));
+  $optional('#startWithCockpit')?.addEventListener('click', startWithCockpit);
   const newDesignForm = $optional<HTMLFormElement>('#newDesignForm');
   newDesignForm?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1200,16 +1201,30 @@ $('#confirmDeleteLayout').addEventListener('click', () => {
   toast(`Layout ${deleted} deleted`);
 });
 $('#resetBtn').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
-$('#confirmReset').addEventListener('click', () => {
+/** Opens a new, empty project where the user chose to start it: the cockpit or the room. */
+function startNewProject(start: Editor) {
   openProject(createProject());
   layoutTarget = '';
   layoutEditing = false;
   clearTimeout(pendingSave);
   persist();
   $<HTMLDialogElement>('#resetDialog').close();
-  enterStep('room');
-  toast('New project. Start with your room.');
-});
+  if (start === 'room') {
+    enterStep('room');
+    toast('New project. Start with your room.');
+    return;
+  }
+  startWithCockpit();
+  toast('New project. Start the cockpit from a base.');
+}
+/** Opens the cockpit editor to design first; the room setup waits where it was. */
+function startWithCockpit() {
+  showEditor('cockpit', 'frame');
+  refresh();
+  showWorkspace('config');
+}
+$('#newProjectRoom').addEventListener('click', () => startNewProject('room'));
+$('#newProjectCockpit').addEventListener('click', () => startNewProject('cockpit'));
 function setActiveView(next: SceneView) {
   view = next;
   $$('[data-view]').forEach((t) => {

@@ -389,11 +389,15 @@
         </button>
       </div>
       <p id="resetDescription">
-        You will start with an empty space. Export a JSON file to keep the current design.
+        Start from the cockpit or from the room; you can add the other later. Export a JSON file
+        first to keep the current project.
       </p>
       <div class="dialog-actions">
-        <button class="button button-light" data-close="resetDialog" autofocus>Keep editing</button
-        ><button class="button button-dark" id="confirmReset">Create project</button>
+        <button class="button button-light" data-close="resetDialog" autofocus>Keep editing</button>
+        <div>
+          <button class="button button-light" id="newProjectCockpit">Start with the cockpit</button
+          ><button class="button button-dark" id="newProjectRoom">Start with the room</button>
+        </div>
       </div>
     </dialog>
     <dialog
@@ -513,9 +517,9 @@
         <li>
           <b>Set up your room</b>
           <p>
-            A new project starts empty. Enter the inside width and depth, in cm. The ceiling height
-            is an editable reference. If you already have a saved project, you go straight to the
-            editor or back to your setup step.
+            A new project starts empty, with the room or with the cockpit, as you choose. Enter the
+            inside width and depth, in cm. The ceiling height is an editable reference. If you
+            already have a saved project, you go straight to the editor or back to your setup step.
           </p>
         </li>
         <li>

@@ -112,6 +112,29 @@ test('the posture check opens the posture of the design', async ({ page }) => {
   await expect(page.locator('#controls [data-key="height"]').first()).toBeVisible();
 });
 
+test('a new project can start with the cockpit, leaving the room setup for later', async ({
+  page,
+}) => {
+  await openApp(page);
+  await importProject(page, 'gt-room.json');
+  await page.locator('#newProject').click();
+  await page.locator('#newProjectCockpit').click();
+  await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#newDesignForm')).toBeVisible();
+  await expect.poll(async () => (await getSavedProject(page)).cockpit).toBeNull();
+  expect((await getSavedProject(page)).setup.step).toBe('room');
+
+  await page.locator('#roomEditor').click();
+  await expect(page.locator('#setupRoomForm')).toBeVisible();
+});
+
+test('the first room step leads to the cockpit for those who only design one', async ({ page }) => {
+  await openApp(page);
+  await page.locator('#startWithCockpit').click();
+  await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#newDesignForm')).toBeVisible();
+});
+
 test('a cockpit can be designed without a room, and opens where it is designed', async ({
   page,
 }) => {

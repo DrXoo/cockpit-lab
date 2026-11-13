@@ -96,7 +96,7 @@ test('a new project, once confirmed, restarts the guided setup', async ({ page }
   await openApp(page);
   await importProject(page, 'gt-room.json');
   await page.locator('#newProject').click();
-  await page.locator('#confirmReset').click();
+  await page.locator('#newProjectRoom').click();
   await expect(page.locator('body')).toHaveAttribute('data-guided', 'true');
   expect(await getState(page)).toMatchObject({
     roomEnabled: false,

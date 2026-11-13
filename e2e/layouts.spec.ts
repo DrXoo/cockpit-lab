@@ -113,7 +113,7 @@ test('an exported project brings back every layout', async ({ page }) => {
   expect(activeLayoutConfig(file)).toEqual(moved);
 
   await page.locator('#newProject').click();
-  await page.locator('#confirmReset').click();
+  await page.locator('#newProjectRoom').click();
   await expect(page.locator('#layoutArea')).toBeHidden();
   await page.locator('#importFile').setInputFiles(path);
   await expect(page.locator('#layoutSelect option')).toHaveText(['Base', 'Trial']);

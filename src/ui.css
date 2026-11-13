@@ -1238,3 +1238,15 @@ body {
     display: grid;
   }
 }
+.setup-alternative {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.setup-alternative .text-button {
+  min-height: 40px;
+  padding: 0;
+  color: var(--accent-text, var(--text));
+}

@@ -50,6 +50,9 @@ export function creationControls(
   let html = '';
   if (step === 'room') {
     html = `<form id="setupRoomForm"><p class="setup-prompt">How big is your room?</p>${number('setupRoomW', 'Width', 120, 1200, room.w ?? (s.roomEnabled ? s.roomW : ''), 'E.g. 320')}${number('setupRoomD', 'Depth', 120, 1200, room.d ?? (s.roomEnabled ? s.roomD : ''), 'E.g. 400')}<details class="room-reference"><summary>Ceiling height</summary>${number('setupRoomH', 'Height', 180, 400, room.h ?? s.roomH)}<p class="layout-hint">Starting reference: 250 cm. Adjust the height if you know it.</p></details><button type="submit" hidden>Continue</button></form>`;
+    // A project can start from the cockpit instead; the room can be set up later.
+    if (!s.roomEnabled)
+      html += `<p class="setup-alternative">Only designing a cockpit? <button class="text-button" id="startWithCockpit">Start with the cockpit →</button></p>`;
   } else if (step === 'openings' || step === 'furniture') {
     html = roomControls(s, e, target, range, toggle, { mode: step });
   } else if (step === 'desk') {

@@ -1,6 +1,6 @@
 # Building the space step by step
 
-A new project starts without a confirmed room, desk, cockpit or accessories. The first screen asks for the inside width and depth, in cm. The starting height of 250 cm is shown as an editable reference. The room is not drawn until its dimensions are confirmed.
+A new project starts without a confirmed room, desk, cockpit or accessories. **New project** asks where to start: with the cockpit, which opens the Cockpit editor to choose a base, or with the room, which opens this setup. The first step of the setup also offers **Start with the cockpit** to someone who only designs a cockpit; the room setup then waits at its first step until the Room editor is opened. The first screen of the setup asks for the inside width and depth, in cm. The starting height of 250 cm is shown as an editable reference. The room is not drawn until its dimensions are confirmed.
 
 The room setup has four steps: room, doors and windows, existing furniture and desk. You can go back to the steps you visited and keep the items and their positions. "Add later" records a deferred step; "I don't need a desk" lets you go on without a desk. The setup does not design a cockpit: after it, the room has no cockpit until the project's design is added to it from **Room → Cockpit**, designing one first in the Cockpit editor if there is none. Progress saved when the setup still had a fifth cockpit step opens without it: a project at that step opens with the setup complete, and a cockpit deferred there is no longer pending.
 
