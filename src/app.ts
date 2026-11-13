@@ -1,5 +1,5 @@
 import { steps, createProject, readProject, projectData, recordProject } from './project.ts';
-import { designOf, designOnItsOwn, type CockpitDesign } from './cockpit-design.ts';
+import { designFromBase, designOf, designOnItsOwn, type CockpitDesign } from './cockpit-design.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import {
   partialSummary,
@@ -49,6 +49,8 @@ import {
   renameLayout,
   selectLayout,
   showFurniture,
+  includeCockpit,
+  leaveOutCockpit,
   type LayoutLibrary,
 } from './layouts.ts';
 import {
@@ -789,7 +791,7 @@ function renderControls() {
       { range, toggle, select },
     );
   } else if (section === 'cockpit') {
-    html = cockpitPlacementHTML(controlView());
+    html = cockpitPlacementHTML(controlView(), hasDesign());
   } else if (isRoomSection(section)) {
     html = roomControls(state, evaluation, layoutTarget, range, toggle, {
       mode: section === 'furniture' ? 'furniture' : 'room',
@@ -808,14 +810,31 @@ function renderControls() {
     event.preventDefault();
     if (!newDesignForm.reportValidity()) return;
     const base = presetId($<HTMLSelectElement>('#newDesignBase').value);
-    state = withCockpitPreset(state, base);
-    cockpit = designOf(state);
-    setup = { ...setup, deferred: setup.deferred.filter((id) => id !== 'cockpit') };
+    // The design starts on its own: the room includes it only when the user adds it there.
+    cockpit = designFromBase(base);
+    state = { ...state, ...cockpit };
     persist();
     renderControls();
     refresh();
     setActiveView('iso');
-    toast(`${presets[base].label} design started. Adjust the frame and the posture.`);
+    toast(
+      state.roomEnabled
+        ? `${presets[base].label} design started. Add it to the room from Room → Cockpit.`
+        : `${presets[base].label} design started. Adjust the frame and the posture.`,
+    );
+  });
+  $optional('#includeCockpit')?.addEventListener('click', () => {
+    const design = designOf(state);
+    changeLayouts((layouts) => includeCockpit(layouts, design));
+    layoutTarget = 'cockpit';
+    syncSceneEditing();
+    setActiveView('top');
+    toast('Cockpit added to every layout. Place it in each one.');
+  });
+  $optional('#leaveOutCockpit')?.addEventListener('click', () => {
+    if (layoutTarget === 'cockpit') layoutTarget = '';
+    changeLayouts(leaveOutCockpit);
+    toast('Cockpit left out of the room. The design stays in the project.');
   });
   controlsAll('[data-place]').forEach((b) =>
     b.addEventListener('click', () => {

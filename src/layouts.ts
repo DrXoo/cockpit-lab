@@ -6,6 +6,7 @@
 import type { CockpitConfig } from './config.ts';
 import { placeCockpit, roomOf, type CockpitDesign, type RoomConfig } from './cockpit-design.ts';
 import { resizeDesk } from './desk.ts';
+import { transformPoint } from './geometry.ts';
 import {
   normalizeRoom,
   type Chair,
@@ -316,15 +317,30 @@ export function recordLayout(library: LayoutLibrary, config: CockpitConfig): Lay
   return { ...library, shared: { ...shared, roomFurniture }, layouts };
 }
 
-const cockpitInRoom = (shared: SharedSettings, settings: LayoutSettings): boolean =>
-  settings.cockpitX >= shared.roomX &&
-  settings.cockpitX <= shared.roomX + shared.roomW &&
-  settings.cockpitZ >= shared.roomZ &&
-  settings.cockpitZ <= shared.roomZ + shared.roomD;
+/** Whether the whole chassis stands inside the room, where this layout places the cockpit. */
+function chassisFits(shared: SharedSettings, settings: LayoutSettings, cockpit: CockpitDesign) {
+  const placement = { x: settings.cockpitX, z: settings.cockpitZ, angle: settings.cockpitAngle };
+  // The chassis runs forward from its rear end, which is centred on the placement.
+  const halfWidth = cockpit.width / 2;
+  return [
+    { x: -halfWidth, z: 0 },
+    { x: halfWidth, z: 0 },
+    { x: -halfWidth, z: cockpit.length },
+    { x: halfWidth, z: cockpit.length },
+  ]
+    .map((corner) => transformPoint(corner, placement))
+    .every(
+      ({ x, z }) =>
+        x >= shared.roomX &&
+        x <= shared.roomX + shared.roomW &&
+        z >= shared.roomZ &&
+        z <= shared.roomZ + shared.roomD,
+    );
+}
 
 /**
  * Adds the project's cockpit design to the room, in every layout. A layout keeps where it put
- * the cockpit before, unless that is outside the room: there the cockpit is centred in the room.
+ * the cockpit before if the chassis fits in the room there; otherwise the cockpit is centred.
  */
 export function includeCockpit(library: LayoutLibrary, cockpit: CockpitDesign): LayoutLibrary {
   const { shared } = library;
@@ -336,7 +352,7 @@ export function includeCockpit(library: LayoutLibrary, cockpit: CockpitDesign): 
     ...library,
     shared: { ...shared, cockpitEnabled: true },
     layouts: library.layouts.map((layout) =>
-      cockpitInRoom(shared, layout.settings)
+      chassisFits(shared, layout.settings, cockpit)
         ? layout
         : { ...layout, settings: { ...layout.settings, ...centred } },
     ),

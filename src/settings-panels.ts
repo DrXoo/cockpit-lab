@@ -15,22 +15,37 @@ export function newDesignHTML(): string {
   return `<form id="newDesignForm"><p class="setup-prompt">This project has no cockpit yet.</p><label class="setup-field" for="newDesignBase">Start from a base<select id="newDesignBase" required><option value="">Choose a base</option>${options}</select></label><p class="layout-hint">You can then adjust the frame, the controls and the posture. A room in this project places the design in every layout.</p><button type="submit" class="button button-dark">Start the design</button></form>`;
 }
 
-/** The cockpit in the room: the design it links to, and where this layout puts it. */
-export function cockpitPlacementHTML(view: ControlView): string {
+/**
+ * The cockpit in the room: the project's design, whether the room includes it, and where this
+ * layout puts it. `hasDesign` says whether the project has a design at all.
+ */
+export function cockpitPlacementHTML(view: ControlView, hasDesign: boolean): string {
   const { state } = view;
-  if (state.cockpitEnabled === false)
+  if (!hasDesign)
     return group(
       'Cockpit design',
-      '<p class="layout-hint">This project has no cockpit design yet. Every layout of the room places the design once there is one.</p><button class="arm-edit-action" id="editCockpitDesign">Design a cockpit →</button>',
+      '<p class="layout-hint">This project has no cockpit design yet. Design one, then add it to the room.</p><button class="arm-edit-action" id="editCockpitDesign">Design a cockpit →</button>',
+    );
+  const design = `<p class="design-summary"><b>${esc(presets[state.preset].label)}</b> · chassis ${round(state.length)} × ${round(state.width)} cm · driver ${round(state.height)} cm</p>`;
+  const edit =
+    '<button class="arm-edit-action" id="editCockpitDesign">Edit the cockpit design →</button>';
+  if (!state.cockpitEnabled)
+    return group(
+      'Cockpit design',
+      design +
+        '<p class="layout-hint">The room leaves the cockpit out. Add it to place it in every layout, each at its own position.</p><button class="button button-dark" id="includeCockpit">Add the cockpit to the room</button>' +
+        edit,
     );
   const { range } = bindControls(view);
-  const design = `<p class="design-summary"><b>${esc(presets[state.preset].label)}</b> · chassis ${round(state.length)} × ${round(state.width)} cm · driver ${round(state.height)} cm</p>`;
   return (
     group(
       'Cockpit design',
       design +
-        '<button class="arm-edit-action" id="editCockpitDesign">Edit the cockpit design →</button><p class="layout-hint">The room shows the cockpit design of the project and only places it. A change to the design shows in every layout.</p>',
-    ) + placementControls('cockpit', range)
+        edit +
+        '<p class="layout-hint">The room shows the cockpit design of the project and only places it. A change to the design shows in every layout.</p>',
+    ) +
+    placementControls('cockpit', range) +
+    '<button class="text-button" id="leaveOutCockpit">Leave the cockpit out of the room</button><p class="layout-hint">Every layout leaves it out and keeps its position for when it comes back. The design stays in the project.</p>'
   );
 }
 

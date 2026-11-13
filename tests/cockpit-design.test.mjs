@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { defaults, evaluate, presets } from '../src/model.ts';
 import {
   COCKPIT_DESIGN_KEYS,
+  designFromBase,
   designOf,
   designOnItsOwn,
   isCockpitDesignSetting,
@@ -71,6 +72,13 @@ test('a design on its own stands at the origin, with no room, desk or monitor ar
   // the room, so the distance to it is only checked there.
   const withoutScreen = (config) => evaluate(config).bodyCheck.filter((c) => c.id !== 'eyes');
   assert.deepEqual(evaluate(alone).bodyCheck, withoutScreen(placed));
+});
+
+test('a new design takes the settings of its base', () => {
+  const design = designFromBase('flight');
+  assert.deepEqual(Object.keys(design).sort(), [...COCKPIT_DESIGN_KEYS].sort());
+  assert.deepEqual({ ...design, ...presets.flight.values }, design);
+  assert.equal(design.preset, 'flight');
 });
 
 test('without a design there is nothing to show on its own', () => {

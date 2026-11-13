@@ -25,19 +25,31 @@ test('the frame panel sets the base, its lift and the modules, not where the coc
   assert.match(html, /<select id="feet"/);
 });
 
-test('in the room the cockpit is only placed, with a way to its design', () => {
-  const html = cockpitPlacementHTML(viewOf({ preset: 'flight', length: 150, width: 66 }));
+test('in the room the cockpit is only placed, with a way to its design and out', () => {
+  const html = cockpitPlacementHTML(viewOf({ preset: 'flight', length: 150, width: 66 }), true);
   assert.deepEqual(keysIn(html), ['cockpitX', 'cockpitZ', 'cockpitAngle']);
   assert.match(html, /VR flight/);
   assert.match(html, /150 × 66 cm/);
   assert.match(html, /<button[^>]*id="editCockpitDesign"/);
   assert.match(html, /data-place="cockpit"/);
+  assert.match(html, /<button[^>]*id="leaveOutCockpit"/);
+  assert.doesNotMatch(html, /id="includeCockpit"/);
 });
 
-test('a room without a cockpit design offers to design one, with nothing to place', () => {
-  const html = cockpitPlacementHTML(viewOf({ cockpitEnabled: false }));
+test('a room that leaves the design out offers to add it, with nothing to place yet', () => {
+  const html = cockpitPlacementHTML(viewOf({ cockpitEnabled: false, preset: 'flight' }), true);
+  assert.deepEqual(keysIn(html), []);
+  assert.match(html, /VR flight/);
+  assert.match(html, /<button[^>]*id="includeCockpit"/);
+  assert.match(html, /<button[^>]*id="editCockpitDesign"/);
+  assert.doesNotMatch(html, /id="leaveOutCockpit"/);
+});
+
+test('a project without a cockpit design offers to design one, with nothing to place', () => {
+  const html = cockpitPlacementHTML(viewOf({ cockpitEnabled: false }), false);
   assert.deepEqual(keysIn(html), []);
   assert.match(html, /<button[^>]*id="editCockpitDesign"[^>]*>Design a cockpit/);
+  assert.doesNotMatch(html, /id="includeCockpit"/);
 });
 
 test('a new design starts from one of the bases', () => {

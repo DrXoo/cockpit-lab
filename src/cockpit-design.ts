@@ -1,6 +1,6 @@
 // The cockpit design: the frame, the driver and the controls, defined without any room. A project
 // has at most one; the room links to it and each layout only places it. See docs/adr/0001.
-import { defaults, type CockpitConfig } from './config.ts';
+import { defaults, presets, type CockpitConfig, type PresetId } from './config.ts';
 
 /** Settings that make up a cockpit design. Everything else belongs to the room or a layout. */
 export const COCKPIT_DESIGN_KEYS = [
@@ -124,6 +124,13 @@ export function splitCockpit(config: CockpitConfig): {
 
 /** The settings a configuration without a cockpit keeps in the cockpit's place. */
 const NO_COCKPIT = separate(defaults).design;
+
+/** A new cockpit design, as its base sets it up. */
+export const designFromBase = (base: PresetId): CockpitDesign => ({
+  ...NO_COCKPIT,
+  ...presets[base].values,
+  preset: base,
+});
 
 /** The cockpit settings of a configuration with this design, or with none. */
 export const cockpitSettings = (

@@ -44,7 +44,7 @@ const { cockpit } = splitCockpit(room);
 
 const furniture = (config, id) => config.roomFurniture.find((item) => item.id === id);
 
-test('adding the cockpit puts it in every layout, centred where it stood outside the room', () => {
+test('adding the cockpit puts it in every layout, centred where it did not fit in the room', () => {
   let library = createLayoutLibrary({ ...room, cockpitEnabled: false, cockpitX: -500 });
   library = duplicateLayout(library, 'Inside');
   library = recordLayout(library, {
@@ -52,6 +52,8 @@ test('adding the cockpit puts it in every layout, centred where it stood outside
     cockpitX: 60,
     cockpitZ: 80,
   });
+  library = duplicateLayout(library, 'On the wall');
+  library = recordLayout(library, { ...layoutConfig(library, cockpit), cockpitX: 0, cockpitZ: 0 });
   assert.equal(layoutConfig(library, cockpit).cockpitEnabled, false);
 
   const added = includeCockpit(library, cockpit);
@@ -63,6 +65,8 @@ test('adding the cockpit puts it in every layout, centred where it stood outside
   );
   const inside = layoutConfig(added, cockpit, 'layout-2');
   assert.deepEqual([inside.cockpitEnabled, inside.cockpitX, inside.cockpitZ], [true, 60, 80]);
+  // Half the chassis would stand outside the wall, so it is centred too.
+  assert.equal(layoutConfig(added, cockpit, 'layout-3').cockpitX, room.roomX + room.roomW / 2);
 
   const leftOut = leaveOutCockpit(added);
   for (const id of ['layout-1', 'layout-2']) {
