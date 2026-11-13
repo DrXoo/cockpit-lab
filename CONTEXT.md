@@ -9,7 +9,7 @@ Everything saved and opened together: a cockpit design, a room with its layouts,
 _Avoid_: workspace, session, save
 
 **Cockpit file**:
-A cockpit design exported on its own, without any room, to use it in another project.
+A cockpit design exported on its own, without any room, to use it in another project. It is how a design moves between projects; within a project, the room takes the design with a button.
 _Avoid_: preset, template
 
 ### Cockpit
@@ -71,7 +71,7 @@ _Avoid_: wizard, onboarding
 ## Relationships
 
 - A **Project** has at most one **Cockpit design** and at most one **Room**. Either can be missing: a room without a cockpit and a cockpit without a room are both complete projects.
-- When the project has a **Cockpit design**, every **Layout** of the room places that same design; comparing two designs takes two projects.
+- A **Room** includes the project's **Cockpit design** only after the user adds it to the room, and can leave it out again without changing the design. While the room includes it, every **Layout** places that same design; comparing two designs takes two projects.
 - Someone can design a cockpit and never create a room.
 - There is one kind of **Cockpit design**. When the CAD arrives, every **Parametric cockpit** is converted once into parts with the same dimensions, and each **Base** becomes a starting point for a CAD design.
 - A **Cockpit design** has exactly one **Driver**, and a **Cockpit file** carries it; whoever imports the file sees the cockpit as it was designed and adjusts the driver if needed.
@@ -83,7 +83,8 @@ _Avoid_: wizard, onboarding
 - A **Room**'s **Monitor arm** can point the monitor at the **Eye point** of the linked **Cockpit design**; the room needs nothing else from the cockpit's posture.
 - Each **Layout** has its own **Arm poses**, because a pose only makes sense with that layout's arm mount and cockpit **Placement**. Duplicating a layout copies its poses.
 - A **Cockpit design** may carry a **Fixed monitor**; the **Monitor arm** stays part of the room either way.
-- The **Room setup** does not design a cockpit. After it, the room has no cockpit until one is designed or imported from a **Cockpit file**.
+- The **Room setup** does not design a cockpit. After it, the room has no cockpit until the user adds the project's design to it, designing one first if there is none.
+- A new **Project** starts from the cockpit or from the room, as the user chooses; the other can be added later.
 
 ## Example dialogue
 
