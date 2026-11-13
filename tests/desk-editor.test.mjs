@@ -1,48 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, evaluate, editArm } from '../src/model.ts';
+import { defaults, evaluate } from '../src/model.ts';
 import { creationControls } from '../src/setup-editor.ts';
-import { monitorShortcuts } from '../src/desk-editor.ts';
+import { saveArmPose } from '../src/arm-poses.ts';
 
 const controls = { range: () => '', toggle: () => '', select: () => '' };
 const render = (state, target) =>
   creationControls(state, evaluate(state), { step: 'desk' }, target, controls);
-const button = (html, mode) =>
-  html.match(new RegExp(`<button[^>]*data-monitor-pose="${mode}"[^>]*>`))?.[0];
 
-test('the Desk step keeps both monitor targets whichever item is selected', () => {
-  const s = { ...defaults, monitorMode: 'manual' };
+test('the Desk step offers the monitor position and the saved poses, whatever is selected', () => {
+  const s = saveArmPose(defaults, 'Racing');
   for (const target of ['desk', 'arm', 'keyboard', 'pc', 'mouse', 'mat']) {
     const html = render(s, target);
-    assert.ok(button(html, 'cockpit'), target);
-    assert.ok(button(html, 'desk'), target);
-    assert.equal((html.match(/data-monitor-pose=/g) || []).length, 2, target);
-    assert.ok(!button(html, 'cockpit').includes('disabled'), target);
+    assert.match(html, /<select id="monitorPosition">/, target);
+    assert.match(html, /<option value="pose:pose-1" selected>Racing<\/option>/, target);
+    assert.match(html, /id="saveArmPose"/, target);
+    assert.doesNotMatch(html, /data-monitor-pose/, target);
   }
 });
 
-test('the cockpit target is enabled once added and the buttons follow whether there is a monitor', () => {
-  const s = { ...defaults, cockpitEnabled: false, monitorMode: 'desk' };
-  const html = render(s, 'keyboard');
-  assert.ok(button(html, 'cockpit').includes('disabled'));
-  assert.ok(!button(html, 'desk').includes('disabled'));
-  assert.ok(html.includes('Add a cockpit'));
-  assert.ok(
-    !button(render({ ...s, cockpitEnabled: true }, 'keyboard'), 'cockpit').includes('disabled'),
-  );
-  assert.equal(button(render({ ...s, monitorEnabled: false }, 'desk'), 'desk'), undefined);
-  assert.equal(button(render({ ...s, deskEnabled: false }, 'desk'), 'desk'), undefined);
-  assert.equal(monitorShortcuts({ ...s, monitorEnabled: false }), '');
-});
-
-test('going back from manual editing to a target updates the shortcuts of the Desk step', () => {
-  let s = editArm({ ...defaults }, 'armBaseAngle', 45);
-  assert.equal(s.monitorMode, 'manual');
-  for (const mode of ['desk', 'cockpit']) {
-    s = editArm(s, 'monitorMode', mode);
-    const html = render(s, 'keyboard');
-    assert.ok(button(html, mode).includes('aria-pressed="true"'));
-    assert.ok(button(html, mode === 'desk' ? 'cockpit' : 'desk').includes('aria-pressed="false"'));
-    assert.equal(s.monitorMode, mode);
-  }
+test('the Desk step has no monitor position without a monitor or a desk', () => {
+  assert.doesNotMatch(render({ ...defaults, monitorEnabled: false }, 'desk'), /monitorPosition/);
+  assert.doesNotMatch(render({ ...defaults, deskEnabled: false }, 'desk'), /monitorPosition/);
 });

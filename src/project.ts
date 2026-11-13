@@ -2,7 +2,7 @@
 // stores the cockpit design apart from the room and its layouts. v3 files keep the design among
 // the room's shared settings; v1 and v2 files hold a single configuration and open as one
 // layout.
-import { defaults, presets, sanitize, type CockpitConfig, type PresetId } from './config.ts';
+import { defaults, sanitize, type CockpitConfig } from './config.ts';
 import {
   FURNITURE_PLACEMENT_KEYS,
   MAX_LAYOUTS,
@@ -21,7 +21,7 @@ import {
   type CockpitDesign,
 } from './cockpit-design.ts';
 
-export type StepId = 'room' | 'openings' | 'furniture' | 'desk' | 'cockpit';
+export type StepId = 'room' | 'openings' | 'furniture' | 'desk';
 export type SetupStep = StepId | 'complete';
 
 export interface StepInfo {
@@ -56,13 +56,12 @@ export const steps: StepInfo[] = [
     title: 'Place your desk',
     hint: 'Enter its size and place it in the room. Add only the accessories you use.',
   },
-  {
-    id: 'cockpit',
-    label: 'Cockpit',
-    title: 'Now, your cockpit',
-    hint: 'Choose a base, adjust its size and place it in the space available.',
-  },
 ];
+/**
+ * The step that designed a cockpit until the room setup stopped doing it. Saved progress that
+ * reached it opens with the setup complete.
+ */
+const RETIRED_COCKPIT_STEP = 'cockpit';
 
 const LAST_STEP_INDEX = steps.length - 1;
 const MAX_DRAFT_LENGTH = 32;
@@ -77,7 +76,6 @@ export interface MeasureDraft {
 export interface SetupDrafts {
   room?: MeasureDraft;
   desk?: MeasureDraft;
-  preset?: PresetId | '';
 }
 
 export interface SetupProgress {
@@ -131,9 +129,6 @@ const isStepId = (value: unknown): value is StepId => steps.some((step) => step.
 
 const isSetupStep = (value: unknown): value is SetupStep => value === 'complete' || isStepId(value);
 
-const isDraftPreset = (value: unknown): value is PresetId | '' =>
-  value === '' || (typeof value === 'string' && Object.hasOwn(presets, value));
-
 const isDraftMeasure = (value: unknown): value is string =>
   typeof value === 'string' &&
   value.length <= MAX_DRAFT_LENGTH &&
@@ -160,12 +155,9 @@ function readMeasureDraft(input: unknown): MeasureDraft {
 function readDrafts(input: unknown = {}): SetupDrafts {
   if (!isRecord(input) || Array.isArray(input)) throw new Error('Invalid draft');
   const drafts: SetupDrafts = {};
+  // A base chosen in the retired cockpit step is not needed any more.
   for (const group of ['room', 'desk'] as const)
     if (input[group] !== undefined) drafts[group] = readMeasureDraft(input[group]);
-  if (input.preset !== undefined) {
-    if (!isDraftPreset(input.preset)) throw new Error('Invalid draft base');
-    drafts.preset = input.preset;
-  }
   return drafts;
 }
 
@@ -224,7 +216,21 @@ function readVersion1(data: RawRecord & { config: RawRecord }): Project {
   return projectFromConfig(config, completeSetup());
 }
 
-function readSetup(input: unknown, config: CockpitConfig): SetupProgress {
+/** Progress saved with the retired cockpit step, as if the setup had always had four steps. */
+function withoutCockpitStep(input: RawRecord): RawRecord {
+  const { step, furthest, deferred } = input;
+  return {
+    ...input,
+    step: step === RETIRED_COCKPIT_STEP ? 'complete' : step,
+    furthest: typeof furthest === 'number' ? Math.min(furthest, LAST_STEP_INDEX) : furthest,
+    deferred: Array.isArray(deferred)
+      ? deferred.filter((id: unknown) => id !== RETIRED_COCKPIT_STEP)
+      : deferred,
+  };
+}
+
+function readSetup(rawInput: unknown, config: CockpitConfig): SetupProgress {
+  const input = isRecord(rawInput) ? withoutCockpitStep(rawInput) : rawInput;
   if (
     !isRecord(input) ||
     !isSetupStep(input.step) ||

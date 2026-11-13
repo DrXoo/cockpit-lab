@@ -15,11 +15,6 @@ import { escapeHTML } from './html.ts';
 /** Multiplication sign, the delete mark of a saved pose. */
 const CROSS = '×';
 
-export function monitorShortcuts(s: CockpitConfig): string {
-  if (s.deskEnabled === false || s.monitorEnabled === false) return '';
-  return `<div class="arm-shortcuts"><button data-monitor-pose="cockpit" aria-pressed="${s.monitorMode === 'cockpit' && s.cockpitEnabled !== false}" ${s.cockpitEnabled === false ? 'disabled' : ''}>Bring to the cockpit</button><button data-monitor-pose="desk" aria-pressed="${s.monitorMode === 'desk'}">Bring to the desk</button></div>${s.cockpitEnabled === false ? '<p class="layout-hint">Add a cockpit to bring the monitor to it.</p>' : ''}`;
-}
-
 const AUTOMATIC_POSITION_LABELS: Record<(typeof AUTOMATIC_MONITOR_MODES)[number], string> = {
   cockpit: 'Facing the cockpit',
   desk: 'On the desk',

@@ -6,22 +6,26 @@ import {
   nextSetupStep,
   withRoomSize,
   withDesk,
-  withCockpitPreset,
 } from '../src/setup-actions.ts';
-import { createProject, projectConfig } from '../src/project.ts';
-import { presets } from '../src/model.ts';
+import { createProject, projectConfig, steps } from '../src/project.ts';
 
 const fresh = createProject();
 const freshConfig = projectConfig(fresh);
-const atStep = (step, furthest = 4) => ({ step, furthest, deferred: [] });
+const atStep = (step, furthest = 3) => ({ step, furthest, deferred: [] });
 const withRoom = withRoomSize(freshConfig, 300, 400, 250);
+
+test('the room setup has four steps and does not design a cockpit', () => {
+  assert.deepEqual(
+    steps.map((step) => step.id),
+    ['room', 'openings', 'furniture', 'desk'],
+  );
+});
 
 test('each step opens its settings section', () => {
   assert.equal(sectionOfStep('room'), 'room');
   assert.equal(sectionOfStep('openings'), 'room');
   assert.equal(sectionOfStep('furniture'), 'room');
   assert.equal(sectionOfStep('desk'), 'desk');
-  assert.equal(sectionOfStep('cockpit'), 'cockpit');
 });
 
 test('the room size enables and validates the room', () => {
@@ -36,15 +40,6 @@ test('the desk is added in the middle of the room with the monitor on it', () =>
   assert.deepEqual([state.deskWidth, state.deskDepth, state.deskH], [140, 70, 75]);
   assert.deepEqual([state.deskX, state.deskZ], [150, 200]);
   assert.equal(state.monitorMode, 'desk');
-});
-
-test('the cockpit preset is applied and the rig centred along the room', () => {
-  const state = withCockpitPreset(withRoom, 'flight');
-  assert.equal(state.cockpitEnabled, true);
-  assert.equal(state.preset, 'flight');
-  assert.equal(state.hotas, presets.flight.values.hotas);
-  assert.equal(state.cockpitX, 150);
-  assert.equal(state.cockpitZ, (400 - presets.flight.values.length) / 2);
 });
 
 test('the step buttons follow what has been added', () => {
@@ -62,21 +57,21 @@ test('the step buttons follow what has been added', () => {
     ),
     { nextDisabled: true, skipHidden: false, skipLabel: "I don't need a desk" },
   );
-  const cockpit = setupButtons(atStep('cockpit'), withCockpitPreset(withRoom, 'gt'));
-  assert.equal(cockpit.nextLabel, 'Finish');
-  assert.equal(cockpit.nextDisabled, false);
-  assert.equal(cockpit.skipHidden, true);
+  const desk = setupButtons(atStep('desk'), withDesk(withRoom, 140, 70, 75));
+  assert.equal(desk.nextLabel, 'Finish');
+  assert.equal(desk.nextDisabled, false);
+  assert.equal(desk.skipHidden, true);
 });
 
 test('the room must be defined before continuing', () => {
   assert.deepEqual(nextSetupStep(atStep('room', 0), freshConfig), { status: 'needs-room' });
 });
 
-test('the desk and the cockpit steps need their element unless skipped', () => {
+test('the desk step, the last one, needs a desk unless skipped', () => {
   assert.deepEqual(nextSetupStep(atStep('desk', 3), withRoom), { status: 'blocked' });
   const skipped = nextSetupStep(atStep('desk', 3), withRoom, { defer: true });
   assert.equal(skipped.status, 'advanced');
-  assert.deepEqual(skipped.setup, { step: 'cockpit', furthest: 4, deferred: ['desk'] });
+  assert.deepEqual(skipped.setup, { step: 'complete', furthest: 3, deferred: ['desk'] });
 });
 
 test('an openings or furniture step without items is kept to revisit', () => {

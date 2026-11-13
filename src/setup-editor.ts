@@ -1,5 +1,5 @@
 // Guided setup: the form of each step, the progress bar and the shared placement controls.
-import { deskElementControls, monitorShortcuts } from './desk-editor.ts';
+import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 import { steps, type SetupProgress } from './project.ts';
 import { presets, type CockpitConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
@@ -41,6 +41,8 @@ export function creationControls(
   setup: SetupProgress,
   target: string,
   { range, toggle, select }: ControlTemplates,
+  /** The arm pose last chosen, saved or updated, or '' for none. */
+  selectedPose = '',
 ): string {
   const step = setup.step;
   const room = setup.drafts?.room || {},
@@ -54,18 +56,7 @@ export function creationControls(
     if (s.deskEnabled === false)
       html = `<form id="setupDeskForm"><p class="setup-prompt">Your desk dimensions</p>${number('setupDeskW', 'Desktop width', 120, 200, desk.w ?? '', '120–200')}${number('setupDeskD', 'Desktop depth', 60, 80, desk.d ?? '', '60–80')}${number('setupDeskH', 'Height from the floor', 66, 131, desk.h ?? '', 'E.g. 75')}<p class="layout-hint">This configurator supports desktops of 120–200 × 60–80 cm and draws reference legs 66 cm deep.</p><button type="submit" class="button button-dark">Add desk</button></form>`;
     else
-      html = `<div class="control-group"><h3 class="group-title">Your desktop</h3>${range('deskWidth', 'Width') + range('deskDepth', 'Depth') + range('deskH', 'Height')}</div>${accessoryControls(toggle)}${s.monitorEnabled !== false ? `<div class="control-group" id="monitorPositionControls"><h3 class="group-title">Monitor position</h3>${monitorShortcuts(s)}</div>` : ''}${deskElementControls(s, e, target, { range, select })}${target === 'arm' ? `<div class="control-group" id="armControls"><h3 class="group-title">Monitor and arm</h3>${range('armBaseAngle', 'Base rotation') + range('armElbowAngle', 'Elbow bend') + range('monitorYaw', 'Screen rotation (VESA)') + range('monitorH', 'VESA center height')}<p class="layout-hint">Drag ELBOW or VESA to move the monitor with the arm. The clamp stays on the edge of the desktop.</p></div>` : ''}`;
-  } else if (step === 'cockpit' && s.cockpitEnabled === false) {
-    html = `<form id="setupCockpitForm"><label class="setup-field" for="setupPreset">What do you want to build?<select id="setupPreset" required><option value="">Choose a base</option>${Object.entries(
-      presets,
-    )
-      .map(
-        ([id, p]) =>
-          `<option value="${id}" ${setup.drafts?.preset === id ? 'selected' : ''}>${esc(p.label)}</option>`,
-      )
-      .join(
-        '',
-      )}</select></label><p class="layout-hint">The base appears once you add it. You can then adjust the chassis, posture and position.</p><button type="submit" class="button button-dark">Add cockpit</button></form>`;
+      html = `<div class="control-group"><h3 class="group-title">Your desktop</h3>${range('deskWidth', 'Width') + range('deskDepth', 'Depth') + range('deskH', 'Height')}</div>${accessoryControls(toggle)}${s.monitorEnabled !== false ? `<div class="control-group" id="monitorPositionControls"><h3 class="group-title">Monitor position</h3>${armPosesHTML(s, selectedPose)}</div>` : ''}${deskElementControls(s, e, target, { range, select })}${target === 'arm' ? `<div class="control-group" id="armControls"><h3 class="group-title">Monitor and arm</h3>${range('armBaseAngle', 'Base rotation') + range('armElbowAngle', 'Elbow bend') + range('monitorYaw', 'Screen rotation (VESA)') + range('monitorH', 'VESA center height')}<p class="layout-hint">Drag ELBOW or VESA to move the monitor with the arm. The clamp stays on the edge of the desktop.</p></div>` : ''}`;
   }
   return html;
 }

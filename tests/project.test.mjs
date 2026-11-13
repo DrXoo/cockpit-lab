@@ -154,9 +154,7 @@ test('the reader rejects inconsistent progress, wrong units and invalid item pre
   assert.throws(() => readProject({ ...data, units: 'mm' }));
   assert.throws(() => readProject({ ...data, version: 4 }));
   assert.throws(() => readProject({ ...data, config: { ...configOf(p), deskEnabled: 'false' } }));
-  assert.throws(() =>
-    readProject({ ...data, setup: { step: 'cockpit', furthest: 0, deferred: [] } }),
-  );
+  assert.throws(() => readProject({ ...data, setup: { step: 'desk', furthest: 0, deferred: [] } }));
   assert.throws(() => readProject({ app: 'Cockpit Lab', version: 1 }));
 });
 test('the summary of a partial project has no part list or geometry of missing items', () => {
@@ -168,20 +166,38 @@ test('the summary of a partial project has no part list or geometry of missing i
   assert.ok(!html.includes('<h3 class="summary-title">Mesa</h3>'));
   assert.ok(!html.includes('<h3 class="summary-title">Cockpit</h3>'));
 });
-test('a cockpit can be finished without a desk, keeping the deferred steps', () => {
+test('the room setup can be finished without a desk, keeping the deferred steps', () => {
   const p = createProject();
-  let config = { ...configOf(p), roomEnabled: true };
+  const config = { ...configOf(p), roomEnabled: true };
   p.setup = advanceSetup(p.setup);
   p.setup = advanceSetup(p.setup, { defer: true });
   p.setup = advanceSetup(p.setup, { defer: true });
   p.setup = advanceSetup(p.setup, { defer: true });
-  config = { ...config, cockpitEnabled: true };
-  p.setup = advanceSetup(p.setup);
   const restored = readProject(projectData(projectFromConfig(config, p.setup)));
   assert.equal(restored.setup.step, 'complete');
   assert.equal(configOf(restored).deskEnabled, false);
   assert.deepEqual(restored.setup.deferred, ['openings', 'furniture', 'desk']);
-  assert.ok(evaluate(configOf(restored)).cuts > 0);
+});
+
+test('progress saved when the setup had a cockpit step opens without it', () => {
+  const config = { ...configOf(createProject()), roomEnabled: true };
+  const saved = (setup) =>
+    readProject({ app: 'Cockpit Lab', version: 2, units: 'cm', config, setup }).setup;
+  assert.deepEqual(
+    saved({
+      step: 'cockpit',
+      furthest: 4,
+      deferred: ['openings', 'cockpit'],
+      drafts: { preset: 'gt' },
+    }),
+    { step: 'complete', furthest: 3, deferred: ['openings'], drafts: {} },
+  );
+  assert.deepEqual(saved({ step: 'desk', furthest: 4, deferred: [] }), {
+    step: 'desk',
+    furthest: 3,
+    deferred: [],
+    drafts: {},
+  });
 });
 test('an older design with the room turned off can still be saved', () => {
   const old = readProject({

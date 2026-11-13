@@ -82,7 +82,6 @@ import {
   nextSetupStep,
   withRoomSize,
   withDesk,
-  withCockpitPreset,
 } from './setup-actions.ts';
 import {
   addRoomItem,
@@ -550,7 +549,7 @@ function bindRoomEditor() {
 function enterStep(id: StepId) {
   setup = { ...setup, step: id };
   section = sectionOfStep(id);
-  layoutTarget = id === 'desk' ? 'desk' : id === 'cockpit' ? 'cockpit' : '';
+  layoutTarget = id === 'desk' ? 'desk' : '';
   layoutEditing = state.roomEnabled;
   showWorkspace('config');
   switchSection(section);
@@ -577,13 +576,6 @@ function continueSetup(defer = false) {
   } else enterStep(setup.step);
 }
 function bindCreationControls() {
-  const setupPreset = $optional<HTMLSelectElement>('#setupPreset');
-  setupPreset?.addEventListener('change', () => {
-    // The first option, "Choose a base", leaves the draft empty.
-    const preset = setupPreset.value === '' ? '' : presetId(setupPreset.value);
-    setup = { ...setup, drafts: { ...setup.drafts, preset } };
-    queueSave();
-  });
   for (const [group, prefix] of [
     ['room', 'setupRoom'],
     ['desk', 'setupDesk'],
@@ -634,19 +626,6 @@ function bindCreationControls() {
     refresh();
     scene?.setLayoutEditing(true, layoutTarget, false);
     setActiveView('desk');
-  });
-  const cockpitForm = $optional<HTMLFormElement>('#setupCockpitForm');
-  cockpitForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (!cockpitForm.reportValidity()) return;
-    state = withCockpitPreset(state, presetId($<HTMLSelectElement>('#setupPreset').value));
-    cockpit = designOf(state);
-    setup = { ...setup, deferred: setup.deferred.filter((id) => id !== 'cockpit') };
-    layoutTarget = 'cockpit';
-    persist();
-    renderControls();
-    refresh();
-    setActiveView('top');
   });
 }
 /** The inspector card that holds an element. */
@@ -704,16 +683,13 @@ function renderWorkflow() {
   $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
   $('#layoutBtn').classList.toggle('active', layoutEditing);
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
-  inspectorSectionOf('#heightTag').hidden =
-    !shown.cockpitEnabled || (guided && setup.step !== 'cockpit');
+  inspectorSectionOf('#heightTag').hidden = !shown.cockpitEnabled || guided;
   inspectorSectionOf('#deskSizeTag').hidden =
-    !shown.deskEnabled || (guided && !['desk', 'cockpit'].includes(setup.step));
+    !shown.deskEnabled || (guided && setup.step !== 'desk');
   inspectorSectionOf('#deskSizeTag').querySelector('h3')!.lastChild!.textContent =
     shown.monitorEnabled ? 'Desk and monitor' : 'Desk';
   inspectorSectionOf('#matTag').hidden =
-    !shown.deskEnabled ||
-    !evaluation.desktopItems.length ||
-    (guided && !['desk', 'cockpit'].includes(setup.step));
+    !shown.deskEnabled || !evaluation.desktopItems.length || (guided && setup.step !== 'desk');
   $('.reach-card').hidden = !(shown.deskEnabled && shown.monitorEnabled);
   $('#editArmBtn').hidden = !(shown.deskEnabled && shown.monitorEnabled);
   const metrics = $$('.metrics>div');
@@ -779,16 +755,14 @@ function renderControls() {
       : section === 'posture'
         ? posturePanelHTML(controlView())
         : framePanelHTML(controlView());
-  } else if (
-    (guided && !(setup.step === 'cockpit' && state.cockpitEnabled !== false)) ||
-    (section === 'desk' && state.deskEnabled === false)
-  ) {
+  } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
     html = creationControls(
       state,
       evaluation,
       guided ? setup : { ...setup, step: 'desk' },
       layoutTarget,
       { range, toggle, select },
+      selectedArmPose,
     );
   } else if (section === 'cockpit') {
     html = cockpitPlacementHTML(controlView(), hasDesign());
@@ -923,20 +897,6 @@ function renderControls() {
       const value = (state[key] + Number(dataOf(button, 'rotate')) + 360) % 360;
       update({ kind: 'number', key, value });
       renderControls();
-    }),
-  );
-  controlsAll('[data-monitor-pose]').forEach((button) =>
-    button.addEventListener('click', () => {
-      const pose = dataOf(button, 'monitorPose');
-      update({ kind: 'choice', key: 'monitorMode', value: pose });
-      renderControls();
-      setActiveView(pose === 'cockpit' ? 'top' : 'desk');
-      focusArmControls();
-      toast(
-        pose === 'cockpit'
-          ? 'Monitor turned towards the cockpit. Check the arm reach.'
-          : 'Monitor placed on the desk.',
-      );
     }),
   );
   const armPoseName = $optional<HTMLInputElement>('#armPoseName');

@@ -48,7 +48,7 @@ The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, d
 
 - A cockpit editor that designs the cockpit on its own, and a room editor that places it in each layout.
 - Presets: GT, flight, hybrid and minimum footprint.
-- Guided setup (room, openings, furniture, desk and cockpit) that resumes where you left off.
+- Guided room setup (room, openings, furniture and desk) that resumes where you left off.
 - Dimensions and positions of the seat, wheel, pedals and side mounts.
 - Cockpit base elevation from 0 to 50 cm, applied to the whole rig.
 - Adjustable desk with PC, keyboard, mouse and XL mouse pad.
