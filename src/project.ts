@@ -175,6 +175,15 @@ export const recordProject = (project: Project, config: CockpitConfig): Project 
   library: recordLayout(project.library, config),
 });
 
+/**
+ * The project with another cockpit design, such as one imported from a cockpit file, in place of
+ * the one it had. The room keeps including or leaving out the cockpit, now with this design.
+ */
+export const replaceCockpitDesign = (project: Project, cockpit: CockpitDesign): Project => ({
+  ...project,
+  cockpit,
+});
+
 /** A project from a single configuration, as v1 and v2 files and new projects have. */
 export const projectFromConfig = (config: CockpitConfig, setup: SetupProgress): Project => ({
   cockpit: splitCockpit(config).cockpit,

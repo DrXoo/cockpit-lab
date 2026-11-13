@@ -125,6 +125,17 @@
           </div>
           <p id="presetDescription">Car seat, three pedals and controls within reach.</p>
           <small id="presetHint">Changing the base replaces the cockpit settings.</small>
+          <div class="cockpit-file-actions">
+            <button
+              class="text-button"
+              id="importCockpit"
+              title="Replace this design with one from a cockpit file"
+            >
+              <i data-icon="upload"></i>Import cockpit file</button
+            ><button class="text-button" id="exportCockpit" title="Download this design on its own">
+              <i data-icon="download"></i>Export cockpit file
+            </button>
+          </div>
         </div>
         <div class="config-tabs" role="tablist" aria-label="Settings sections">
           <button
@@ -480,7 +491,34 @@
         </button>
       </div>
     </dialog>
+    <dialog
+      id="replaceCockpitDialog"
+      class="reset-dialog"
+      aria-labelledby="replaceCockpitTitle"
+      aria-describedby="replaceCockpitDescription"
+    >
+      <div class="dialog-header">
+        <h2 id="replaceCockpitTitle">Replace the cockpit design?</h2>
+        <button
+          class="icon-button"
+          data-close="replaceCockpitDialog"
+          aria-label="Close confirmation"
+        >
+          <i data-icon="close"></i>
+        </button>
+      </div>
+      <p id="replaceCockpitDescription">
+        The cockpit file takes the place of this project's design, here and in every layout of the
+        room. Export a cockpit file first to keep the current design.
+      </p>
+      <div class="dialog-actions">
+        <button class="button button-light" data-close="replaceCockpitDialog" autofocus>
+          Keep this design</button
+        ><button class="button button-dark" id="confirmReplaceCockpit">Replace design</button>
+      </div>
+    </dialog>
     <input type="file" id="importFile" accept=".json,application/json" hidden />
+    <input type="file" id="importCockpitFile" accept=".json,application/json" hidden />
     <dialog id="summaryDialog" class="summary-dialog" aria-labelledby="summaryTitle">
       <div class="dialog-header">
         <div>

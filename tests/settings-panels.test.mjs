@@ -58,6 +58,7 @@ test('a new design starts from one of the bases', () => {
   for (const base of ['gt', 'flight', 'hybrid', 'small'])
     assert.match(html, new RegExp(`<option value="${base}">`), base);
   assert.match(html, /<select id="newDesignBase" required>/);
+  assert.match(html, /<button[^>]*id="importCockpitInstead"/);
 });
 
 test('the posture panel shows only the controls of the mounted modules', () => {

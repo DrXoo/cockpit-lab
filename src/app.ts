@@ -1,4 +1,12 @@
-import { steps, createProject, readProject, projectData, recordProject } from './project.ts';
+import {
+  steps,
+  createProject,
+  readProject,
+  projectData,
+  recordProject,
+  replaceCockpitDesign,
+} from './project.ts';
+import { cockpitFileData, readCockpitFile } from './cockpit-file.ts';
 import { designFromBase, designOf, designOnItsOwn, type CockpitDesign } from './cockpit-design.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import {
@@ -780,6 +788,9 @@ function renderControls() {
   bindCreationControls();
   $optional('#editCockpitDesign')?.addEventListener('click', () => showEditor('cockpit'));
   $optional('#startWithCockpit')?.addEventListener('click', startWithCockpit);
+  $optional('#importCockpitInstead')?.addEventListener('click', () =>
+    $('#importCockpitFile').click(),
+  );
   const newDesignForm = $optional<HTMLFormElement>('#newDesignForm');
   newDesignForm?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1393,12 +1404,18 @@ importFile.addEventListener('change', async () => {
   if (!file) return;
   try {
     if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('File too large');
-    openProject(readProject(JSON.parse(await file.text())));
+    const data: unknown = JSON.parse(await file.text());
+    if (isCockpitFile(data)) {
+      toast('This is a cockpit file: import it from the Cockpit editor.');
+      return;
+    }
+    openProject(readProject(data));
     persist();
     renderControls();
     refresh();
     $<HTMLDialogElement>('#summaryDialog').close();
-    if (setup.step !== 'complete') enterStep(setup.step);
+    if (!state.roomEnabled && hasDesign()) startWithCockpit();
+    else if (setup.step !== 'complete') enterStep(setup.step);
     else {
       switchSection('room');
       setActiveView('iso');
@@ -1406,9 +1423,64 @@ importFile.addEventListener('change', async () => {
     toast('Design loaded');
   } catch {
     toast('Could not load the file: use a JSON file exported by Cockpit Lab.');
+  } finally {
+    importFile.value = '';
   }
-  importFile.value = '';
 });
+/** Whether a file is a cockpit file rather than a project, from its own description. */
+const isCockpitFile = (data: unknown): boolean =>
+  typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'cockpit';
+$('#exportCockpit').addEventListener('click', () => {
+  download(
+    'cockpit-lab-cockpit.json',
+    JSON.stringify(cockpitFileData(designOf(state)), null, 2),
+    'application/json',
+  );
+  toast('Cockpit file exported. Import it from the Cockpit editor of another project.');
+});
+const importCockpitFile = $<HTMLInputElement>('#importCockpitFile');
+$('#importCockpit').addEventListener('click', () => importCockpitFile.click());
+/** A design read from a cockpit file, waiting for the user to confirm it replaces theirs. */
+let importedDesign: CockpitDesign | null = null;
+importCockpitFile.addEventListener('change', async () => {
+  const file = importCockpitFile.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('File too large');
+    const design = readCockpitFile(JSON.parse(await file.text()));
+    if (hasDesign()) {
+      importedDesign = design;
+      $<HTMLDialogElement>('#replaceCockpitDialog').showModal();
+    } else useImportedDesign(design);
+  } catch (error) {
+    toast(
+      error instanceof Error && error.message === 'This is not a cockpit file'
+        ? 'This is a project file: open it with Open JSON.'
+        : 'Could not import the file: use a cockpit file exported by Cockpit Lab.',
+    );
+  } finally {
+    importCockpitFile.value = '';
+  }
+});
+$('#confirmReplaceCockpit').addEventListener('click', () => {
+  $<HTMLDialogElement>('#replaceCockpitDialog').close();
+  if (importedDesign) useImportedDesign(importedDesign);
+  importedDesign = null;
+});
+/** Makes an imported design the project's, in the cockpit editor and in the room. */
+function useImportedDesign(design: CockpitDesign) {
+  clearTimeout(pendingSave);
+  openProject(replaceCockpitDesign(recordedProject(), design));
+  persist();
+  renderControls();
+  refresh();
+  setActiveView('iso');
+  toast(
+    state.cockpitEnabled
+      ? 'Cockpit file imported. Every layout of the room shows the new design.'
+      : 'Cockpit file imported.',
+  );
+}
 window.addEventListener('pagehide', () => {
   clearTimeout(pendingSave);
   persist();

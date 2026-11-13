@@ -12,7 +12,7 @@ export function newDesignHTML(): string {
   const options = Object.entries(presets)
     .map(([id, base]) => `<option value="${id}">${esc(base.label)}</option>`)
     .join('');
-  return `<form id="newDesignForm"><p class="setup-prompt">This project has no cockpit yet.</p><label class="setup-field" for="newDesignBase">Start from a base<select id="newDesignBase" required><option value="">Choose a base</option>${options}</select></label><p class="layout-hint">You can then adjust the frame, the controls and the posture. A room in this project places the design in every layout.</p><button type="submit" class="button button-dark">Start the design</button></form>`;
+  return `<form id="newDesignForm"><p class="setup-prompt">This project has no cockpit yet.</p><label class="setup-field" for="newDesignBase">Start from a base<select id="newDesignBase" required><option value="">Choose a base</option>${options}</select></label><p class="layout-hint">You can then adjust the frame, the controls and the posture. A room in this project places the design in every layout.</p><button type="submit" class="button button-dark">Start the design</button></form><p class="setup-alternative">Have a cockpit designed in another project? <button type="button" class="text-button" id="importCockpitInstead">Import a cockpit file</button></p>`;
 }
 
 /**

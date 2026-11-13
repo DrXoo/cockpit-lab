@@ -69,6 +69,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/app.ts` | DOM wiring: events, panels and exports |
 | `src/dom-input.ts`, `src/setting-change.ts` | Validating what the panels send, and applying a setting change |
 | `src/project.ts`, `src/project-storage.ts` | Project format and autosave |
+| `src/cockpit-file.ts` | Cockpit files: a cockpit design on its own, to move it between projects |
 | `src/layouts.ts`, `src/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
 | `src/user-text.ts` | Cleaning names typed by users |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
