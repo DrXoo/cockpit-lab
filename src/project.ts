@@ -14,7 +14,12 @@ import {
   type LayoutEntry,
   type LayoutLibrary,
 } from './layouts.ts';
-import { isCockpitDesignSetting, splitCockpit, type CockpitDesign } from './cockpit-design.ts';
+import {
+  designOf,
+  isCockpitDesignSetting,
+  splitCockpit,
+  type CockpitDesign,
+} from './cockpit-design.ts';
 
 export type StepId = 'room' | 'openings' | 'furniture' | 'desk' | 'cockpit';
 export type SetupStep = StepId | 'complete';
@@ -168,10 +173,13 @@ function readDrafts(input: unknown = {}): SetupDrafts {
 export const projectConfig = (project: Project, layoutId?: string): CockpitConfig =>
   layoutConfig(project.library, project.cockpit, layoutId);
 
-/** Stores an edited configuration of the active layout: its cockpit design and its room. */
+/**
+ * Stores an edited configuration of the active layout: its cockpit design, if the project has
+ * one, and its room. The design is kept even while the room leaves it out.
+ */
 export const recordProject = (project: Project, config: CockpitConfig): Project => ({
   ...project,
-  cockpit: splitCockpit(config).cockpit,
+  cockpit: project.cockpit === null ? null : designOf(config),
   library: recordLayout(project.library, config),
 });
 
@@ -304,9 +312,15 @@ function readLayoutEntry(
 
 /**
  * The room of a v3 or v4 file: the settings every layout shares, with the cockpit design among
- * them, and each layout's placements. Returns the project it describes.
+ * them, and each layout's placements. Returns the project it describes. In a v3 file the design
+ * exists only if the room includes it.
  */
-function readRoom(shared: RawRecord, room: RawRecord, rawSetup: unknown): Project {
+function readRoom(
+  shared: RawRecord,
+  room: RawRecord,
+  rawSetup: unknown,
+  hasDesign = shared.cockpitEnabled === true,
+): Project {
   const { layouts, activeLayoutId } = room;
   for (const key of Object.keys(shared))
     if (isLayoutSetting(key)) throw new Error(`Layout setting in the shared settings: ${key}`);
@@ -319,7 +333,7 @@ function readRoom(shared: RawRecord, room: RawRecord, rawSetup: unknown): Projec
   if (typeof activeLayoutId !== 'string') throw new Error('Unknown active layout');
   const library = libraryFromLayouts(entries, activeLayoutId);
   // Every layout was read with the same design, so the first one has it.
-  const { cockpit } = splitCockpit(entries[0].config);
+  const cockpit = hasDesign ? designOf(entries[0].config) : null;
   return { cockpit, library, setup: readSetup(rawSetup, layoutConfig(library, cockpit)) };
 }
 
@@ -337,10 +351,13 @@ function readVersion4(data: RawRecord): Project {
     if (!isCockpitDesignSetting(key)) throw new Error(`Not a cockpit setting: ${key}`);
   if (!isPlainRecord(room) || !isPlainRecord(room.shared)) throw new Error('Invalid room');
   for (const key of Object.keys(room.shared))
-    if (isCockpitDesignSetting(key) || key === 'cockpitEnabled')
-      throw new Error(`Cockpit setting in the room: ${key}`);
-  const shared = { ...room.shared, ...cockpit, cockpitEnabled: cockpit !== null };
-  return readRoom(shared, room, data.setup);
+    if (isCockpitDesignSetting(key)) throw new Error(`Cockpit setting in the room: ${key}`);
+  // Files saved before a room could leave the design out include it whenever there is one.
+  const includesCockpit = room.shared.cockpitEnabled ?? cockpit !== null;
+  if (includesCockpit === true && cockpit === null)
+    throw new Error('The room includes a missing cockpit design');
+  const shared = { ...room.shared, ...cockpit, cockpitEnabled: includesCockpit };
+  return readRoom(shared, room, data.setup, cockpit !== null);
 }
 
 /**

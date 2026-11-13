@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { defaults, evaluate, presets } from '../src/model.ts';
 import {
   COCKPIT_DESIGN_KEYS,
+  designOf,
   designOnItsOwn,
   isCockpitDesignSetting,
   placeCockpit,
@@ -16,9 +17,20 @@ test('a configuration splits into the cockpit design and the room, and back', ()
   assert.equal(cockpit.baseLift, 12);
   assert.equal('roomW' in cockpit, false);
   assert.equal('height' in room, false);
-  assert.equal('cockpitEnabled' in room, false);
+  assert.equal(room.cockpitEnabled, true);
   assert.equal(room.roomW, 330);
   assert.deepEqual(placeCockpit(room, cockpit), config);
+});
+
+test('a room that leaves the cockpit out places none, and the design is still there', () => {
+  const config = { ...defaults, cockpitEnabled: false, height: 190 };
+  assert.equal(designOf(config).height, 190);
+  const { room } = splitCockpit(config);
+  assert.equal(room.cockpitEnabled, false);
+  const placed = placeCockpit(room, designOf(config));
+  assert.equal(placed.cockpitEnabled, false);
+  assert.equal(placed.height, 190);
+  assert.equal(placeCockpit({ ...room, cockpitEnabled: true }, null).cockpitEnabled, false);
 });
 
 test('without a cockpit there is no design, and placing none leaves the cockpit out', () => {

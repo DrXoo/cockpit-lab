@@ -1,5 +1,5 @@
 import { steps, createProject, readProject, projectData, recordProject } from './project.ts';
-import { designOnItsOwn, splitCockpit, type CockpitDesign } from './cockpit-design.ts';
+import { designOf, designOnItsOwn, type CockpitDesign } from './cockpit-design.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import {
   partialSummary,
@@ -292,14 +292,16 @@ if (setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(setup.step);
 if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
 // A project with a cockpit design and no room yet opens where the design is edited.
-if (!state.roomEnabled && state.cockpitEnabled) {
+if (!state.roomEnabled && cockpit !== null) {
   section = 'frame';
   view = 'iso';
 }
 const editor = (): Editor => editorOfSection(section);
+/** Whether the project has a cockpit design, included in the room or not. */
+const hasDesign = (): boolean => cockpit !== null;
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
 const shownConfig = (): CockpitConfig =>
-  editor() === 'cockpit' ? designOnItsOwn(splitCockpit(state).cockpit) : state;
+  editor() === 'cockpit' ? designOnItsOwn(hasDesign() ? designOf(state) : null) : state;
 let evaluation = evaluate(shownConfig());
 let pendingSave: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -636,6 +638,7 @@ function bindCreationControls() {
     event.preventDefault();
     if (!cockpitForm.reportValidity()) return;
     state = withCockpitPreset(state, presetId($<HTMLSelectElement>('#setupPreset').value));
+    cockpit = designOf(state);
     setup = { ...setup, deferred: setup.deferred.filter((id) => id !== 'cockpit') };
     layoutTarget = 'cockpit';
     persist();
@@ -669,9 +672,9 @@ function renderWorkflow() {
   $('#setupProgress').hidden = !guided;
   $('#setupProgress').innerHTML = guided ? progressHTML(setup) : '';
   $('#setupActions').hidden = !guided;
-  $('.config-tabs').hidden = guided || (inCockpit && !state.cockpitEnabled);
+  $('.config-tabs').hidden = guided || (inCockpit && !hasDesign());
   renderLayoutPicker(guided || inCockpit);
-  $('.preset-area').hidden = !inCockpit || !state.cockpitEnabled;
+  $('.preset-area').hidden = !inCockpit || !hasDesign();
   const heading = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Settings';
   $('.panel-heading h2').textContent = heading;
   $('#controls').setAttribute('aria-label', guided ? (step?.title ?? '') : heading);
@@ -729,9 +732,10 @@ function renderWorkflow() {
   $$('.scene-legend>span').forEach(
     (item, index) => (item.hidden = index === 2 ? !shown.deskEnabled : !shown.cockpitEnabled),
   );
+  const showsCockpit = inCockpit ? hasDesign() : state.cockpitEnabled;
   const sceneTitle = guided
     ? stepLabel
-    : state.cockpitEnabled
+    : showsCockpit
       ? presets[state.preset].label
       : inCockpit
         ? 'New cockpit design'
@@ -768,7 +772,7 @@ function renderControls() {
     layoutTarget = 'desk';
   let html = '';
   if (editor() === 'cockpit') {
-    html = !state.cockpitEnabled
+    html = !hasDesign()
       ? newDesignHTML()
       : section === 'posture'
         ? posturePanelHTML(controlView())
@@ -805,6 +809,7 @@ function renderControls() {
     if (!newDesignForm.reportValidity()) return;
     const base = presetId($<HTMLSelectElement>('#newDesignBase').value);
     state = withCockpitPreset(state, base);
+    cockpit = designOf(state);
     setup = { ...setup, deferred: setup.deferred.filter((id) => id !== 'cockpit') };
     persist();
     renderControls();
@@ -1168,7 +1173,7 @@ $('.config-tabs').addEventListener('keydown', (event) => {
 });
 $('#preset').addEventListener('change', () => {
   const key = presetId($<HTMLSelectElement>('#preset').value);
-  state = { ...state, ...presets[key].values, preset: key, cockpitEnabled: true };
+  state = { ...state, ...presets[key].values, preset: key };
   persist();
   renderControls();
   refresh();

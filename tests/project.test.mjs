@@ -227,8 +227,38 @@ test('a project is written as v4, with the cockpit design apart from the room', 
   assert.deepEqual(Object.keys(file.cockpit).sort(), [...COCKPIT_DESIGN_KEYS].sort());
   assert.equal(file.cockpit.seatH, 40);
   assert.deepEqual(Object.keys(file.room).sort(), ['activeLayoutId', 'layouts', 'shared']);
-  for (const key of Object.keys(file.room.shared))
-    assert.ok(!isCockpitDesignSetting(key) && key !== 'cockpitEnabled', key);
+  for (const key of Object.keys(file.room.shared)) assert.ok(!isCockpitDesignSetting(key), key);
+  assert.equal(file.room.shared.cockpitEnabled, true, 'the room includes the cockpit');
+});
+
+/** A project file through JSON, as it is exported and opened again. */
+const throughFile = (project) => readProject(JSON.parse(JSON.stringify(projectData(project))));
+
+test('a room can leave the cockpit design out, and the project keeps the design', () => {
+  const project = designWithLayouts();
+  const left = recordProject(project, { ...configOf(project), cockpitEnabled: false, height: 190 });
+  assert.deepEqual(left.cockpit, { ...project.cockpit, height: 190 });
+  for (const layout of ['layout-1', 'layout-2']) {
+    assert.equal(projectConfig(left, layout).cockpitEnabled, false, layout);
+    assert.equal(projectConfig(left, layout).height, 190, layout);
+  }
+  const restored = throughFile(left);
+  assert.deepEqual(restored.cockpit, left.cockpit);
+  assert.equal(projectConfig(restored).cockpitEnabled, false);
+});
+
+test('v4 files from before rooms could leave the cockpit out include it when there is one', () => {
+  const withoutFlag = (project) => {
+    const file = JSON.parse(JSON.stringify(projectData(project)));
+    delete file.room.shared.cockpitEnabled;
+    return file;
+  };
+  assert.equal(projectConfig(readProject(withoutFlag(designWithLayouts()))).cockpitEnabled, true);
+  const noDesign = projectFromConfig(
+    sanitize({ ...defaults, cockpitEnabled: false }),
+    completeSetup(),
+  );
+  assert.equal(projectConfig(readProject(withoutFlag(noDesign))).cockpitEnabled, false);
 });
 
 /** The same project as the v3 writer stored it: the design among the shared settings. */
@@ -264,7 +294,10 @@ test('the v4 reader rejects settings in the wrong place', () => {
   assert.throws(() => readProject({ ...file, cockpit: { ...file.cockpit, roomW: 300 } }), /roomW/);
   assert.throws(() => readProject({ ...file, cockpit: 'GT' }), /cockpit/);
   assert.throws(() => readProject(withRoomShared({ seatH: 40 })), /seatH/);
-  assert.throws(() => readProject(withRoomShared({ cockpitEnabled: true })), /cockpitEnabled/);
+  assert.throws(
+    () => readProject({ ...withRoomShared({ cockpitEnabled: true }), cockpit: null }),
+    /cockpit design/,
+  );
   assert.throws(() => readProject(withRoomShared({ cockpitX: 10 })), /cockpitX/);
   assert.throws(() => readProject({ ...file, room: null }), /room/);
 });

@@ -13,6 +13,8 @@ import {
   hideFurniture,
   showFurniture,
   layoutById,
+  includeCockpit,
+  leaveOutCockpit,
 } from '../src/layouts.ts';
 import { saveArmPose } from '../src/arm-poses.ts';
 import { splitCockpit } from '../src/cockpit-design.ts';
@@ -41,6 +43,34 @@ const room = sanitize({
 const { cockpit } = splitCockpit(room);
 
 const furniture = (config, id) => config.roomFurniture.find((item) => item.id === id);
+
+test('adding the cockpit puts it in every layout, centred where it stood outside the room', () => {
+  let library = createLayoutLibrary({ ...room, cockpitEnabled: false, cockpitX: -500 });
+  library = duplicateLayout(library, 'Inside');
+  library = recordLayout(library, {
+    ...layoutConfig(library, cockpit),
+    cockpitX: 60,
+    cockpitZ: 80,
+  });
+  assert.equal(layoutConfig(library, cockpit).cockpitEnabled, false);
+
+  const added = includeCockpit(library, cockpit);
+  const outside = layoutConfig(added, cockpit, 'layout-1');
+  assert.equal(outside.cockpitEnabled, true);
+  assert.deepEqual(
+    [outside.cockpitX, outside.cockpitZ],
+    [room.roomX + room.roomW / 2, room.roomZ + (room.roomD - cockpit.length) / 2],
+  );
+  const inside = layoutConfig(added, cockpit, 'layout-2');
+  assert.deepEqual([inside.cockpitEnabled, inside.cockpitX, inside.cockpitZ], [true, 60, 80]);
+
+  const leftOut = leaveOutCockpit(added);
+  for (const id of ['layout-1', 'layout-2']) {
+    const config = layoutConfig(leftOut, cockpit, id);
+    assert.equal(config.cockpitEnabled, false, id);
+    assert.equal(config.cockpitX, layoutConfig(added, cockpit, id).cockpitX, id);
+  }
+});
 
 test('a new library has one layout that reproduces the configuration', () => {
   const library = createLayoutLibrary(room);

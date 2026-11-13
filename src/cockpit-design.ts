@@ -34,8 +34,11 @@ export const COCKPIT_DESIGN_KEYS = [
 
 export type CockpitDesignKey = (typeof COCKPIT_DESIGN_KEYS)[number];
 export type CockpitDesign = Pick<CockpitConfig, CockpitDesignKey>;
-/** The settings of a room and its layout, without a cockpit design. */
-export type RoomConfig = Omit<CockpitConfig, CockpitDesignKey | 'cockpitEnabled'>;
+/**
+ * The settings of a room and its layout, without a cockpit design. Its `cockpitEnabled` says
+ * whether the room includes the project's design.
+ */
+export type RoomConfig = Omit<CockpitConfig, CockpitDesignKey>;
 
 export const isCockpitDesignSetting = (key: string): boolean =>
   COCKPIT_DESIGN_KEYS.some((designKey) => designKey === key);
@@ -68,7 +71,6 @@ function separate(config: CockpitConfig): { design: CockpitDesign; room: RoomCon
     handbrake,
     drivingSide,
     preset,
-    cockpitEnabled: _present,
     ...room
   } = config;
   const design = {
@@ -102,7 +104,16 @@ function separate(config: CockpitConfig): { design: CockpitDesign; room: RoomCon
   return { design, room };
 }
 
-/** The cockpit design of a configuration, or null when it has no cockpit, and its room. */
+/** The cockpit design settings of a configuration, whether its room includes the cockpit or not. */
+export const designOf = (config: CockpitConfig): CockpitDesign => separate(config).design;
+
+/** The room settings of a configuration, including whether the room includes the cockpit. */
+export const roomOf = (config: CockpitConfig): RoomConfig => separate(config).room;
+
+/**
+ * A single configuration as earlier files and new projects hold it: the cockpit design only
+ * exists if the configuration includes it.
+ */
 export function splitCockpit(config: CockpitConfig): {
   cockpit: CockpitDesign | null;
   room: RoomConfig;
@@ -122,15 +133,17 @@ export const cockpitSettings = (
   cockpitEnabled: cockpit !== null,
 });
 
-/** Puts a cockpit design, or none, into the settings of a room. */
+/** Puts the project's cockpit design, or none, into the settings of a room that may include it. */
 export const placeCockpit = (room: RoomConfig, cockpit: CockpitDesign | null): CockpitConfig => ({
   ...room,
-  ...cockpitSettings(cockpit),
+  ...(cockpit ?? NO_COCKPIT),
+  cockpitEnabled: room.cockpitEnabled && cockpit !== null,
 });
 
 /** What surrounds a design in its own workspace: nothing, with the cockpit at the origin. */
 const NOTHING_AROUND: RoomConfig = {
   ...separate(defaults).room,
+  cockpitEnabled: true,
   roomEnabled: false,
   deskEnabled: false,
   monitorEnabled: false,

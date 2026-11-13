@@ -1,15 +1,10 @@
 // Layouts: alternative arrangements of one room. What exists is shared by every layout: the
 // room and its openings, each piece of furniture and its size, the desk and its accessories,
 // and the monitor arm's hardware. Each layout stores only where things are, and which pieces of
-// furniture it leaves out. The cockpit design is not part of the room: the project holds it,
-// and every layout places that same design.
+// furniture it leaves out. The cockpit design is not part of the room: the project holds it.
+// Once the room includes it, every layout places that same design.
 import type { CockpitConfig } from './config.ts';
-import {
-  placeCockpit,
-  splitCockpit,
-  type CockpitDesign,
-  type RoomConfig,
-} from './cockpit-design.ts';
+import { placeCockpit, roomOf, type CockpitDesign, type RoomConfig } from './cockpit-design.ts';
 import { resizeDesk } from './desk.ts';
 import {
   normalizeRoom,
@@ -169,7 +164,7 @@ function splitSettings(config: CockpitConfig): {
     armPoses,
     roomFurniture,
     ...shared
-  } = splitCockpit(config).room;
+  } = roomOf(config);
   return {
     shared: { ...shared, roomFurniture: roomFurniture.map(specOf) },
     settings: {
@@ -320,6 +315,39 @@ export function recordLayout(library: LayoutLibrary, config: CockpitConfig): Lay
   }));
   return { ...library, shared: { ...shared, roomFurniture }, layouts };
 }
+
+const cockpitInRoom = (shared: SharedSettings, settings: LayoutSettings): boolean =>
+  settings.cockpitX >= shared.roomX &&
+  settings.cockpitX <= shared.roomX + shared.roomW &&
+  settings.cockpitZ >= shared.roomZ &&
+  settings.cockpitZ <= shared.roomZ + shared.roomD;
+
+/**
+ * Adds the project's cockpit design to the room, in every layout. A layout keeps where it put
+ * the cockpit before, unless that is outside the room: there the cockpit is centred in the room.
+ */
+export function includeCockpit(library: LayoutLibrary, cockpit: CockpitDesign): LayoutLibrary {
+  const { shared } = library;
+  const centred = {
+    cockpitX: shared.roomX + shared.roomW / 2,
+    cockpitZ: shared.roomZ + Math.max(0, (shared.roomD - cockpit.length) / 2),
+  };
+  return {
+    ...library,
+    shared: { ...shared, cockpitEnabled: true },
+    layouts: library.layouts.map((layout) =>
+      cockpitInRoom(shared, layout.settings)
+        ? layout
+        : { ...layout, settings: { ...layout.settings, ...centred } },
+    ),
+  };
+}
+
+/** Leaves the cockpit design out of the room. Each layout keeps its placement for its return. */
+export const leaveOutCockpit = (library: LayoutLibrary): LayoutLibrary => ({
+  ...library,
+  shared: { ...library.shared, cockpitEnabled: false },
+});
 
 function nextLayoutId(library: LayoutLibrary): string {
   const numbers = library.layouts.map((layout) =>
