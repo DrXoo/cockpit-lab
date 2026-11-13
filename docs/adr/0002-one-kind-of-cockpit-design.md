@@ -13,4 +13,5 @@ Today a cockpit design is parametric: about thirty dimensions from which the mod
 ## Consequences
 
 - The conversion must produce the same dimensions as the parametric model, proven by tests against known cases. Otherwise opening an existing design in the CAD would change it without anyone touching it.
+- The conversion reproduces the parametric design as it is, even where it could not be built: seat posts that rest on no profile, pedal deck profiles that cross each other. The CAD reports those as unsupported parts and interference, and the user fixes them by editing; the conversion does not fix them silently. Clean 90° joints are converted with a standard corner bracket, so the parts to buy do not start empty.
 - The cockpit is separated from the room before the CAD starts, with the parametric design, so that the file format change and the conversion to parts land as two separate migrations.
