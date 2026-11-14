@@ -37,7 +37,7 @@ test('The initial GT preset has reachable limbs, a reachable monitor and fits th
     ['cad-interference', 'cad-support'],
   );
   assert.ok(e.body.legs.reachable);
-  assert.ok(e.body.arms.reachable);
+  assert.ok(e.body.hands.arms.reachable);
   assert.ok(e.reach < defaults.armReach);
   assert.ok(e.freeW > defaults.aisle);
 });

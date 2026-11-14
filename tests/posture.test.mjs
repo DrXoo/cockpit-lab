@@ -23,3 +23,12 @@ test('the posture follows the contact points: moving the hip moves the eyes with
   assert.ok(Math.abs(after.z - before.z - 10) < 1e-9);
   assert.ok(Math.abs(after.y - before.y - 5) < 1e-9);
 });
+
+test('without a contact for the hands, the posture has no arms and the rest is unchanged', () => {
+  const contacts = parametricContacts(defaults);
+  const withHands = postureFrom(driver, contacts);
+  const withoutHands = postureFrom(driver, { hip: contacts.hip, heel: contacts.heel });
+  assert.equal(withoutHands.hands, null);
+  assert.deepEqual(withHands.hands.point, contacts.hands);
+  assert.deepEqual({ ...withoutHands, hands: null }, { ...withHands, hands: null });
+});

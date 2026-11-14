@@ -31,8 +31,8 @@ export interface Contacts {
   hip: SidePoint;
   /** The heels on the pedals. */
   heel: SidePoint;
-  /** The hands on the wheel. */
-  hands: SidePoint;
+  /** The hands on the wheel; a design without one gives the hands no contact. */
+  hands?: SidePoint;
 }
 
 export interface Driver {
@@ -61,9 +61,13 @@ export function postureFrom(driver: Driver, contacts: Contacts) {
     shoulder = { z: hip.z - Math.sin(a) * h * 0.288, y: hip.y + Math.cos(a) * h * 0.288 };
   const eye = { z: hip.z - Math.sin(a) * h * 0.39, y: hip.y + Math.cos(a) * h * 0.39 };
   const foot = contacts.heel;
-  const hand = contacts.hands;
-  const legs = solveJoint(hip, foot, h * 0.245, h * 0.246),
-    arms = solveJoint(shoulder, hand, h * 0.186, h * 0.146, -1);
+  const legs = solveJoint(hip, foot, h * 0.245, h * 0.246);
+  const hands = contacts.hands
+    ? {
+        point: contacts.hands,
+        arms: solveJoint(shoulder, contacts.hands, h * 0.186, h * 0.146, -1),
+      }
+    : null;
   // Torso to thigh included angle in the sagittal plane.
   const v1 = { z: shoulder.z - hip.z, y: shoulder.y - hip.y },
     v2 = { z: legs.joint.z - hip.z, y: legs.joint.y - hip.y };
@@ -73,5 +77,5 @@ export function postureFrom(driver: Driver, contacts: Contacts) {
     ) *
       180) /
     Math.PI;
-  return { hip, shoulder, eye, foot, hand, legs, arms, hipAngle };
+  return { hip, shoulder, eye, foot, hands, legs, hipAngle };
 }

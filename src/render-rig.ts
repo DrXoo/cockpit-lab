@@ -215,10 +215,11 @@ function drawPerson(r: RenderList, parent: ParentRef, s: CockpitConfig, b: Body)
     r.tube([x, hip.y, hip.z], [x, b.legs.joint.y, b.legs.joint.z], 4.7, 'blue', parent);
     r.tube([x, b.legs.joint.y, b.legs.joint.z], [x, b.foot.y, b.foot.z], 3.5, 'blue', parent);
     r.box(8, 5, 18, x, b.foot.y - 2, b.foot.z + 3, 'blue', parent);
-    if (s.wheel) {
-      const elbow = b.arms.joint;
+    if (s.wheel && b.hands) {
+      const elbow = b.hands.arms.joint;
+      const hand = b.hands.point;
       r.tube([x, shoulder.y, shoulder.z], [x * 1.4, elbow.y, elbow.z], 3.2, 'blue', parent);
-      r.tube([x * 1.4, elbow.y, elbow.z], [x * 1.1, b.hand.y, b.hand.z], 2.6, 'blue', parent);
+      r.tube([x * 1.4, elbow.y, elbow.z], [x * 1.1, hand.y, hand.z], 2.6, 'blue', parent);
     } else {
       // Without a wheel the hands rest on the side controls.
       const elbow = { y: shoulder.y - 25, z: shoulder.z + 12 };

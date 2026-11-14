@@ -314,17 +314,14 @@ function bodyChecks(
       'Guide 85–125° · backrest included',
     ),
   ];
-  if (s.wheel)
+  const arms = body.hands?.arms;
+  if (s.wheel && arms)
     checks.push(
       check(
         'elbow',
         'Elbow angle',
-        body.arms.reachable ? `${Math.round(body.arms.angle)}°` : 'Out of reach',
-        !body.arms.reachable
-          ? 'error'
-          : body.arms.angle < 85 || body.arms.angle > 140
-            ? 'warning'
-            : 'ok',
+        arms.reachable ? `${Math.round(arms.angle)}°` : 'Out of reach',
+        !arms.reachable ? 'error' : arms.angle < 85 || arms.angle > 140 ? 'warning' : 'ok',
         'Guide 85–140° · side grip',
       ),
     );
