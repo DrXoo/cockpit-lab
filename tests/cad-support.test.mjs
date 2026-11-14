@@ -93,3 +93,41 @@ test('a converted design reports the parts the parametric drawing leaves unconne
   ]);
   assert.ok(reported.includes('seat-post-rear-right'));
 });
+
+test('a peripheral on a plate is supported through the plate', () => {
+  const plate = {
+    kind: 'plate',
+    id: 'plate',
+    name: 'Plate',
+    widthMm: 200,
+    depthMm: 150,
+    thicknessMm: 5,
+    ownHoles: [],
+    placement: {
+      kind: 'attachment',
+      parentId: 'left-rail',
+      face: '+y',
+      alongMm: 200,
+      fromEnd: 'start',
+    },
+  };
+  const wheelBase = {
+    kind: 'peripheral',
+    id: 'wheel-base',
+    name: 'Wheel base',
+    envelope: { widthMm: 150, heightMm: 120, depthMm: 180 },
+    mountingPattern: { holes: [] },
+    contactPoints: [],
+    source: { kind: 'estimated', reference: 'test' },
+    placement: { kind: 'attachment', parentId: 'plate', face: '+y', alongMm: 75, fromEnd: 'start' },
+  };
+  assert.deepEqual(
+    unsupported([rail('left-rail', -280), footUnder('left-rail'), plate, wheelBase]),
+    [],
+  );
+  assert.deepEqual(unsupported([rail('left-rail', -280), plate, wheelBase]), [
+    'left-rail',
+    'plate',
+    'wheel-base',
+  ]);
+});

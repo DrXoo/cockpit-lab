@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cornersMm, resolveAssembly } from '../src/cad/assembly.ts';
+import { contactPointsMm, cornersMm, resolveAssembly } from '../src/cad/assembly.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 
@@ -256,4 +256,95 @@ test('a part can hang from the end face of a profile, centered on it', () => {
   });
   const offCenter = { ...under, placement: { ...under.placement, alongMm: 10 } };
   assert.throws(() => resolveAssembly([upright, offCenter]), /end face/);
+});
+
+const plate = (placement) => ({
+  kind: 'plate',
+  id: 'plate',
+  name: 'Pedal plate',
+  widthMm: 400,
+  depthMm: 300,
+  thicknessMm: 5,
+  ownHoles: [],
+  placement,
+});
+const pedals = (placement) => ({
+  kind: 'peripheral',
+  id: 'pedals',
+  name: 'Pedals',
+  envelope: { widthMm: 300, heightMm: 200, depthMm: 250 },
+  mountingPattern: { holes: [] },
+  contactPoints: [{ role: 'heel', offsetMm: { x: 0, y: 30, z: -100 } }],
+  source: { kind: 'estimated', reference: 'test' },
+  placement,
+});
+const onTop = (parentId, alongMm = 0, acrossMm = 0) => ({
+  kind: 'attachment',
+  parentId,
+  face: '+y',
+  alongMm,
+  acrossMm,
+  fromEnd: 'start',
+});
+
+test('an attachment can sit off the center of the face, across it', () => {
+  const post = {
+    ...rail('post', 0, 100),
+    sectionId: '40x40',
+    axis: 'y',
+    heightAxis: 'z',
+    placement: { ...onTop('left-rail', 100), acrossMm: 10 },
+  };
+  assert.equal(boxOf([...frame(), post], 'post').min.x, -290);
+});
+
+test('a plate lies flat on top of the face it hangs from, or where it is anchored', () => {
+  assert.deepEqual(boxOf([...frame(), plate(onTop('left-rail', 500))], 'plate'), {
+    min: { x: -480, y: 140, z: 350 },
+    max: { x: -80, y: 145, z: 650 },
+  });
+  const anchored = plate({ kind: 'anchor', startMm: { x: 0, y: 200, z: 0 } });
+  assert.deepEqual(boxOf([anchored], 'plate'), {
+    min: { x: -200, y: 200, z: -150 },
+    max: { x: 200, y: 205, z: 150 },
+  });
+});
+
+test('a peripheral stands on its mounting origin, and its contact points go with it', () => {
+  const parts = [
+    plate({ kind: 'anchor', startMm: { x: 0, y: 200, z: 0 } }),
+    pedals(onTop('plate', 150, 20)),
+  ];
+  const resolved = resolveAssembly(parts).get('pedals');
+  assert.deepEqual(resolved.box, {
+    min: { x: -130, y: 205, z: -125 },
+    max: { x: 170, y: 405, z: 125 },
+  });
+  assert.deepEqual(contactPointsMm(resolved), [
+    { role: 'heel', pointMm: { x: 20, y: 235, z: -100 } },
+  ]);
+});
+
+test('a peripheral on a tilted plate leans with it', () => {
+  const tiltedPlate = plate({ kind: 'anchor', startMm: { x: 0, y: 0, z: 0 }, tiltDeg: 90 });
+  const resolved = resolveAssembly([tiltedPlate, pedals(onTop('plate', 150))]).get('pedals');
+  const [heel] = contactPointsMm(resolved);
+  // Turned upright, the plate's top faces back (-z) and its contact offset follows.
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(heel.pointMm).map(([axis, value]) => [axis, Math.round(value) + 0]),
+    ),
+    { x: 0, y: -100, z: -35 },
+  );
+});
+
+test('plates and peripherals sit only on top of a face, and nothing hangs from a peripheral', () => {
+  const sideways = plate({ ...onTop('left-rail'), face: '+x' });
+  assert.throws(() => resolveAssembly([...frame(), sideways]), /on top/);
+  const anchored = plate({ kind: 'anchor', startMm: { x: 0, y: 200, z: 0 } });
+  const onPedals = { ...pedals(onTop('pedals')), id: 'more' };
+  assert.throws(
+    () => resolveAssembly([anchored, pedals(onTop('plate', 150)), onPedals]),
+    /hang from peripheral/,
+  );
 });

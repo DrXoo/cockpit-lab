@@ -6,7 +6,8 @@
 // An anchored part may be locked at a tilt about X, as the pedal deck is. Its box, and the
 // boxes of everything hanging from it, are then axis-aligned in the cockpit coordinates
 // turned by that tilt, so parts at the same tilt still compare as plain boxes.
-import { footType, profileSection, profileSystem } from './catalog.ts';
+import { footType, profileSection, profileSystem, type DataSource } from './catalog.ts';
+import type { Hole, MountingPattern } from './plate.ts';
 
 export type Axis = 'x' | 'y' | 'z';
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -25,7 +26,10 @@ export interface BoxMm {
 
 export interface Anchor {
   kind: 'anchor';
-  /** The center of the profile's section at its start, the end with the lower coordinate. */
+  /**
+   * For a profile, the center of its section at its start, the end with the lower coordinate;
+   * for a plate, the center of its underside; for a peripheral, its mounting origin.
+   */
   startMm: Vec3Mm;
   /** A positive tilt raises the part's front (+Z) end. */
   tiltDeg?: number;
@@ -39,6 +43,8 @@ export interface Attachment {
   /** Distance along the parent from the end named by `fromEnd`. */
   alongMm: number;
   fromEnd: 'start' | 'end';
+  /** Off the center of the face, towards + on the axis across it. */
+  acrossMm?: number;
 }
 
 /** An attachment whose far end meets the facing face of another part. */
@@ -71,7 +77,45 @@ export interface FootPart {
   placement: Attachment;
 }
 
-export type Part = ProfilePart | FootPart;
+/** A flat piece cut from sheet, lying in its frame: thickness along Y, depth along Z. */
+export interface PlatePart {
+  kind: 'plate';
+  id: string;
+  name: string;
+  widthMm: number;
+  depthMm: number;
+  thicknessMm: number;
+  ownHoles: readonly Hole[];
+  placement: Anchor | Attachment;
+}
+
+export type ContactRole = 'hip' | 'heel' | 'hands';
+
+/** Where the driver meets a peripheral, relative to its mounting origin. */
+export interface ContactPoint {
+  role: ContactRole;
+  offsetMm: Vec3Mm;
+}
+
+/**
+ * A device mounted on the cockpit. Its envelope stands on its mounting origin, the center of
+ * the envelope's underside, and its mounting pattern and contact points are measured from it,
+ * so resizing the envelope never moves them.
+ */
+export interface PeripheralPart {
+  kind: 'peripheral';
+  id: string;
+  name: string;
+  envelope: { widthMm: number; heightMm: number; depthMm: number };
+  mountingPattern: MountingPattern;
+  contactPoints: readonly ContactPoint[];
+  /** For a seat, the backrest's angle back from upright. */
+  backrestDeg?: number;
+  source: DataSource;
+  placement: Anchor | Attachment;
+}
+
+export type Part = ProfilePart | FootPart | PlatePart | PeripheralPart;
 
 export interface ResolvedPart {
   part: Part;
@@ -79,7 +123,7 @@ export interface ResolvedPart {
   tiltDeg: number;
   /** The part's box in the cockpit coordinates turned by `tiltDeg`. */
   box: BoxMm;
-  /** A profile's length; for a foot, its height. */
+  /** A profile's length; for other parts, their height. */
   lengthMm: number;
   /** A span whose far end does not meet the part it reaches. */
   openEnd: boolean;
@@ -114,7 +158,60 @@ export function resolveAssembly(parts: readonly Part[]): Map<string, ResolvedPar
 }
 
 function resolvePart(part: Part, dependency: (id: string) => ResolvedPart): ResolvedPart {
-  return part.kind === 'foot' ? resolveFoot(part, dependency) : resolveProfile(part, dependency);
+  switch (part.kind) {
+    case 'profile':
+      return resolveProfile(part, dependency);
+    case 'foot':
+      return resolveFoot(part, dependency);
+    case 'plate':
+      return resolveStanding(part, dependency, {
+        widthMm: part.widthMm,
+        heightMm: part.thicknessMm,
+        depthMm: part.depthMm,
+      });
+    case 'peripheral':
+      return resolveStanding(part, dependency, part.envelope);
+  }
+}
+
+interface Size {
+  widthMm: number;
+  heightMm: number;
+  depthMm: number;
+}
+
+/** A box standing on `originMm`, centered on it across X and Z. */
+const boxOn = (originMm: Vec3Mm, size: Size): BoxMm => ({
+  min: { x: originMm.x - size.widthMm / 2, y: originMm.y, z: originMm.z - size.depthMm / 2 },
+  max: {
+    x: originMm.x + size.widthMm / 2,
+    y: originMm.y + size.heightMm,
+    z: originMm.z + size.depthMm / 2,
+  },
+});
+
+/** A plate or peripheral, anchored or sitting on top of a face. */
+function resolveStanding(
+  part: PlatePart | PeripheralPart,
+  dependency: (id: string) => ResolvedPart,
+  size: Size,
+): ResolvedPart {
+  const placement = part.placement;
+  const resolvedAs = (tiltDeg: number, originMm: Vec3Mm): ResolvedPart => ({
+    part,
+    tiltDeg,
+    box: boxOn(originMm, size),
+    lengthMm: size.heightMm,
+    openEnd: false,
+  });
+  if (placement.kind === 'anchor') {
+    const tiltDeg = placement.tiltDeg ?? 0;
+    return resolvedAs(tiltDeg, intoTiltedFrame(placement.startMm, tiltDeg));
+  }
+  if (placement.face !== '+y')
+    throw new Error(`${part.name} must sit on top of a face, not on face ${placement.face}.`);
+  const parent = dependency(placement.parentId);
+  return resolvedAs(parent.tiltDeg, attachmentPoint(parent, placement));
 }
 
 function resolveFoot(foot: FootPart, dependency: (id: string) => ResolvedPart): ResolvedPart {
@@ -170,6 +267,21 @@ export function cornersMm(resolved: ResolvedPart): Vec3Mm[] {
   return corners;
 }
 
+/** The contact points of a peripheral in cockpit coordinates; none for other parts. */
+export function contactPointsMm(resolved: ResolvedPart): { role: ContactRole; pointMm: Vec3Mm }[] {
+  if (resolved.part.kind !== 'peripheral') return [];
+  const { box, tiltDeg } = resolved;
+  const origin = center(box);
+  origin.y = box.min.y;
+  return resolved.part.contactPoints.map(({ role, offsetMm }) => ({
+    role,
+    pointMm: outOfTiltedFrame(
+      { x: origin.x + offsetMm.x, y: origin.y + offsetMm.y, z: origin.z + offsetMm.z },
+      tiltDeg,
+    ),
+  }));
+}
+
 /** The cockpit point at `offsetMm` from `pivotMm`, measured in a frame at `tiltDeg`. */
 export function tiltedFromPivot(pivotMm: Vec3Mm, offsetMm: Vec3Mm, tiltDeg: number): Vec3Mm {
   const turned = outOfTiltedFrame(offsetMm, tiltDeg);
@@ -190,17 +302,15 @@ const intoTiltedFrame = (point: Vec3Mm, tiltDeg: number) => turnAboutX(point, ti
 const outOfTiltedFrame = (point: Vec3Mm, tiltDeg: number) => turnAboutX(point, -tiltDeg);
 
 /**
- * The point on the parent's face where an attachment sits, centered across the face. On an end
- * face, the only point is its center.
+ * The point on the parent's face where an attachment sits, `acrossMm` off its center. On an
+ * end face, the only point is its center.
  */
 function attachmentPoint(parent: ResolvedPart, attachment: Attachment | Span): Vec3Mm {
-  if (parent.part.kind !== 'profile')
-    throw new Error(`Nothing can hang from foot ${parent.part.id}.`);
+  const along = alongAxisOf(parent.part);
   const { box } = parent;
   const point = center(box);
   const normal = faceAxis(attachment.face);
   point[normal] = faceSign(attachment.face) > 0 ? box.max[normal] : box.min[normal];
-  const along = parent.part.axis;
   if (along === normal) {
     if (attachment.alongMm !== 0)
       throw new Error(`An attachment to the end face of ${parent.part.id} must be at 0 mm.`);
@@ -210,7 +320,16 @@ function attachmentPoint(parent: ResolvedPart, attachment: Attachment | Span): V
     attachment.fromEnd === 'start'
       ? box.min[along] + attachment.alongMm
       : box.max[along] - attachment.alongMm;
+  const across = AXES.find((axis) => axis !== normal && axis !== along);
+  if (across) point[across] += attachment.acrossMm ?? 0;
   return point;
+}
+
+/** The axis an attachment's distance runs along: a profile's length, or a plate's depth. */
+function alongAxisOf(part: Part): Axis {
+  if (part.kind === 'profile') return part.axis;
+  if (part.kind === 'plate') return 'z';
+  throw new Error(`Nothing can hang from ${part.kind} ${part.id}.`);
 }
 
 /**

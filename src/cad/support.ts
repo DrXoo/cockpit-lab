@@ -1,5 +1,6 @@
 // Support: a part is supported when joints connect it, through other parts, to a part that
-// stands on feet. Unsupported parts are reported, never moved. Joints count whether or not
+// stands on feet. A peripheral, bolted through its mounting pattern, is supported by what it
+// stands on. Unsupported parts are reported, never moved. Joints count whether or not
 // they have connectors yet; the parts to buy list the unresolved ones as pending.
 // A geometric check only: it says nothing about loads or stiffness.
 import type { ResolvedPart } from './assembly.ts';
@@ -15,6 +16,9 @@ export function unsupportedParts(resolved: ReadonlyMap<string, ResolvedPart>): s
     link(joint.partId, joint.toPartId);
     link(joint.toPartId, joint.partId);
   }
+  for (const { part } of resolved.values())
+    if (part.kind === 'peripheral' && part.placement.kind === 'attachment')
+      link(part.placement.parentId, part.id);
 
   const supported = new Set<string>();
   const pending: string[] = [];

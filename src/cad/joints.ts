@@ -1,5 +1,6 @@
 // Joints: where two parts are fastened together. Every attachment and each end of a span that
-// meets its part make one, automatically. A foot comes with its own adapter, so it makes none.
+// meets its part make one, automatically. A foot comes with its own adapter and a peripheral is
+// bolted through its mounting pattern, so neither makes one.
 import type { Face, ResolvedPart } from './assembly.ts';
 
 export interface Joint {
@@ -23,7 +24,7 @@ const jointBetween = (partId: string, toPartId: string, toFace: Face): Joint => 
 export function jointsOf(resolved: ReadonlyMap<string, ResolvedPart>): Joint[] {
   const joints: Joint[] = [];
   for (const { part, openEnd } of resolved.values()) {
-    if (part.kind === 'foot') continue;
+    if (part.kind === 'foot' || part.kind === 'peripheral') continue;
     const placement = part.placement;
     if (placement.kind === 'anchor') continue;
     joints.push(jointBetween(part.id, placement.parentId, placement.face));

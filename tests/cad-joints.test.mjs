@@ -83,3 +83,32 @@ test('the open end of a span makes no joint', () => {
 test('a foot is fastened by its own adapter, so it makes no joint', () => {
   assert.deepEqual(jointsFor([rail('left-rail', -280), foot]), []);
 });
+
+const plateOn = (parentId) => ({
+  kind: 'plate',
+  id: 'plate',
+  name: 'Plate',
+  widthMm: 200,
+  depthMm: 150,
+  thicknessMm: 5,
+  ownHoles: [],
+  placement: { kind: 'attachment', parentId, face: '+y', alongMm: 200, fromEnd: 'start' },
+});
+const peripheralOn = (parentId) => ({
+  kind: 'peripheral',
+  id: 'wheel-base',
+  name: 'Wheel base',
+  envelope: { widthMm: 150, heightMm: 120, depthMm: 180 },
+  mountingPattern: { holes: [] },
+  contactPoints: [],
+  source: { kind: 'estimated', reference: 'test' },
+  placement: { kind: 'attachment', parentId, face: '+y', alongMm: 75, fromEnd: 'start' },
+});
+
+test('a plate on a profile makes a joint, and a peripheral bolted to its plate makes none', () => {
+  const joints = jointsFor([rail('left-rail', -280), plateOn('left-rail'), peripheralOn('plate')]);
+  assert.deepEqual(
+    joints.map((joint) => joint.id),
+    ['plate@left-rail'],
+  );
+});
