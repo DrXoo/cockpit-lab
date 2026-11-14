@@ -1,5 +1,6 @@
 // The cockpit rig: heights relative to its base, base extensions and the driving controls mount.
 import type { CockpitConfig } from './config.ts';
+import { degToRad } from './geometry.ts';
 
 // Rig heights are stored relative to the original cockpit base; the UI shows heights from the floor.
 export const rigHeightKeys = ['seatH', 'wheelH', 'pedalH', 'hotasH', 'stickH'] as const;
@@ -29,6 +30,10 @@ export function baseSupports(s: CockpitConfig): BaseSupport[] {
     [10, s.length - 10].map((z) => ({ x, z, y: 6 + length / 2, length, profile: '40 × 40' })),
   );
 }
+
+/** How far back the reclined seat reaches, in cm along Z. */
+export const seatBackOf = (s: Pick<CockpitConfig, 'seatZ' | 'recline'>): number =>
+  s.seatZ - 12 - Math.sin(degToRad(s.recline)) * 64 - Math.cos(degToRad(s.recline)) * 4.5;
 
 // Forward is +Z and up is +Y: the seated driver's right is -X.
 export function drivingMount(

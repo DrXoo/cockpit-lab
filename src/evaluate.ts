@@ -28,7 +28,7 @@ import { deskBounds, getDesktopItems } from './desk.ts';
 import { pose } from './layout.ts';
 import { monitorGeometry } from './monitor-arm.ts';
 import { getParts } from './parts.ts';
-import { baseSupports, drivingMount, floorHeight, rigLift } from './rig.ts';
+import { baseSupports, drivingMount, floorHeight, rigLift, seatBackOf } from './rig.ts';
 
 // Tolerances. Below these values two volumes are in contact, not interfering.
 /** Minimum vertical and plan overlap for a rig volume to interfere with the desk. */
@@ -112,8 +112,7 @@ function rigFootprint(s: CockpitConfig, presence: Presence, driving: DrivingMoun
   const rigLeft = -s.width / 2 - Math.max(flightExtra, driving.sign < 0 ? drivingExtra : 0);
   const rigRight = s.width / 2 + Math.max(flightExtra, driving.sign > 0 ? drivingExtra : 0);
   const pedalEnd = s.pedalZ + 18 * Math.cos(degToRad(s.pedalTilt));
-  const seatBackZ =
-    s.seatZ - 12 - Math.sin(degToRad(s.recline)) * 64 - Math.cos(degToRad(s.recline)) * 4.5;
+  const seatBackZ = seatBackOf(s);
   const lowerZ = Math.min(0, seatBackZ);
   const upperZ = Math.max(s.length, pedalEnd, s.wheel ? s.wheelZ + 32 : 0);
   return {
