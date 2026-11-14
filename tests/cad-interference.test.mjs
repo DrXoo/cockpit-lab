@@ -1,0 +1,79 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { designFromBase } from '../src/cockpit-design.ts';
+import { resolveAssembly } from '../src/cad/assembly.ts';
+import { partsFromParametric } from '../src/cad/from-parametric.ts';
+import { CAD_CONTACT_MM, cockpitInterferences } from '../src/cad/interference.ts';
+
+const SYSTEM = 'motedis-40-i-slot-8';
+const bar = (id, startMm, changes = {}) => ({
+  kind: 'profile',
+  id,
+  name: `Bar ${id}`,
+  systemId: SYSTEM,
+  sectionId: '40x40',
+  axis: 'z',
+  heightAxis: 'y',
+  lengthMm: 400,
+  placement: { kind: 'anchor', startMm },
+  ...changes,
+});
+const across = (id, startMm) => bar(id, startMm, { axis: 'x' });
+
+const found = (parts) =>
+  cockpitInterferences(resolveAssembly(parts)).map(({ partName, otherName, depthMm, axis }) => ({
+    partName,
+    otherName,
+    depthMm: Math.round(depthMm * 1000) / 1000,
+    axis,
+  }));
+
+test('parts apart or only touching do not interfere', () => {
+  assert.deepEqual(found([bar('a', { x: 0, y: 0, z: 0 }), bar('b', { x: 40, y: 0, z: 0 })]), []);
+  const withinTolerance = { x: 40 - CAD_CONTACT_MM, y: 0, z: 0 };
+  assert.deepEqual(found([bar('a', { x: 0, y: 0, z: 0 }), bar('b', withinTolerance)]), []);
+});
+
+test('two crossing profiles interfere by the shortest way out, named by their parts', () => {
+  const parts = [bar('a', { x: 0, y: 0, z: 0 }), across('b', { x: -200, y: 30, z: 200 })];
+  assert.deepEqual(found(parts), [
+    { partName: 'Bar a', otherName: 'Bar b', depthMm: 10, axis: 'y' },
+  ]);
+});
+
+test('a tilted profile is checked exactly against an upright one, not by its bounding box', () => {
+  const tilted = bar(
+    'deck',
+    { x: 0, y: 100, z: 0 },
+    {
+      placement: { kind: 'anchor', startMm: { x: 0, y: 100, z: 0 }, tiltDeg: 45 },
+    },
+  );
+  // The tilted bar runs up and forward; a post just below its underside clears it, though it is
+  // inside the tilted bar's bounding box.
+  const clearPost = bar(
+    'clear',
+    { x: 0, y: 0, z: 300 },
+    { axis: 'y', heightAxis: 'z', lengthMm: 330 },
+  );
+  assert.deepEqual(found([tilted, clearPost]), []);
+  const post = bar('post', { x: 0, y: 0, z: 200 }, { axis: 'y', heightAxis: 'z', lengthMm: 400 });
+  const [interference] = found([tilted, post]);
+  assert.equal(interference.otherName, 'Bar post');
+  assert.ok(interference.depthMm > 0);
+});
+
+test('a converted design reports where its parametric drawing crosses parts', () => {
+  const design = { ...designFromBase('gt'), wheel: true };
+  const pairs = cockpitInterferences(resolveAssembly(partsFromParametric(design))).map(
+    ({ partId, otherId }) => `${partId} / ${otherId}`,
+  );
+  assert.ok(
+    pairs.includes('pedal-deck-rail-right / pedal-deck-crossmember-rear'),
+    pairs.join('\n'),
+  );
+  assert.ok(
+    !pairs.some((pair) => pair.includes('base-crossmember-rear / base-rail')),
+    pairs.join('\n'),
+  );
+});
