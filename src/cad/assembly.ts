@@ -141,6 +141,12 @@ export function cornersMm(resolved: ResolvedPart): Vec3Mm[] {
   return corners;
 }
 
+/** The cockpit point at `offsetMm` from `pivotMm`, measured in a frame at `tiltDeg`. */
+export function tiltedFromPivot(pivotMm: Vec3Mm, offsetMm: Vec3Mm, tiltDeg: number): Vec3Mm {
+  const turned = outOfTiltedFrame(offsetMm, tiltDeg);
+  return { x: pivotMm.x + turned.x, y: pivotMm.y + turned.y, z: pivotMm.z + turned.z };
+}
+
 const DEG_TO_RAD = Math.PI / 180;
 
 /** Turns a point about X by `angleDeg`, so +Y goes towards +Z for a positive angle. */
