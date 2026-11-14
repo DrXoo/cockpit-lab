@@ -111,7 +111,7 @@ export function posturePanelHTML(view: ControlView): string {
   const travelHint = (partId: string) => {
     const adjustment = travels.get(partId);
     if (!adjustment) return '';
-    return `<p class="layout-hint">${esc(adjustment.name)}: ${adjustment.travelMm} mm of travel, an estimate. For now, moving it also moves its supports.</p>`;
+    return `<p class="layout-hint">${esc(adjustment.name)}: ${adjustment.travelMm} mm of travel.</p>`;
   };
   let html = '';
   html += group('Your starting point', range('height', 'Your height'));
@@ -124,7 +124,7 @@ export function posturePanelHTML(view: ControlView): string {
     html += group('Wheel', range('wheelZ', 'Fore-aft position') + travelHint('wheel-plate'));
   html += group('Pedals', range('pedalZ', 'Fore-aft position') + travelHint('pedal-plate'));
   html +=
-    '<p class="control-hint">Fit the cockpit to your body with what slides: the seat on its rails and the plates in their slots. Heights, tilts and the side controls are in Frame → Mounts. Positions are measured from the rear end of the chassis; recline from vertical. Show the driver to explore the posture.</p>';
+    '<p class="control-hint">Fit the cockpit to your body with what slides: the seat on its rails and the plates in their slots. Their travels are estimates, and for now moving one also moves its supports. Heights, tilts and the side controls are in Frame → Mounts. Positions are measured from the rear end of the chassis; recline from vertical. Show the driver to explore the posture.</p>';
   return html;
 }
 
