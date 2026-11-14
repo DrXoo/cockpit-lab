@@ -27,12 +27,13 @@ import { deskBounds, getDesktopItems } from './desk.ts';
 import { pose } from './layout.ts';
 import { monitorGeometry } from './monitor-arm.ts';
 import { getParts } from './parts.ts';
+import { MM_PER_CM } from './units.ts';
 import { cadChecks } from './cad-checks.ts';
-import { resolveAssembly } from './cad/assembly.ts';
+import { cornersMm, resolveAssembly, type ResolvedPart } from './cad/assembly.ts';
 import { partsFromParametric } from './cad/from-parametric.ts';
 import { designPosture } from './cad/posture.ts';
 import type { postureFrom } from './anatomy.ts';
-import { baseSupports, drivingMount, floorHeight, rigLift, seatBackOf } from './rig.ts';
+import { drivingMount, floorHeight, rigLift, seatBackOf } from './rig.ts';
 
 // Tolerances. Below these values two volumes are in contact, not interfering.
 /** Minimum vertical and plan overlap for a rig volume to interfere with the desk. */
@@ -166,97 +167,29 @@ function setupExtent(s: CockpitConfig, setupPoints: PlanPoint[]) {
   };
 }
 
-/** Sides of the cockpit along X: the driver's right is −X. */
-const DRIVER_RIGHT = -1;
-const DRIVER_LEFT = 1;
-
-/** Volumes of the chassis, seat, pedals and controls, raised by the base elevation. */
-function rigVolumes(
-  s: CockpitConfig,
-  presence: Presence,
-  driving: DrivingMount,
-  seatBackZ: number,
+/**
+ * One volume per part of the CAD design, named by the part: the box around its corners, which
+ * holds a tilted part whole. The parts carry the base lift already.
+ */
+function cockpitPartVolumes(
+  design: ReadonlyMap<string, ResolvedPart>,
   rigPose: Placement,
 ): NamedSolid[] {
-  if (!presence.hasRig) return baseSupportVolumes(s, rigPose);
-  const volumes = [
-    named('Cockpit frame', solid(-s.width / 2, s.width / 2, 0, s.length, 6, 14, rigPose)),
-    named(
-      'Cockpit seat',
-      solid(-25, 25, seatBackZ, s.seatZ + 25, s.seatH - 8, s.seatH + 64, rigPose),
-    ),
-    named(
-      'Pedals',
-      solid(
-        -s.width / 2 + 4,
-        s.width / 2 - 4,
-        s.pedalZ - 19,
-        s.pedalZ + 19,
-        s.pedalH - 5,
-        s.pedalH + 24,
-        rigPose,
-      ),
-    ),
-  ];
-  if (s.wheel) {
-    volumes.push(
-      named(
-        'Wheel',
-        solid(-16, 16, s.wheelZ - 3, s.wheelZ + 32, s.wheelH - 10, s.wheelH + 16, rigPose),
-      ),
-    );
-    for (const sign of [DRIVER_RIGHT, DRIVER_LEFT]) {
-      const x = sign * (s.width / 2 - 2);
-      volumes.push(
-        named(
-          'Wheel stand',
-          solid(x - 4, x + 4, s.wheelZ + 15, s.wheelZ + 21, 14, s.wheelH - 8, rigPose),
-        ),
-      );
-    }
-  }
-  if (s.hotas)
-    for (const sign of [DRIVER_RIGHT, DRIVER_LEFT]) {
-      const x = sign * (s.width / 2 + s.hotasOut);
-      const z = s.hotasZ + (sign === driving.sign && presence.hasDriving ? 24 : 0);
-      volumes.push(
-        named(
-          sign === DRIVER_RIGHT ? 'Joystick' : 'Throttle',
-          solid(x - 9, x + 9, z - 12.5, z + 12.5, s.hotasH - 4, s.hotasH + 22, rigPose),
-        ),
-      );
-    }
-  if (presence.hasDriving) {
-    const { x, z } = driving;
-    volumes.push(
-      named(
-        'Shifter and handbrake',
-        solid(x - 10, x + 10, z - 15, z + 15, s.hotasH - 4, s.hotasH + 25, rigPose),
-      ),
-    );
-  }
-  if (s.centerStick)
-    volumes.push(
-      named(
-        'Center stick',
-        solid(-9, 9, s.stickZ - 10, s.stickZ + 10, s.stickH - 3, s.stickH + 22, rigPose),
-      ),
-    );
-  for (const volume of volumes) {
-    volume.y0 += rigLift(s);
-    volume.y1 += rigLift(s);
-  }
-  return [...volumes, ...baseSupportVolumes(s, rigPose)];
-}
-
-/** The base extensions already sit at their final height. */
-function baseSupportVolumes(s: CockpitConfig, rigPose: Placement): NamedSolid[] {
-  return baseSupports(s).map((p) =>
-    named(
-      'Base extension',
-      solid(p.x - 2, p.x + 2, p.z - 2, p.z + 2, p.y - p.length / 2, p.y + p.length / 2, rigPose),
-    ),
-  );
+  return [...design.values()].map((resolved) => {
+    const corners = cornersMm(resolved).map((corner) => ({
+      x: corner.x / MM_PER_CM,
+      y: corner.y / MM_PER_CM,
+      z: corner.z / MM_PER_CM,
+    }));
+    const range = (axis: 'x' | 'y' | 'z') => {
+      const values = corners.map((corner) => corner[axis]);
+      return [Math.min(...values), Math.max(...values)];
+    };
+    const [x0, x1] = range('x');
+    const [y0, y1] = range('y');
+    const [z0, z1] = range('z');
+    return named(resolved.part.name, solid(x0, x1, z0, z1, y0, y1, rigPose));
+  });
 }
 
 /** Tabletop, two columns and two feet. */
@@ -732,7 +665,7 @@ export function evaluate(s: CockpitConfig) {
   const extent = setupExtent(s, setupPoints);
   const sideGap = hasRig && hasDesk ? polygonDistance(rigPolygon, deskPolygon) : 0;
 
-  const rigSolids = rigVolumes(s, presence, driving, rig.seatBackZ, rigPose);
+  const rigSolids = hasRig ? cockpitPartVolumes(design, rigPose) : [];
   const deskSolids = hasDesk ? deskVolumes(s, bounds, deskPose) : [];
   const deskInterferences = findInterferences(rigSolids, deskSolids, RIG_DESK_CONTACT);
 
