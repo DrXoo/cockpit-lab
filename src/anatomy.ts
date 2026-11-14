@@ -25,14 +25,43 @@ export function solveJoint(a: SidePoint, b: SidePoint, l1: number, l2: number, b
     (Math.acos(clamp((l1 * l1 + l2 * l2 - safeD * safeD) / (2 * l1 * l2), -1, 1)) * 180) / Math.PI;
   return { joint, reachable, angle, d };
 }
-export function anatomy(s: CockpitConfig) {
-  const h = s.height,
-    a = degToRad(s.recline),
-    hip = { z: s.seatZ, y: s.seatH + 4 },
+/** Where the design meets the driver, in the cockpit's side plane, in cm. */
+export interface Contacts {
+  /** The hip point on the seat. */
+  hip: SidePoint;
+  /** The heels on the pedals. */
+  heel: SidePoint;
+  /** The hands on the wheel. */
+  hands: SidePoint;
+}
+
+export interface Driver {
+  heightCm: number;
+  /** The backrest's angle back from upright. */
+  reclineDeg: number;
+}
+
+/** The contact points of a parametric design, from its settings. */
+export function parametricContacts(s: CockpitConfig): Contacts {
+  return {
+    hip: { z: s.seatZ, y: s.seatH + 4 },
+    heel: { z: s.pedalZ - 5, y: s.pedalH + 8 },
+    hands: { z: s.wheelZ - 2, y: s.wheelH + 1 },
+  };
+}
+
+export const anatomy = (s: CockpitConfig) =>
+  postureFrom({ heightCm: s.height, reclineDeg: s.recline }, parametricContacts(s));
+
+/** The seated posture that follows from the driver and the points where the design meets them. */
+export function postureFrom(driver: Driver, contacts: Contacts) {
+  const h = driver.heightCm,
+    a = degToRad(driver.reclineDeg),
+    hip = contacts.hip,
     shoulder = { z: hip.z - Math.sin(a) * h * 0.288, y: hip.y + Math.cos(a) * h * 0.288 };
   const eye = { z: hip.z - Math.sin(a) * h * 0.39, y: hip.y + Math.cos(a) * h * 0.39 };
-  const foot = { z: s.pedalZ - 5, y: s.pedalH + 8 };
-  const hand = { z: s.wheelZ - 2, y: s.wheelH + 1 };
+  const foot = contacts.heel;
+  const hand = contacts.hands;
   const legs = solveJoint(hip, foot, h * 0.245, h * 0.246),
     arms = solveJoint(shoulder, hand, h * 0.186, h * 0.146, -1);
   // Torso to thigh included angle in the sagittal plane.
