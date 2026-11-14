@@ -291,6 +291,14 @@ body {
   font-size: 14px;
   min-height: 44px;
 }
+/*
+ * The open list of a select is drawn by the system: without colors of its own, an option keeps
+ * the system's white background under the theme's text, which is unreadable in the dark theme.
+ */
+select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
 .preset-area p {
   font-size: 12px;
   color: var(--text-muted);

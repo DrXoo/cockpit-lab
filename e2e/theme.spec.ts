@@ -12,6 +12,34 @@ test.describe('with a dark system', () => {
     await expect(page.locator('#themeBtn')).toHaveAttribute('aria-label', 'Color theme: System');
   });
 
+  test('the options of a select list use the theme colors, not the system white', async ({
+    page,
+  }) => {
+    await openApp(page);
+    const colors = await page
+      .locator('#preset option')
+      .first()
+      .evaluate((option) => {
+        const swatch = document.createElement('div');
+        document.body.append(swatch);
+        const resolve = (token: string) => {
+          swatch.style.color = `var(${token})`;
+          return getComputedStyle(swatch).color;
+        };
+        const style = getComputedStyle(option);
+        const result = {
+          background: style.backgroundColor,
+          text: style.color,
+          surface: resolve('--surface'),
+          themeText: resolve('--text'),
+        };
+        swatch.remove();
+        return result;
+      });
+    expect(colors.background).toBe(colors.surface);
+    expect(colors.text).toBe(colors.themeText);
+  });
+
   test('the 3D view is dark', async ({ page }) => {
     await openApp(page);
     await importProject(page, 'gt-room.json');
