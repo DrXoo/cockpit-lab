@@ -14,6 +14,7 @@ export interface Cut {
 export function cutList(resolved: ReadonlyMap<string, ResolvedPart>): Cut[] {
   const cuts = new Map<string, Cut>();
   for (const { part, lengthMm } of resolved.values()) {
+    if (part.kind !== 'profile') continue;
     const cutLengthMm = Math.round(lengthMm);
     const key = `${part.systemId}|${part.sectionId}|${cutLengthMm}`;
     const cut = cuts.get(key);

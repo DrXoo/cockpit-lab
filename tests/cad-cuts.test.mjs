@@ -45,3 +45,17 @@ test('the same length in another section is another cut', () => {
   const parts = [profile('a', 'A', '40x40', 400), profile('b', 'B', '40x80', 400, 100)];
   assert.equal(cutList(resolveAssembly(parts)).length, 2);
 });
+
+test('feet are not cuts', () => {
+  const parts = [
+    profile('a', 'Rail', '40x80', 1200),
+    {
+      kind: 'foot',
+      id: 'f',
+      name: 'Foot',
+      footTypeId: 'leveling-foot',
+      placement: { kind: 'attachment', parentId: 'a', face: '-y', alongMm: 0, fromEnd: 'start' },
+    },
+  ];
+  assert.equal(cutList(resolveAssembly(parts)).length, 1);
+});

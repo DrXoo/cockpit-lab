@@ -5,6 +5,7 @@ import {
   connectorType,
   connectorFits,
   fastenersOf,
+  footType,
   profileSection,
   profileSystem,
 } from '../src/cad/catalog.ts';
@@ -51,4 +52,13 @@ test('a corner bracket needs two M8 bolts and T-nuts per leg', () => {
     { id: 'bolt-m8', quantity: 4 },
     { id: 't-nut-slot-8-m8', quantity: 4 },
   ]);
+});
+
+test('feet come as leveling feet or locking casters, sized from the parametric drawing', () => {
+  const leveling = footType('leveling-foot');
+  assert.deepEqual([leveling.heightMm, leveling.widthMm, leveling.depthMm], [60, 72, 72]);
+  const caster = footType('locking-caster');
+  assert.deepEqual([caster.heightMm, caster.widthMm, caster.depthMm], [60, 40, 66]);
+  for (const type of [leveling, caster]) assert.equal(type.source.kind, 'estimated');
+  assert.throws(() => footType('wheel'), /wheel/);
 });

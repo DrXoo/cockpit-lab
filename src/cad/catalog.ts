@@ -39,6 +39,18 @@ export interface ConnectorType {
   source: DataSource;
 }
 
+/** A leveling foot or locking caster, with the box it takes up under the profile. */
+export interface FootType {
+  id: string;
+  name: string;
+  heightMm: number;
+  /** Across the cockpit, along X. */
+  widthMm: number;
+  /** Along the cockpit, along Z. */
+  depthMm: number;
+  source: DataSource;
+}
+
 const motedisDataSheet = (path: string): DataSource => ({
   kind: 'data sheet',
   reference: `https://www.motedis.es/en/${path}`,
@@ -90,6 +102,36 @@ const CONNECTOR_TYPES: readonly ConnectorType[] = [
 ];
 
 const PROFILE_SYSTEMS: readonly ProfileSystem[] = [MOTEDIS_SERIES_40_SLOT_8];
+
+const FROM_THE_DRAWING: DataSource = {
+  kind: 'estimated',
+  reference: 'As the parametric drawing shows it; check the chosen product',
+};
+
+const FOOT_TYPES: readonly FootType[] = [
+  {
+    id: 'leveling-foot',
+    name: 'Leveling foot',
+    heightMm: 60,
+    widthMm: 72,
+    depthMm: 72,
+    source: FROM_THE_DRAWING,
+  },
+  {
+    id: 'locking-caster',
+    name: 'Locking caster',
+    heightMm: 60,
+    widthMm: 40,
+    depthMm: 66,
+    source: FROM_THE_DRAWING,
+  },
+];
+
+export function footType(id: string): FootType {
+  const type = FOOT_TYPES.find((candidate) => candidate.id === id);
+  if (!type) throw new Error(`Foot type ${id} is not in the catalog.`);
+  return type;
+}
 
 export function profileSystem(id: string): ProfileSystem {
   const system = PROFILE_SYSTEMS.find((candidate) => candidate.id === id);

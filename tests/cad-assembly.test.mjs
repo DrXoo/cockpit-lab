@@ -202,3 +202,58 @@ test('a span cannot reach a part at another tilt', () => {
   };
   assert.throws(() => resolveAssembly([...frame(), tilted(10), across]), /tilt/);
 });
+
+const foot = (id, parentId, face = '-y', footTypeId = 'leveling-foot') => ({
+  kind: 'foot',
+  id,
+  name: id,
+  footTypeId,
+  placement: { kind: 'attachment', parentId, face, alongMm: 100, fromEnd: 'start' },
+});
+
+test('a foot stands under the face it hangs from, as tall and wide as its type', () => {
+  const resolved = resolveAssembly([...frame(), foot('foot', 'left-rail')]).get('foot');
+  assert.deepEqual(resolved.box, {
+    min: { x: -316, y: 0, z: 64 },
+    max: { x: -244, y: 60, z: 136 },
+  });
+  const caster = resolveAssembly([...frame(), foot('caster', 'left-rail', '-y', 'locking-caster')]);
+  assert.deepEqual(caster.get('caster').box, {
+    min: { x: -300, y: 0, z: 67 },
+    max: { x: -260, y: 60, z: 133 },
+  });
+});
+
+test('a foot hangs only from an underside, and nothing hangs from a foot', () => {
+  assert.throws(() => resolveAssembly([...frame(), foot('foot', 'left-rail', '+x')]), /underside/);
+  const onFoot = {
+    ...rail('post', 0),
+    axis: 'y',
+    heightAxis: 'z',
+    placement: { kind: 'attachment', parentId: 'foot', face: '+y', alongMm: 0, fromEnd: 'start' },
+  };
+  assert.throws(
+    () => resolveAssembly([...frame(), foot('foot', 'left-rail'), onFoot]),
+    /hang from foot/,
+  );
+});
+
+test('a part can hang from the end face of a profile, centered on it', () => {
+  const upright = {
+    ...rail('upright', 0, 200),
+    sectionId: '40x40',
+    axis: 'y',
+    heightAxis: 'z',
+    placement: { kind: 'anchor', startMm: { x: 0, y: 60, z: 500 } },
+  };
+  const under = {
+    ...foot('foot', 'upright'),
+    placement: { ...foot('foot', 'upright').placement, alongMm: 0 },
+  };
+  assert.deepEqual(resolveAssembly([upright, under]).get('foot').box, {
+    min: { x: -36, y: 0, z: 464 },
+    max: { x: 36, y: 60, z: 536 },
+  });
+  const offCenter = { ...under, placement: { ...under.placement, alongMm: 10 } };
+  assert.throws(() => resolveAssembly([upright, offCenter]), /end face/);
+});

@@ -6,7 +6,7 @@
 // An anchored part may be locked at a tilt about X, as the pedal deck is. Its box, and the
 // boxes of everything hanging from it, are then axis-aligned in the cockpit coordinates
 // turned by that tilt, so parts at the same tilt still compare as plain boxes.
-import { profileSection, profileSystem } from './catalog.ts';
+import { footType, profileSection, profileSystem } from './catalog.ts';
 
 export type Axis = 'x' | 'y' | 'z';
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -62,7 +62,16 @@ export interface ProfilePart {
   placement: Anchor | Attachment | Span;
 }
 
-export type Part = ProfilePart;
+/** A leveling foot or caster under the underside of a profile, through which it stands. */
+export interface FootPart {
+  kind: 'foot';
+  id: string;
+  name: string;
+  footTypeId: string;
+  placement: Attachment;
+}
+
+export type Part = ProfilePart | FootPart;
 
 export interface ResolvedPart {
   part: Part;
@@ -70,6 +79,7 @@ export interface ResolvedPart {
   tiltDeg: number;
   /** The part's box in the cockpit coordinates turned by `tiltDeg`. */
   box: BoxMm;
+  /** A profile's length; for a foot, its height. */
   lengthMm: number;
   /** A span whose far end does not meet the part it reaches. */
   openEnd: boolean;
@@ -104,6 +114,25 @@ export function resolveAssembly(parts: readonly Part[]): Map<string, ResolvedPar
 }
 
 function resolvePart(part: Part, dependency: (id: string) => ResolvedPart): ResolvedPart {
+  return part.kind === 'foot' ? resolveFoot(part, dependency) : resolveProfile(part, dependency);
+}
+
+function resolveFoot(foot: FootPart, dependency: (id: string) => ResolvedPart): ResolvedPart {
+  if (foot.placement.face !== '-y')
+    throw new Error(
+      `Foot ${foot.id} must hang from an underside, not face ${foot.placement.face}.`,
+    );
+  const parent = dependency(foot.placement.parentId);
+  const top = attachmentPoint(parent, foot.placement);
+  const type = footType(foot.footTypeId);
+  const box = {
+    min: { x: top.x - type.widthMm / 2, y: top.y - type.heightMm, z: top.z - type.depthMm / 2 },
+    max: { x: top.x + type.widthMm / 2, y: top.y, z: top.z + type.depthMm / 2 },
+  };
+  return { part: foot, tiltDeg: parent.tiltDeg, box, lengthMm: type.heightMm, openEnd: false };
+}
+
+function resolveProfile(part: ProfilePart, dependency: (id: string) => ResolvedPart): ResolvedPart {
   const placement = part.placement;
   if (placement.kind === 'anchor') {
     const tiltDeg = placement.tiltDeg ?? 0;
@@ -160,14 +189,23 @@ function turnAboutX(point: Vec3Mm, angleDeg: number): Vec3Mm {
 const intoTiltedFrame = (point: Vec3Mm, tiltDeg: number) => turnAboutX(point, tiltDeg);
 const outOfTiltedFrame = (point: Vec3Mm, tiltDeg: number) => turnAboutX(point, -tiltDeg);
 
-/** The point on the parent's face where an attachment sits, centered across the face. */
+/**
+ * The point on the parent's face where an attachment sits, centered across the face. On an end
+ * face, the only point is its center.
+ */
 function attachmentPoint(parent: ResolvedPart, attachment: Attachment | Span): Vec3Mm {
+  if (parent.part.kind !== 'profile')
+    throw new Error(`Nothing can hang from foot ${parent.part.id}.`);
   const { box } = parent;
   const point = center(box);
   const normal = faceAxis(attachment.face);
   point[normal] = faceSign(attachment.face) > 0 ? box.max[normal] : box.min[normal];
   const along = parent.part.axis;
-  if (along === normal) throw new Error(`Part ${parent.part.id} has no length along its end face.`);
+  if (along === normal) {
+    if (attachment.alongMm !== 0)
+      throw new Error(`An attachment to the end face of ${parent.part.id} must be at 0 mm.`);
+    return point;
+  }
   point[along] =
     attachment.fromEnd === 'start'
       ? box.min[along] + attachment.alongMm
