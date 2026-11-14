@@ -8,6 +8,7 @@ import { cornersMm, resolveAssembly } from '../src/cad/assembly.ts';
 import { createRenderList, ROOT } from '../src/render-list.ts';
 import { drawRig } from '../src/render-rig.ts';
 import { evaluate } from '../src/model.ts';
+import { cmToMm } from '../src/units.ts';
 import { cutList } from '../src/cad/cuts.ts';
 import { partsFromParametric } from '../src/cad/from-parametric.ts';
 
@@ -175,12 +176,41 @@ const drawnProfileRanges = (design) => {
 };
 
 const convertedProfileRanges = (design) =>
-  [...resolveAssembly(partsFromParametric(design)).values()].map((resolved) =>
-    rangeOf(cornersMm(resolved)),
-  );
+  [...resolveAssembly(partsFromParametric(design)).values()]
+    .filter(({ part }) => part.kind === 'profile')
+    .map((resolved) => rangeOf(cornersMm(resolved)));
 
 for (const [name, design] of Object.entries(designs)) {
   test(`the ${name} converts every profile to where the parametric drawing puts it`, () => {
     assert.deepEqual(convertedProfileRanges(design).sort(), drawnProfileRanges(design).sort());
   });
 }
+
+test('the design stands on four feet of its type, on the floor under the drawn corners', () => {
+  for (const [design, footTypeId] of [
+    [{ ...designFromBase('gt'), feet: 'level', baseLift: 0 }, 'leveling-foot'],
+    [{ ...designFromBase('gt'), feet: 'casters', baseLift: 12 }, 'locking-caster'],
+  ]) {
+    const resolved = resolveAssembly(partsFromParametric(design));
+    const feet = [...resolved.values()].filter(({ part }) => part.kind === 'foot');
+    assert.equal(feet.length, 4);
+    const x = cmToMm(design.width / 2 - 2);
+    const centers = feet.map(({ box }) => [
+      (box.min.x + box.max.x) / 2,
+      (box.min.z + box.max.z) / 2,
+    ]);
+    assert.deepEqual(
+      centers.sort(),
+      [
+        [-x, 100],
+        [-x, cmToMm(design.length - 10)],
+        [x, 100],
+        [x, cmToMm(design.length - 10)],
+      ].sort(),
+    );
+    for (const { part, box } of feet) {
+      assert.equal(part.footTypeId, footTypeId);
+      assert.equal(box.min.y, 0);
+    }
+  }
+});

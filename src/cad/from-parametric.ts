@@ -6,7 +6,7 @@
 import type { CockpitDesign } from '../cockpit-design.ts';
 import { drivingMount, rigLift } from '../rig.ts';
 import { cmToMm } from '../units.ts';
-import { tiltedFromPivot, type Axis, type Part, type Vec3Mm } from './assembly.ts';
+import { tiltedFromPivot, type Attachment, type Axis, type Part, type Vec3Mm } from './assembly.ts';
 import { MOTEDIS_SERIES_40_SLOT_8 } from './catalog.ts';
 
 type Section = '40x40' | '40x80';
@@ -88,7 +88,7 @@ export function partsFromParametric(design: CockpitDesign): Part[] {
   const lift = rigLift(design);
   const parts = [
     ...baseFrame(design, lift),
-    ...baseExtensions(design, lift),
+    ...baseCorners(design, lift),
     ...seatSupports(design, lift),
     ...pedalDeck(design, lift),
   ];
@@ -141,32 +141,54 @@ function baseFrame(design: CockpitDesign, lift: number): Part[] {
   return [...rails, ...crossmembers];
 }
 
-function baseExtensions(design: CockpitDesign, lift: number): Part[] {
-  if (lift <= 0) return [];
+/**
+ * Each corner of the base stands on a foot: under the side rail, or, with a base lift, under
+ * an extension that hangs from the rail.
+ */
+function baseCorners(design: CockpitDesign, lift: number): Part[] {
   const ends = [
     { id: 'rear', fromEnd: 'start' },
     { id: 'front', fromEnd: 'end' },
   ] as const;
+  const footTypeId = design.feet === 'casters' ? 'locking-caster' : 'leveling-foot';
   return sides.flatMap(({ sign, side }) =>
-    ends.map((end) =>
-      profileOf(
+    ends.flatMap((end) => {
+      const underRail: Attachment = {
+        kind: 'attachment',
+        parentId: railId(sign),
+        face: '-y',
+        alongMm: mm(END_INSET_CM),
+        fromEnd: end.fromEnd,
+      };
+      const foot = (placement: Attachment): Part => ({
+        kind: 'foot',
+        id: `foot-${end.id}-${side}`,
+        name: `Foot, ${end.id} ${side}`,
+        footTypeId,
+        placement,
+      });
+      if (lift <= 0) return [foot(underRail)];
+      const extensionId = `base-extension-${end.id}-${side}`;
+      const extension = profileOf(
         {
-          id: `base-extension-${end.id}-${side}`,
+          id: extensionId,
           name: `Base extension, ${end.id} ${side}`,
           section: '40x40',
           axis: 'y',
           heightAxis: 'z',
           lengthCm: lift,
         },
-        {
-          kind: 'attachment',
-          parentId: railId(sign),
-          face: '-y',
-          alongMm: mm(END_INSET_CM),
-          fromEnd: end.fromEnd,
-        },
-      ),
-    ),
+        underRail,
+      );
+      const underExtension: Attachment = {
+        kind: 'attachment',
+        parentId: extensionId,
+        face: '-y',
+        alongMm: 0,
+        fromEnd: 'start',
+      };
+      return [extension, foot(underExtension)];
+    }),
   );
 }
 
