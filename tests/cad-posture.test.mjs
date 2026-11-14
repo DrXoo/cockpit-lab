@@ -56,10 +56,11 @@ for (const [name, design] of Object.entries(designs)) {
   });
 }
 
-test('the converted seat, pedals and wheel say their sizes are estimates', () => {
+test('a converted design has a seat, pedals and a wheel, sized as estimates', () => {
   const parts = partsFromParametric({ ...designFromBase('gt'), wheel: true });
   const peripherals = parts.filter((part) => part.kind === 'peripheral');
-  assert.deepEqual(peripherals.map((part) => part.id).sort(), ['pedals', 'seat', 'wheel']);
+  const ids = peripherals.map((part) => part.id);
+  for (const id of ['seat', 'pedals', 'wheel']) assert.ok(ids.includes(id), id);
   for (const part of peripherals) assert.equal(part.source.kind, 'estimated');
 });
 

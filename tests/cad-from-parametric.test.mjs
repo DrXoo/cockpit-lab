@@ -214,3 +214,48 @@ test('the design stands on four feet of its type, on the floor under the drawn c
     }
   }
 });
+
+test('the side controls, the center stick and the shifter stand on their plates as drawn', () => {
+  const design = designs['everything on, driving on the left'];
+  const resolved = resolveAssembly(partsFromParametric(design));
+  const lift = design.baseLift;
+  const centerOf = (id) => {
+    const { box } = resolved.get(id);
+    return {
+      x: round((box.min.x + box.max.x) / 2),
+      bottom: round(box.min.y),
+      z: round((box.min.z + box.max.z) / 2),
+    };
+  };
+  const plateTop = (id) => round(resolved.get(id).box.max.y);
+  // Driving on the left, the shifter shares the left side, so the throttle moves back.
+  const throttleZ = design.hotasZ + 24;
+  const sideX = design.width / 2 + design.hotasOut;
+  assert.deepEqual(resolved.get('hotas-plate-left').box, {
+    min: {
+      x: cmToMm(sideX - 9),
+      y: cmToMm(lift + design.hotasH - 0.5),
+      z: cmToMm(throttleZ - 12.5),
+    },
+    max: {
+      x: cmToMm(sideX + 9),
+      y: cmToMm(lift + design.hotasH + 0.5),
+      z: cmToMm(throttleZ + 12.5),
+    },
+  });
+  const expectations = [
+    ['joystick', 'hotas-plate-right', -sideX, design.hotasZ],
+    ['throttle', 'hotas-plate-left', sideX, throttleZ],
+    ['shifter', 'shifter-plate', sideX - 3, design.hotasZ - 7 - 5],
+    ['handbrake', 'shifter-plate', sideX + 5, design.hotasZ - 7 + 6],
+    ['center-stick', 'center-stick-plate', 0, design.stickZ],
+  ];
+  for (const [id, plateId, xCm, zCm] of expectations) {
+    assert.equal(resolved.get(id).part.placement.parentId, plateId, id);
+    assert.deepEqual(
+      centerOf(id),
+      { x: cmToMm(xCm), bottom: plateTop(plateId), z: cmToMm(zCm) },
+      id,
+    );
+  }
+});

@@ -105,9 +105,11 @@ export function partsFromParametric(design: CockpitDesign): Part[] {
     ...pedalPlateAndPedals(design, lift),
   ];
   if (design.wheel) parts.push(...wheelMount(design, lift), ...wheelPlateAndWheel(design, lift));
-  if (design.hotas) parts.push(...sideMounts(design, lift));
-  if (design.centerStick) parts.push(...centerStick(design, lift));
-  if (design.shifter || design.handbrake) parts.push(...shifterMount(design, lift));
+  if (design.hotas) parts.push(...sideMounts(design, lift), ...sideControls(design, lift));
+  if (design.centerStick)
+    parts.push(...centerStick(design, lift), ...centerStickControl(design, lift));
+  if (design.shifter || design.handbrake)
+    parts.push(...shifterMount(design, lift), ...shifterControls(design, lift));
   return parts;
 }
 
@@ -633,4 +635,142 @@ function wheelPlateAndWheel(design: CockpitDesign, lift: number): Part[] {
     { role: 'hands', atMm: pointMm(0, lift + design.wheelH + 1, design.wheelZ - 2) },
   );
   return [plate, wheel];
+}
+
+interface LevelPlate {
+  id: string;
+  name: string;
+  widthCm: number;
+  depthCm: number;
+  thicknessCm: number;
+  /** The plate's center as drawn, before any base lift. */
+  centerCm: { x: number; y: number; z: number };
+}
+
+const levelPlate = (plate: LevelPlate, lift: number): Part => ({
+  kind: 'plate',
+  id: plate.id,
+  name: plate.name,
+  widthMm: mm(plate.widthCm),
+  depthMm: mm(plate.depthCm),
+  thicknessMm: mm(plate.thicknessCm),
+  ownHoles: [],
+  placement: {
+    kind: 'anchor',
+    startMm: pointMm(
+      plate.centerCm.x,
+      lift + plate.centerCm.y - plate.thicknessCm / 2,
+      plate.centerCm.z,
+    ),
+  },
+});
+
+/** A device standing on a level plate, centered where the drawing puts it. */
+const deviceOn = (
+  plate: LevelPlate,
+  device: PeripheralSpec,
+  centerCm: { x: number; z: number },
+): Part => ({
+  kind: 'peripheral',
+  id: device.id,
+  name: device.name,
+  envelope: {
+    widthMm: mm(device.envelopeCm.width),
+    heightMm: mm(device.envelopeCm.height),
+    depthMm: mm(device.envelopeCm.depth),
+  },
+  mountingPattern: { holes: [] },
+  contactPoints: [],
+  source: FROM_THE_DRAWING,
+  placement: {
+    kind: 'attachment',
+    parentId: plate.id,
+    face: '+y',
+    alongMm: mm(centerCm.z - plate.centerCm.z + plate.depthCm / 2),
+    acrossMm: mm(centerCm.x - plate.centerCm.x),
+    fromEnd: 'start',
+  },
+});
+
+const SIDE_PLATE_CM = { width: 18, depth: 25, thickness: 1 };
+/** The devices as drawn, from the top of their plate to the top of their grip or lever. */
+const JOYSTICK_ENVELOPE_CM = { width: 11, height: 21.5, depth: 13 };
+const THROTTLE_ENVELOPE_CM = { width: 12, height: 13.5, depth: 18 };
+const SHIFTER_ENVELOPE_CM = { width: 10, height: 21.3, depth: 12 };
+const HANDBRAKE_ENVELOPE_CM = { width: 5, height: 26.2, depth: 14 };
+
+/** The joystick on the pilot's right, the throttle on the left, each on its side plate. */
+function sideControls(design: CockpitDesign, lift: number): Part[] {
+  const mount = drivingMount(design);
+  const sharesSide = design.shifter || design.handbrake;
+  return sides.flatMap(({ sign, side }) => {
+    const shift = sign === mount.sign && sharesSide ? SIDE_MOUNT_SHIFT_CM : 0;
+    const plate: LevelPlate = {
+      id: `hotas-plate-${side}`,
+      name: `HOTAS plate, ${side}`,
+      widthCm: SIDE_PLATE_CM.width,
+      depthCm: SIDE_PLATE_CM.depth,
+      thicknessCm: SIDE_PLATE_CM.thickness,
+      centerCm: {
+        x: sign * (design.width / 2 + design.hotasOut),
+        y: design.hotasH,
+        z: design.hotasZ + shift,
+      },
+    };
+    const device =
+      sign < 0
+        ? { id: 'joystick', name: 'Joystick', envelopeCm: JOYSTICK_ENVELOPE_CM }
+        : { id: 'throttle', name: 'Throttle', envelopeCm: THROTTLE_ENVELOPE_CM };
+    return [levelPlate(plate, lift), deviceOn(plate, device, plate.centerCm)];
+  });
+}
+
+function shifterControls(design: CockpitDesign, lift: number): Part[] {
+  const mount = drivingMount(design);
+  const plate: LevelPlate = {
+    id: 'shifter-plate',
+    name: 'Shifter / handbrake plate',
+    widthCm: 20,
+    depthCm: 30,
+    thicknessCm: 1,
+    centerCm: { x: mount.x, y: design.hotasH, z: mount.z },
+  };
+  const parts = [levelPlate(plate, lift)];
+  if (design.shifter)
+    parts.push(
+      deviceOn(
+        plate,
+        { id: 'shifter', name: 'Shifter', envelopeCm: SHIFTER_ENVELOPE_CM },
+        { x: mount.x - mount.sign * 3, z: mount.z - 5 },
+      ),
+    );
+  if (design.handbrake)
+    parts.push(
+      deviceOn(
+        plate,
+        { id: 'handbrake', name: 'Handbrake', envelopeCm: HANDBRAKE_ENVELOPE_CM },
+        { x: mount.x + mount.sign * 5, z: mount.z + 6 },
+      ),
+    );
+  return parts;
+}
+
+function centerStickControl(design: CockpitDesign, lift: number): Part[] {
+  const plate: LevelPlate = {
+    id: 'center-stick-plate',
+    name: 'Center stick plate',
+    widthCm: 18,
+    depthCm: 20,
+    thicknessCm: 0.8,
+    centerCm: { x: 0, y: design.stickH, z: design.stickZ },
+  };
+  const stickEnvelope = { ...JOYSTICK_ENVELOPE_CM, height: 20.6 };
+  return [
+    levelPlate(plate, lift),
+    deviceOn(
+      plate,
+      { id: 'center-stick', name: 'Center stick', envelopeCm: stickEnvelope },
+      plate.centerCm,
+    ),
+  ];
 }
