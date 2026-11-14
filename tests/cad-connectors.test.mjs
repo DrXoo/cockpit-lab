@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { designFromBase } from '../src/cockpit-design.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 import { jointsOf } from '../src/cad/joints.ts';
-import { connectorsFromParametric, partsFromParametric } from '../src/cad/from-parametric.ts';
+import {
+  adjustmentsFromParametric,
+  connectorsFromParametric,
+  partsFromParametric,
+} from '../src/cad/from-parametric.ts';
 
 const design = { ...designFromBase('gt'), baseLift: 10, wheel: true };
 const parts = partsFromParametric(design);
@@ -31,4 +35,23 @@ test('the two brackets of a joint sit on opposite sides, along the part it meets
     .filter((connector) => connector.jointId === 'base-extension-rear-right@base-rail-right')
     .map((connector) => connector.side);
   assert.deepEqual(extensionSides, ['-z', '+z']);
+});
+
+test('a converted design adjusts the seat, the pedal plate and the wheel plate fore and aft', () => {
+  const adjustments = adjustmentsFromParametric({ ...designFromBase('gt'), wheel: true });
+  assert.deepEqual(
+    adjustments.map(({ id, partId, axis, travelMm }) => ({ id, partId, axis, travelMm })),
+    [
+      { id: 'seat-fore-aft', partId: 'seat', axis: 'z', travelMm: 200 },
+      { id: 'pedals-fore-aft', partId: 'pedal-plate', axis: 'z', travelMm: 100 },
+      { id: 'wheel-fore-aft', partId: 'wheel-plate', axis: 'z', travelMm: 100 },
+    ],
+  );
+  for (const adjustment of adjustments) assert.equal(adjustment.source.kind, 'estimated');
+  const parts = new Set(
+    partsFromParametric({ ...designFromBase('gt'), wheel: true }).map((p) => p.id),
+  );
+  for (const adjustment of adjustments) assert.ok(parts.has(adjustment.partId), adjustment.partId);
+  const withoutWheel = adjustmentsFromParametric({ ...designFromBase('gt'), wheel: false });
+  assert.ok(!withoutWheel.some((adjustment) => adjustment.id === 'wheel-fore-aft'));
 });

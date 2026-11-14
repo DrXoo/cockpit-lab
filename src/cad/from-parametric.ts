@@ -16,7 +16,8 @@ import {
   type Part,
   type Vec3Mm,
 } from './assembly.ts';
-import { FROM_THE_DRAWING, MOTEDIS_SERIES_40_SLOT_8 } from './catalog.ts';
+import type { Adjustment } from './adjustments.ts';
+import { FROM_THE_DRAWING, MOTEDIS_SERIES_40_SLOT_8, type DataSource } from './catalog.ts';
 import { jointsOf, type Connector } from './joints.ts';
 
 type Section = '40x40' | '40x80';
@@ -111,6 +112,35 @@ export function partsFromParametric(design: CockpitDesign): Part[] {
   if (design.shifter || design.handbrake)
     parts.push(...shifterMount(design, lift), ...shifterControls(design, lift));
   return parts;
+}
+
+/** Typical travels, end to end; the real ones depend on the rails and slots bought. */
+const SEAT_RAIL_TRAVEL_MM = 200;
+const PLATE_SLOT_TRAVEL_MM = 100;
+const TYPICAL_TRAVEL: DataSource = {
+  kind: 'estimated',
+  reference: 'A typical travel for seat rails and slotted plates; check the parts bought',
+};
+
+/** The seat on its rails, and the pedal and wheel plates in their slots, slide fore and aft. */
+export function adjustmentsFromParametric(design: CockpitDesign): Adjustment[] {
+  const foreAft = (id: string, name: string, partId: string, travelMm: number): Adjustment => ({
+    id,
+    name,
+    partId,
+    axis: 'z',
+    travelMm,
+    source: TYPICAL_TRAVEL,
+  });
+  const adjustments = [
+    foreAft('seat-fore-aft', 'Seat on its rails', 'seat', SEAT_RAIL_TRAVEL_MM),
+    foreAft('pedals-fore-aft', 'Pedal plate in its slots', 'pedal-plate', PLATE_SLOT_TRAVEL_MM),
+  ];
+  if (design.wheel)
+    adjustments.push(
+      foreAft('wheel-fore-aft', 'Wheel plate in its slots', 'wheel-plate', PLATE_SLOT_TRAVEL_MM),
+    );
+  return adjustments;
 }
 
 const CORNER_BRACKET = 'corner-bracket-40';
