@@ -23,7 +23,6 @@ import {
 } from './interference.ts';
 import type { Check, CheckLevel } from './checks.ts';
 import type { CockpitConfig } from './config.ts';
-import { anatomy } from './anatomy.ts';
 import { deskBounds, getDesktopItems } from './desk.ts';
 import { pose } from './layout.ts';
 import { monitorGeometry } from './monitor-arm.ts';
@@ -31,6 +30,8 @@ import { getParts } from './parts.ts';
 import { cadChecks } from './cad-checks.ts';
 import { resolveAssembly } from './cad/assembly.ts';
 import { partsFromParametric } from './cad/from-parametric.ts';
+import { designPosture } from './cad/posture.ts';
+import type { postureFrom } from './anatomy.ts';
 import { baseSupports, drivingMount, floorHeight, rigLift, seatBackOf } from './rig.ts';
 
 // Tolerances. Below these values two volumes are in contact, not interfering.
@@ -66,7 +67,7 @@ interface Presence {
 }
 
 type DrivingMount = ReturnType<typeof drivingMount>;
-type Body = ReturnType<typeof anatomy>;
+type Body = ReturnType<typeof postureFrom>;
 type DesktopItem = ReturnType<typeof getDesktopItems>[number];
 
 const named = (label: string, volume: Solid): NamedSolid => ({ ...volume, label });
@@ -315,7 +316,7 @@ function bodyChecks(
     ),
   ];
   const arms = body.hands?.arms;
-  if (s.wheel && arms)
+  if (arms)
     checks.push(
       check(
         'elbow',
@@ -686,7 +687,8 @@ function otherChecks(
 export function evaluate(s: CockpitConfig) {
   const presence = presenceOf(s);
   const { hasRig, hasDesk, hasMonitor } = presence;
-  const body = anatomy(s);
+  const design = resolveAssembly(partsFromParametric(s));
+  const body = designPosture(design, s.height, rigLift(s));
   const driving = drivingMount(s);
   const rigPose = pose(s, 'cockpit');
   const deskPose = pose(s, 'desk');
@@ -750,7 +752,7 @@ export function evaluate(s: CockpitConfig) {
   const aisleFits = extent.roomFits && !!freeBand;
 
   const bodyCheck = bodyChecks(s, body, presence, monitorPoint, rigPose);
-  const designCheck = hasRig ? cadChecks(resolveAssembly(partsFromParametric(s))) : [];
+  const designCheck = hasRig ? cadChecks(design) : [];
   const spaceCheck = spaceChecks(s, presence, {
     sideGap,
     deskInterferences,

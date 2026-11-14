@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { designFromBase, designOnItsOwn } from '../src/cockpit-design.ts';
-import { parametricContacts } from '../src/anatomy.ts';
+import { anatomy, parametricContacts } from '../src/anatomy.ts';
+import { evaluate } from '../src/model.ts';
 import { readProject } from '../src/project.ts';
 import { rigLift } from '../src/rig.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
@@ -82,3 +83,30 @@ test('two parts that seat the driver are an error', () => {
     /hip/,
   );
 });
+
+const close = (actual, expected, path = 'posture') => {
+  if (typeof expected === 'number') {
+    assert.ok(Math.abs(actual - expected) < 1e-9, `${path}: ${actual} != ${expected}`);
+    return;
+  }
+  if (typeof expected === 'boolean' || expected === null) {
+    assert.equal(actual, expected, path);
+    return;
+  }
+  for (const key of Object.keys(expected)) close(actual[key], expected[key], `${path}.${key}`);
+};
+
+for (const [name, design] of Object.entries({
+  ...designs,
+  'design without a wheel': { ...designFromBase('gt'), wheel: false, baseLift: 6 },
+})) {
+  test(`the posture of the ${name} comes from its CAD contact points, as before`, () => {
+    const config = designOnItsOwn(design);
+    const before = anatomy(config);
+    const after = evaluate(config).body;
+    const { hands, ...rest } = before;
+    close(after, rest);
+    if (design.wheel) close(after.hands, hands, 'hands');
+    else assert.equal(after.hands, null);
+  });
+}

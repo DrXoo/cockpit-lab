@@ -1,5 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+/** Deep equality where numbers may differ by floating point noise. */
+function assertClose(actual, expected, path = 'value') {
+  if (typeof expected === 'number') {
+    assert.ok(Math.abs(actual - expected) < 1e-9, `${path}: ${actual} != ${expected}`);
+    return;
+  }
+  if (expected === null || typeof expected !== 'object') {
+    assert.equal(actual, expected, path);
+    return;
+  }
+  assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), path);
+  for (const key of Object.keys(expected))
+    assertClose(actual[key], expected[key], `${path}.${key}`);
+}
 import {
   defaults,
   evaluate,
@@ -25,7 +40,8 @@ test('the lift keeps the posture and local settings and shows heights from the f
   const s = { ...defaults, baseLift: 25, hotas: true, centerStick: true },
     before = evaluate({ ...s, baseLift: 0 }),
     after = evaluate(s);
-  assert.deepEqual(after.body, before.body);
+  // Through the CAD's mm and turns, the posture may differ by floating point noise only.
+  assertClose(after.body, before.body);
   for (const key of rigHeightKeys) {
     assert.equal(floorHeight(s, key), defaults[key] + 25);
     const [min, max, step] = fieldSpec(key, defaults);
