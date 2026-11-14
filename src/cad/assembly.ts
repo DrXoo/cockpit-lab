@@ -1,7 +1,11 @@
 // The parts of a CAD cockpit design and where they end up. A part is anchored, or hangs from
 // exactly one other part (ADR 0003); a span also takes its length from the part it reaches.
-// Profiles are aligned with the axes. Positions are in mm in cockpit coordinates:
-// +Y up, +Z to the front, -X the driver's right.
+// Profiles are aligned with the axes of their frame. Positions are in mm in cockpit
+// coordinates: +Y up, +Z to the front, -X the driver's right.
+//
+// An anchored part may be locked at a tilt about X, as the pedal deck is. Its box, and the
+// boxes of everything hanging from it, are then axis-aligned in the cockpit coordinates
+// turned by that tilt, so parts at the same tilt still compare as plain boxes.
 import { profileSection, profileSystem } from './catalog.ts';
 
 export type Axis = 'x' | 'y' | 'z';
@@ -23,6 +27,8 @@ export interface Anchor {
   kind: 'anchor';
   /** The center of the profile's section at its start, the end with the lower coordinate. */
   startMm: Vec3Mm;
+  /** A positive tilt raises the part's front (+Z) end. */
+  tiltDeg?: number;
 }
 
 export interface Attachment {
@@ -60,6 +66,9 @@ export type Part = ProfilePart;
 
 export interface ResolvedPart {
   part: Part;
+  /** The tilt about X of the frame the box is aligned with. */
+  tiltDeg: number;
+  /** The part's box in the cockpit coordinates turned by `tiltDeg`. */
   box: BoxMm;
   lengthMm: number;
   /** A span whose far end does not meet the part it reaches. */
@@ -97,8 +106,10 @@ export function resolveAssembly(parts: readonly Part[]): Map<string, ResolvedPar
 function resolvePart(part: Part, dependency: (id: string) => ResolvedPart): ResolvedPart {
   const placement = part.placement;
   if (placement.kind === 'anchor') {
-    const box = profileBox(part, placement.startMm, part.lengthMm);
-    return { part, box, lengthMm: part.lengthMm, openEnd: false };
+    const tiltDeg = placement.tiltDeg ?? 0;
+    const start = intoTiltedFrame(placement.startMm, tiltDeg);
+    const box = profileBox(part, start, part.lengthMm);
+    return { part, tiltDeg, box, lengthMm: part.lengthMm, openEnd: false };
   }
   const parent = dependency(placement.parentId);
   const facePoint = attachmentPoint(parent, placement);
@@ -107,14 +118,41 @@ function resolvePart(part: Part, dependency: (id: string) => ResolvedPart): Reso
   let lengthMm = part.lengthMm;
   let openEnd = false;
   if (placement.kind === 'span') {
-    const gap = gapTo(dependency(placement.reachesId).box, facePoint, placement.face);
+    const reached = dependency(placement.reachesId);
+    if (reached.tiltDeg !== parent.tiltDeg)
+      throw new Error(`Span ${part.id} cannot reach ${reached.part.id}, which is at another tilt.`);
+    const gap = gapTo(reached.box, facePoint, placement.face);
     if (gap === null) openEnd = true;
     else lengthMm = gap;
   }
   const start = { ...facePoint };
   if (faceSign(placement.face) < 0) start[part.axis] -= lengthMm;
-  return { part, box: profileBox(part, start, lengthMm), lengthMm, openEnd };
+  const box = profileBox(part, start, lengthMm);
+  return { part, tiltDeg: parent.tiltDeg, box, lengthMm, openEnd };
 }
+
+/** The eight corners of a resolved part in cockpit coordinates. */
+export function cornersMm(resolved: ResolvedPart): Vec3Mm[] {
+  const { min, max } = resolved.box;
+  const corners: Vec3Mm[] = [];
+  for (const x of [min.x, max.x])
+    for (const y of [min.y, max.y])
+      for (const z of [min.z, max.z]) corners.push(outOfTiltedFrame({ x, y, z }, resolved.tiltDeg));
+  return corners;
+}
+
+const DEG_TO_RAD = Math.PI / 180;
+
+/** Turns a point about X by `angleDeg`, so +Y goes towards +Z for a positive angle. */
+function turnAboutX(point: Vec3Mm, angleDeg: number): Vec3Mm {
+  if (angleDeg === 0) return { ...point };
+  const cos = Math.cos(angleDeg * DEG_TO_RAD);
+  const sin = Math.sin(angleDeg * DEG_TO_RAD);
+  return { x: point.x, y: point.y * cos - point.z * sin, z: point.y * sin + point.z * cos };
+}
+
+const intoTiltedFrame = (point: Vec3Mm, tiltDeg: number) => turnAboutX(point, tiltDeg);
+const outOfTiltedFrame = (point: Vec3Mm, tiltDeg: number) => turnAboutX(point, -tiltDeg);
 
 /** The point on the parent's face where an attachment sits, centered across the face. */
 function attachmentPoint(parent: ResolvedPart, attachment: Attachment | Span): Vec3Mm {
