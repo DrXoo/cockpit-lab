@@ -31,7 +31,9 @@ export function baseSupports(s: CockpitConfig): BaseSupport[] {
 }
 
 // Forward is +Z and up is +Y: the seated driver's right is -X.
-export function drivingMount(s: CockpitConfig) {
+export function drivingMount(
+  s: Pick<CockpitConfig, 'drivingSide' | 'width' | 'hotasOut' | 'hotasZ'>,
+) {
   const sign = s.drivingSide === 'left' ? 1 : -1;
   return { sign, x: sign * (s.width / 2 + s.hotasOut), z: s.hotasZ - 7 };
 }
