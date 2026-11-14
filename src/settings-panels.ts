@@ -6,6 +6,7 @@ import { bindControls, groupHTML as group, type ControlView } from './controls-v
 import { accessoryControls, placementControls } from './setup-editor.ts';
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 import { escapeHTML as esc } from './html.ts';
+import { adjustmentsFromParametric } from './cad/from-parametric.ts';
 
 /** A form to start a cockpit design from one of the bases. */
 export function newDesignHTML(): string {
@@ -76,50 +77,54 @@ export function framePanelHTML(view: ControlView): string {
         ['casters', 'Locking casters'],
       ]),
   );
+  html += mountsGroup(view);
   html +=
     '<p class="control-hint">Right and left for the shifter and handbrake are seen from the driving seat. Fixed chassis with removable modules. The total width includes the active accessories. The profile selection is preliminary; it does not calculate stiffness for your DD base.</p>';
   return html;
 }
 
+/** Heights, tilts and side positions change the parts that carry each module. */
+function mountsGroup(view: ControlView): string {
+  const { range } = bindControls(view);
+  const { state } = view;
+  let controls = range('seatH', 'Seat cushion height');
+  if (state.wheel)
+    controls += range('wheelH', 'Wheel center height') + range('wheelTilt', 'Wheel base tilt');
+  controls += range('pedalH', 'Pedal deck height') + range('pedalTilt', 'Pedal deck tilt');
+  if (state.hotas || state.shifter || state.handbrake)
+    controls +=
+      range('hotasZ', 'Side controls fore-aft') +
+      range('hotasH', 'Side plate height') +
+      range('hotasOut', 'Side plate outset');
+  if (state.centerStick)
+    controls +=
+      range('stickZ', 'Center stick fore-aft') + range('stickH', 'Center stick plate height');
+  return group('Mounts', controls, 'From the rear / floor');
+}
+
 export function posturePanelHTML(view: ControlView): string {
   const { range } = bindControls(view);
   const { state } = view;
+  const travels = new Map(
+    adjustmentsFromParametric(state).map((adjustment) => [adjustment.partId, adjustment]),
+  );
+  const travelHint = (partId: string) => {
+    const adjustment = travels.get(partId);
+    if (!adjustment) return '';
+    return `<p class="layout-hint">${esc(adjustment.name)}: ${adjustment.travelMm} mm of travel, an estimate. For now, moving it also moves its supports.</p>`;
+  };
   let html = '';
   html += group('Your starting point', range('height', 'Your height'));
   html += group(
     'Seat',
-    range('seatZ', 'Fore-aft position') +
-      range('seatH', 'Cushion height') +
-      range('recline', 'Backrest recline'),
-    'From the rear / floor',
+    range('seatZ', 'Fore-aft position') + travelHint('seat') + range('recline', 'Backrest recline'),
+    'From the rear',
   );
   if (state.wheel)
-    html += group(
-      'Wheel',
-      range('wheelZ', 'Fore-aft position') +
-        range('wheelH', 'Center height') +
-        range('wheelTilt', 'Base tilt'),
-    );
-  html += group(
-    'Pedals',
-    range('pedalZ', 'Fore-aft position') +
-      range('pedalH', 'Deck height') +
-      range('pedalTilt', 'Deck tilt'),
-  );
-  if (state.hotas || state.shifter || state.handbrake)
-    html += group(
-      'Side controls',
-      range('hotasZ', 'Fore-aft position') +
-        range('hotasH', 'Plate height') +
-        range('hotasOut', 'Outset from the chassis'),
-    );
-  if (state.centerStick)
-    html += group(
-      'Center stick',
-      range('stickZ', 'Fore-aft position') + range('stickH', 'Plate height'),
-    );
+    html += group('Wheel', range('wheelZ', 'Fore-aft position') + travelHint('wheel-plate'));
+  html += group('Pedals', range('pedalZ', 'Fore-aft position') + travelHint('pedal-plate'));
   html +=
-    '<p class="control-hint">Positions are measured from the rear end of the chassis and heights from the floor, including the base lift. Set the lift of the whole cockpit in Frame → Aluminium base. Recline is measured from vertical. Show the driver to explore the posture.</p>';
+    '<p class="control-hint">Fit the cockpit to your body with what slides: the seat on its rails and the plates in their slots. Heights, tilts and the side controls are in Frame → Mounts. Positions are measured from the rear end of the chassis; recline from vertical. Show the driver to explore the posture.</p>';
   return html;
 }
 

@@ -16,9 +16,10 @@ const viewOf = (overrides = {}) => {
 };
 const keysIn = (html) => [...html.matchAll(/id="([a-zA-Z]+)-range"/g)].map((match) => match[1]);
 
-test('the frame panel sets the base, its lift and the modules, not where the cockpit stands', () => {
-  const html = framePanelHTML(viewOf());
-  assert.deepEqual(keysIn(html), ['length', 'width', 'baseLift']);
+test('the frame panel sets the base, its lift, the modules and their mounts, not where the cockpit stands', () => {
+  const bare = { wheel: false, hotas: false, shifter: false, handbrake: false, centerStick: false };
+  const html = framePanelHTML(viewOf(bare));
+  assert.deepEqual(keysIn(html), ['length', 'width', 'baseLift', 'seatH', 'pedalH', 'pedalTilt']);
   for (const key of ['wheel', 'hotas', 'centerStick', 'shifter', 'handbrake'])
     assert.match(html, new RegExp(`type="checkbox" id="${key}"`));
   assert.match(html, /<select id="drivingSide"/);
@@ -61,25 +62,24 @@ test('a new design starts from one of the bases', () => {
   assert.match(html, /<button[^>]*id="importCockpitInstead"/);
 });
 
-test('the posture panel shows only the controls of the mounted modules', () => {
-  const bare = keysIn(
-    posturePanelHTML(
-      viewOf({ wheel: false, hotas: false, shifter: false, handbrake: false, centerStick: false }),
-    ),
-  );
-  assert.deepEqual(bare, ['height', 'seatZ', 'seatH', 'recline', 'pedalZ', 'pedalH', 'pedalTilt']);
-  const full = keysIn(posturePanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true })));
-  for (const key of [
-    'wheelZ',
-    'wheelH',
-    'wheelTilt',
-    'hotasZ',
-    'hotasH',
-    'hotasOut',
-    'stickZ',
-    'stickH',
-  ])
+test('the frame panel mounts each module only when it is on', () => {
+  const full = keysIn(framePanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true })));
+  for (const key of ['wheelH', 'wheelTilt', 'hotasZ', 'hotasH', 'hotasOut', 'stickZ', 'stickH'])
     assert.ok(full.includes(key), key);
+});
+
+test('the posture panel fits the driver with the adjustments and the recline', () => {
+  const bare = { wheel: false, hotas: false, shifter: false, handbrake: false, centerStick: false };
+  assert.deepEqual(keysIn(posturePanelHTML(viewOf(bare))), [
+    'height',
+    'seatZ',
+    'recline',
+    'pedalZ',
+  ]);
+  const html = posturePanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true }));
+  assert.deepEqual(keysIn(html), ['height', 'seatZ', 'recline', 'wheelZ', 'pedalZ']);
+  assert.match(html, /200 mm of travel/);
+  assert.match(html, /100 mm of travel/);
 });
 
 test('the desk panel includes the monitor arm only when there is a monitor', () => {
