@@ -8,7 +8,7 @@ export const checkMark = (level: CheckLevel): string => MARKS[level];
 
 /** A row of the checks panel. */
 export function checkRowHTML(check: Check): string {
-  return `<div class="check-row ${check.level}"><div class="check-name">${escapeHTML(check.label)}<small>${escapeHTML(check.detail)}</small>${itemsHTML(check)}</div><div class="check-value">${escapeHTML(check.value)}<span class="check-mark">${checkMark(check.level)}</span></div></div>`;
+  return `<div class="check-row ${check.level}" data-check="${escapeHTML(check.id)}"><div class="check-name">${escapeHTML(check.label)}<small>${escapeHTML(check.detail)}</small>${itemsHTML(check)}</div><div class="check-value">${escapeHTML(check.value)}<span class="check-mark">${checkMark(check.level)}</span></div></div>`;
 }
 
 /** A line of the printable summary. */

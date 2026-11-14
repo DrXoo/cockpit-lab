@@ -1075,6 +1075,8 @@ function refresh() {
     coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${state.deskDepth} cm depth; Z along its ${state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
   $('#heightTag').textContent = `${state.height} cm`;
   $('#ergonomics').innerHTML = e.bodyCheck.map(checkRowHTML).join('');
+  $('#designInspector').hidden = !shown.cockpitEnabled;
+  $('#designChecks').innerHTML = e.designCheck.map(checkRowHTML).join('');
   $('#spaceChecks').innerHTML = [
     ...e.spaceCheck,
     ...e.extra.filter((c) => c.id !== 'room' && c.level !== 'ok'),

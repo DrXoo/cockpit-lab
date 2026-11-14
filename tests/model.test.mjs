@@ -31,7 +31,11 @@ import {
 test('The initial GT preset has reachable limbs, a reachable monitor and fits the zone', () => {
   const e = evaluate(defaults);
   assert.equal(e.errors, 0);
-  assert.equal(e.warnings, 0);
+  // The only warnings are the parts its parametric drawing leaves crossing or unsupported.
+  assert.deepEqual(
+    e.checks.filter((check) => check.level === 'warning').map((check) => check.id),
+    ['cad-interference', 'cad-support'],
+  );
   assert.ok(e.body.legs.reachable);
   assert.ok(e.body.arms.reachable);
   assert.ok(e.reach < defaults.armReach);

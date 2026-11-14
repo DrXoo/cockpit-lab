@@ -152,3 +152,15 @@ test('a cockpit can be designed without a room, and opens where it is designed',
   await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#preset')).toHaveValue('flight');
 });
+
+test('the frame checks list the unsupported parts when opened', async ({ page }) => {
+  await openApp(page);
+  await importProject(page, 'gt-room.json');
+  await page.locator('#cockpitEditor').click();
+  const unsupported = page.locator('#designChecks [data-check="cad-support"]');
+  const parts = unsupported.getByRole('listitem');
+  await expect(parts.first()).toBeHidden();
+  await unsupported.locator('summary').click();
+  await expect(parts.first()).toBeVisible();
+  expect(await parts.count()).toBeGreaterThan(0);
+});

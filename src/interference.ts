@@ -67,7 +67,7 @@ const AXIS_TEXT: Record<Overlap['axis'], string> = {
 const ROUNDING_SLACK_MM = 1e-6;
 
 /** Rounded up to the mm, so a small overlap never reads as 0 cm. */
-const depthText = (depthCm: number): string =>
+export const depthText = (depthCm: number): string =>
   `${Math.ceil(depthCm * 10 - ROUNDING_SLACK_MM) / 10} cm`;
 
 export const describeInterference = (interference: Interference): string =>

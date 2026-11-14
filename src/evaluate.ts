@@ -28,6 +28,9 @@ import { deskBounds, getDesktopItems } from './desk.ts';
 import { pose } from './layout.ts';
 import { monitorGeometry } from './monitor-arm.ts';
 import { getParts } from './parts.ts';
+import { cadChecks } from './cad-checks.ts';
+import { resolveAssembly } from './cad/assembly.ts';
+import { partsFromParametric } from './cad/from-parametric.ts';
 import { baseSupports, drivingMount, floorHeight, rigLift, seatBackOf } from './rig.ts';
 
 // Tolerances. Below these values two volumes are in contact, not interfering.
@@ -750,6 +753,7 @@ export function evaluate(s: CockpitConfig) {
   const aisleFits = extent.roomFits && !!freeBand;
 
   const bodyCheck = bodyChecks(s, body, presence, monitorPoint, rigPose);
+  const designCheck = hasRig ? cadChecks(resolveAssembly(partsFromParametric(s))) : [];
   const spaceCheck = spaceChecks(s, presence, {
     sideGap,
     deskInterferences,
@@ -760,11 +764,19 @@ export function evaluate(s: CockpitConfig) {
   });
   const deskCheck = desktopChecks(s, presence, desktopItems, desktop, bounds);
   const extra = otherChecks(s, presence, rig, { hasSetup, roomFits: extent.roomFits, aisleFits });
-  const checks = [...bodyCheck, ...spaceCheck, ...deskCheck, ...extra, ...room.checks];
+  const checks = [
+    ...bodyCheck,
+    ...designCheck,
+    ...spaceCheck,
+    ...deskCheck,
+    ...extra,
+    ...room.checks,
+  ];
 
   return {
     body: hasRig ? body : null,
     bodyCheck,
+    designCheck,
     spaceCheck,
     desktopChecks: deskCheck,
     desktopItems,
