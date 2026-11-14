@@ -41,6 +41,18 @@ const dims = (rows: Row[]) =>
   `<div class="summary-dims">${rows.map(([key, value]) => `<p>${esc(key)}<b>${esc(value)}</b></p>`).join('')}</div>`;
 const table = (head: string[], rows: Cell[][]) =>
   `<table class="summary-table"><thead><tr>${head.map((v) => `<th>${esc(v)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+/** Joints without connectors, listed only when there are any. */
+function pendingJointsHTML(e: CockpitEvaluation): string {
+  if (!e.pendingJoints.length) return '';
+  return (
+    title('Joints without connectors') +
+    table(
+      ['Part', 'Joined to'],
+      e.pendingJoints.map((joint) => [joint.partName, joint.toPartName]),
+    )
+  );
+}
+
 export function partialSummary(
   s: CockpitConfig,
   e: CockpitEvaluation,
@@ -157,7 +169,8 @@ export function partialSummary(
       table(
         ['Part', 'Profile (mm)', 'Qty', 'Length (mm)', 'Total (mm)'],
         e.parts.map((p) => [p.name, p.profile, p.qty, p.mm, p.total]),
-      );
+      ) +
+      pendingJointsHTML(e);
   }
   if (e.accessories.length)
     html +=
@@ -171,7 +184,7 @@ export function partialSummary(
       title('Checks') + `<div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div>`;
   if (s.cockpitEnabled)
     html +=
-      '<p class="summary-note">Approximate dimensions and checks based on envelopes. The side clearance does not guarantee a way in. Cuts are net lengths without the saw kerf. Base extensions need joints and bracing still to be designed; their fasteners are not included in the estimates. Fasteners are estimates from the configurator; check dimensions, mounting patterns, slot size, loads and mounts before building. This is not a validated fabrication drawing.</p>';
+      '<p class="summary-note">Approximate dimensions and checks based on envelopes. The side clearance does not guarantee a way in. Cuts are net lengths without the saw kerf. Brackets, bolts and T-nuts are counted at two corner brackets per joint; check dimensions, mounting patterns, slot size, loads and mounts before building. This is not a validated fabrication drawing.</p>';
   else if (s.roomEnabled)
     html +=
       '<p class="summary-note">The checks use approximate envelopes. The side clearance does not guarantee a continuous way in.</p>';
@@ -248,5 +261,5 @@ export function fullSummaryHTML(s: CockpitConfig, e: CockpitEvaluation): string 
     ],
     ['Free area / desired walkway', `${s.roomW} × ${s.roomD} / ${s.aisle} cm`],
   ];
-  return `<div class="summary-inner"><div class="summary-stats"><div><small>Outer chassis</small><b>${s.length} × ${s.width} cm</b></div><div><small>Setup without walkway</small><b>${Math.ceil(e.spaceW)} × ${Math.ceil(e.spaceD)} cm</b></div><div><small>Net profile / +10% to buy</small><b>${fmt(e.totalMm / 1000)} / ${fmt((e.totalMm / 1000) * 1.1)} m</b></div><div><small>Aluminium cuts</small><b>${e.cuts} pieces</b></div></div><h3 class="summary-title">Your design geometry<span>Heights from the floor · positions from the rear</span></h3><div class="summary-dims">${dims.map(([n, v]) => `<p>${n}<b>${v}</b></p>`).join('')}</div>${roomSummaryHTML(s)}<h3 class="summary-title">On the desk<span>Coordinates from the center of the desktop</span></h3><table class="summary-table"><thead><tr><th>Item</th><th>Footprint X × Z (cm)</th><th>Position X / Z (cm)</th><th>Rotation</th></tr></thead><tbody>${e.desktopItems.map((i) => `<tr><td>${i.label}</td><td>${i.sizeX} × ${i.sizeZ}${i.id === 'pc' ? ` · h ${s.pcHeight}` : ''}</td><td>${i.local.x} / ${i.local.z}</td><td>${i.local.angle}°</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Checks<span>${e.errors} to fix · ${e.warnings} warnings</span></h3><div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div><h3 class="summary-title">Approximate cut list<span>Net lengths · without saw kerf</span></h3><table class="summary-table"><thead><tr><th>Part</th><th>Profile (mm)</th><th>Qty</th><th>Length (mm)</th><th>Total (mm)</th></tr></thead><tbody>${e.parts.map((p) => `<tr><td>${p.name}</td><td>${p.profile}</td><td>${p.qty}</td><td>${p.mm}</td><td>${p.total}</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Parts and fasteners<span>Preliminary quantities</span></h3><table class="summary-table"><thead><tr><th>Component</th><th>Detail</th><th>Qty</th></tr></thead><tbody>${e.accessories.map((p) => `<tr><td>${p.name}</td><td>${p.note}</td><td>${p.qty}</td></tr>`).join('')}</tbody></table><div class="summary-note"><b>Before you order or cut:</b> base extensions need joints and bracing still to be designed; their fasteners are not included in the estimates. The part list assumes outer side rails with crossmembers between their inner faces (width − 80 mm), the base axis ${(10 + rigLift(s)) * 10} mm above the floor and modules on corner brackets. The cushion height is a target body measurement: adapt the supports to the thickness and rails of your seat. Plates are modeled as envelopes, without holes. Add a cutting allowance and check the slot size, brackets, plate thickness, mounts and load with your supplier. This is not a structural calculation or a validated fabrication drawing. Standard 40 × 80 profiles do not telescope into each other. The arm uses two fixed-length segments with horizontal rotations; check the real VESA pattern, weight, rotation stops and travel.</div></div>`;
+  return `<div class="summary-inner"><div class="summary-stats"><div><small>Outer chassis</small><b>${s.length} × ${s.width} cm</b></div><div><small>Setup without walkway</small><b>${Math.ceil(e.spaceW)} × ${Math.ceil(e.spaceD)} cm</b></div><div><small>Net profile / +10% to buy</small><b>${fmt(e.totalMm / 1000)} / ${fmt((e.totalMm / 1000) * 1.1)} m</b></div><div><small>Aluminium cuts</small><b>${e.cuts} pieces</b></div></div><h3 class="summary-title">Your design geometry<span>Heights from the floor · positions from the rear</span></h3><div class="summary-dims">${dims.map(([n, v]) => `<p>${n}<b>${v}</b></p>`).join('')}</div>${roomSummaryHTML(s)}<h3 class="summary-title">On the desk<span>Coordinates from the center of the desktop</span></h3><table class="summary-table"><thead><tr><th>Item</th><th>Footprint X × Z (cm)</th><th>Position X / Z (cm)</th><th>Rotation</th></tr></thead><tbody>${e.desktopItems.map((i) => `<tr><td>${i.label}</td><td>${i.sizeX} × ${i.sizeZ}${i.id === 'pc' ? ` · h ${s.pcHeight}` : ''}</td><td>${i.local.x} / ${i.local.z}</td><td>${i.local.angle}°</td></tr>`).join('')}</tbody></table><h3 class="summary-title">Checks<span>${e.errors} to fix · ${e.warnings} warnings</span></h3><div class="summary-checks">${e.checks.map(checkLineHTML).join('')}</div><h3 class="summary-title">Approximate cut list<span>Net lengths · without saw kerf</span></h3><table class="summary-table"><thead><tr><th>Part</th><th>Profile (mm)</th><th>Qty</th><th>Length (mm)</th><th>Total (mm)</th></tr></thead><tbody>${e.parts.map((p) => `<tr><td>${esc(p.name)}</td><td>${p.profile}</td><td>${p.qty}</td><td>${p.mm}</td><td>${p.total}</td></tr>`).join('')}</tbody></table>${pendingJointsHTML(e)}<h3 class="summary-title">Parts and fasteners<span>Preliminary quantities</span></h3><table class="summary-table"><thead><tr><th>Component</th><th>Detail</th><th>Qty</th></tr></thead><tbody>${e.accessories.map((p) => `<tr><td>${p.name}</td><td>${p.note}</td><td>${p.qty}</td></tr>`).join('')}</tbody></table><div class="summary-note"><b>Before you order or cut:</b> brackets, bolts and T-nuts are counted at two corner brackets per joint, and the checks list parts that reach into each other or stand on nothing. The part list assumes outer side rails with crossmembers between their inner faces (width − 80 mm), the base axis ${(10 + rigLift(s)) * 10} mm above the floor and modules on corner brackets. The cushion height is a target body measurement: adapt the supports to the thickness and rails of your seat. Plates are modeled as envelopes, without holes. Add a cutting allowance and check the slot size, brackets, plate thickness, mounts and load with your supplier. This is not a structural calculation or a validated fabrication drawing. Standard 40 × 80 profiles do not telescope into each other. The arm uses two fixed-length segments with horizontal rotations; check the real VESA pattern, weight, rotation stops and travel.</div></div>`;
 }

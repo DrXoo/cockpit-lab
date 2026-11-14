@@ -61,7 +61,7 @@ test('Cut list totals and exterior-to-interior widths are consistent', () => {
     e.cuts,
     e.parts.reduce((a, p) => a + p.qty, 0),
   );
-  assert.equal(e.parts.find((p) => p.name === 'Base crossmembers').mm, 560);
+  assert.equal(e.parts.find((p) => p.name.includes('Base crossmember, rear')).mm, 560);
   const longer = getParts({ ...defaults, length: 155 });
   assert.equal(longer.totalMm - e.totalMm, 200);
   const wider = getParts({ ...defaults, width: 70 });

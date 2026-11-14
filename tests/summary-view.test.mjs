@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { escapeHTML } from '../src/html.ts';
 import { checkLineHTML, checkMark, checkRowHTML } from '../src/check-view.ts';
 import {
+  partialSummary,
   roomSummaryHTML,
   fullSummaryHTML,
   usesPartialSummary,
@@ -113,4 +114,19 @@ test('a printed check line lists its items too', () => {
     items: ['Seat & post'],
   });
   assert.match(html, /<ul><li>Seat &amp; post<\/li><\/ul>/);
+});
+
+test('both summaries list joints without connectors, with escaped part names', () => {
+  const evaluation = {
+    ...evaluate(config),
+    pendingJoints: [{ jointId: 'a@b', partName: 'Post <a>', toPartName: 'Rail & b' }],
+  };
+  for (const html of [
+    fullSummaryHTML(config, evaluation),
+    partialSummary(config, evaluation, completeSetup()),
+  ]) {
+    assert.match(html, /Joints without connectors/);
+    assert.match(html, /<td>Post &lt;a&gt;<\/td><td>Rail &amp; b<\/td>/);
+  }
+  assert.doesNotMatch(fullSummaryHTML(config, evaluate(config)), /Joints without connectors/);
 });

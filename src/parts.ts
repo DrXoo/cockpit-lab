@@ -1,7 +1,11 @@
-// Bill of materials: profile cuts and accessories derived from the configuration.
+// Bill of materials: the profile cuts, connectors, fasteners and feet of the CAD parts the design
+// converts to, and the accessories still estimated from the configuration.
 import type { CockpitConfig } from './config.ts';
-import { baseSupports } from './rig.ts';
-import { cmToMm, roundMm, type Mm } from './units.ts';
+import { resolveAssembly } from './cad/assembly.ts';
+import { fastenerType } from './cad/catalog.ts';
+import { connectorsFromParametric, partsFromParametric } from './cad/from-parametric.ts';
+import { partsToBuy, type PendingJoint, type PartsToBuy } from './cad/parts-to-buy.ts';
+import { jointsOf } from './cad/joints.ts';
 
 export interface Accessory {
   name: string;
@@ -9,14 +13,16 @@ export interface Accessory {
   note: string;
 }
 
+/** One cut: a profile section at one length, and the parts cut to it. */
 export interface ProfilePart {
+  /** The names of the parts cut to this length. */
   name: string;
   profile: string;
   qty: number;
-  /** Net length of one piece. */
-  mm: Mm;
-  /** Total length of all pieces. */
-  total: Mm;
+  /** Net length of one piece, in whole mm. */
+  mm: number;
+  /** Total length of all pieces, in mm. */
+  total: number;
 }
 
 function desktopAccessories(s: CockpitConfig): Accessory[] {
@@ -42,72 +48,80 @@ export interface PartsList {
   totalMm: number;
   cuts: number;
   joints: number;
+  /** Joints without connectors, to fasten before the list is complete. */
+  pendingJoints: PendingJoint[];
 }
+
+/** Part names are the user's data and may hold commas, so cuts list them apart with semicolons. */
+const NAME_SEPARATOR = '; ';
+
+const sectionText = (sectionId: string): string => sectionId.replace('x', ' × ');
 
 export function getParts(s: CockpitConfig): PartsList {
   if (s.cockpitEnabled === false)
-    return { parts: [], accessories: desktopAccessories(s), totalMm: 0, cuts: 0, joints: 0 };
-  const b = s.width - 8,
-    wh = s.wheelH - 22,
-    seatPost = Math.max(4, s.seatH - 18),
-    parts: ProfilePart[] = [];
-  const add = (name: string, profile: string, qty: number, lengthCm: number) => {
-    const mm = roundMm(cmToMm(lengthCm));
-    parts.push({ name, profile, qty, mm, total: (mm * qty) as Mm });
+    return {
+      parts: [],
+      accessories: desktopAccessories(s),
+      totalMm: 0,
+      cuts: 0,
+      joints: 0,
+      pendingJoints: [],
+    };
+  const designParts = partsFromParametric(s);
+  const resolved = resolveAssembly(designParts);
+  const toBuy = partsToBuy(resolved, connectorsFromParametric(designParts));
+  const parts = toBuy.cuts.map((cut) => ({
+    name: cut.names.join(NAME_SEPARATOR),
+    profile: sectionText(cut.sectionId),
+    qty: cut.quantity,
+    mm: cut.lengthMm,
+    total: cut.lengthMm * cut.quantity,
+  }));
+  const pieces = parts.reduce((sum, part) => sum + part.qty, 0);
+  return {
+    parts,
+    accessories: [
+      ...hardware(toBuy),
+      {
+        name: 'Profile end caps',
+        qty: pieces * 2,
+        note: 'Theoretical maximum; leave out joined ends',
+      },
+      ...estimatedAccessories(s),
+      ...desktopAccessories(s),
+    ],
+    totalMm: parts.reduce((sum, part) => sum + part.total, 0),
+    cuts: pieces,
+    joints: jointsOf(resolved).length,
+    pendingJoints: toBuy.pendingJoints,
   };
-  add('Base side rails', '40 × 80', 2, s.length);
-  add('Base crossmembers', '40 × 80', 3, b);
-  const supports = baseSupports(s);
-  if (supports.length)
-    add('Base extensions', supports[0].profile, supports.length, supports[0].length);
-  add('Seat crossmembers', '40 × 40', 2, b);
-  add('Seat posts', '40 × 40', 4, seatPost);
-  add('Pedal deck rails', '40 × 40', 2, 38);
-  add('Pedal deck crossmembers', '40 × 40', 2, b);
-  add('Pedal deck posts', '40 × 40', 2, Math.max(4, s.pedalH - 10));
-  if (s.wheel) {
-    add('Wheel uprights', '40 × 80', 2, wh);
-    add('Wheel crossmember', '40 × 80', 1, b);
-  }
-  if (s.hotas) {
-    add('HOTAS uprights', '40 × 40', 2, s.hotasH - 13);
-    add('HOTAS arms', '40 × 40', 2, s.hotasOut + 12);
-  }
-  if (s.centerStick) {
-    add('Center stick upright', '40 × 40', 1, s.stickH - 10);
-    add('Center stick arm', '40 × 40', 1, 24);
-  }
-  if (s.shifter || s.handbrake) {
-    add('Shifter / handbrake upright', '40 × 40', 1, s.hotasH - 13);
-    add('Shifter / handbrake arm', '40 × 40', 1, 30);
-  }
-  const joints =
-    14 +
-    (s.wheel ? 6 : 0) +
-    (s.hotas ? 8 : 0) +
-    (s.centerStick ? 4 : 0) +
-    (s.shifter || s.handbrake ? 4 : 0);
-  const accessories = [
-    {
-      name: 'Reinforced 40 series corner brackets',
-      qty: joints,
-      note: 'Estimated at 2 bolts per bracket',
-    },
-    {
-      name: 'T-nuts + M8 bolts',
-      qty: joints * 2 + 24,
-      note: 'Confirm slot size and length with the supplier',
-    },
-    {
-      name: s.feet === 'casters' ? 'Locking casters + adapter' : 'Leveling feet + adapter',
-      qty: 4,
-      note: 'Size the load capacity',
-    },
-    {
-      name: 'Profile end caps',
-      qty: parts.reduce((a, p) => a + p.qty * 2, 0),
-      note: 'Theoretical maximum; leave out joined ends',
-    },
+}
+
+/** Connectors, the fasteners they need and the feet, counted from the CAD parts. */
+function hardware(toBuy: PartsToBuy): Accessory[] {
+  return [
+    ...toBuy.connectors.map((connector) => ({
+      name: connector.name,
+      qty: connector.quantity,
+      note: 'Two per joint, one on each side',
+    })),
+    ...toBuy.fasteners.map((fastener) => ({
+      name: fastenerType(fastener.id).name,
+      qty: fastener.quantity,
+      note: 'For the corner brackets; confirm the bolt length with the supplier',
+    })),
+    ...toBuy.feet.map((foot) => ({
+      name: foot.name,
+      qty: foot.quantity,
+      note: 'With its adapter; size the load capacity',
+    })),
+  ];
+}
+
+/** The seat and the plates, still estimated from the settings until plates are designed. */
+function estimatedAccessories(s: CockpitConfig): Accessory[] {
+  const b = s.width - 8;
+  const accessories: Accessory[] = [
     {
       name: 'Manual car seat + rails',
       qty: 1,
@@ -143,12 +157,5 @@ export function getParts(s: CockpitConfig): PartsList {
       qty: 1,
       note: '200 × 300 mm; check the hole patterns',
     });
-  accessories.push(...desktopAccessories(s));
-  return {
-    parts,
-    accessories,
-    totalMm: parts.reduce((a, p) => a + p.total, 0),
-    cuts: parts.reduce((a, p) => a + p.qty, 0),
-    joints,
-  };
+  return accessories;
 }

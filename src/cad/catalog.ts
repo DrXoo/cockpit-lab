@@ -127,6 +127,22 @@ const FOOT_TYPES: readonly FootType[] = [
   },
 ];
 
+export interface FastenerType {
+  id: string;
+  name: string;
+}
+
+const FASTENER_TYPES: readonly FastenerType[] = [
+  { id: 'bolt-m8', name: 'M8 bolt' },
+  { id: 't-nut-slot-8-m8', name: 'T-nut, slot 8, M8' },
+];
+
+export function fastenerType(id: string): FastenerType {
+  const type = FASTENER_TYPES.find((candidate) => candidate.id === id);
+  if (!type) throw new Error(`Fastener type ${id} is not in the catalog.`);
+  return type;
+}
+
 export function footType(id: string): FootType {
   const type = FOOT_TYPES.find((candidate) => candidate.id === id);
   if (!type) throw new Error(`Foot type ${id} is not in the catalog.`);

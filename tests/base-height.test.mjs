@@ -55,7 +55,8 @@ test('the four supports join the original floor to the chassis and set the added
       assert.equal(p.y - p.length / 2, 6);
       assert.equal(p.y + p.length / 2, 6 + baseLift);
     }
-    assert.equal(parts.parts.find((p) => p.name === 'Base extensions').qty, supports.length);
+    const extensions = parts.parts.find((p) => p.name.includes('Base extension'));
+    assert.equal(extensions.qty, supports.length);
     assert.equal(
       parts.totalMm - original.totalMm,
       supports.reduce((sum, p) => sum + p.length * 10, 0),
