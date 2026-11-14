@@ -100,6 +100,8 @@ export interface CockpitConfig extends Record<NumericField, number> {
   centerStick: boolean;
   shifter: boolean;
   handbrake: boolean;
+  /** The driver wears a VR headset. */
+  vrHeadset: boolean;
   drivingSide: DrivingSide;
   feet: Feet;
   armBend: ArmBend;
@@ -141,6 +143,7 @@ export const defaults: CockpitConfig = {
   centerStick: false,
   shifter: true,
   handbrake: true,
+  vrHeadset: false,
   drivingSide: 'right',
   feet: 'level',
   hotasZ: 53,
@@ -225,6 +228,7 @@ export type PresetValues = Pick<
   | 'centerStick'
   | 'shifter'
   | 'handbrake'
+  | 'vrHeadset'
   | 'hotasZ'
   | 'hotasH'
   | 'hotasOut'
@@ -256,6 +260,7 @@ export const presets: Record<
       centerStick: false,
       shifter: true,
       handbrake: true,
+      vrHeadset: false,
       hotasZ: 53,
       hotasH: 53,
       hotasOut: 15,
@@ -283,6 +288,7 @@ export const presets: Record<
       centerStick: false,
       shifter: false,
       handbrake: false,
+      vrHeadset: true,
       hotasZ: 55,
       hotasH: 58,
       hotasOut: 15,
@@ -310,6 +316,7 @@ export const presets: Record<
       centerStick: false,
       shifter: true,
       handbrake: true,
+      vrHeadset: false,
       hotasZ: 55,
       hotasH: 57,
       hotasOut: 16,
@@ -337,6 +344,7 @@ export const presets: Record<
       centerStick: false,
       shifter: false,
       handbrake: false,
+      vrHeadset: false,
       hotasZ: 50,
       hotasH: 53,
       hotasOut: 12,
@@ -352,6 +360,7 @@ const BOOLEAN_SETTINGS = [
   'centerStick',
   'shifter',
   'handbrake',
+  'vrHeadset',
   'roomEnabled',
   'roomFullWalls',
   'deskEnabled',

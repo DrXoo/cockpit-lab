@@ -266,7 +266,7 @@ function drawPerson(r: RenderList, parent: ParentRef, s: CockpitConfig, b: Body)
   const { hip, shoulder } = b;
   r.tube([0, hip.y + 5, hip.z], [0, shoulder.y - 3, shoulder.z], 10, 'blue', parent);
   r.sphere(8, 0, b.eye.y, b.eye.z, 'blue', parent);
-  r.box(17, 9, 9, 0, b.eye.y, b.eye.z + 6, 'dark', parent);
+  if (s.vrHeadset) r.box(17, 9, 9, 0, b.eye.y, b.eye.z + 6, 'dark', parent);
   for (const x of [-12, 12]) {
     r.sphere(4, x, hip.y, hip.z, 'blue', parent);
     r.tube([x, hip.y, hip.z], [x, b.legs.joint.y, b.legs.joint.z], 4.7, 'blue', parent);

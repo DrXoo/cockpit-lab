@@ -28,6 +28,7 @@ export const COCKPIT_DESIGN_KEYS = [
   'stickH',
   'shifter',
   'handbrake',
+  'vrHeadset',
   'drivingSide',
   'preset',
 ] as const satisfies readonly (keyof CockpitConfig)[];
@@ -69,6 +70,7 @@ function separate(config: CockpitConfig): { design: CockpitDesign; room: RoomCon
     stickH,
     shifter,
     handbrake,
+    vrHeadset,
     drivingSide,
     preset,
     ...room
@@ -98,6 +100,7 @@ function separate(config: CockpitConfig): { design: CockpitDesign; room: RoomCon
     stickH,
     shifter,
     handbrake,
+    vrHeadset,
     drivingSide,
     preset,
   };

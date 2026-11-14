@@ -74,3 +74,14 @@ test('an imported design does not join a room that leaves the cockpit out', () =
   // Recording the room afterwards keeps the imported design.
   assert.deepEqual(recordProject(kept, projectConfig(kept)).cockpit, design);
 });
+
+test('a cockpit file from before the VR headset setting opens without a headset', () => {
+  const data = file();
+  delete data.cockpit.vrHeadset;
+  assert.equal(readCockpitFile(data).vrHeadset, false);
+});
+
+test('only the VR flight base starts with a VR headset', () => {
+  assert.equal(designFromBase('flight').vrHeadset, true);
+  for (const base of ['gt', 'hybrid', 'small']) assert.equal(designFromBase(base).vrHeadset, false);
+});

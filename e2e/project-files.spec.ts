@@ -16,8 +16,8 @@ test('importing a v2 project restores its configuration and survives a reload', 
 }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
-  // A v2 file has no saved arm poses, so the project opens without any.
-  const expected = { ...readFixture('gt-room.json').config, armPoses: [] };
+  // A v2 file has no saved arm poses and predates the VR headset, so it opens without either.
+  const expected = { ...readFixture('gt-room.json').config, armPoses: [], vrHeadset: false };
   expect(await getState(page)).toEqual(expected);
   await page.reload();
   expect(await getState(page)).toEqual(expected);

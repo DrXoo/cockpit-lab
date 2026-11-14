@@ -181,3 +181,7 @@ test('a pose saved with the arm mounted elsewhere says so in text', () => {
     /<small data-mount-moved="pose-1">Saved with the arm mounted elsewhere<\/small>/,
   );
 });
+
+test('the posture panel lets the driver wear a VR headset or not', () => {
+  assert.match(posturePanelHTML(viewOf()), /type="checkbox" id="vrHeadset"/);
+});

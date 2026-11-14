@@ -90,3 +90,12 @@ test('the seated person is only drawn when asked for', () => {
   assert.equal(blue(draw().primitives), 0);
   assert.ok(blue(draw({}, { person: true }).primitives) > 0);
 });
+
+test('the seated person wears a VR headset only when the design says so', () => {
+  const headsets = (changes) =>
+    ofKind(draw(changes, { person: true }).primitives, 'box').filter(
+      (p) => p.size[0] === 17 && p.size[1] === 9 && p.size[2] === 9,
+    ).length;
+  assert.equal(headsets({ vrHeadset: false }), 0);
+  assert.equal(headsets({ vrHeadset: true }), 1);
+});

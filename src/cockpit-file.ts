@@ -31,6 +31,9 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
  * The cockpit design of a cockpit file. Throws a user-facing message when the file is something
  * else, or when its design is incomplete or has values this version can't use.
  */
+/** Settings added after version 1 files were written; a missing one takes its default. */
+const ADDED_AFTER_VERSION_1: readonly string[] = ['vrHeadset'];
+
 export function readCockpitFile(data: unknown): CockpitDesign {
   if (!isPlainRecord(data) || data.app !== 'Cockpit Lab')
     throw new Error('File from another program');
@@ -42,12 +45,13 @@ export function readCockpitFile(data: unknown): CockpitDesign {
   for (const key of Object.keys(raw))
     if (!isCockpitDesignSetting(key)) throw new Error(`Not a cockpit setting: ${key}`);
   for (const key of COCKPIT_DESIGN_KEYS)
-    if (!(key in raw)) throw new Error(`Missing cockpit setting: ${key}`);
+    if (!(key in raw) && !ADDED_AFTER_VERSION_1.includes(key))
+      throw new Error(`Missing cockpit setting: ${key}`);
   const design = designOf(sanitize(raw));
   // Lengths and angles are fitted to their ranges, as in project files, but an unknown option
   // would silently become the default one, so it is rejected.
   for (const key of COCKPIT_DESIGN_KEYS)
-    if (typeof raw[key] !== 'number' && design[key] !== raw[key])
+    if (key in raw && typeof raw[key] !== 'number' && design[key] !== raw[key])
       throw new Error(`Invalid value: ${key}`);
   return design;
 }

@@ -103,7 +103,7 @@ function mountsGroup(view: ControlView): string {
 }
 
 export function posturePanelHTML(view: ControlView): string {
-  const { range } = bindControls(view);
+  const { range, toggle } = bindControls(view);
   const { state } = view;
   const travels = new Map(
     adjustmentsFromParametric(state).map((adjustment) => [adjustment.partId, adjustment]),
@@ -114,7 +114,10 @@ export function posturePanelHTML(view: ControlView): string {
     return `<p class="layout-hint">${esc(adjustment.name)}: ${adjustment.travelMm} mm of travel.</p>`;
   };
   let html = '';
-  html += group('Your starting point', range('height', 'Your height'));
+  html += group(
+    'Your starting point',
+    range('height', 'Your height') + toggle('vrHeadset', 'VR headset'),
+  );
   html += group(
     'Seat',
     range('seatZ', 'Fore-aft position') + travelHint('seat') + range('recline', 'Backrest recline'),
