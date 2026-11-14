@@ -60,6 +60,8 @@ The parts model in mm with attachments, spans, joints, connectors, feet, periphe
 
 Acceptance: the four bases and the end-to-end fixtures convert to the same profile lengths and counts as the parametric cut list, and to the same posture checks. Reference case: a 200 × 150 × 5 mm plate with four 6.5 mm diameter holes at (−60, −40), (60, −40), (60, 40) and (−60, 40), relative to its center; a peripheral's pattern must match those points when it is mounted. These dimensions are a test case, not a manufacturer's pattern.
 
+Done in November 2026 (`src/cad/`). The conversion puts two 40 corner brackets on every joint, and the feet, peripheral envelopes, bracket fasteners and adjustment travels are estimates from the drawing until real parts are chosen; each says so in its data source. Every base reports the parts its parametric drawing left crossing or unsupported, for stage 2 to fix.
+
 ### 2. Profile editor
 
 Select profiles, grow one out of a face, perpendicular or parallel, make spans, extend a profile to the next face, move, lengthen, hang a part from another and delete. Add and remove connectors at joints. Numeric input, and undo/redo that restores the same identifiers and values. Saving and opening does not change the dimensions.
