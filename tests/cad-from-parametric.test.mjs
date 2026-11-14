@@ -137,7 +137,7 @@ const turnAboutX = ([x, y, z], angle) => [
   y * Math.sin(angle) + z * Math.cos(angle),
 ];
 
-/** World corners in mm of the profiles the parametric drawing puts in the scene. */
+/** World corners in mm of the profiles the rig drawing puts in the scene. */
 const drawnProfileRanges = (design) => {
   const r = createRenderList();
   const config = designOnItsOwn(design);
@@ -181,7 +181,7 @@ const convertedProfileRanges = (design) =>
     .map((resolved) => rangeOf(cornersMm(resolved)));
 
 for (const [name, design] of Object.entries(designs)) {
-  test(`the ${name} converts every profile to where the parametric drawing puts it`, () => {
+  test(`the ${name} draws every converted profile where its part is`, () => {
     assert.deepEqual(convertedProfileRanges(design).sort(), drawnProfileRanges(design).sort());
   });
 }

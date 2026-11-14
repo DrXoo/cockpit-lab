@@ -4,14 +4,14 @@ import type { CockpitConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad } from './geometry.ts';
 import type { ParentRef, RenderList } from './render-list.ts';
-import { profileBeam } from './render-profile.ts';
-import { baseSupports, drivingMount, rigLift } from './rig.ts';
+import { drawCadProfiles } from './render-cad.ts';
+import { drivingMount, rigLift } from './rig.ts';
+import { resolveAssembly } from './cad/assembly.ts';
+import { partsFromParametric } from './cad/from-parametric.ts';
 
 type Body = NonNullable<CockpitEvaluation['body']>;
 
 const QUARTER_TURN = Math.PI / 2;
-/** Height of the frame's lower profiles above the base. */
-const FRAME_AXIS_CM = 10;
 /** The rig's end crossmembers are set back this much from each end. */
 const END_INSET_CM = 10;
 /** The pedal heads tilt back by this much to face the driver. */
@@ -28,10 +28,10 @@ export function drawRig(
 ): void {
   if (s.cockpitEnabled === false) return;
   drawFeet(r, parent, s);
-  for (const support of baseSupports(s))
-    profileBeam(r, parent, 'y', support.length, support.x, support.y, support.z, '40x40');
   const assembly = r.group(parent, { position: [0, rigLift(s), 0] });
-  drawFrame(r, assembly, s);
+  // The profiles come from the CAD parts the design converts to, in cockpit coordinates.
+  drawCadProfiles(r, parent, resolveAssembly(partsFromParametric(s)));
+  drawFrameFittings(r, assembly, s);
   drawSeat(r, assembly, s);
   drawPedals(r, assembly, s);
   if (s.wheel) drawWheel(r, assembly, s);
@@ -66,21 +66,11 @@ function drawFeet(r: RenderList, parent: ParentRef, s: CockpitConfig) {
   }
 }
 
-/** Continuous longitudinal rails, crossmembers between their inner faces and the seat supports. */
-function drawFrame(r: RenderList, parent: ParentRef, s: CockpitConfig) {
+/** The brackets at the foot of the seat posts and the seat's rails. */
+function drawFrameFittings(r: RenderList, parent: ParentRef, s: CockpitConfig) {
   const w = s.width;
-  const l = s.length;
-  for (const x of [-w / 2 + 2, w / 2 - 2])
-    profileBeam(r, parent, 'z', l, x, FRAME_AXIS_CM, l / 2, '40x80');
-  for (const z of [END_INSET_CM, l / 2, l - END_INSET_CM])
-    profileBeam(r, parent, 'x', w - 8, 0, FRAME_AXIS_CM, z, '40x80');
-  for (const z of [s.seatZ - 12, s.seatZ + 18]) {
-    profileBeam(r, parent, 'x', w - 8, 0, s.seatH - 10, z);
-    for (const x of [-w / 2 + 8, w / 2 - 8]) {
-      profileBeam(r, parent, 'y', Math.max(4, s.seatH - 18), x, (s.seatH - 18) / 2 + 14, z);
-      r.box(5, 5, 0.5, x, 16, z + 2.2, 'orange', parent);
-    }
-  }
+  for (const z of [s.seatZ - 12, s.seatZ + 18])
+    for (const x of [-w / 2 + 8, w / 2 - 8]) r.box(5, 5, 0.5, x, 16, z + 2.2, 'orange', parent);
   for (const x of [-18, 18]) r.box(3, 2.2, 40, x, s.seatH - 6, s.seatZ + 3, 'dark', parent);
 }
 
@@ -121,8 +111,6 @@ function drawPedals(r: RenderList, parent: ParentRef, s: CockpitConfig) {
     rotation: [-degToRad(s.pedalTilt), 0, 0],
   });
   r.box(w - 8, 1.1, 38, 0, 0, 0, 'dark', deck, true);
-  for (const x of [-(w - 18) / 2, (w - 18) / 2]) profileBeam(r, deck, 'z', 38, x, -2.5, 0, '40x40');
-  for (const z of [-14, 14]) profileBeam(r, deck, 'x', w - 8, 0, -2.5, z, '40x40');
   // The driver sits at -Z, so the contact face is the head's -Z face. The heads tilt back
   // to offset the deck's 0…35° tilt, so they face the driver and up.
   for (const x of [-15, 0, 15]) {
@@ -138,16 +126,12 @@ function drawPedals(r: RenderList, parent: ParentRef, s: CockpitConfig) {
     // Grip strips belong to the contact face and follow the same inclination.
     for (const y of [-3, 0, 3]) r.box(4.8, 0.4, 0.3, 0, y, -0.7, 'groove', head);
   }
-  for (const x of [-w / 2 + 8, w / 2 - 8])
-    profileBeam(r, parent, 'y', Math.max(4, s.pedalH - 10), x, (s.pedalH - 10) / 2 + 8, s.pedalZ);
 }
 
 function drawWheel(r: RenderList, parent: ParentRef, s: CockpitConfig) {
   for (const x of [-s.width / 2 + 2, s.width / 2 - 2]) {
-    profileBeam(r, parent, 'y', s.wheelH - 22, x, 14 + (s.wheelH - 22) / 2, s.wheelZ + 18, '40x80');
     r.box(7, 10, 0.8, x, 21, s.wheelZ + 20.5, 'orange', parent);
   }
-  profileBeam(r, parent, 'x', s.width - 8, 0, s.wheelH - 10, s.wheelZ + 18, '40x80');
   const pivot = r.group(parent, {
     position: [0, s.wheelH, s.wheelZ],
     rotation: [-degToRad(s.wheelTilt), 0, 0],
@@ -179,16 +163,6 @@ function drawSideMount(
   z: number,
 ) {
   const x = sign * (s.width / 2 + s.hotasOut);
-  profileBeam(r, parent, 'y', s.hotasH - 13, sign * (s.width / 2 - 2), 10 + (s.hotasH - 13) / 2, z);
-  profileBeam(
-    r,
-    parent,
-    'x',
-    s.hotasOut + 12,
-    sign * (s.width / 2 + s.hotasOut / 2 - 2),
-    s.hotasH - 3,
-    z,
-  );
   r.box(18, 1, 25, x, s.hotasH, z, 'orange', parent);
   r.box(16, 1, 23, x, s.hotasH + 0.8, z, 'dark', parent);
   if (sign === -1) drawJoystick(r, parent, x, s.hotasH + 2, z);
@@ -212,8 +186,6 @@ function drawShifter(r: RenderList, parent: ParentRef, s: CockpitConfig) {
   const { sign, x, z } = drivingMount(s);
   const inner = x - sign * 3;
   const outer = x + sign * 5;
-  profileBeam(r, parent, 'y', s.hotasH - 13, sign * (s.width / 2 - 2), 10 + (s.hotasH - 13) / 2, z);
-  profileBeam(r, parent, 'x', 30, x - sign * 7, s.hotasH - 3, z);
   r.box(20, 1, 30, x, s.hotasH, z, 'orange', parent);
   if (s.shifter) {
     r.box(10, 7, 12, inner, s.hotasH + 4, z - 5, 'dark', parent);
@@ -228,8 +200,6 @@ function drawShifter(r: RenderList, parent: ParentRef, s: CockpitConfig) {
 }
 
 function drawCenterStick(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  profileBeam(r, parent, 'y', s.stickH - 10, 0, (s.stickH - 10) / 2 + 10, s.stickZ);
-  profileBeam(r, parent, 'z', 24, 0, s.stickH - 2, s.stickZ - 4);
   r.box(18, 0.8, 20, 0, s.stickH, s.stickZ, 'orange', parent);
   drawJoystick(r, parent, 0, s.stickH + 1, s.stickZ);
 }
