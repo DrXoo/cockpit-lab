@@ -89,6 +89,14 @@ const CONNECTOR_TYPES: readonly ConnectorType[] = [
   },
 ];
 
+const PROFILE_SYSTEMS: readonly ProfileSystem[] = [MOTEDIS_SERIES_40_SLOT_8];
+
+export function profileSystem(id: string): ProfileSystem {
+  const system = PROFILE_SYSTEMS.find((candidate) => candidate.id === id);
+  if (!system) throw new Error(`Profile system ${id} is not in the catalog.`);
+  return system;
+}
+
 export function profileSection(system: ProfileSystem, sectionId: string): ProfileSection {
   const section = system.sections.find((candidate) => candidate.id === sectionId);
   if (!section) throw new Error(`Profile section ${sectionId} is not in ${system.id}.`);

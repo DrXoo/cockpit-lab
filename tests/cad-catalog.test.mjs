@@ -6,6 +6,7 @@ import {
   connectorFits,
   fastenersOf,
   profileSection,
+  profileSystem,
 } from '../src/cad/catalog.ts';
 
 test('the first profile system is Motedis series 40, I-type, slot 8', () => {
@@ -32,6 +33,8 @@ test('every catalog section says where its dimensions come from', () => {
 });
 
 test('a section is found by system and id, and an unknown one is an error', () => {
+  assert.equal(profileSystem('motedis-40-i-slot-8'), MOTEDIS_SERIES_40_SLOT_8);
+  assert.throws(() => profileSystem('item-45'), /item-45/);
   assert.equal(profileSection(MOTEDIS_SERIES_40_SLOT_8, '40x80').heightMm, 80);
   assert.throws(() => profileSection(MOTEDIS_SERIES_40_SLOT_8, '45x45'), /45x45/);
 });
