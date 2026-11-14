@@ -6,8 +6,16 @@
 import type { CockpitDesign } from '../cockpit-design.ts';
 import { drivingMount, rigLift } from '../rig.ts';
 import { cmToMm } from '../units.ts';
-import { tiltedFromPivot, type Attachment, type Axis, type Part, type Vec3Mm } from './assembly.ts';
+import {
+  resolveAssembly,
+  tiltedFromPivot,
+  type Attachment,
+  type Axis,
+  type Part,
+  type Vec3Mm,
+} from './assembly.ts';
 import { MOTEDIS_SERIES_40_SLOT_8 } from './catalog.ts';
+import { jointsOf, type Connector } from './joints.ts';
 
 type Section = '40x40' | '40x80';
 
@@ -97,6 +105,26 @@ export function partsFromParametric(design: CockpitDesign): Part[] {
   if (design.centerStick) parts.push(...centerStick(design, lift));
   if (design.shifter || design.handbrake) parts.push(...shifterMount(design, lift));
   return parts;
+}
+
+const CORNER_BRACKET = 'corner-bracket-40';
+
+/**
+ * A 40 corner bracket on each side of every joint, the usual way to fasten a T-joint. The two
+ * sit along the part that is met, against its face, where there is room for their legs.
+ */
+export function connectorsFromParametric(parts: readonly Part[]): Connector[] {
+  const resolved = resolveAssembly(parts);
+  return jointsOf(resolved).flatMap((joint) => {
+    const met = resolved.get(joint.toPartId)?.part;
+    if (met?.kind !== 'profile') throw new Error(`Joint ${joint.id} meets no profile.`);
+    return (['-', '+'] as const).map((sign) => ({
+      id: `${joint.id}/${sign === '-' ? 'a' : 'b'}`,
+      jointId: joint.id,
+      typeId: CORNER_BRACKET,
+      side: `${sign}${met.axis}` as const,
+    }));
+  });
 }
 
 function baseFrame(design: CockpitDesign, lift: number): Part[] {

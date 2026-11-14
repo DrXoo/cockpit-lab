@@ -32,3 +32,12 @@ export function jointsOf(resolved: ReadonlyMap<string, ResolvedPart>): Joint[] {
   }
   return joints;
 }
+
+/** A catalog piece that fastens the two parts of one joint, on one side of its corner. */
+export interface Connector {
+  id: string;
+  jointId: string;
+  typeId: string;
+  /** The face of the joined part (`partId`) the connector sits against. */
+  side: Face;
+}
