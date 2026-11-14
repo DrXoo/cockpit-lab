@@ -4,17 +4,19 @@
 // that cross each other are kept crossing, for the CAD to report (docs/mini-cad.md).
 // Parts hang from one another only where the drawing puts them face to face.
 import type { CockpitDesign } from '../cockpit-design.ts';
-import { drivingMount, rigLift } from '../rig.ts';
+import { drivingMount, rigLift, seatBackOf } from '../rig.ts';
 import { cmToMm } from '../units.ts';
 import {
+  offsetInTiltedFrame,
   resolveAssembly,
   tiltedFromPivot,
+  type ContactRole,
   type Attachment,
   type Axis,
   type Part,
   type Vec3Mm,
 } from './assembly.ts';
-import { MOTEDIS_SERIES_40_SLOT_8 } from './catalog.ts';
+import { FROM_THE_DRAWING, MOTEDIS_SERIES_40_SLOT_8 } from './catalog.ts';
 import { jointsOf, type Connector } from './joints.ts';
 
 type Section = '40x40' | '40x80';
@@ -68,10 +70,10 @@ const profileOf = (spec: ProfileSpec, placement: Part['placement']): Part => ({
   placement,
 });
 
-const anchored = (spec: ProfileSpec, startMm: Vec3Mm, tiltDeg = 0): Part =>
+const anchored = (spec: ProfileSpec, startMm: Vec3Mm, tiltDeg?: number): Part =>
   profileOf(
     spec,
-    tiltDeg === 0 ? { kind: 'anchor', startMm } : { kind: 'anchor', startMm, tiltDeg },
+    tiltDeg === undefined ? { kind: 'anchor', startMm } : { kind: 'anchor', startMm, tiltDeg },
   );
 
 /** The pilot's right is -X. */
@@ -99,8 +101,10 @@ export function partsFromParametric(design: CockpitDesign): Part[] {
     ...baseCorners(design, lift),
     ...seatSupports(design, lift),
     ...pedalDeck(design, lift),
+    seat(design, lift),
+    ...pedalPlateAndPedals(design, lift),
   ];
-  if (design.wheel) parts.push(...wheelMount(design, lift));
+  if (design.wheel) parts.push(...wheelMount(design, lift), ...wheelPlateAndWheel(design, lift));
   if (design.hotas) parts.push(...sideMounts(design, lift));
   if (design.centerStick) parts.push(...centerStick(design, lift));
   if (design.shifter || design.handbrake) parts.push(...shifterMount(design, lift));
@@ -449,4 +453,184 @@ function centerStick(design: CockpitDesign, lift: number): Part[] {
       pointMm(0, lift + design.stickH - 2, design.stickZ - 4 - CENTER_STICK_ARM_LENGTH_CM / 2),
     ),
   ];
+}
+
+/** The seat takes the box the parametric checks give it; the hip sits 12 cm above its base. */
+function seat(design: CockpitDesign, lift: number): Part {
+  const backZCm = seatBackOf(design);
+  const frontZCm = design.seatZ + 25;
+  const centerZCm = (backZCm + frontZCm) / 2;
+  const bottomCm = lift + design.seatH - 8;
+  return {
+    kind: 'peripheral',
+    id: 'seat',
+    name: 'Seat',
+    envelope: { widthMm: mm(50), heightMm: mm(72), depthMm: mm(frontZCm - backZCm) },
+    mountingPattern: { holes: [] },
+    contactPoints: [{ role: 'hip', offsetMm: pointMm(0, 12, design.seatZ - centerZCm) }],
+    backrestDeg: design.recline,
+    source: FROM_THE_DRAWING,
+    placement: { kind: 'anchor', startMm: pointMm(0, bottomCm, centerZCm) },
+  };
+}
+
+interface TiltedMount {
+  /** The cockpit point the drawing turns the mount about. */
+  pivotMm: Vec3Mm;
+  tiltDeg: number;
+}
+
+interface PlateSpec {
+  id: string;
+  name: string;
+  widthCm: number;
+  depthCm: number;
+  thicknessCm: number;
+}
+
+/** A plate drawn centered on `centerCm` from the mount's pivot, in the mount's tilted frame. */
+function tiltedPlate(
+  mount: TiltedMount,
+  plate: PlateSpec,
+  centerCm: { y: number; z: number },
+): Part {
+  const underside = pointMm(0, centerCm.y - plate.thicknessCm / 2, centerCm.z);
+  return {
+    kind: 'plate',
+    id: plate.id,
+    name: plate.name,
+    widthMm: mm(plate.widthCm),
+    depthMm: mm(plate.depthCm),
+    thicknessMm: mm(plate.thicknessCm),
+    ownHoles: [],
+    placement: {
+      kind: 'anchor',
+      startMm: tiltedFromPivot(mount.pivotMm, underside, mount.tiltDeg),
+      tiltDeg: mount.tiltDeg,
+    },
+  };
+}
+
+interface PeripheralSpec {
+  id: string;
+  name: string;
+  envelopeCm: { width: number; height: number; depth: number };
+}
+
+interface PlateSeat {
+  plateId: string;
+  /** Distance along the plate's depth, from its start, to the peripheral's mounting origin. */
+  alongCm: number;
+  /** The mounting origin from the mount's pivot, in the mount's tilted frame. */
+  originCm: { y: number; z: number };
+}
+
+/**
+ * A peripheral on top of a tilted plate, its contact point placed where the parametric posture
+ * puts it, whatever the tilt.
+ */
+function peripheralOnPlate(
+  mount: TiltedMount,
+  peripheral: PeripheralSpec,
+  on: PlateSeat,
+  contact: { role: ContactRole; atMm: Vec3Mm },
+): Part {
+  const origin = pointMm(0, on.originCm.y, on.originCm.z);
+  const originMm = tiltedFromPivot(mount.pivotMm, origin, mount.tiltDeg);
+  const offsetMm = offsetInTiltedFrame(originMm, contact.atMm, mount.tiltDeg);
+  return {
+    kind: 'peripheral',
+    id: peripheral.id,
+    name: peripheral.name,
+    envelope: {
+      widthMm: mm(peripheral.envelopeCm.width),
+      heightMm: mm(peripheral.envelopeCm.height),
+      depthMm: mm(peripheral.envelopeCm.depth),
+    },
+    mountingPattern: { holes: [] },
+    contactPoints: [{ role: contact.role, offsetMm }],
+    source: FROM_THE_DRAWING,
+    placement: {
+      kind: 'attachment',
+      parentId: on.plateId,
+      face: '+y',
+      alongMm: mm(on.alongCm),
+      fromEnd: 'start',
+    },
+  };
+}
+
+const PEDAL_PLATE_THICKNESS_CM = 1.1;
+/** Three pedals as drawn: bases 22 cm deep, 37 cm across, heads up to 16.5 cm. */
+const PEDALS_ENVELOPE_CM = { width: 37, height: 16.5, depth: 22 };
+
+function pedalPlateAndPedals(design: CockpitDesign, lift: number): Part[] {
+  const mount = {
+    pivotMm: pointMm(0, lift + design.pedalH, design.pedalZ),
+    tiltDeg: design.pedalTilt,
+  };
+  const plateSpec = {
+    id: 'pedal-plate',
+    name: 'Pedal plate',
+    widthCm: design.width - RAILS_WIDTH_CM,
+    depthCm: PEDAL_DECK_LENGTH_CM,
+    thicknessCm: PEDAL_PLATE_THICKNESS_CM,
+  };
+  const plate = tiltedPlate(mount, plateSpec, { y: 0, z: 0 });
+  const pedals = peripheralOnPlate(
+    mount,
+    { id: 'pedals', name: 'Pedals', envelopeCm: PEDALS_ENVELOPE_CM },
+    {
+      plateId: 'pedal-plate',
+      alongCm: PEDAL_DECK_LENGTH_CM / 2,
+      originCm: { y: PEDAL_PLATE_THICKNESS_CM / 2, z: 0 },
+    },
+    { role: 'heel', atMm: pointMm(0, lift + design.pedalH + 8, design.pedalZ - 5) },
+  );
+  return [plate, pedals];
+}
+
+const WHEEL_PLATE_THICKNESS_CM = 1.3;
+const WHEEL_PLATE_DEPTH_CM = 22;
+/** The wheel mount sits this far forward of the wheel's pivot, in the tilted frame. */
+const WHEEL_MOUNT_FORWARD_CM = 13;
+/** The plate's center from the wheel mount. */
+const WHEEL_PLATE_CENTER_CM = { y: -9, z: 5 };
+/**
+ * The wheel base and rim as drawn, from the plate up to the top of the rim; from the rim's
+ * front, 14.65 cm before the mount, to the base's back, 16 cm behind it.
+ */
+const WHEEL_ENVELOPE_CM = { width: 32.3, height: 24.5, depth: 30.65 };
+const WHEEL_ENVELOPE_CENTER_Z_CM = 0.675;
+
+function wheelPlateAndWheel(design: CockpitDesign, lift: number): Part[] {
+  const mount = {
+    pivotMm: pointMm(0, lift + design.wheelH, design.wheelZ),
+    tiltDeg: design.wheelTilt,
+  };
+  const plateCenter = {
+    y: WHEEL_PLATE_CENTER_CM.y,
+    z: WHEEL_MOUNT_FORWARD_CM + WHEEL_PLATE_CENTER_CM.z,
+  };
+  const plateSpec = {
+    id: 'wheel-plate',
+    name: 'Wheel plate',
+    widthCm: design.width - RAILS_WIDTH_CM,
+    depthCm: WHEEL_PLATE_DEPTH_CM,
+    thicknessCm: WHEEL_PLATE_THICKNESS_CM,
+  };
+  const plate = tiltedPlate(mount, plateSpec, plateCenter);
+  const plateStartZCm = plateCenter.z - WHEEL_PLATE_DEPTH_CM / 2;
+  const originZCm = WHEEL_MOUNT_FORWARD_CM + WHEEL_ENVELOPE_CENTER_Z_CM;
+  const wheel = peripheralOnPlate(
+    mount,
+    { id: 'wheel', name: 'Wheel base and wheel', envelopeCm: WHEEL_ENVELOPE_CM },
+    {
+      plateId: 'wheel-plate',
+      alongCm: originZCm - plateStartZCm,
+      originCm: { y: plateCenter.y + WHEEL_PLATE_THICKNESS_CM / 2, z: originZCm },
+    },
+    { role: 'hands', atMm: pointMm(0, lift + design.wheelH + 1, design.wheelZ - 2) },
+  );
+  return [plate, wheel];
 }

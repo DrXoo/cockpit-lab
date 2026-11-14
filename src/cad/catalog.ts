@@ -103,7 +103,7 @@ const CONNECTOR_TYPES: readonly ConnectorType[] = [
 
 const PROFILE_SYSTEMS: readonly ProfileSystem[] = [MOTEDIS_SERIES_40_SLOT_8];
 
-const FROM_THE_DRAWING: DataSource = {
+export const FROM_THE_DRAWING: DataSource = {
   kind: 'estimated',
   reference: 'As the parametric drawing shows it; check the chosen product',
 };

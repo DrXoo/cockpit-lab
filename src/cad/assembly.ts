@@ -288,6 +288,12 @@ export function tiltedFromPivot(pivotMm: Vec3Mm, offsetMm: Vec3Mm, tiltDeg: numb
   return { x: pivotMm.x + turned.x, y: pivotMm.y + turned.y, z: pivotMm.z + turned.z };
 }
 
+/** The offset from `fromMm` to `toMm`, both cockpit points, measured in a frame at `tiltDeg`. */
+export function offsetInTiltedFrame(fromMm: Vec3Mm, toMm: Vec3Mm, tiltDeg: number): Vec3Mm {
+  const offset = { x: toMm.x - fromMm.x, y: toMm.y - fromMm.y, z: toMm.z - fromMm.z };
+  return intoTiltedFrame(offset, tiltDeg);
+}
+
 const DEG_TO_RAD = Math.PI / 180;
 
 /** Turns a point about X by `angleDeg`, so +Y goes towards +Z for a positive angle. */
