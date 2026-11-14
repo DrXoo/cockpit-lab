@@ -7,4 +7,6 @@ export interface Check {
   value: string;
   level: CheckLevel;
   detail: string;
+  /** The things the check found, such as the parts it names, for the user to look through. */
+  items?: readonly string[];
 }

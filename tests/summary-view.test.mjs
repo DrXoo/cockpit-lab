@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { escapeHTML } from '../src/html.ts';
-import { checkMark, checkRowHTML } from '../src/check-view.ts';
+import { checkLineHTML, checkMark, checkRowHTML } from '../src/check-view.ts';
 import {
   roomSummaryHTML,
   fullSummaryHTML,
@@ -84,4 +84,33 @@ test('the summary heading depends on whether there is a cockpit', () => {
     title: 'Project summary',
     kicker: 'YOUR SPACE',
   });
+});
+
+test('a check with items lists them, escaped, in a list the user opens', () => {
+  const html = checkRowHTML({
+    id: 'x',
+    label: 'Unsupported parts',
+    value: '2',
+    level: 'warning',
+    detail: 'No joint connects them to a part on feet.',
+    items: ['Seat post <rear>', 'Wheel crossmember'],
+  });
+  assert.match(html, /<details class="check-items"><summary>Show the 2<\/summary><ul>/);
+  assert.match(html, /<li>Seat post &lt;rear&gt;<\/li><li>Wheel crossmember<\/li>/);
+  assert.doesNotMatch(
+    checkRowHTML({ id: 'y', label: 'A', value: 'B', level: 'ok', detail: '' }),
+    /details/,
+  );
+});
+
+test('a printed check line lists its items too', () => {
+  const html = checkLineHTML({
+    id: 'x',
+    label: 'Unsupported parts',
+    value: '1',
+    level: 'warning',
+    detail: 'Detail',
+    items: ['Seat & post'],
+  });
+  assert.match(html, /<ul><li>Seat &amp; post<\/li><\/ul>/);
 });
