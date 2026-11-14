@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { plateHoles } from '../src/cad/plate.ts';
+import { resolveAssembly } from '../src/cad/assembly.ts';
+import { holesOfPlate } from '../src/cad/mounting.ts';
 
 // Reference case from docs/mini-cad.md: a test case, not a manufacturer's pattern.
 const referencePattern = {
@@ -38,4 +40,40 @@ test('the plate keeps its own holes beside those of mounted peripherals', () => 
     { pattern: referencePattern, originXMm: 0, originYMm: 0 },
   ]);
   assert.deepEqual(holes, [ownHole, ...referencePattern.holes]);
+});
+
+test('in a design, a plate gets the holes of the peripherals mounted on it', () => {
+  const plate = {
+    kind: 'plate',
+    id: 'plate',
+    name: 'Reference plate',
+    ...referencePlate,
+    placement: { kind: 'anchor', startMm: { x: 300, y: 200, z: 500 } },
+  };
+  const mountedAt = (alongMm, acrossMm) => ({
+    kind: 'peripheral',
+    id: `device-${alongMm}`,
+    name: 'Device',
+    envelope: { widthMm: 150, heightMm: 60, depthMm: 100 },
+    mountingPattern: referencePattern,
+    contactPoints: [],
+    source: { kind: 'estimated', reference: 'test case' },
+    placement: {
+      kind: 'attachment',
+      parentId: 'plate',
+      face: '+y',
+      alongMm,
+      acrossMm,
+      fromEnd: 'start',
+    },
+  });
+  const centered = resolveAssembly([plate, mountedAt(75, 0)]);
+  assert.deepEqual(holesOfPlate(centered, 'plate'), referencePattern.holes);
+  const offCenter = resolveAssembly([plate, mountedAt(65, 15)]);
+  assert.deepEqual(holesOfPlate(offCenter, 'plate'), [
+    { xMm: -45, yMm: -50, diameterMm: 6.5 },
+    { xMm: 75, yMm: -50, diameterMm: 6.5 },
+    { xMm: 75, yMm: 30, diameterMm: 6.5 },
+    { xMm: -45, yMm: 30, diameterMm: 6.5 },
+  ]);
 });
