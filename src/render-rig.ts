@@ -1,23 +1,65 @@
 // The cockpit rig as drawn: base, frame, seat, pedals, controls and the optional seated person.
-// Local rig coordinates: +Y up, +Z towards the front, x = 0 on the rig's centre line.
+// Every part is drawn where the CAD design the cockpit converts to puts it, in cockpit
+// coordinates: +Y up, +Z towards the front, x = 0 on the rig's centre line.
 import type { CockpitConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad } from './geometry.ts';
 import type { ParentRef, RenderList } from './render-list.ts';
 import { drawCadProfiles } from './render-cad.ts';
-import { drivingMount, rigLift } from './rig.ts';
-import { resolveAssembly } from './cad/assembly.ts';
-import { partsFromParametric } from './cad/from-parametric.ts';
+import { rigLift } from './rig.ts';
+import { partPointMm, type ResolvedPart } from './cad/assembly.ts';
+import { MM_PER_CM } from './units.ts';
 
 type Body = NonNullable<CockpitEvaluation['body']>;
+type Design = ReadonlyMap<string, ResolvedPart>;
+interface OffsetCm {
+  x: number;
+  y: number;
+  z: number;
+}
 
 const QUARTER_TURN = Math.PI / 2;
-/** The rig's end crossmembers are set back this much from each end. */
-const END_INSET_CM = 10;
 /** The pedal heads tilt back by this much to face the driver. */
 const PEDAL_HEAD_TILT_DEG = 35;
-/** Side mounts move back to make room for a shifter or handbrake on the same side. */
-const SIDE_MOUNT_SHIFT_CM = 24;
+/** The seat is drawn from the top of its cushion, this far below the hip point. */
+const SEAT_DRAWING_BELOW_HIP_CM = 4;
+/** The seat post brackets sit at this height above the base. */
+const POST_BRACKET_HEIGHT_CM = 16;
+/** The wheel plate's center in the drawing of the wheel mount. */
+const WHEEL_PLATE_IN_MOUNT_CM = { y: -9, z: 5 };
+const ORIGIN: OffsetCm = { x: 0, y: 0, z: 0 };
+
+const cm = (mm: number): number => mm / MM_PER_CM;
+
+function partIn(design: Design, id: string): ResolvedPart {
+  const part = design.get(id);
+  if (!part) throw new Error(`The cockpit design has no part ${id} to draw.`);
+  return part;
+}
+
+const centerCm = ({ box }: ResolvedPart) => ({
+  x: cm((box.min.x + box.max.x) / 2),
+  z: cm((box.min.z + box.max.z) / 2),
+});
+
+/** A group at a point of a plate or peripheral, from its mounting origin, turned with it. */
+function groupOn(r: RenderList, parent: ParentRef, part: ResolvedPart, offsetCm = ORIGIN) {
+  const point = partPointMm(part, {
+    x: offsetCm.x * MM_PER_CM,
+    y: offsetCm.y * MM_PER_CM,
+    z: offsetCm.z * MM_PER_CM,
+  });
+  return r.group(parent, {
+    position: [cm(point.x), cm(point.y), cm(point.z)],
+    rotation: [part.tiltDeg === 0 ? 0 : -degToRad(part.tiltDeg), 0, 0],
+  });
+}
+
+const heightCm = ({ box }: ResolvedPart): number => cm(box.max.y - box.min.y);
+
+/** A group at the center of a plate, half its thickness above its underside. */
+const plateCenter = (r: RenderList, parent: ParentRef, plate: ResolvedPart) =>
+  groupOn(r, parent, plate, { x: 0, y: heightCm(plate) / 2, z: 0 });
 
 export function drawRig(
   r: RenderList,
@@ -27,66 +69,69 @@ export function drawRig(
   { person }: { person: boolean },
 ): void {
   if (s.cockpitEnabled === false) return;
-  drawFeet(r, parent, s);
+  const design = e.design;
+  const part = (id: string) => partIn(design, id);
+  drawFeet(r, parent, design);
   const assembly = r.group(parent, { position: [0, rigLift(s), 0] });
-  // The profiles come from the CAD parts the design converts to, in cockpit coordinates.
-  drawCadProfiles(r, parent, resolveAssembly(partsFromParametric(s)));
-  drawFrameFittings(r, assembly, s);
-  drawSeat(r, assembly, s);
-  drawPedals(r, assembly, s);
-  if (s.wheel) drawWheel(r, assembly, s);
+  drawCadProfiles(r, parent, design);
+  drawPostBrackets(r, parent, design, rigLift(s));
+  drawSeat(r, parent, part('seat'), s.recline);
+  drawPedals(r, plateCenter(r, parent, part('pedal-plate')), part('pedal-plate'));
+  if (s.wheel) drawWheel(r, parent, design);
   if (s.hotas) {
-    const sharesSide = s.shifter || s.handbrake;
-    for (const sign of [-1, 1])
-      drawSideMount(
-        r,
-        assembly,
-        sign,
-        s,
-        s.hotasZ + (sign === drivingMount(s).sign && sharesSide ? SIDE_MOUNT_SHIFT_CM : 0),
-      );
+    drawSideMount(r, plateCenter(r, parent, part('hotas-plate-right')), 'joystick');
+    drawSideMount(r, plateCenter(r, parent, part('hotas-plate-left')), 'throttle');
   }
-  if (s.shifter || s.handbrake) drawShifter(r, assembly, s);
-  if (s.centerStick) drawCenterStick(r, assembly, s);
+  if (s.shifter || s.handbrake) drawShifter(r, parent, design);
+  if (s.centerStick) drawCenterStick(r, plateCenter(r, parent, part('center-stick-plate')));
   if (person && e.body) drawPerson(r, assembly, s, e.body);
 }
 
-function drawFeet(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  for (const x of [-s.width / 2 + 2, s.width / 2 - 2]) {
-    for (const z of [END_INSET_CM, s.length - END_INSET_CM]) {
-      if (s.feet === 'casters') {
-        const wheel = r.cylinder(3.3, 3.5, x, 3.4, z, 'rubber', parent);
-        wheel.rotation = [0, 0, QUARTER_TURN];
-        r.box(4, 2, 6, x, 6, z, 'dark', parent);
-      } else {
-        r.cylinder(3.6, 2, x, 1.4, z, 'rubber', parent);
-        r.cylinder(0.6, 4, x, 4, z, 'silver', parent);
-      }
+function drawFeet(r: RenderList, parent: ParentRef, design: Design) {
+  for (const foot of design.values()) {
+    if (foot.part.kind !== 'foot') continue;
+    const { x, z } = centerCm(foot);
+    if (foot.part.footTypeId === 'locking-caster') {
+      const wheel = r.cylinder(3.3, 3.5, x, 3.4, z, 'rubber', parent);
+      wheel.rotation = [0, 0, QUARTER_TURN];
+      r.box(4, 2, 6, x, 6, z, 'dark', parent);
+    } else {
+      r.cylinder(3.6, 2, x, 1.4, z, 'rubber', parent);
+      r.cylinder(0.6, 4, x, 4, z, 'silver', parent);
     }
   }
 }
 
-/** The brackets at the foot of the seat posts and the seat's rails. */
-function drawFrameFittings(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  const w = s.width;
-  for (const z of [s.seatZ - 12, s.seatZ + 18])
-    for (const x of [-w / 2 + 8, w / 2 - 8]) r.box(5, 5, 0.5, x, 16, z + 2.2, 'orange', parent);
-  for (const x of [-18, 18]) r.box(3, 2.2, 40, x, s.seatH - 6, s.seatZ + 3, 'dark', parent);
+/** The brackets at the foot of the seat posts. */
+function drawPostBrackets(r: RenderList, parent: ParentRef, design: Design, liftCm: number) {
+  for (const post of design.values()) {
+    if (!post.part.id.startsWith('seat-post-')) continue;
+    const { x, z } = centerCm(post);
+    r.box(5, 5, 0.5, x, liftCm + POST_BRACKET_HEIGHT_CM, z + 2.2, 'orange', parent);
+  }
 }
 
-function drawSeat(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  const y = s.seatH;
-  const z = s.seatZ;
-  r.box(48, 8, 42, 0, y - 4, z + 3, 'seat', parent);
-  r.box(34, 2.5, 34, 0, y + 0.8, z + 5, 'fabric', parent);
+/** The seat, its rails and its reclined backrest, drawn from the top of the cushion. */
+function drawSeat(r: RenderList, parent: ParentRef, seat: ResolvedPart, reclineDeg: number) {
+  if (seat.part.kind !== 'peripheral') throw new Error('The seat must be a peripheral.');
+  const hip = seat.part.contactPoints.find((contact) => contact.role === 'hip');
+  if (!hip) throw new Error('The seat must carry the hip contact.');
+  const cushionTop = groupOn(r, parent, seat, {
+    x: cm(hip.offsetMm.x),
+    y: cm(hip.offsetMm.y) - SEAT_DRAWING_BELOW_HIP_CM,
+    z: cm(hip.offsetMm.z),
+  });
+  for (const x of [-18, 18]) r.box(3, 2.2, 40, x, -6, 3, 'dark', cushionTop);
+  r.box(48, 8, 42, 0, -4, 3, 'seat', cushionTop);
+  r.box(34, 2.5, 34, 0, 0.8, 5, 'fabric', cushionTop);
   for (const x of [-22, 22]) {
-    const bolster = r.box(6, 10, 36, x, y + 1, z + 2, 'seat', parent);
+    const bolster = r.box(6, 10, 36, x, 1, 2, 'seat', cushionTop);
     bolster.rotation = [0, 0, degToRad(x > 0 ? -8 : 8)];
-    r.tube([x, y + 6, z - 12], [x, y + 6, z + 18], 0.22, 'orange', parent);
+    r.tube([x, 6, -12], [x, 6, 18], 0.22, 'orange', cushionTop);
   }
-  const back = r.group(parent, {
-    position: [0, y, z - 12],
-    rotation: [-degToRad(s.recline), 0, 0],
+  const back = r.group(cushionTop, {
+    position: [0, 0, -12],
+    rotation: [-degToRad(reclineDeg), 0, 0],
   });
   r.box(46, 49, 8, 0, 24.5, 0, 'seat', back);
   r.box(33, 36, 3, 0, 22, 4.7, 'fabric', back);
@@ -99,20 +144,18 @@ function drawSeat(r: RenderList, parent: ParentRef, s: CockpitConfig) {
   r.box(27, 14, 9, 0, 57, 0, 'seat', back);
   r.box(21, 9, 1, 0, 57, 5, 'fabric', back);
   for (const x of [-24, 24]) {
-    const screw = r.cylinder(2, 1, x, y - 4, z - 12, 'silver', parent);
+    const screw = r.cylinder(2, 1, x, -4, -12, 'silver', cushionTop);
     screw.rotation = [0, 0, QUARTER_TURN];
   }
 }
 
-function drawPedals(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  const w = s.width;
-  const deck = r.group(parent, {
-    position: [0, s.pedalH, s.pedalZ],
-    rotation: [-degToRad(s.pedalTilt), 0, 0],
-  });
-  r.box(w - 8, 1.1, 38, 0, 0, 0, 'dark', deck, true);
+/** The pedal plate and three pedals, drawn from the plate's center. */
+function drawPedals(r: RenderList, deck: ParentRef, plate: ResolvedPart) {
+  if (plate.part.kind !== 'plate') throw new Error('The pedal plate must be a plate.');
+  const { widthMm, thicknessMm, depthMm } = plate.part;
+  r.box(cm(widthMm), cm(thicknessMm), cm(depthMm), 0, 0, 0, 'dark', deck, true);
   // The driver sits at -Z, so the contact face is the head's -Z face. The heads tilt back
-  // to offset the deck's 0…35° tilt, so they face the driver and up.
+  // to offset the deck's 0 to 35 degree tilt, so they face the driver and up.
   for (const x of [-15, 0, 15]) {
     r.box(7, 2, 22, x, 2, 0, 'dark', deck);
     const pivot = r.cylinder(1.5, 7, x, 3, 9, 'dark', deck);
@@ -128,17 +171,33 @@ function drawPedals(r: RenderList, parent: ParentRef, s: CockpitConfig) {
   }
 }
 
-function drawWheel(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  for (const x of [-s.width / 2 + 2, s.width / 2 - 2]) {
-    r.box(7, 10, 0.8, x, 21, s.wheelZ + 20.5, 'orange', parent);
+/** The wheel uprights' brackets, and the wheel plate, base and rim from the wheel mount. */
+function drawWheel(r: RenderList, parent: ParentRef, design: Design) {
+  for (const side of ['right', 'left']) {
+    const upright = partIn(design, `wheel-upright-${side}`);
+    const { x, z } = centerCm(upright);
+    r.box(7, 10, 0.8, x, cm(upright.box.min.y) + 7, z + 2.5, 'orange', parent);
   }
-  const pivot = r.group(parent, {
-    position: [0, s.wheelH, s.wheelZ],
-    rotation: [-degToRad(s.wheelTilt), 0, 0],
+  const plate = partIn(design, 'wheel-plate');
+  if (plate.part.kind !== 'plate') throw new Error('The wheel plate must be a plate.');
+  const plateWidthCm = cm(plate.part.widthMm);
+  const plateIn = WHEEL_PLATE_IN_MOUNT_CM;
+  const mount = groupOn(r, parent, plate, {
+    x: 0,
+    y: heightCm(plate) / 2 - plateIn.y,
+    z: -plateIn.z,
   });
-  const mount = r.group(pivot, { position: [0, 0, 13] });
-  r.box(s.width - 8, 1.3, 22, 0, -9, 5, 'dark', mount);
-  for (const x of [-s.width / 2 + 7, s.width / 2 - 7])
+  r.box(
+    plateWidthCm,
+    heightCm(plate),
+    cm(plate.part.depthMm),
+    0,
+    plateIn.y,
+    plateIn.z,
+    'dark',
+    mount,
+  );
+  for (const x of [-plateWidthCm / 2 + 3, plateWidthCm / 2 - 3])
     r.box(0.8, 8, 19, x, -4.5, 5, 'orange', mount);
   r.box(15, 12, 18, 0, -1, 7, 'dark', mount, true);
   for (const x of [-7.7, 7.7])
@@ -154,22 +213,15 @@ function drawWheel(r: RenderList, parent: ParentRef, s: CockpitConfig) {
     for (const y of [-1.5, 1.5]) r.sphere(0.6, x, y, -14.3, y > 0 ? 'orange' : 'silver', mount);
 }
 
-/** A HOTAS plate on one side: the joystick on the pilot's right (-1), the throttle on the left. */
-function drawSideMount(
-  r: RenderList,
-  parent: ParentRef,
-  sign: number,
-  s: CockpitConfig,
-  z: number,
-) {
-  const x = sign * (s.width / 2 + s.hotasOut);
-  r.box(18, 1, 25, x, s.hotasH, z, 'orange', parent);
-  r.box(16, 1, 23, x, s.hotasH + 0.8, z, 'dark', parent);
-  if (sign === -1) drawJoystick(r, parent, x, s.hotasH + 2, z);
+/** A HOTAS plate with its pad and control, drawn from the plate's center. */
+function drawSideMount(r: RenderList, plate: ParentRef, control: 'joystick' | 'throttle') {
+  r.box(18, 1, 25, 0, 0, 0, 'orange', plate);
+  r.box(16, 1, 23, 0, 0.8, 0, 'dark', plate);
+  if (control === 'joystick') drawJoystick(r, plate, 0, 2, 0);
   else {
-    r.box(12, 5, 18, x, s.hotasH + 4, z, 'dark', parent);
-    r.tube([x, s.hotasH + 7, z - 3], [x, s.hotasH + 12, z + 2], 1.5, 'dark', parent);
-    r.box(12, 4, 6, x, s.hotasH + 12, z + 2, 'rubber', parent);
+    r.box(12, 5, 18, 0, 4, 0, 'dark', plate);
+    r.tube([0, 7, -3], [0, 12, 2], 1.5, 'dark', plate);
+    r.box(12, 4, 6, 0, 12, 2, 'rubber', plate);
   }
 }
 
@@ -182,26 +234,31 @@ function drawJoystick(r: RenderList, parent: ParentRef, x: number, y: number, z:
   r.sphere(0.7, x + 2, y + 19, z - 4, 'orange', parent);
 }
 
-function drawShifter(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  const { sign, x, z } = drivingMount(s);
-  const inner = x - sign * 3;
-  const outer = x + sign * 5;
-  r.box(20, 1, 30, x, s.hotasH, z, 'orange', parent);
-  if (s.shifter) {
-    r.box(10, 7, 12, inner, s.hotasH + 4, z - 5, 'dark', parent);
-    r.cylinder(0.8, 11, inner, s.hotasH + 13, z - 5, 'silver', parent);
-    r.sphere(2.8, inner, s.hotasH + 19, z - 5, 'dark', parent);
+/** The shifter plate, and each device drawn from where it stands, level with the plate. */
+function drawShifter(r: RenderList, parent: ParentRef, design: Design) {
+  const plate = partIn(design, 'shifter-plate');
+  r.box(20, 1, 30, 0, 0, 0, 'orange', plateCenter(r, parent, plate));
+  const levelWithPlate = (device: ResolvedPart) =>
+    groupOn(r, parent, device, { x: 0, y: -heightCm(plate) / 2, z: 0 });
+  const shifter = design.get('shifter');
+  if (shifter) {
+    const at = levelWithPlate(shifter);
+    r.box(10, 7, 12, 0, 4, 0, 'dark', at);
+    r.cylinder(0.8, 11, 0, 13, 0, 'silver', at);
+    r.sphere(2.8, 0, 19, 0, 'dark', at);
   }
-  if (s.handbrake) {
-    r.box(5, 5, 12, outer, s.hotasH + 3, z + 6, 'dark', parent);
-    r.tube([outer, s.hotasH + 5, z + 6], [outer, s.hotasH + 22, z + 10], 1.2, 'silver', parent);
-    r.tube([outer, s.hotasH + 16, z + 8], [outer, s.hotasH + 25, z + 11], 1.7, 'rubber', parent);
+  const handbrake = design.get('handbrake');
+  if (handbrake) {
+    const at = levelWithPlate(handbrake);
+    r.box(5, 5, 12, 0, 3, 0, 'dark', at);
+    r.tube([0, 5, 0], [0, 22, 4], 1.2, 'silver', at);
+    r.tube([0, 16, 2], [0, 25, 5], 1.7, 'rubber', at);
   }
 }
 
-function drawCenterStick(r: RenderList, parent: ParentRef, s: CockpitConfig) {
-  r.box(18, 0.8, 20, 0, s.stickH, s.stickZ, 'orange', parent);
-  drawJoystick(r, parent, 0, s.stickH + 1, s.stickZ);
+function drawCenterStick(r: RenderList, plate: ParentRef) {
+  r.box(18, 0.8, 20, 0, 0, 0, 'orange', plate);
+  drawJoystick(r, plate, 0, 1, 0);
 }
 
 /** A mannequin from the posture model, to check reach and clearances by eye. */

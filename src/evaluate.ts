@@ -706,6 +706,8 @@ export function evaluate(s: CockpitConfig) {
   ];
 
   return {
+    /** The CAD parts the design converts to, resolved, for the drawing. */
+    design,
     body: hasRig ? body : null,
     bodyCheck,
     designCheck,

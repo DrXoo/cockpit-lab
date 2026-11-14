@@ -60,10 +60,13 @@ test('two 40 × 80 rails run along the whole rig', () => {
 
 test('the pedal deck tilts towards the driver', () => {
   const { state, primitives } = draw({ pedalTilt: 20 });
-  const deck = ofKind(primitives, 'group').find(
-    (g) => g.position[1] === state.pedalH && g.position[2] === state.pedalZ,
+  const plate = ofKind(primitives, 'box').find(
+    (p) => p.size[0] === state.width - 8 && p.size[1] === 1.1 && p.size[2] === 38,
   );
+  const deck = ofKind(primitives, 'group').find((g) => g.id === plate.parent);
   assert.deepEqual(deck.rotation, [-degToRad(20), 0, 0]);
+  assert.ok(Math.abs(deck.position[1] - state.pedalH) < 1e-9);
+  assert.ok(Math.abs(deck.position[2] - state.pedalZ) < 1e-9);
 });
 
 test('the wheel rim is only drawn with a wheel', () => {
@@ -77,7 +80,8 @@ test('the shifter plate sits on the driving side', () => {
     const plate = ofKind(primitives, 'box').find(
       (p) => p.size[0] === 20 && p.size[1] === 1 && p.size[2] === 30,
     );
-    assert.equal(plate.position[0], drivingMount(state).x);
+    const group = ofKind(primitives, 'group').find((g) => g.id === plate.parent);
+    assert.ok(Math.abs(group.position[0] - drivingMount(state).x) < 1e-9);
   }
 });
 
