@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { contactPointsMm, cornersMm, resolveAssembly } from '../src/cad/assembly.ts';
+import { contactPointsMm, cornersMm, partPointMm, resolveAssembly } from '../src/cad/assembly.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 
@@ -346,5 +346,22 @@ test('plates and peripherals sit only on top of a face, and nothing hangs from a
   assert.throws(
     () => resolveAssembly([anchored, pedals(onTop('plate', 150)), onPedals]),
     /hang from peripheral/,
+  );
+});
+
+test('a point of a standing part is measured from its mounting origin, turned with it', () => {
+  const tiltedPlate = plate({ kind: 'anchor', startMm: { x: 0, y: 0, z: 0 }, tiltDeg: 90 });
+  const resolved = resolveAssembly([tiltedPlate]).get('plate');
+  const rounded = (point) =>
+    Object.fromEntries(Object.entries(point).map(([axis, value]) => [axis, Math.round(value) + 0]));
+  assert.deepEqual(rounded(partPointMm(resolved, { x: 0, y: 0, z: 0 })), { x: 0, y: 0, z: 0 });
+  assert.deepEqual(rounded(partPointMm(resolved, { x: 10, y: 5, z: 100 })), {
+    x: 10,
+    y: 100,
+    z: -5,
+  });
+  assert.throws(
+    () => partPointMm(resolveAssembly(frame()).get('left-rail'), { x: 0, y: 0, z: 0 }),
+    /profile/,
   );
 });

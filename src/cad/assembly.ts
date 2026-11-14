@@ -270,16 +270,26 @@ export function cornersMm(resolved: ResolvedPart): Vec3Mm[] {
 /** The contact points of a peripheral in cockpit coordinates; none for other parts. */
 export function contactPointsMm(resolved: ResolvedPart): { role: ContactRole; pointMm: Vec3Mm }[] {
   if (resolved.part.kind !== 'peripheral') return [];
+  return resolved.part.contactPoints.map(({ role, offsetMm }) => ({
+    role,
+    pointMm: partPointMm(resolved, offsetMm),
+  }));
+}
+
+/**
+ * The cockpit point at `offsetMm` from the mounting origin of a plate or peripheral, the center
+ * of its underside, measured in its frame.
+ */
+export function partPointMm(resolved: ResolvedPart, offsetMm: Vec3Mm): Vec3Mm {
+  if (resolved.part.kind !== 'plate' && resolved.part.kind !== 'peripheral')
+    throw new Error(`A ${resolved.part.kind} has no mounting origin to measure from.`);
   const { box, tiltDeg } = resolved;
   const origin = center(box);
   origin.y = box.min.y;
-  return resolved.part.contactPoints.map(({ role, offsetMm }) => ({
-    role,
-    pointMm: outOfTiltedFrame(
-      { x: origin.x + offsetMm.x, y: origin.y + offsetMm.y, z: origin.z + offsetMm.z },
-      tiltDeg,
-    ),
-  }));
+  return outOfTiltedFrame(
+    { x: origin.x + offsetMm.x, y: origin.y + offsetMm.y, z: origin.z + offsetMm.z },
+    tiltDeg,
+  );
 }
 
 /** The cockpit point at `offsetMm` from `pivotMm`, measured in a frame at `tiltDeg`. */
