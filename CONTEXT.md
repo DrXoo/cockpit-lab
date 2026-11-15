@@ -19,12 +19,12 @@ A cockpit defined on its own, with no knowledge of any room: its frame, seat, co
 _Avoid_: cockpit config, rig
 
 **Parametric cockpit**:
-A cockpit design described by its main dimensions, from which its parts are derived; the only kind of design until the CAD exists.
+A cockpit design of the earlier configurator, described by its main dimensions. It is retired: a project file that holds one opens with its room only, and the cockpit is designed again from parts.
 _Avoid_: simple cockpit, configurator cockpit
 
 **Base**:
-A ready-made starting point for a new cockpit design: GT, flight, hybrid or smallest footprint.
-_Avoid_: preset (in the UI), template, default
+A ready-made starting point of the earlier configurator (GT, flight, hybrid, smallest footprint). Retired with the **Parametric cockpit**; a new design starts empty.
+_Avoid_: preset, template, default
 
 **Driver**:
 The body a cockpit design is made for: stature and posture. It is part of the design.
@@ -39,6 +39,22 @@ A monitor mounted on the cockpit itself, as part of its design.
 _Avoid_: monitor stand (when the desk arm is meant)
 
 ### Cockpit parts
+
+**Design history**:
+The ordered list of **Operations** that builds a cockpit design. It is the design: its parts, joints and connectors are what replaying it gives.
+_Avoid_: timeline (except when quoting other CAD programs), log, undo stack
+
+**Operation**:
+One step of a **Design history**, with its own values, such as adding an anchored profile, growing one out of a face, making a span or putting connectors on a joint.
+_Avoid_: feature, action, event, command
+
+**History marker**:
+The point in the **Design history** the design is shown at; operations added while it is back go in at that point.
+_Avoid_: rollback bar, cursor
+
+**Failed operation**:
+An **Operation** that no longer applies when the history is replayed, because what it refers to changed or is gone. It stays in the history, marked, until the user fixes or removes it.
+_Avoid_: error, broken step
 
 **Part**:
 One physical piece of a cockpit design, with its own dimensions in mm: a profile, a plate or a peripheral.
@@ -57,7 +73,7 @@ A length of one profile section and system to cut; identical pieces are the same
 _Avoid_: piece, part (when the length to cut is meant)
 
 **Attachment**:
-Where a part hangs from another: a face of that part and a distance from one of its ends.
+Where a part hangs from another: a face of that part, a distance from one of its ends and an offset across the face. The part either grows out of the face or lies along it.
 _Avoid_: placement (that is the room's), parent, snap
 
 **Span**:
@@ -139,7 +155,7 @@ _Avoid_: wizard, onboarding
 - A **Project** has at most one **Cockpit design** and at most one **Room**. Either can be missing: a room without a cockpit and a cockpit without a room are both complete projects.
 - A **Room** includes the project's **Cockpit design** only after the user adds it to the room, and can leave it out again without changing the design. While the room includes it, every **Layout** places that same design; comparing two designs takes two projects.
 - Someone can design a cockpit and never create a room.
-- There is one kind of **Cockpit design**. When the CAD arrives, every **Parametric cockpit** is converted once into parts with the same dimensions, and each **Base** becomes a starting point for a CAD design.
+- There is one kind of **Cockpit design**, made of **Parts**. A **Parametric cockpit** is not converted: opening a file that holds one keeps its **Room** and leaves the cockpit out, for the user to design again.
 - A **Cockpit design** has exactly one **Driver**, and a **Cockpit file** carries it; whoever imports the file sees the cockpit as it was designed and adjusts the driver if needed.
 - A **Room** links to a **Cockpit design** of the same **Project**; it does not hold its own copy, so a change to the design shows in the room.
 - Exporting a **Project** takes everything in it. A **Cockpit file** takes only its cockpit design. Importing a cockpit file makes a copy of it the project's **Cockpit design**, replacing the one it had, and from then on the room links to that copy.
@@ -151,14 +167,18 @@ _Avoid_: wizard, onboarding
 - A **Cockpit design** may carry a **Fixed monitor**; the **Monitor arm** stays part of the room either way.
 - The **Driver**'s posture, and so the **Eye point**, follow from the **Contact points** of the **Peripherals** where the design mounts them; the driver has no positions of its own.
 - The **Driver** is fitted through the **Adjustments** of a cockpit design; anything else about the posture changes by editing **Parts**.
-- A **Cockpit design** made in the CAD starts from one or more **Anchored parts**; every other **Part** has exactly one **Attachment**, to a part that is anchored or attached in turn.
+- A **Cockpit design** is its **Design history**. Editing the size or position of a **Part** changes the values of the **Operation** that made it, and everything after it is replayed; undoing an edit is separate from the history and lasts only while the design is open.
+- A new **Cockpit design** starts empty, and its first **Part** is an **Anchored part**. A design starts from one or more **Anchored parts**; every other **Part** has exactly one **Attachment**, to a part that is anchored or attached in turn.
 - A **Span** takes its position from its **Attachment** and its length from the part it reaches. It never reaches a part that depends on it, so moving either part has one answer. If the faces stop facing each other, the span keeps its last length and reports the open end.
 - A **Peripheral** mounted on a **Plate** puts its **Mounting pattern** into the plate as holes that follow it; with an **Adjustment** on the plate, they become slots that cover its travel. A plate can have holes and slots of its own as well.
-- Every **Part** has a name, which is the user's data like a furniture name; interference and warnings name the part by it. The parts to buy group **Profiles** by **Cut** and list the names under each.
+- Every **Part** has a name, which is the user's data like a furniture name and may repeat; interference and warnings name the part by it. The parts to buy group **Profiles** by **Cut** and list the names under each.
 - Every **Attachment** and each end of a **Span** that meets its part make a **Joint**, except a **Foot**'s, which its own adapter fastens, and a **Peripheral**'s, bolted through its **Mounting pattern**; a peripheral is supported by the part it is mounted on. Parts that only touch make none until the user adds one. The parts to buy come from the resolved joints, and the unresolved ones are listed as pending.
 - Every **Profile** belongs to one **Profile system**, and a **Connector** fits the profile systems its data sheet names. Catalog dimensions say whether they come from a data sheet or were measured.
-- A **Joint** has zero or more **Connectors**; a connector belongs to exactly one joint and goes when the joint goes. Connectors take part in interference and in the parts to buy, with the **Fasteners** their type needs.
+- A **Joint** starts without **Connectors**, pending until the user fastens it, and can have several; a connector belongs to exactly one joint and goes when the joint goes. Connectors take part in interference and in the parts to buy, with the **Fasteners** their type needs.
 - A **Part** is supported when **Joints** connect it, through other parts, to one standing on **Feet**; an unsupported part is reported, not moved.
+- Removing a **Part** is an **Operation**: from that step on, the parts that hang from it are anchored where they are, a **Span** that reached it keeps its length and reports the open end, and the removed part's **Joints** and their **Connectors** go with it. Earlier in the history the part is still there.
+- Deleting an **Operation** takes what it made out of the whole history. Later operations that relied on it become **Failed operations**; the others still apply. A failed operation adds nothing to the design.
+- An **Attachment** stays on its parent's face: its distance from the end is never more than the parent's length.
 - Moving or lengthening a **Part** carries along every part attached to it, directly or through others. A part that only touches another, without hanging from it, does not move with it.
 - The **Room setup** does not design a cockpit. After it, the room has no cockpit until the user adds the project's design to it, designing one first if there is none.
 - A new **Project** starts from the cockpit or from the room, as the user chooses; the other can be added later.

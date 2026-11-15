@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0004
 ---
 
 # One kind of cockpit design: parametric cockpits become CAD parts

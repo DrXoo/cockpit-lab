@@ -4,9 +4,13 @@
 
 Design a compact sim racing and flight cockpit from editable parts: profiles, connectors, plates and peripherals with their own dimensions. The model must let you see the assembly, review interference and produce a traceable list of parts to buy and dimensioned drawings.
 
-The CAD is the cockpit editor: it edits the cockpit design on its own, and the room places that design in each layout (see [ADR 0001](adr/0001-room-links-to-the-project-cockpit-design.md)). The room needs two things from it: the volumes of its parts, named, for interference, and the driver's eye point. The CAD adds precision to the set of parts; geometric checks do not certify loads, stiffness or structural safety.
+The CAD is the cockpit editor and the heart of the product: it edits the cockpit design on its own, and the room places that design in each layout (see [ADR 0001](adr/0001-room-links-to-the-project-cockpit-design.md)). Until the mini CAD is complete, from the frame to the seat and the controls, a room cannot include the cockpit design ([ADR 0004](adr/0004-retire-the-parametric-cockpit-without-converting-it.md)). The room needs two things from it: the volumes of its parts, named, for interference, and the driver's eye point. The CAD adds precision to the set of parts; geometric checks do not certify loads, stiffness or structural safety.
 
 The terms used here (part, attachment, span, joint, connector, adjustment, contact point and others) are defined in [CONTEXT.md](../CONTEXT.md).
+
+## How a design is built
+
+A cockpit design is its design history: the ordered list of operations that builds it ([ADR 0005](adr/0005-a-cockpit-design-is-its-design-history.md)). A new design starts empty, and its first operation adds an anchored profile. Moving the history marker back shows the design at that step, and operations added there go in at that point; changing an earlier operation replays everything after it. An operation that no longer applies is marked as failed and kept, adding nothing, and the operations that depend on it fail too. Editing a part's size, position or name changes the operation that made it. Removing a part is an operation: from then on its children are anchored where they are and a span that reached it keeps its length with an open end. Deleting an operation takes what it made out of the whole history. Undo and redo step through the edits of the open session and are not saved.
 
 ## How parts are placed
 
@@ -18,7 +22,7 @@ Every attachment and each end of a span make a joint, unresolved until it has co
 
 ## The driver in the CAD
 
-Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate in its slots; the Posture tab shows the design's adjustments, and anything else about the posture changes by editing parts.
+Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate in its slots; the editor shows the design's adjustments, and anything else about the posture changes by editing parts.
 
 A peripheral mounted on a plate puts its mounting pattern into the plate as holes that follow it, and slots that cover the travel of an adjustment. The plate can have holes and slots of its own as well.
 
@@ -46,11 +50,9 @@ The parts to buy group profiles by cut, a section and system at one length, and 
 
 The code is TypeScript; interface and geometry libraries will be chosen in a separate technical stage. Three.js keeps drawing the scene. A 2D library can produce plate drawings; a full CAD kernel for STEP will be evaluated when that interoperability is needed.
 
-## From the parametric cockpit
+## The retired parametric cockpit
 
-Today's cockpit design is parametric, and its profiles are worked out three separate times: the cut list ([`src/parts.ts`](../src/parts.ts)), the drawing ([`src/render-rig.ts`](../src/render-rig.ts)) and the interference volumes ([`src/evaluate.ts`](../src/evaluate.ts)). The connectors are an estimate. [ADR 0002](adr/0002-one-kind-of-cockpit-design.md) converts every parametric design once into parts. The conversion reproduces the design as it is, even where it could not be built (seat posts that rest on no profile, pedal deck profiles that cross each other), and the CAD reports those as unsupported parts and interference for the user to fix.
-
-Until the CAD can do what the Frame tab does, the project keeps storing the parametric design, and the conversion runs every time as a view of it. The file format changes only when the parametric editor retires.
+The earlier configurator described a cockpit by its main dimensions. Stage 1 converted it into parts as a read-only view; [ADR 0004](adr/0004-retire-the-parametric-cockpit-without-converting-it.md) retires it instead of migrating it. Project files that hold one open with their room only; the cockpit is designed again from parts.
 
 ## Stages and acceptance criteria
 
@@ -62,11 +64,23 @@ Acceptance: the four bases and the end-to-end fixtures convert to the same profi
 
 Done in November 2026 (`src/cad/`). The conversion puts two 40 corner brackets on every joint, and the feet, peripheral envelopes, bracket fasteners and adjustment travels are estimates from the drawing until real parts are chosen; each says so in its data source. Every base reports the parts its parametric drawing left crossing or unsupported, for stage 2 to fix.
 
-### 2. Profile editor
+### 2. Profile editor on a design history
 
-Select profiles, grow one out of a face, perpendicular or parallel, make spans, extend a profile to the next face, move, lengthen, hang a part from another and delete. Add and remove connectors at joints. Numeric input, and undo/redo that restores the same identifiers and values. Saving and opening does not change the dimensions.
+Built in slices, each usable in the browser when it lands:
 
-When the editor does what the Frame tab does: format v5 stores the cockpit design as parts, cockpit files move to version 2, earlier files are converted once on opening, and the parametric editor retires.
+1. **Make room.** Delete the parametric cockpit: its settings, bases, conversion, rig drawing and the Frame and Posture tabs. Format v5 stores the room as v4 does and the cockpit design as its design history in mm; the first save over a v4 project first copies it aside, untouched. v1 to v4 files open with their room only, with a message; cockpit files move to version 2 and version 1 is rejected. A room cannot include the cockpit. The cockpit editor opens empty.
+2. **Minimal history.** The anchored profile operation, replaying the history, drawing its profiles, selecting a part in the view or in the history, and an inspector to edit its name, section, length and position with numbers. Undo and redo (Ctrl+Z, Ctrl+Y) of the session's edits.
+3. **Grow out of a face.** Click a face of the selected profile and set, with a preview, the section, perpendicular or parallel and which way, the length, the distance from either end, the offset across the face and the turn of the section. Perpendicular first, then parallel.
+4. **Reach a face.** Make the selected profile a span to the facing face of another part, and detach its end again, keeping its length.
+5. **The whole history.** The history marker to step back and insert, removing a part, deleting an operation, and failed operations marked with text and a symbol.
+6. **Assembly.** Join two parts that only touch, add and remove connectors at each joint (a new joint has none; a quick action puts two corner brackets along the part it meets), feet under profiles, the checks (interference, unsupported parts, pending joints, failed operations) and the parts to buy.
+7. **Measure.** The selected part shows its length in the view; a measure tool gives the gap between two facing faces, or the X, Y and Z offsets between two clicked points. Measurements are not saved.
+
+The editor shows the history on the left, the view with its tools in the middle (3D, top and side, all of them for picking) and the inspector with the checks and the parts to buy on the right. Editing needs a wide screen; on a phone the design can be looked at.
+
+Acceptance: replaying a saved history gives the same parts, identifiers and dimensions; undo and redo restore the same identifiers and values; removing parts and deleting operations with parts that depend on them is covered by tests of each case (children re-anchored, spans left open, joints and connectors gone, dependent operations failed, independent ones kept). The A–B–C case: B grows out of A and reaches C, and moving C changes B's length.
+
+Plates, the seat and the driver, the wheel, the pedals and the other peripherals come in the following stages. When the mini CAD is complete, the room can include the cockpit design again.
 
 ### 3. Plates and holes
 

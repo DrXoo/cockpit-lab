@@ -15,7 +15,7 @@ Cockpit Lab is a self-hosted web app for designing compact aluminium-profile coc
 - A new or changed screenshot test needs a clean `npm run test:e2e:stress` before it is committed. When an end-to-end test fails now and then, run the stress command first and fix every cause it lists, instead of one failure at a time.
 - The end-to-end tests compare the rendering and the panel text with local references (`e2e/__screenshots__/`, not committed). A refactor must pass them without updating the references. Update them (`--update-snapshots`) only for an intended change, after reviewing the differences.
 - In end-to-end tests, select elements by id, data attribute or role, never by visible text, so they survive the translation of the UI.
-- Preserve the existing configurator's functionality while the CAD evolves.
+- The parametric cockpit is retired without conversion (docs/adr/0004). Keep the room's features working while the CAD evolves.
 
 ## Test-driven development
 
@@ -65,7 +65,7 @@ These principles serve readability and change. Don't add abstractions, layers or
 
 ## Domain rules
 
-- Current JSON files use cm. Format v4 records the units explicitly and stores the cockpit design apart from the room and every layout; v1, v2 and v3 files are still imported. The CAD model will use mm with a versioned schema and an explicit adapter. Keep importing older files.
+- Rooms are stored in cm. Format v4 records the units explicitly and stores the cockpit design apart from the room and every layout. Format v5 stores the cockpit design as its design history in mm (docs/adr/0005). Files from v1 to v4 still open with their room; their parametric cockpit is left out. Keep importing older rooms.
 - Coordinate system: +Y is up, +Z is the front of the cockpit and −X is the pilot's right. Make conversions explicit if you introduce another convention.
 - CAD quantities and dimensions must come from the parts and joints model. Never derive them from rendered meshes or rough multipliers.
 - Store a peripheral's envelope, its mounting points and the source of its measurements separately. Don't scale mounting holes when resizing a housing.
