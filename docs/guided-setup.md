@@ -2,7 +2,7 @@
 
 A new project starts without a confirmed room, desk, cockpit or accessories. **New project** asks where to start: with the cockpit, which opens the Cockpit editor with an empty design, or with the room, which opens this setup. The first step of the setup also offers **Start with the cockpit** to someone who only designs a cockpit; the room setup then waits at its first step until the Room editor is opened. The first screen of the setup asks for the inside width and depth, in cm. The starting height of 250 cm is shown as an editable reference. The room is not drawn until its dimensions are confirmed.
 
-The room setup has four steps: room, doors and windows, existing furniture and desk. You can go back to the steps you visited and keep the items and their positions. "Add later" records a deferred step; "I don't need a desk" lets you go on without a desk. The setup does not design a cockpit: after it, the room has no cockpit until the project's design is added to it from **Room → Cockpit**, designing one first in the Cockpit editor if there is none. Progress saved when the setup still had a fifth cockpit step opens without it: a project at that step opens with the setup complete, and a cockpit deferred there is no longer pending.
+The room setup has four steps: room, doors and windows, existing furniture and desk. You can go back to the steps you visited and keep the items and their positions. "Add later" records a deferred step; "I don't need a desk" lets you go on without a desk. The setup does not design a cockpit: the cockpit is designed in the Cockpit editor, and until the mini CAD is complete the room does not include it (`docs/adr/0004-retire-the-parametric-cockpit-without-converting-it.md`). Progress saved when the setup still had a fifth cockpit step opens without it: a project at that step opens with the setup complete, and a cockpit deferred there is no longer pending.
 
 A desk's dimensions are entered before it is added. The monitor and arm, keyboard, PC, mouse and desk mat are turned on one by one. The limits of the current configurator still apply: a 120–200 × 60–80 cm desktop, a height of 66–131 cm and reference legs 66 cm deep. This is not a catalog of real desks.
 
@@ -12,7 +12,7 @@ In step 4, the "Item to move" selector picks the whole desk or any of its active
 
 New floor furniture and the desk start in the middle of the room so that the user can arrange them; that position is not presented as a valid solution. Wall shelves start centered on wall AB, with their bottom 140 cm above the floor, as an editable reference. Interference is checked again while dragging or typing coordinates. A project can be finished with warnings, which stay visible.
 
-When you finish, the room editor opens, organized as Room, Furniture, Desk and Cockpit. The cockpit design and its posture are adjusted in the Cockpit editor. On narrow screens you switch between Design, Settings and Checks. The page fills the window; long controls scroll inside their panel.
+When you finish, the room editor opens, organized as Room, Furniture and Desk. The cockpit design is edited in the Cockpit editor. On narrow screens you switch between Design, Settings and Checks. The page fills the window; long controls scroll inside their panel.
 
 ## Wall shelves
 
