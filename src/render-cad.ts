@@ -11,6 +11,8 @@ import { MM_PER_CM } from './units.ts';
 export interface CockpitDrawing {
   resolved: ReadonlyMap<string, ResolvedPart>;
   selectedPartId: string | null;
+  /** A part about to be added, drawn as a preview. */
+  previewPartId?: string | null;
 }
 
 /** Grooves stop this much short of the profile length. */
@@ -28,6 +30,7 @@ export function drawCadProfiles(
   parent: ParentRef,
   resolved: ReadonlyMap<string, ResolvedPart>,
   selectedId: string | null = null,
+  previewId: string | null = null,
 ): void {
   const tiltGroups = new Map<number, ParentRef>();
   const frameOf = (tiltDeg: number): ParentRef => {
@@ -52,7 +55,7 @@ export function drawCadProfiles(
       cm((box.min.x + box.max.x) / 2),
       cm((box.min.y + box.max.y) / 2),
       cm((box.min.z + box.max.z) / 2),
-      part.id === selectedId ? 'selected' : 'silver',
+      part.id === previewId ? 'preview' : part.id === selectedId ? 'selected' : 'silver',
       frameOf(tiltDeg),
       true,
     );

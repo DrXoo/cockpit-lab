@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { designData, emptyDesign, readDesign } from '../src/cockpit-design.ts';
-import { addAnchoredProfile, editProfile } from '../src/cad/history.ts';
+import { addAnchoredProfile, addOperation, draftGrowth, editProfile } from '../src/cad/history.ts';
 
 const designWith = (count) => {
   let history = [];
@@ -70,5 +70,31 @@ test('a history that repeats an identifier is rejected', () => {
     () =>
       readDesign({ ...data, history: [data.history[0], { ...data.history[1], partId: 'part-1' }] }),
     /part-1/,
+  );
+});
+
+const withGrowth = () => {
+  const { history } = designWith(1);
+  return { history: addOperation(history, draftGrowth(history, 'part-1')) };
+};
+
+test('a profile grown out of another reads back with its place on the face', () => {
+  const design = withGrowth();
+  assert.deepEqual(readDesign(stored(design)), design);
+});
+
+test('a growth must come after the part it grows from and stay on its face', () => {
+  const data = stored(withGrowth());
+  const [rail, growth] = data.history;
+  assert.throws(() => readDesign({ ...data, history: [growth, rail] }), /part-1/);
+  assert.throws(
+    () => readDesign({ ...data, history: [rail, { ...growth, alongMm: 600 }] }),
+    /hang off/,
+  );
+  assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, face: 'up' }] }), /face/);
+  assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, way: 'in' }] }), /way/);
+  assert.throws(
+    () => readDesign({ ...data, history: [rail, { ...growth, startMm: { x: 0, y: 0, z: 0 } }] }),
+    /startMm/,
   );
 });

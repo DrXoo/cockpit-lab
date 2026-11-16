@@ -1,14 +1,20 @@
 // The cockpit editor's panels: the design history on the left, with the tools that add to it,
 // and the inspector of the selected part on the right. The design is shown on its own, in an
 // empty workspace without any room. Cockpit files are imported from the actions above the panel.
-import type { Axis } from './cad/assembly.ts';
+import { faceAxis, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
 import { profileSection, profileSystem } from './cad/catalog.ts';
 import {
+  FACES,
+  lengthAxisOf,
   MAX_PART_NAME_LENGTH,
   MAX_POSITION_MM,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
+  operationMaking,
+  type AddAnchoredProfile,
+  type GrowProfile,
   type Operation,
+  type ParentEnd,
   type ProfileValues,
 } from './cad/history.ts';
 import { defaults, type RoomConfig } from './config.ts';
@@ -39,7 +45,18 @@ export interface DesignPanel {
 
 /** The fields of the inspector, as the markup names them in `data-part-field`. */
 export type PartField =
-  'name' | 'sectionId' | 'axis' | 'heightAxis' | 'lengthMm' | 'startX' | 'startY' | 'startZ';
+  | 'name'
+  | 'sectionId'
+  | 'axis'
+  | 'heightAxis'
+  | 'lengthMm'
+  | 'startX'
+  | 'startY'
+  | 'startZ'
+  | 'face'
+  | 'fromEnd'
+  | 'alongMm'
+  | 'acrossMm';
 
 const AXIS_NAMES: Record<Axis, string> = {
   x: 'Across (X)',
@@ -48,6 +65,31 @@ const AXIS_NAMES: Record<Axis, string> = {
 };
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
 const START_FIELDS: Record<Axis, PartField> = { x: 'startX', y: 'startY', z: 'startZ' };
+
+/** The faces of a part as the driver sees them: +Y is up, +Z the front, −X the driver's right. */
+const SIDE_FACE_NAMES: Record<Face, string> = {
+  '+y': 'Top (+Y)',
+  '-y': 'Underside (−Y)',
+  '+x': 'Left side (+X)',
+  '-x': 'Right side (−X)',
+  '+z': 'Front (+Z)',
+  '-z': 'Back (−Z)',
+};
+/** The faces at the ends of a profile, named for the end they close. */
+const END_FACE_NAMES: Record<Face, string> = {
+  '+y': 'Top end (+Y)',
+  '-y': 'Bottom end (−Y)',
+  '+x': 'Left end (+X)',
+  '-x': 'Right end (−X)',
+  '+z': 'Front end (+Z)',
+  '-z': 'Back end (−Z)',
+};
+/** The ends of a profile along each axis: its start has the lower coordinate. */
+const END_NAMES: Record<Axis, Record<ParentEnd, string>> = {
+  x: { start: 'Right end (−X)', end: 'Left end (+X)' },
+  y: { start: 'Bottom end', end: 'Top end' },
+  z: { start: 'Back end', end: 'Front end' },
+};
 
 const sectionName = (widthMm: number, heightMm: number) => `${widthMm} × ${heightMm}`;
 
@@ -58,34 +100,96 @@ export function designPanelHTML(panel: DesignPanel): string {
   if (panel.history.length === 0)
     return `<div class="control-group" id="emptyDesign"><h3 class="group-title">A design built from parts</h3>${editTools}<p class="layout-hint">A cockpit design is the list of steps that builds it from aluminium profiles, plates and peripherals. New designs start empty: add a profile to start.</p><p class="layout-hint">Cockpits of the earlier configurator are not converted: design them again from parts.</p>${addProfile}</div>`;
   const steps = panel.history
-    .map((operation, index) => historyStepHTML(operation, index, panel.selectedPartId))
+    .map((operation, index) => historyStepHTML(panel.history, index, panel.selectedPartId))
     .join('');
-  return `<div class="control-group" id="designHistory"><h3 class="group-title">Design history<span>${panel.history.length} ${panel.history.length === 1 ? 'step' : 'steps'}</span></h3>${editTools}<ol class="history-list">${steps}</ol>${addProfile}<p class="layout-hint">Select a part here or in the view to edit it in the inspector.</p></div>`;
+  return `<div class="control-group" id="designHistory"><h3 class="group-title">Design history<span>${panel.history.length} ${panel.history.length === 1 ? 'step' : 'steps'}</span></h3>${editTools}<ol class="history-list">${steps}</ol>${addProfile}<p class="layout-hint">Select a part here or in the view to edit it in the inspector. Grow new profiles out of its faces from there.</p></div>`;
 }
 
-function historyStepHTML(operation: Operation, index: number, selectedPartId: string | null) {
+function historyStepHTML(
+  history: readonly Operation[],
+  index: number,
+  selectedPartId: string | null,
+) {
+  const operation = history[index];
   const selected = operation.partId === selectedPartId;
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
-  const detail = `Anchored profile · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
+  const made =
+    operation.kind === 'add-anchored-profile'
+      ? 'Anchored profile'
+      : `Grown out of ${escapeHTML(parentName(history, operation))}`;
+  const detail = `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
   return `<li><button class="history-step" data-part="${escapeHTML(operation.partId)}" aria-pressed="${selected}"><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(operation.name)}</strong><small>${detail}</small></span></button></li>`;
 }
 
+const parentName = (history: readonly Operation[], growth: GrowProfile): string =>
+  operationMaking(history, growth.parentId)?.name ?? growth.parentId;
+
 /** The inspector of the selected part: the values of the operation that made it. */
-export function partInspectorHTML(operation: Operation | undefined): string {
+export function partInspectorHTML(
+  history: readonly Operation[],
+  operation: Operation | undefined,
+): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
+  return `<div class="part-inspector" id="partInspectorFields">${profileFieldsHTML('part', history, operation)}<button class="button button-light history-add" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button></div>`;
+}
+
+/** The panel of a profile about to grow out of another, shown in the view as a preview. */
+export function growPanelHTML(history: readonly Operation[], draft: GrowProfile): string {
+  return `<div class="part-inspector" id="growPanel"><p class="layout-hint">A new profile growing out of <strong>${escapeHTML(parentName(history, draft))}</strong>. Click a face of it in the view, or choose one here.</p>${profileFieldsHTML('grow', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmGrowth">Add the profile</button><button class="button button-light" id="cancelGrowth">Cancel</button></div></div>`;
+}
+
+/** The fields of a profile's operation; `prefix` keeps the ids of two panels apart. */
+function profileFieldsHTML(prefix: string, history: readonly Operation[], operation: Operation) {
+  const fields = new FieldTemplates(prefix);
   const system = profileSystem(operation.systemId);
   const section = profileSection(system, operation.sectionId);
   const sections = system.sections.map((option): [string, string] => [
     option.id,
     sectionName(option.widthMm, option.heightMm),
   ]);
-  const lengthAxes = AXES.map((axis): [string, string] => [axis, AXIS_NAMES[axis]]);
-  const heightAxes = AXES.filter((axis) => axis !== operation.axis).map(
-    (axis): [string, string] => [axis, AXIS_NAMES[axis]],
+  const lengthAxis = lengthAxisOf(operation);
+  const heightAxes = AXES.filter((axis) => axis !== lengthAxis).map((axis): [string, string] => [
+    axis,
+    AXIS_NAMES[axis],
+  ]);
+  const name = `<div class="room-name"><label for="${prefix}-name">Name</label><input id="${prefix}-name" data-part-field="name" value="${escapeHTML(operation.name)}" maxlength="${MAX_PART_NAME_LENGTH}"></div>`;
+  const longSide =
+    section.widthMm === section.heightMm
+      ? ''
+      : fields.select(
+          'heightAxis',
+          'Long side of the section along',
+          heightAxes,
+          operation.heightAxis,
+        );
+  const length = fields.number(
+    'lengthMm',
+    'Length',
+    operation.lengthMm,
+    MIN_PROFILE_LENGTH_MM,
+    MAX_PROFILE_LENGTH_MM,
   );
-  const startFields = AXES.map((axis) =>
-    numberHTML(
+  const placement =
+    operation.kind === 'add-anchored-profile'
+      ? anchoredPlacementHTML(fields, operation)
+      : grownPlacementHTML(fields, history, operation);
+  return `${name}${fields.select('sectionId', 'Section', sections, operation.sectionId)}${placement.before}${longSide}${length}${placement.after}`;
+}
+
+interface PlacementHTML {
+  /** Fields that decide the length axis, shown before the section's long side. */
+  before: string;
+  after: string;
+}
+
+function anchoredPlacementHTML(
+  fields: FieldTemplates,
+  operation: AddAnchoredProfile,
+): PlacementHTML {
+  const lengthAxes = AXES.map((axis): [string, string] => [axis, AXIS_NAMES[axis]]);
+  const starts = AXES.map((axis) =>
+    fields.number(
       START_FIELDS[axis],
       `Start ${axis.toUpperCase()}`,
       operation.startMm[axis],
@@ -93,30 +197,64 @@ export function partInspectorHTML(operation: Operation | undefined): string {
       MAX_POSITION_MM,
     ),
   ).join('');
-  return `<div class="part-inspector" id="partInspectorFields"><div class="room-name"><label for="part-name">Name</label><input id="part-name" data-part-field="name" value="${escapeHTML(operation.name)}" maxlength="${MAX_PART_NAME_LENGTH}"></div>${selectHTML('sectionId', 'Section', sections, operation.sectionId)}${selectHTML('axis', 'Runs along', lengthAxes, operation.axis)}${
-    section.widthMm === section.heightMm
-      ? ''
-      : selectHTML('heightAxis', 'Long side of the section along', heightAxes, operation.heightAxis)
-  }${numberHTML('lengthMm', 'Length', operation.lengthMm, MIN_PROFILE_LENGTH_MM, MAX_PROFILE_LENGTH_MM)}${startFields}<p class="layout-hint">The start is the center of the profile's end with the lower coordinate, measured from the cockpit origin. +Y is up, +Z the front, −X the driver's right.</p></div>`;
+  return {
+    before: fields.select('axis', 'Runs along', lengthAxes, operation.axis),
+    after: `${starts}<p class="layout-hint">The start is the center of the profile's end with the lower coordinate, measured from the cockpit origin. +Y is up, +Z the front, −X the driver's right.</p>`,
+  };
 }
 
-function selectHTML(
-  field: PartField,
-  label: string,
-  options: readonly [value: string, text: string][],
-  value: string,
-): string {
-  const choices = options
-    .map(
-      ([option, text]) =>
-        `<option value="${option}"${option === value ? ' selected' : ''}>${text}</option>`,
-    )
-    .join('');
-  return `<div class="select-control"><label for="part-${field}">${label}</label><select id="part-${field}" data-part-field="${field}">${choices}</select></div>`;
+function grownPlacementHTML(
+  fields: FieldTemplates,
+  history: readonly Operation[],
+  growth: GrowProfile,
+): PlacementHTML {
+  const parent = operationMaking(history, growth.parentId);
+  const parentAxis = parent ? lengthAxisOf(parent) : 'z';
+  const faces = FACES.map((face): [string, string] => [
+    face,
+    faceAxis(face) === parentAxis ? END_FACE_NAMES[face] : SIDE_FACE_NAMES[face],
+  ]);
+  const parentLine = `<p class="part-parent">Grows out of <strong>${escapeHTML(parentName(history, growth))}</strong></p>`;
+  const onAnEnd = faceAxis(growth.face) === parentAxis;
+  const ends = (['start', 'end'] as const).map((end): [string, string] => [
+    end,
+    END_NAMES[parentAxis][end],
+  ]);
+  const onTheSide = onAnEnd
+    ? '<p class="layout-hint">Out of an end face it grows from the center of the end.</p>'
+    : `${fields.select('fromEnd', 'Measured from', ends, growth.fromEnd)}${fields.number('alongMm', 'Distance from that end', growth.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', growth.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
+  return {
+    before: `${parentLine}${fields.select('face', 'Grows out of the face', faces, growth.face)}${onTheSide}`,
+    after: '',
+  };
 }
 
-function numberHTML(field: PartField, label: string, valueMm: number, min: number, max: number) {
-  return `<div class="control"><div class="control-top"><label for="part-${field}">${label}</label><div class="number-wrap"><input id="part-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"><span>mm</span></div></div></div>`;
+/** Labelled controls whose ids start with one prefix. */
+class FieldTemplates {
+  declare prefix: string;
+
+  constructor(prefix: string) {
+    this.prefix = prefix;
+  }
+
+  select(
+    field: PartField,
+    label: string,
+    options: readonly [value: string, text: string][],
+    value: string,
+  ): string {
+    const choices = options
+      .map(
+        ([option, text]) =>
+          `<option value="${option}"${option === value ? ' selected' : ''}>${text}</option>`,
+      )
+      .join('');
+    return `<div class="select-control"><label for="${this.prefix}-${field}">${label}</label><select id="${this.prefix}-${field}" data-part-field="${field}">${choices}</select></div>`;
+  }
+
+  number(field: PartField, label: string, valueMm: number, min: number, max: number): string {
+    return `<div class="control"><div class="control-top"><label for="${this.prefix}-${field}">${label}</label><div class="number-wrap"><input id="${this.prefix}-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"><span>mm</span></div></div></div>`;
+  }
 }
 
 const PART_FIELDS: readonly PartField[] = [
@@ -128,6 +266,10 @@ const PART_FIELDS: readonly PartField[] = [
   'startX',
   'startY',
   'startZ',
+  'face',
+  'fromEnd',
+  'alongMm',
+  'acrossMm',
 ];
 
 /** The inspector field a `data-part-field` names. The markup is the app's, so others are bugs. */
@@ -141,6 +283,17 @@ function axisOf(value: string): Axis {
   const axis = AXES.find((known) => known === value);
   if (!axis) throw new Error(`Unknown axis: ${value}`);
   return axis;
+}
+
+function faceOf(value: string): Face {
+  const face = FACES.find((known) => known === value);
+  if (!face) throw new Error(`Unknown face: ${value}`);
+  return face;
+}
+
+function endOf(value: string): ParentEnd {
+  if (value !== 'start' && value !== 'end') throw new Error(`Unknown end: ${value}`);
+  return value;
 }
 
 /** A typed number; a blank field is no number, for the design to reject with its reason. */
@@ -163,11 +316,24 @@ export function partChange(
       return { heightAxis: axisOf(value) };
     case 'lengthMm':
       return { lengthMm: typedNumber(value) };
+    case 'face':
+      return { face: faceOf(value) };
+    case 'fromEnd':
+      return { fromEnd: endOf(value) };
+    case 'alongMm':
+      return { alongMm: typedNumber(value) };
+    case 'acrossMm':
+      return { acrossMm: typedNumber(value) };
     case 'startX':
-      return { startMm: { ...operation.startMm, x: typedNumber(value) } };
     case 'startY':
-      return { startMm: { ...operation.startMm, y: typedNumber(value) } };
     case 'startZ':
-      return { startMm: { ...operation.startMm, z: typedNumber(value) } };
+      return { startMm: changedStart(operation, field, typedNumber(value)) };
   }
+}
+
+function changedStart(operation: Operation, field: PartField, valueMm: number): Vec3Mm {
+  if (operation.kind !== 'add-anchored-profile')
+    throw new Error(`${operation.name} has no start of its own`);
+  const axis = AXES.find((candidate) => START_FIELDS[candidate] === field) ?? 'x';
+  return { ...operation.startMm, [axis]: valueMm };
 }

@@ -19,13 +19,15 @@ const profile = (id, changes) => ({
   ...changes,
 });
 
-const draw = (parts, selectedId = null) => {
+const draw = (parts, selectedId = null, previewId = null) => {
   const r = createRenderList();
-  drawCadProfiles(r, ROOT, resolveAssembly(parts), selectedId);
+  drawCadProfiles(r, ROOT, resolveAssembly(parts), selectedId, previewId);
   return r.primitives;
 };
 const bars = (primitives) =>
-  primitives.filter((p) => p.kind === 'box' && ['silver', 'selected'].includes(p.material));
+  primitives.filter(
+    (p) => p.kind === 'box' && ['silver', 'selected', 'preview'].includes(p.material),
+  );
 const groovesOf = (primitives, bar) =>
   primitives.filter((p) => p.kind === 'box' && p.material === 'groove' && p.parent === bar.id);
 
@@ -99,4 +101,13 @@ test('feet, plates and peripherals are not drawn as profiles', () => {
     placement: { kind: 'attachment', parentId: 'rail', face: '-y', alongMm: 0, fromEnd: 'start' },
   };
   assert.equal(bars(draw([profile('rail'), foot])).length, 1);
+});
+
+test('a part about to be added is drawn as a preview', () => {
+  const later = profile('b', { placement: { kind: 'anchor', startMm: { x: 300, y: 100, z: 0 } } });
+  const primitives = draw([profile('a'), later], 'a', 'b');
+  assert.deepEqual(
+    bars(primitives).map((bar) => bar.material),
+    ['selected', 'preview'],
+  );
 });

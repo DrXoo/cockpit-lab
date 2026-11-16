@@ -131,7 +131,8 @@ export interface ResolvedPart {
 
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
 
-const faceAxis = (face: Face): Axis => face[1] as Axis;
+/** The axis a face looks along. */
+export const faceAxis = (face: Face): Axis => (face[1] === 'x' ? 'x' : face[1] === 'y' ? 'y' : 'z');
 const faceSign = (face: Face): 1 | -1 => (face[0] === '+' ? 1 : -1);
 
 /** Resolves every part's box, parents first. Fails on missing parts and dependency loops. */

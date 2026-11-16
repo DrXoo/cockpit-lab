@@ -172,3 +172,54 @@ test('the side view belongs to the cockpit editor', async ({ page }) => {
   await expect(page.locator('[data-view="side"]')).toBeHidden();
   await expect(page.locator('[data-view="side"]')).toHaveAttribute('aria-pressed', 'false');
 });
+
+test('a profile grows out of the selected one, previewed until it is added', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await expect(page.locator('#growPanel')).toBeVisible();
+  await page.locator('#grow-face').selectOption('+x');
+  await page.locator('#grow-lengthMm').fill('300');
+  await page.locator('#grow-lengthMm').press('Enter');
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  await page.locator('#confirmGrowth').click();
+  await expect(page.locator('#growPanel')).toBeHidden();
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'grow-profile', parentId: 'part-1', face: '+x', lengthMm: 300 });
+  await expect(page.locator('#part-face')).toHaveValue('+x');
+  await expect(page.locator('#part-startX')).toHaveCount(0);
+});
+
+test('Escape or Cancel leaves the design as it was', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#growPanel')).toBeHidden();
+  await page.locator('#growProfile').click();
+  await page.locator('#cancelGrowth').click();
+  await expect(page.locator('#growPanel')).toBeHidden();
+  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#designHistory [data-part]')).toHaveCount(1);
+});
+
+test('clicking a face of the parent grows the profile from there', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('[data-view="side"]').click();
+  await page.locator('#growProfile').click();
+  await expect(page.locator('#grow-face')).toHaveValue('+y');
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('#grow-face')).toHaveValue('-x');
+  await expect(page.locator('#growPanel')).toBeVisible();
+});
+
+test('a part cannot change so that what grows out of it would hang off', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#part-lengthMm').fill('100');
+  await page.locator('#part-lengthMm').press('Enter');
+  await expect(page.locator('#toast')).toHaveClass(/visible/);
+  await expect(page.locator('#part-lengthMm')).toHaveValue('500');
+});

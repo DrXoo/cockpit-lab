@@ -1,0 +1,154 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  addAnchoredProfile,
+  addOperation,
+  draftGrowth,
+  editDraft,
+  editProfile,
+  growthAt,
+  replayHistory,
+} from '../src/cad/history.ts';
+import { resolveAssembly } from '../src/cad/assembly.ts';
+
+/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor. */
+const railHistory = () => {
+  const { history, partId } = addAnchoredProfile([]);
+  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
+};
+const grow = (history, parentId, changes = {}) => {
+  const draft = editDraft(history, draftGrowth(history, parentId), changes);
+  return addOperation(history, draft);
+};
+const boxOf = (history, partId) => resolveAssembly(replayHistory(history)).get(partId).box;
+
+test('a profile grows out of a face of another, perpendicular, where its distance puts it', () => {
+  const history = grow(railHistory(), 'part-1', {
+    face: '+y',
+    fromEnd: 'start',
+    alongMm: 100,
+    lengthMm: 300,
+  });
+  assert.equal(history[1].kind, 'grow-profile');
+  assert.equal(history[1].partId, 'part-2');
+  assert.deepEqual(boxOf(history, 'part-2'), {
+    min: { x: -20, y: 40, z: 80 },
+    max: { x: 20, y: 340, z: 120 },
+  });
+});
+
+test('the distance is measured from either end, and the offset moves it across the face', () => {
+  const history = grow(railHistory(), 'part-1', {
+    face: '+x',
+    fromEnd: 'end',
+    alongMm: 200,
+    acrossMm: 10,
+    lengthMm: 300,
+  });
+  assert.deepEqual(boxOf(history, 'part-2'), {
+    min: { x: 20, y: 10, z: 780 },
+    max: { x: 320, y: 50, z: 820 },
+  });
+});
+
+test('a profile grown out of an underside hangs down, and out of an end it carries on', () => {
+  const down = grow(railHistory(), 'part-1', { face: '-y', alongMm: 500, lengthMm: 100 });
+  assert.deepEqual(boxOf(down, 'part-2').min.y, -100);
+  assert.deepEqual(boxOf(down, 'part-2').max.y, 0);
+  const onwards = grow(railHistory(), 'part-1', { face: '+z', lengthMm: 200 });
+  assert.deepEqual(boxOf(onwards, 'part-2'), {
+    min: { x: -20, y: 0, z: 1000 },
+    max: { x: 20, y: 40, z: 1200 },
+  });
+});
+
+test('a new growth starts from the middle of the top, or of the front of an upright', () => {
+  const draft = draftGrowth(railHistory(), 'part-1');
+  assert.deepEqual(
+    {
+      kind: draft.kind,
+      id: draft.id,
+      partId: draft.partId,
+      parentId: draft.parentId,
+      name: draft.name,
+      sectionId: draft.sectionId,
+      face: draft.face,
+      fromEnd: draft.fromEnd,
+      alongMm: draft.alongMm,
+      acrossMm: draft.acrossMm,
+      way: draft.way,
+      lengthMm: draft.lengthMm,
+    },
+    {
+      kind: 'grow-profile',
+      id: 'op-2',
+      partId: 'part-2',
+      parentId: 'part-1',
+      name: '40 × 40 profile 2',
+      sectionId: '40x40',
+      face: '+y',
+      fromEnd: 'start',
+      alongMm: 500,
+      acrossMm: 0,
+      way: 'out',
+      lengthMm: 500,
+    },
+  );
+  const upright = editProfile(railHistory(), 'part-1', { axis: 'y' });
+  assert.equal(draftGrowth(upright, 'part-1').face, '+z');
+});
+
+test('moving or lengthening a part carries along what grows out of it', () => {
+  const history = grow(railHistory(), 'part-1', { fromEnd: 'end', alongMm: 100, lengthMm: 300 });
+  const moved = editProfile(history, 'part-1', { startMm: { x: 100, y: 20, z: 50 } });
+  assert.deepEqual(boxOf(moved, 'part-2').min, { x: 80, y: 40, z: 930 });
+  const longer = editProfile(history, 'part-1', { lengthMm: 1500 });
+  assert.deepEqual(boxOf(longer, 'part-2').min.z, 1380);
+});
+
+test('a grown profile edits its place on the face rather than a position of its own', () => {
+  const history = grow(railHistory(), 'part-1', { lengthMm: 300 });
+  const edited = editProfile(history, 'part-2', { alongMm: 250, acrossMm: -5, lengthMm: 400 });
+  assert.deepEqual(boxOf(edited, 'part-2'), {
+    min: { x: -25, y: 40, z: 230 },
+    max: { x: 15, y: 440, z: 270 },
+  });
+  assert.throws(() => editProfile(history, 'part-2', { startMm: { x: 0, y: 0, z: 0 } }), /Rail/);
+  assert.throws(() => editProfile(history, 'part-2', { axis: 'x' }), /Rail/);
+});
+
+test('moving a growth to another face turns its section when it has to', () => {
+  let history = grow(railHistory(), 'part-1', { sectionId: '40x80', heightAxis: 'x' });
+  history = editProfile(history, 'part-2', { face: '+x' });
+  assert.equal(history[1].heightAxis, 'y');
+  const onEnd = editProfile(history, 'part-2', { face: '-z' });
+  assert.equal(onEnd[1].alongMm, 0, 'an end face has a single place to grow from: its center');
+  assert.equal(onEnd[1].acrossMm, 0);
+});
+
+test('a growth must stay on its parent face, and its parent cannot leave it hanging', () => {
+  const history = grow(railHistory(), 'part-1', { fromEnd: 'start', alongMm: 900 });
+  assert.throws(() => editProfile(history, 'part-2', { alongMm: 1001 }), /Rail/);
+  assert.throws(() => editProfile(history, 'part-2', { acrossMm: 21 }), /Rail/);
+  assert.throws(() => editProfile(history, 'part-2', { alongMm: -1 }), /distance/);
+  assert.throws(
+    () => editProfile(history, 'part-1', { lengthMm: 800 }),
+    /40 × 40 profile 2.*Rail|Rail.*40 × 40 profile 2/,
+  );
+  assert.throws(() => editProfile(history, 'part-2', { face: '+w' }), /face/);
+  assert.throws(() => grow(railHistory(), 'part-7'), /part-7/);
+});
+
+test('a click on a face of the parent puts the growth there, measured from the nearer end', () => {
+  const history = railHistory();
+  const draft = draftGrowth(history, 'part-1');
+  const nearStart = growthAt(history, draft, '+x', { x: 20, y: 30, z: 120.4 });
+  assert.equal(nearStart.face, '+x');
+  assert.equal(nearStart.fromEnd, 'start');
+  assert.equal(nearStart.alongMm, 120);
+  assert.equal(nearStart.acrossMm, 0, 'it grows from the middle of the face, where the slot is');
+  const nearEnd = growthAt(history, draft, '+y', { x: 5, y: 40, z: 700 });
+  assert.equal(nearEnd.fromEnd, 'end');
+  assert.equal(nearEnd.alongMm, 300);
+  assert.equal(growthAt(history, draft, '-z', { x: 0, y: 20, z: 0 }).alongMm, 0);
+});

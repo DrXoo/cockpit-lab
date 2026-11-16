@@ -1346,3 +1346,12 @@ select option {
 #emptyDesign .history-add {
   margin-top: 8px;
 }
+.part-parent {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.grow-actions {
+  display: flex;
+  gap: 8px;
+}

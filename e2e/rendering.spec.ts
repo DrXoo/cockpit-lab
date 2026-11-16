@@ -93,6 +93,17 @@ test.describe('cockpit design', () => {
       );
     });
 
+  test('a profile about to grow', async ({ page }) => {
+    await page.locator('#growProfile').click();
+    await page.locator('#grow-lengthMm').fill('400');
+    await page.locator('#grow-lengthMm').press('Enter');
+    await expect(page.locator('#grow-lengthMm')).toHaveValue('400');
+    await expect(page.locator('#viewport')).toHaveScreenshot(
+      'cockpit-design-growing.png',
+      SCREENSHOT,
+    );
+  });
+
   test('history and inspector', async ({ page }) => {
     expect(await page.locator('#controls').innerText()).toMatchSnapshot(
       'cockpit-design-history.txt',

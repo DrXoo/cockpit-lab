@@ -14,6 +14,7 @@ import {
 import type { CockpitDesign } from './cockpit-design.ts';
 import {
   designPanelHTML,
+  growPanelHTML,
   NOTHING_AROUND,
   partChange,
   partField,
@@ -22,12 +23,18 @@ import {
 import { resolveAssembly } from './cad/assembly.ts';
 import {
   addAnchoredProfile,
+  addOperation,
+  draftGrowth,
+  editDraft,
   editProfile,
+  growthAt,
   operationMaking,
   replayHistory,
+  type GrowProfile,
   type Operation,
   type ProfileValues,
 } from './cad/history.ts';
+import type { PartHit } from './cad/picking.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import { canRedo, canUndo, noEdits, recordEdit, redo, undo, type Edits } from './undo.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
@@ -297,7 +304,9 @@ let library: LayoutLibrary = newProject.library,
   /** The part selected in the cockpit editor, or null. */
   selectedPartId: string | null = null,
   /** The edits made to the cockpit design since the project was opened, to undo and redo. */
-  designEdits: Edits<CockpitDesign | null> = noEdits();
+  designEdits: Edits<CockpitDesign | null> = noEdits(),
+  /** A profile about to grow out of the selected one, shown as a preview until it is added. */
+  growth: GrowProfile | null = null;
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -323,15 +332,19 @@ if (!state.roomEnabled && cockpit !== null) {
 const editor = (): Editor => editorOfSection(section);
 /** Whether the project has a cockpit design. */
 const hasDesign = (): boolean => cockpit !== null;
-/** The cockpit design's parts where its history puts them; none without a design. */
-const resolvedDesign = () => resolveAssembly(replayHistory(cockpit?.history ?? []));
 /** Whether the cockpit design has parts to show. */
 const designHasParts = (): boolean => (cockpit?.history.length ?? 0) > 0;
 /** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
-const cockpitDrawing = (): CockpitDrawing | null =>
-  editor() === 'cockpit' && designHasParts()
-    ? { resolved: resolvedDesign(), selectedPartId }
-    : null;
+function cockpitDrawing(): CockpitDrawing | null {
+  if (editor() !== 'cockpit' || !designHasParts()) return null;
+  const history = cockpit?.history ?? [];
+  const shown = growth ? [...history, growth] : history;
+  return {
+    resolved: resolveAssembly(replayHistory(shown)),
+    selectedPartId,
+    previewPartId: growth?.partId ?? null,
+  };
+}
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
 const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
 let evaluation = evaluate(shownConfig());
@@ -353,6 +366,7 @@ function openProject(project: Project) {
   cockpit = project.cockpit;
   selectedPartId = null;
   designEdits = noEdits();
+  growth = null;
   state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
@@ -408,6 +422,7 @@ function changeDesign(next: CockpitDesign) {
 }
 /** Shows the design after it changed, framing it when its first part appears. */
 function showChangedDesign(hadParts: boolean) {
+  growth = null;
   if (selectedPartId !== null && !operationMaking(cockpit?.history ?? [], selectedPartId))
     selectedPartId = null;
   queueSave();
@@ -438,6 +453,10 @@ function editSelectedPart(changes: Partial<ProfileValues>) {
   changeDesign({ history });
 }
 function undoDesignEdit() {
+  if (growth !== null) {
+    cancelGrowth();
+    return;
+  }
   const hadParts = designHasParts();
   const step = undo(designEdits, cockpit);
   if (!step) return;
@@ -455,7 +474,51 @@ function redoDesignEdit() {
 }
 function selectPart(partId: string | null) {
   selectedPartId = partId;
+  growth = null;
   renderControls();
+  refresh();
+}
+/** A click in the view selects a part, or, while a profile grows, picks the face it grows from. */
+function pickInView(hit: PartHit | null) {
+  if (growth === null) {
+    selectPart(hit?.partId ?? null);
+    return;
+  }
+  if (hit === null || hit.partId !== growth.parentId) return;
+  const history = cockpit?.history ?? [];
+  changeGrowth(() => growthAt(history, growthOrFail(), hit.face, hit.pointMm));
+}
+const growthOrFail = (): GrowProfile => {
+  if (growth === null) throw new Error('No profile is growing');
+  return growth;
+};
+/** Starts a profile growing out of the selected part, shown as a preview until it is added. */
+function startGrowth() {
+  if (cockpit === null || selectedPartId === null) return;
+  growth = draftGrowth(cockpit.history, selectedPartId);
+  refresh();
+}
+/** Changes the growing profile; values it cannot have, or a place off its face, are explained. */
+function changeGrowth(next: () => GrowProfile) {
+  const history = cockpit?.history ?? [];
+  try {
+    const changed = next();
+    addOperation(history, changed);
+    growth = changed;
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+  renderPartInspector({ force: true });
+  refresh();
+}
+function confirmGrowth() {
+  if (cockpit === null || growth === null) return;
+  const added = growth;
+  selectedPartId = added.partId;
+  changeDesign({ history: addOperation(cockpit.history, added) });
+}
+function cancelGrowth() {
+  growth = null;
   refresh();
 }
 /**
@@ -487,21 +550,40 @@ function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
   const history = cockpit?.history ?? [];
   const operation = selectedPartId === null ? undefined : operationMaking(history, selectedPartId);
-  const html = partInspectorHTML(operation);
+  const growing = growth;
+  $('#partInspectorTitle').textContent = growing ? 'New profile' : 'Selected part';
+  const html = growing ? growPanelHTML(history, growing) : partInspectorHTML(history, operation);
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
+  const fields = body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-part-field]');
+  if (growing) {
+    fields.forEach((el) => {
+      const field = partField(el.dataset.partField);
+      el.addEventListener('change', () =>
+        changeGrowth(() => editDraft(history, growing, partChange(growing, field, el.value))),
+      );
+    });
+    $('#confirmGrowth').addEventListener('click', confirmGrowth);
+    $('#cancelGrowth').addEventListener('click', cancelGrowth);
+    return;
+  }
   if (!operation) return;
-  body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-part-field]').forEach((el) => {
+  fields.forEach((el) => {
     const field = partField(el.dataset.partField);
     el.addEventListener('change', () => editSelectedPart(partChange(operation, field, el.value)));
   });
+  $('#growProfile').addEventListener('click', startGrowth);
 }
 /**
  * Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo the design's edits in the cockpit editor.
  * In a text field they keep undoing its typing.
  */
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && growth !== null && !document.querySelector('dialog[open]')) {
+    cancelGrowth();
+    return;
+  }
   if (editor() !== 'cockpit' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
     return;
@@ -1554,7 +1636,7 @@ try {
   scene.update(shownConfig(), evaluation, cockpitDrawing());
   setActiveView(view);
   syncSceneEditing();
-  scene.onPartPick = selectPart;
+  scene.onPartPick = pickInView;
   scene.onArmMove = (joint, x, z) => {
     state = moveArmJoint(state, joint, x, z);
     queueSave();

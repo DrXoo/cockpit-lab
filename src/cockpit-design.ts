@@ -1,12 +1,14 @@
 // The cockpit design: its design history, the ordered list of operations that builds it, in mm
 // (docs/adr/0005). A project has at most one, and until the mini CAD is complete no room
 // includes it (docs/adr/0004).
-import type { Axis, Vec3Mm } from './cad/assembly.ts';
+import type { Axis, Face, Vec3Mm } from './cad/assembly.ts';
 import {
+  checkedHistory,
   checkedOperation,
+  FACES,
   MAX_PART_NAME_LENGTH,
-  type AddAnchoredProfile,
   type Operation,
+  type ParentEnd,
 } from './cad/history.ts';
 import { cleanUserText } from './user-text.ts';
 
@@ -45,26 +47,86 @@ export function readDesign(data: unknown): CockpitDesign {
   const operations = history.map(readOperation);
   rejectRepeated(operations.map((operation) => operation.id));
   rejectRepeated(operations.map((operation) => operation.partId));
-  return { history: operations };
+  return { history: checkedHistory(operations) };
 }
 
 function readOperation(data: unknown): Operation {
-  if (!isPlainRecord(data) || data.kind !== 'add-anchored-profile')
-    throw new Error('Unknown operation in the design history');
+  if (!isPlainRecord(data)) throw new Error('Unknown operation in the design history');
+  if (data.kind === 'add-anchored-profile') return checkedOperation(readAnchored(data));
+  if (data.kind === 'grow-profile') return checkedOperation(readGrowth(data));
+  throw new Error('Unknown operation in the design history');
+}
+
+/** The values every profile operation stores. */
+function readShape(data: Record<string, unknown>) {
   if (typeof data.name !== 'string') throw new Error('A part name must be text');
-  const operation: AddAnchoredProfile = {
-    kind: 'add-anchored-profile',
+  return {
     id: identifier(data.id),
     partId: identifier(data.partId),
     name: cleanUserText(data.name, 'Profile', MAX_PART_NAME_LENGTH),
     systemId: text(data.systemId, 'profile system'),
     sectionId: text(data.sectionId, 'profile section'),
-    axis: axis(data.axis),
     heightAxis: axis(data.heightAxis),
     lengthMm: lengthMm(data.lengthMm),
+  };
+}
+
+const SHAPE_KEYS = [
+  'kind',
+  'id',
+  'partId',
+  'name',
+  'systemId',
+  'sectionId',
+  'heightAxis',
+  'lengthMm',
+];
+
+function readAnchored(data: Record<string, unknown>): Operation {
+  onlyKeys(data, [...SHAPE_KEYS, 'axis', 'startMm']);
+  return {
+    kind: 'add-anchored-profile',
+    ...readShape(data),
+    axis: axis(data.axis),
     startMm: pointMm(data.startMm),
   };
-  return checkedOperation(operation);
+}
+
+function readGrowth(data: Record<string, unknown>): Operation {
+  onlyKeys(data, [...SHAPE_KEYS, 'parentId', 'face', 'fromEnd', 'alongMm', 'acrossMm', 'way']);
+  if (data.way !== 'out') throw new Error(`Unknown way to grow: ${data.way}`);
+  return {
+    kind: 'grow-profile',
+    ...readShape(data),
+    parentId: identifier(data.parentId),
+    face: face(data.face),
+    fromEnd: parentEnd(data.fromEnd),
+    alongMm: millimetres(data.alongMm, 'distance along a part'),
+    acrossMm: millimetres(data.acrossMm, 'offset across a face'),
+    way: 'out',
+  };
+}
+
+/** A stored operation holds the values of its kind and nothing else. */
+function onlyKeys(data: Record<string, unknown>, keys: readonly string[]) {
+  const unknown = Object.keys(data).find((key) => !keys.includes(key));
+  if (unknown) throw new Error(`An operation of kind ${data.kind} has no ${unknown}`);
+}
+
+function face(value: unknown): Face {
+  const known = FACES.find((candidate) => candidate === value);
+  if (!known) throw new Error(`Unknown face: ${value}`);
+  return known;
+}
+
+function parentEnd(value: unknown): ParentEnd {
+  if (value !== 'start' && value !== 'end') throw new Error(`Unknown end: ${value}`);
+  return value;
+}
+
+function millimetres(value: unknown, what: string): number {
+  if (typeof value !== 'number') throw new Error(`A ${what} must be a number`);
+  return value;
 }
 
 function identifier(value: unknown): string {

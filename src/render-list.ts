@@ -23,7 +23,9 @@ export type PaletteMaterial =
   | 'arm'
   | 'screen'
   /** The part selected in the cockpit editor. */
-  | 'selected';
+  | 'selected'
+  /** A part about to be added, seen through. */
+  | 'preview';
 
 export type MaterialSpec =
   /** Unlit and visible from both sides, for walls, floors and plan zones. */

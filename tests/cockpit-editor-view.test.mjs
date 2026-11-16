@@ -2,11 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   designPanelHTML,
+  growPanelHTML,
   partChange,
   partField,
   partInspectorHTML,
 } from '../src/cockpit-editor-view.ts';
-import { addAnchoredProfile, editProfile } from '../src/cad/history.ts';
+import {
+  addAnchoredProfile,
+  addOperation,
+  draftGrowth,
+  editDraft,
+  editProfile,
+} from '../src/cad/history.ts';
 
 const historyWith = (count) => {
   let history = [];
@@ -53,8 +60,8 @@ test('undo and redo are offered only when there is something to undo or redo', (
 });
 
 test('without a selected part the inspector says how to select one', () => {
-  assert.match(partInspectorHTML(undefined), /id="noPartSelected"/);
-  assert.doesNotMatch(partInspectorHTML(undefined), /data-part-field/);
+  assert.match(partInspectorHTML([], undefined), /id="noPartSelected"/);
+  assert.doesNotMatch(partInspectorHTML([], undefined), /data-part-field/);
 });
 
 test('the inspector edits the values of the operation that made the part', () => {
@@ -64,7 +71,7 @@ test('the inspector edits the values of the operation that made the part', () =>
     lengthMm: 1200,
     startMm: { x: -280, y: 40, z: 12.5 },
   });
-  const html = partInspectorHTML(operation);
+  const html = partInspectorHTML([operation], operation);
   const value = (field) =>
     new RegExp(`data-part-field="${field}"[^>]*value="([^"]*)"`).exec(html)?.[1];
   assert.equal(value('name'), 'Seat &quot;rail&quot;');
@@ -78,9 +85,9 @@ test('the inspector edits the values of the operation that made the part', () =>
 
 test('the long side of the section can be turned only on a section that has one', () => {
   const [square] = historyWith(1);
-  assert.doesNotMatch(partInspectorHTML(square), /data-part-field="heightAxis"/);
+  assert.doesNotMatch(partInspectorHTML([square], square), /data-part-field="heightAxis"/);
   const [wide] = editProfile([square], 'part-1', { sectionId: '40x80' });
-  const html = partInspectorHTML(wide);
+  const html = partInspectorHTML([wide], wide);
   const choices = /data-part-field="heightAxis"[^>]*>([\s\S]*?)<\/select>/.exec(html)[1];
   assert.deepEqual(
     [...choices.matchAll(/value="(\w)"/g)].map(([, axis]) => axis),
@@ -111,4 +118,48 @@ test('the markup names only fields the inspector has', () => {
   assert.equal(partField('lengthMm'), 'lengthMm');
   assert.throws(() => partField('tiltDeg'), /tiltDeg/);
   assert.throws(() => partField(undefined), /undefined/);
+});
+
+const railAndGrowth = () => {
+  const history = editProfile(historyWith(1), 'part-1', { name: 'Rail', lengthMm: 1000 });
+  return addOperation(history, draftGrowth(history, 'part-1'));
+};
+
+test('a grown profile says what it grows out of, in the history and in the inspector', () => {
+  const history = railAndGrowth();
+  assert.match(panel({ history }), /Grown out of Rail · 40 × 40 · 500 mm/);
+  const html = partInspectorHTML(history, history[1]);
+  assert.match(html, /Grows out of <strong>Rail<\/strong>/);
+  assert.match(html, /<option value="\+y" selected>Top \(\+Y\)<\/option>/);
+  assert.match(html, /<option value="-z">Back end \(−Z\)<\/option>/);
+  assert.match(html, /<option value="start" selected>Back end<\/option>/);
+  assert.match(html, /data-part-field="alongMm"[^>]*value="500"/);
+  assert.doesNotMatch(html, /data-part-field="startX"|data-part-field="axis"/);
+});
+
+test('out of an end face there is no distance or offset to give', () => {
+  const history = railAndGrowth();
+  const onEnd = editProfile(history, 'part-2', { face: '+z' });
+  const html = partInspectorHTML(onEnd, onEnd[1]);
+  assert.doesNotMatch(html, /data-part-field="alongMm"|data-part-field="acrossMm"/);
+});
+
+test('the grow panel edits the new profile before it is added', () => {
+  const history = editProfile(historyWith(1), 'part-1', { name: 'Rail' });
+  const draft = editDraft(history, draftGrowth(history, 'part-1'), { lengthMm: 320 });
+  const html = growPanelHTML(history, draft);
+  assert.match(html, /out of <strong>Rail<\/strong>/);
+  assert.match(html, /id="grow-lengthMm"[^>]*value="320"/);
+  assert.match(html, /id="confirmGrowth"/);
+  assert.match(html, /id="cancelGrowth"/);
+});
+
+test('the place on the face comes from its own fields', () => {
+  const [, growth] = railAndGrowth();
+  assert.deepEqual(partChange(growth, 'face', '-x'), { face: '-x' });
+  assert.deepEqual(partChange(growth, 'fromEnd', 'end'), { fromEnd: 'end' });
+  assert.deepEqual(partChange(growth, 'alongMm', '120'), { alongMm: 120 });
+  assert.deepEqual(partChange(growth, 'acrossMm', '-4'), { acrossMm: -4 });
+  assert.throws(() => partChange(growth, 'startX', '0'), /no start/);
+  assert.throws(() => partChange(growth, 'face', 'up'), /face/);
 });

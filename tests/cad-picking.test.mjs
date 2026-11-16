@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { partAlongRay } from '../src/cad/picking.ts';
+import { hitAlongRay } from '../src/cad/picking.ts';
+
+const partAlongRay = (resolved, ray) => hitAlongRay(resolved, ray)?.partId ?? null;
 
 const profile = (id, startMm, placement = {}) => ({
   kind: 'profile',
@@ -40,4 +42,21 @@ test('a tilted part is picked where it is drawn, not where its untilted box woul
   const sideways = (y, z) => ({ originMm: { x: -1000, y, z }, directionMm: { x: 1, y: 0, z: 0 } });
   assert.equal(partAlongRay(resolved, sideways(240, 425)), 'deck');
   assert.equal(partAlongRay(resolved, sideways(10, 490)), null);
+});
+
+test("a hit names the face the ray enters and the point there, in the part's own frame", () => {
+  const resolved = resolveAssembly([profile('rail', { x: 0, y: 20, z: 0 })]);
+  assert.deepEqual(hitAlongRay(resolved, down(5, 250)), {
+    partId: 'rail',
+    face: '+y',
+    pointMm: { x: 5, y: 40, z: 250 },
+  });
+  const fromTheBack = { originMm: { x: 0, y: 20, z: -900 }, directionMm: { x: 0, y: 0, z: 2 } };
+  assert.equal(hitAlongRay(resolved, fromTheBack).face, '-z');
+  const tilted = resolveAssembly([profile('deck', { x: 0, y: 0, z: 0 }, { tiltDeg: 30 })]);
+  const sideways = { originMm: { x: -1000, y: 240, z: 425 }, directionMm: { x: 1, y: 0, z: 0 } };
+  const hit = hitAlongRay(tilted, sideways);
+  assert.equal(hit.face, '-x');
+  assert.equal(hit.pointMm.x, -20);
+  assert.ok(Math.abs(hit.pointMm.z - 488) < 1, 'measured along the tilted profile');
 });

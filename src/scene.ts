@@ -6,7 +6,7 @@ import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { inversePoint } from './geometry.ts';
-import { partAlongRay } from './cad/picking.ts';
+import { hitAlongRay, type PartHit } from './cad/picking.ts';
 import { draggedPosition, pickLayoutItem, type LayoutGrab } from './layout-picking.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import type { ArmHandle } from './render-desk.ts';
@@ -113,6 +113,13 @@ function createPalette(vectorFallback: boolean): Palette {
     arm: new T.MeshStandardMaterial({ color: 0x4f5951, metalness: 0.6, roughness: 0.4 }),
     screen,
     selected: new T.MeshStandardMaterial({ color: 0xca6036, metalness: 0.45, roughness: 0.45 }),
+    preview: new T.MeshStandardMaterial({
+      color: 0xca6036,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      roughness: 0.6,
+    }),
   };
 }
 
@@ -250,8 +257,8 @@ export class CockpitScene {
   declare onArmMove: ((joint: ArmJoint, x: number, z: number) => void) | undefined;
   declare onLayoutMove: ((target: string, x: number, z: number) => void) | undefined;
   declare onLayoutSelect: ((target: string) => void) | undefined;
-  /** A click picked a part of the cockpit design, or nothing (null). */
-  declare onPartPick: ((partId: string | null) => void) | undefined;
+  /** A click picked a part of the cockpit design, at a face, or nothing (null). */
+  declare onPartPick: ((hit: PartHit | null) => void) | undefined;
 
   constructor(container: HTMLElement, labels: HTMLElement) {
     this.container = container;
@@ -475,11 +482,14 @@ export class CockpitScene {
     );
   }
 
-  /** The part of the cockpit design under the pointer, or null. */
-  private partAt(event: PointerEvent): string | null {
+  /** The part of the cockpit design under the pointer, with the face there, or null. */
+  private partAt(event: PointerEvent): PartHit | null {
     if (!this.cockpit) return null;
     const { origin, direction } = this.rayAt(event);
-    return partAlongRay(this.cockpit.resolved, {
+    const { resolved, previewPartId } = this.cockpit;
+    // A part about to be added is only a preview: clicks go through it.
+    const pickable = new Map([...resolved].filter(([partId]) => partId !== previewPartId));
+    return hitAlongRay(pickable, {
       originMm: { x: origin.x * MM_PER_CM, y: origin.y * MM_PER_CM, z: origin.z * MM_PER_CM },
       directionMm: { x: direction.x, y: direction.y, z: direction.z },
     });

@@ -50,6 +50,12 @@ export function renderModel(
   drawRoom(r, room, dimensions, s, e, options.roomFloor);
   drawLayoutSelection(r, ROOT, s, e, options);
   if (options.cockpit)
-    drawCadProfiles(r, ROOT, options.cockpit.resolved, options.cockpit.selectedPartId);
+    drawCadProfiles(
+      r,
+      ROOT,
+      options.cockpit.resolved,
+      options.cockpit.selectedPartId,
+      options.cockpit.previewPartId ?? null,
+    );
   return { primitives: r.primitives, labels: r.labels, armHandles };
 }
