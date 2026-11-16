@@ -14,8 +14,12 @@ export interface Joint {
 
 const opposite = (face: Face): Face => `${face[0] === '+' ? '-' : '+'}${face[1]}` as Face;
 
+/** A joint is known by its two parts: the joined part, then the part it meets. */
+export const jointIdOf = ({ partId, toPartId }: { partId: string; toPartId: string }): string =>
+  `${partId}@${toPartId}`;
+
 const jointBetween = (partId: string, toPartId: string, toFace: Face): Joint => ({
-  id: `${partId}@${toPartId}`,
+  id: jointIdOf({ partId, toPartId }),
   partId,
   toPartId,
   toFace,

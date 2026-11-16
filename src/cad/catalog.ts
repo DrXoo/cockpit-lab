@@ -36,6 +36,12 @@ export interface ConnectorType {
   fitsSystems: readonly string[];
   legs: number;
   fastenersPerLeg: readonly FastenerCount[];
+  /** How far each leg reaches from the joint's corner, along the part it rests on. */
+  legMm: number;
+  /** Across the legs, along the corner. */
+  widthMm: number;
+  /** Of the plate each leg is made of, for drawing it. */
+  thicknessMm: number;
   source: DataSource;
 }
 
@@ -94,9 +100,13 @@ const CONNECTOR_TYPES: readonly ConnectorType[] = [
       { id: 'bolt-m8', quantity: 2 },
       { id: 't-nut-slot-8-m8', quantity: 2 },
     ],
+    legMm: 40,
+    widthMm: 36,
+    thicknessMm: 4,
     source: {
       kind: 'estimated',
-      reference: 'Two M8 bolts per leg, as agreed for the first catalog; check the data sheet',
+      reference:
+        'Two M8 bolts per leg, as agreed for the first catalog, and a size that fits a 40 mm face; check the data sheet',
     },
   },
 ];

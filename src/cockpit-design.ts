@@ -8,9 +8,11 @@ import {
   FACES,
   makesAPart,
   MAX_PART_NAME_LENGTH,
+  type ConnectorChoice,
   type Operation,
   type ParentEnd,
 } from './cad/history.ts';
+import { jointIdOf } from './cad/joints.ts';
 import { cleanUserText } from './user-text.ts';
 
 export type { Operation } from './cad/history.ts';
@@ -48,6 +50,7 @@ export function readDesign(data: unknown): CockpitDesign {
   const operations = history.map(readOperation);
   rejectRepeated(operations.map((operation) => operation.id));
   rejectRepeated(operations.filter(makesAPart).map((operation) => operation.partId));
+  rejectJointsFastenedTwice(operations);
   return { history: checkedHistory(operations) };
 }
 
@@ -57,6 +60,7 @@ function readOperation(data: unknown): Operation {
   if (data.kind === 'grow-profile') return checkedOperation(readGrowth(data));
   if (data.kind === 'remove-part') return checkedOperation(readRemoval(data));
   if (data.kind === 'add-foot') return checkedOperation(readFoot(data));
+  if (data.kind === 'fasten-joint') return checkedOperation(readFastening(data));
   throw new Error('Unknown operation in the design history');
 }
 
@@ -98,6 +102,36 @@ function readAnchored(data: Record<string, unknown>): Operation {
 function readRemoval(data: Record<string, unknown>): Operation {
   onlyKeys(data, ['kind', 'id', 'removedId']);
   return { kind: 'remove-part', id: identifier(data.id), removedId: identifier(data.removedId) };
+}
+
+function readFastening(data: Record<string, unknown>): Operation {
+  onlyKeys(data, ['kind', 'id', 'partId', 'toPartId', 'connectors']);
+  if (!Array.isArray(data.connectors)) throw new Error('A fastening needs its connectors');
+  return {
+    kind: 'fasten-joint',
+    id: identifier(data.id),
+    partId: identifier(data.partId),
+    toPartId: identifier(data.toPartId),
+    connectors: data.connectors.map(readConnector),
+  };
+}
+
+function readConnector(data: unknown): ConnectorChoice {
+  if (!isPlainRecord(data)) throw new Error('Invalid connector');
+  const unknown = Object.keys(data).find((key) => key !== 'typeId' && key !== 'side');
+  if (unknown) throw new Error(`A connector has no ${unknown}`);
+  return { typeId: text(data.typeId, 'connector type'), side: face(data.side) };
+}
+
+/** Each joint has one fastening step, which holds all its connectors. */
+function rejectJointsFastenedTwice(operations: readonly Operation[]): void {
+  const fastened = new Set<string>();
+  for (const operation of operations) {
+    if (operation.kind !== 'fasten-joint') continue;
+    const joint = jointIdOf(operation);
+    if (fastened.has(joint)) throw new Error(`The design history fastens the joint ${joint} twice`);
+    fastened.add(joint);
+  }
 }
 
 function readFoot(data: Record<string, unknown>): Operation {

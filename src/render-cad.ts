@@ -1,15 +1,18 @@
-// Draws the profiles and feet of a CAD cockpit design. Parts are in mm in cockpit coordinates;
+// Draws the profiles, feet and connectors of a CAD cockpit design. Parts are in mm in cockpit coordinates;
 // the scene works in cm. Parts at a tilt go into one group per tilt, turned about the cockpit
 // origin as their frame is (src/cad/assembly.ts).
 import { degToRad } from './geometry.ts';
 import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
-import type { Axis, BoxMm, ResolvedPart } from './cad/assembly.ts';
-import { profileSystem } from './cad/catalog.ts';
+import { faceAxis, type Axis, type BoxMm, type ResolvedPart } from './cad/assembly.ts';
+import { connectorType, profileSystem } from './cad/catalog.ts';
+import type { PlacedConnector } from './cad/connectors.ts';
 import { MM_PER_CM } from './units.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */
 export interface CockpitDrawing {
   resolved: ReadonlyMap<string, ResolvedPart>;
+  /** The connectors on its joints. */
+  connectors?: readonly PlacedConnector[];
   selectedPartId: string | null;
   /** A part about to be added, drawn as a preview. */
   previewPartId?: string | null;
@@ -29,15 +32,10 @@ const FOOT_STEM_RADIUS_MM = 8;
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
 const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 
-export function drawCadProfiles(
-  r: RenderList,
-  parent: ParentRef,
-  resolved: ReadonlyMap<string, ResolvedPart>,
-  selectedId: string | null = null,
-  previewId: string | null = null,
-): void {
+/** One group per tilt, turned about the cockpit origin, made the first time a tilt is drawn. */
+function tiltFrames(r: RenderList, parent: ParentRef): (tiltDeg: number) => ParentRef {
   const tiltGroups = new Map<number, ParentRef>();
-  const frameOf = (tiltDeg: number): ParentRef => {
+  return (tiltDeg) => {
     if (tiltDeg === 0) return parent;
     let group = tiltGroups.get(tiltDeg);
     if (group === undefined) {
@@ -46,6 +44,16 @@ export function drawCadProfiles(
     }
     return group;
   };
+}
+
+export function drawCadProfiles(
+  r: RenderList,
+  parent: ParentRef,
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  selectedId: string | null = null,
+  previewId: string | null = null,
+): void {
+  const frameOf = tiltFrames(r, parent);
   for (const { part, box, tiltDeg } of resolved.values()) {
     if (part.kind === 'foot') drawFoot(r, frameOf(tiltDeg), box, part.id === selectedId);
     if (part.kind !== 'profile') continue;
@@ -68,6 +76,56 @@ export function drawCadProfiles(
 }
 
 const cm = (mm: number) => mm / MM_PER_CM;
+
+/**
+ * Each connector as an L of two plates: one against the side of the joined part, the other on
+ * the face of the part it meets, both filling the connector's box from the joint's corner.
+ */
+export function drawConnectors(
+  r: RenderList,
+  parent: ParentRef,
+  connectors: readonly PlacedConnector[],
+): void {
+  const frameOf = tiltFrames(r, parent);
+  for (const connector of connectors) {
+    const { box } = connector;
+    const thicknessMm = connectorType(connector.typeId).thicknessMm;
+    const againstPart = plateOf(
+      box,
+      faceAxis(connector.side),
+      connector.side[0] === '+',
+      thicknessMm,
+    );
+    const onFace = plateOf(
+      box,
+      faceAxis(connector.toFace),
+      connector.toFace[0] === '+',
+      thicknessMm,
+    );
+    for (const plate of [againstPart, onFace])
+      r.box(
+        cm(plate.max.x - plate.min.x),
+        cm(plate.max.y - plate.min.y),
+        cm(plate.max.z - plate.min.z),
+        cm((plate.min.x + plate.max.x) / 2),
+        cm((plate.min.y + plate.max.y) / 2),
+        cm((plate.min.z + plate.max.z) / 2),
+        'dark',
+        frameOf(connector.tiltDeg),
+      );
+  }
+}
+
+/**
+ * The slice of `box` `thicknessMm` thick along `axis`: at its low end if `fromLow`, else at its
+ * high end.
+ */
+function plateOf(box: BoxMm, axis: Axis, fromLow: boolean, thicknessMm: number): BoxMm {
+  const plate: BoxMm = { min: { ...box.min }, max: { ...box.max } };
+  if (fromLow) plate.max[axis] = box.min[axis] + thicknessMm;
+  else plate.min[axis] = box.max[axis] - thicknessMm;
+  return plate;
+}
 
 function drawFoot(r: RenderList, frame: ParentRef, box: BoxMm, selected: boolean): void {
   const x = cm((box.min.x + box.max.x) / 2);

@@ -9,7 +9,7 @@ import {
   type ProfilePart,
   type Vec3Mm,
 } from './assembly.ts';
-import { footType, profileSystem } from './catalog.ts';
+import { connectorType, footType, profileSystem } from './catalog.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {
@@ -91,6 +91,25 @@ export interface AddFoot {
   alongMm: number;
 }
 
+/** A connector a fastening puts on its joint, on one side of the joined part. */
+export interface ConnectorChoice {
+  typeId: string;
+  /** The face of the joined part the connector sits against. */
+  side: Face;
+}
+
+/**
+ * Puts connectors on the joint where a part meets another: the part that hangs from or reaches
+ * `toPartId`. Each joint has one such step, which holds all its connectors.
+ */
+export interface FastenJoint {
+  kind: 'fasten-joint';
+  id: string;
+  partId: string;
+  toPartId: string;
+  connectors: ConnectorChoice[];
+}
+
 /** An operation that makes a profile. */
 export type ProfileOperation = AddAnchoredProfile | GrowProfile;
 
@@ -98,10 +117,10 @@ export type ProfileOperation = AddAnchoredProfile | GrowProfile;
 export type MakingOperation = ProfileOperation | AddFoot;
 
 /** One step of a design history. Every kind is part of the file format. */
-export type Operation = MakingOperation | RemovePart;
+export type Operation = MakingOperation | RemovePart | FastenJoint;
 
 export const makesAPart = (operation: Operation): operation is MakingOperation =>
-  operation.kind !== 'remove-part';
+  operation.kind !== 'remove-part' && operation.kind !== 'fasten-joint';
 
 export const makesAProfile = (operation: Operation): operation is ProfileOperation =>
   operation.kind === 'add-anchored-profile' || operation.kind === 'grow-profile';
@@ -222,6 +241,10 @@ export function checkedOperation<T extends Operation>(operation: T): T {
     checkFoot(operation);
     return operation;
   }
+  if (operation.kind === 'fasten-joint') {
+    checkFastening(operation);
+    return operation;
+  }
   const system = profileSystem(operation.systemId);
   if (!system.sections.some((section) => section.id === operation.sectionId))
     throw new Error(`Profile section ${operation.sectionId} is not in ${system.id}.`);
@@ -250,6 +273,19 @@ function checkStart(startMm: Vec3Mm) {
     )
   )
     throw new Error(`A position must be within ${MAX_POSITION_MM} mm of the cockpit origin.`);
+}
+
+function checkFastening(operation: FastenJoint) {
+  if (operation.connectors.length === 0)
+    throw new Error('A fastening needs at least one connector.');
+  const sides = new Set<Face>();
+  for (const { typeId, side } of operation.connectors) {
+    connectorType(typeId);
+    if (!FACES.includes(side)) throw new Error(`Unknown face: ${side}`);
+    if (sides.has(side))
+      throw new Error(`A joint has one connector on each side, not two on ${side}.`);
+    sides.add(side);
+  }
 }
 
 function checkFoot(operation: AddFoot) {
@@ -282,6 +318,9 @@ function checkGrowth(operation: GrowProfile) {
 
 /** How a step is named in the history: the part it makes, or the part a removal takes away. */
 export function stepTitle(history: readonly Operation[], operation: Operation): string {
-  if (operation.kind !== 'remove-part') return operation.name;
-  return `Removes ${operationMaking(history, operation.removedId)?.name ?? 'a deleted part'}`;
+  const nameOf = (partId: string) => operationMaking(history, partId)?.name ?? 'a deleted part';
+  if (operation.kind === 'remove-part') return `Removes ${nameOf(operation.removedId)}`;
+  if (operation.kind === 'fasten-joint')
+    return `Fastens ${nameOf(operation.partId)} to ${nameOf(operation.toPartId)}`;
+  return operation.name;
 }

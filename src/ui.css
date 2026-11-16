@@ -1435,6 +1435,39 @@ select option {
   flex-wrap: wrap;
   gap: 8px;
 }
+.part-joints {
+  margin: 4px 0 8px;
+}
+.joint-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.joint-name {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.joint-name strong {
+  font-weight: 500;
+}
+.joint-name small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.joint-sides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.joint-side[aria-pressed='true'] {
+  color: var(--accent-text);
+}
 .part-actions .button {
   display: inline-flex;
   align-items: center;

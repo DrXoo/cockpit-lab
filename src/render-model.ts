@@ -7,7 +7,7 @@ import {
   drawLayoutSelection,
   type LayoutSelection,
 } from './render-annotations.ts';
-import { drawCadProfiles, type CockpitDrawing } from './render-cad.ts';
+import { drawCadProfiles, drawConnectors, type CockpitDrawing } from './render-cad.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
 import { drawRoom } from './render-room.ts';
@@ -49,7 +49,7 @@ export function renderModel(
   const room = r.group(ROOT, {}, { visible: s.roomEnabled !== false });
   drawRoom(r, room, dimensions, s, e, options.roomFloor);
   drawLayoutSelection(r, ROOT, s, e, options);
-  if (options.cockpit)
+  if (options.cockpit) {
     drawCadProfiles(
       r,
       ROOT,
@@ -57,5 +57,7 @@ export function renderModel(
       options.cockpit.selectedPartId,
       options.cockpit.previewPartId ?? null,
     );
+    drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
+  }
   return { primitives: r.primitives, labels: r.labels, armHandles };
 }

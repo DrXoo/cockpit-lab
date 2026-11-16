@@ -5,6 +5,7 @@
 import type { Check } from './checks.ts';
 import { round } from './geometry.ts';
 import type { Axis, ResolvedPart } from './cad/assembly.ts';
+import type { PlacedConnector } from './cad/connectors.ts';
 import { cockpitInterferences } from './cad/interference.ts';
 import { jointsOf } from './cad/joints.ts';
 import { stepTitle, type Operation } from './cad/operations.ts';
@@ -15,6 +16,8 @@ export interface DesignToCheck {
   history: readonly Operation[];
   resolved: ReadonlyMap<string, ResolvedPart>;
   failures: ReadonlyMap<string, string>;
+  /** The connectors on its joints; none when left out. */
+  connectors?: readonly PlacedConnector[];
 }
 
 /** The shortest way out, in the frame of the part it was measured on. */
@@ -45,15 +48,18 @@ function listCheck(
 
 export function cadChecks(design: DesignToCheck): Check[] {
   return [
-    interferenceCheck(design.resolved),
+    interferenceCheck(design.resolved, design.connectors ?? []),
     supportCheck(design.resolved),
-    pendingJointsCheck(design.resolved),
+    pendingJointsCheck(design.resolved, design.connectors ?? []),
     failedStepsCheck(design),
   ];
 }
 
-function interferenceCheck(resolved: ReadonlyMap<string, ResolvedPart>): Check {
-  const items = cockpitInterferences(resolved).map(
+function interferenceCheck(
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  connectors: readonly PlacedConnector[],
+): Check {
+  const items = cockpitInterferences(resolved, connectors).map(
     (found) =>
       `${found.partName} into ${found.otherName}: ${round(found.depthMm, 1)} mm ${WAY_OUT_TEXT[found.axis]}`,
   );
@@ -74,13 +80,18 @@ function supportCheck(resolved: ReadonlyMap<string, ResolvedPart>): Check {
   });
 }
 
-function pendingJointsCheck(resolved: ReadonlyMap<string, ResolvedPart>): Check {
+function pendingJointsCheck(
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  connectors: readonly PlacedConnector[],
+): Check {
   const nameOf = (id: string) => resolved.get(id)?.part.name ?? id;
-  const items = jointsOf(resolved).map(
-    (joint) => `${nameOf(joint.partId)} to ${nameOf(joint.toPartId)}`,
-  );
+  const fastened = new Set(connectors.map((connector) => connector.jointId));
+  const items = jointsOf(resolved)
+    .filter((joint) => !fastened.has(joint.id))
+    .map((joint) => `${nameOf(joint.partId)} to ${nameOf(joint.toPartId)}`);
   return listCheck('cad-pending-joints', 'Joints without connectors', items, {
-    found: 'Their connectors, bolts and T-nuts are not in the parts to buy yet.',
+    found:
+      'Their connectors, bolts and T-nuts are not in the parts to buy yet. Fasten them from the inspector of a part.',
     none: 'Every joint has its connectors.',
   });
 }

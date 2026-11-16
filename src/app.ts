@@ -16,6 +16,7 @@ import {
   designPanelHTML,
   growPanelHTML,
   NOTHING_AROUND,
+  faceOf,
   footChange,
   partChange,
   partField,
@@ -131,6 +132,12 @@ import {
 import { checkRowHTML } from './check-view.ts';
 import { cadChecks } from './cad-checks.ts';
 import { partsToBuy } from './cad/parts-to-buy.ts';
+import {
+  fastenWithBrackets,
+  jointsOfPart,
+  setConnector,
+  type JointOfPart,
+} from './cad/fastening.ts';
 import { partsToBuyHTML } from './cockpit-parts-view.ts';
 import {
   unitFor,
@@ -351,8 +358,10 @@ function cockpitDrawing(): CockpitDrawing | null {
   const history = designHistory();
   const at = markerIndex();
   const shown = growth ? [...history.slice(0, at), growth, ...history.slice(at)] : history;
+  const design = replayDesign(shown, growth ? at + 1 : at);
   return {
-    resolved: replayDesign(shown, growth ? at + 1 : at).resolved,
+    resolved: design.resolved,
+    connectors: design.connectors,
     selectedPartId: selectedPartId(),
     previewPartId: growth?.partId ?? null,
   };
@@ -490,6 +499,33 @@ function editSelectedPart(changes: Partial<ProfileValues>) {
   const operation = selectedOperation();
   if (!operation || !makesAProfile(operation)) return;
   changeHistory((history) => editProfile(history, operation.partId, changes));
+}
+/** The joints of the selected part at the marker, with their connectors. */
+function jointsOfSelected(): JointOfPart[] {
+  const partId = selectedPartId();
+  return partId === null ? [] : jointsOfPart(designHistory(), partId, markerIndex());
+}
+/**
+ * Changes the connectors of a joint. A fastening step added goes in at the marker and one
+ * deleted before it moves the marker back, so the marker stays after the same steps.
+ */
+function changeJoints(change: (history: readonly Operation[], at: number) => Operation[]) {
+  const history = designHistory();
+  const at = markerIndex();
+  let next: Operation[];
+  try {
+    next = change(history, at);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+    renderPartInspector({ force: true });
+    return;
+  }
+  if (marker !== null) {
+    const before = new Set(history.slice(0, at).map((operation) => operation.id));
+    const known = new Set(history.map((operation) => operation.id));
+    marker = next.filter((step) => before.has(step.id) || !known.has(step.id)).length;
+  }
+  changeDesign({ history: next });
 }
 /** Puts a foot under the selected profile, at the marker, and selects it. */
 function addFootUnderSelected() {
@@ -666,7 +702,7 @@ function renderCockpitChecks() {
       .map(checkRowHTML)
       .join(''),
   );
-  showCockpitList($('#partsToBuy'), partsToBuyHTML(partsToBuy(design.resolved, [])));
+  showCockpitList($('#partsToBuy'), partsToBuyHTML(partsToBuy(design.resolved, design.connectors)));
 }
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
@@ -677,7 +713,7 @@ function renderPartInspector({ force = false } = {}) {
   const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
   const html = growing
     ? growPanelHTML(history, growing)
-    : partInspectorHTML(history, operation, failure);
+    : partInspectorHTML(history, operation, failure, jointsOfSelected());
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
@@ -710,6 +746,22 @@ function renderPartInspector({ force = false } = {}) {
   });
   $optional('#growProfile')?.addEventListener('click', startGrowth);
   $optional('#addFoot')?.addEventListener('click', addFootUnderSelected);
+  body.querySelectorAll<HTMLElement>('[data-joint][data-side]').forEach((button) =>
+    button.addEventListener('click', () => {
+      const side = faceOf(dataOf(button, 'side'));
+      const on = button.getAttribute('aria-pressed') !== 'true';
+      changeJoints((history, at) => setConnector(history, dataOf(button, 'joint'), side, on, at));
+    }),
+  );
+  body
+    .querySelectorAll<HTMLElement>('[data-joint-brackets]')
+    .forEach((button) =>
+      button.addEventListener('click', () =>
+        changeJoints((history, at) =>
+          fastenWithBrackets(history, dataOf(button, 'jointBrackets'), at),
+        ),
+      ),
+    );
   $optional('#removePart')?.addEventListener('click', removeSelectedPart);
 }
 /**

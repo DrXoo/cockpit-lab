@@ -114,6 +114,18 @@ test.describe('cockpit design', () => {
     await expect(page.locator('#viewport')).toHaveScreenshot('cockpit-design-feet.png', SCREENSHOT);
   });
 
+  test('a joint fastened with two corner brackets', async ({ page }) => {
+    await page.locator('#growProfile').click();
+    await page.locator('#grow-face').selectOption('-x');
+    await page.locator('#confirmGrowth').click();
+    await page.locator('[data-joint-brackets="part-6@part-4"]').click();
+    await expect(page.locator('[data-operation="op-7"]')).toBeVisible();
+    await expect(page.locator('#viewport')).toHaveScreenshot(
+      'cockpit-design-brackets.png',
+      SCREENSHOT,
+    );
+  });
+
   test('history and inspector', async ({ page }) => {
     expect(await page.locator('#controls').innerText()).toMatchSnapshot(
       'cockpit-design-history.txt',

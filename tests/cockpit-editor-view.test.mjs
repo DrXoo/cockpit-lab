@@ -305,3 +305,38 @@ test('the fields of a foot change the values of its operation', () => {
   assert.deepEqual(footChange('alongMm', ''), { alongMm: Number.NaN });
   assert.throws(() => footChange('lengthMm', '300'), /lengthMm/);
 });
+
+/** A rail and an upright growing out of its top, with the joint between them. */
+async function railAndUpright() {
+  const { jointsOfPart } = await import('../src/cad/fastening.ts');
+  const base = editProfile(historyWith(1), 'part-1', { name: 'A', lengthMm: 1000 });
+  const history = addOperation(base, editDraft(base, draftGrowth(base, 'part-1'), { name: 'B' }));
+  return { history, joints: (h) => jointsOfPart(h, 'part-2') };
+}
+
+test('the inspector lists the joints of a part, pending until they have connectors', async () => {
+  const { history, joints } = await railAndUpright();
+  const html = partInspectorHTML(history, history[1], undefined, joints(history));
+  assert.match(html, /id="partJoints"/);
+  assert.match(html, /B to A<\/strong><small>⚠ No connectors yet/);
+  assert.match(
+    html,
+    /data-joint="part-2@part-1" data-side="\+z" aria-pressed="false"[^>]*>\+ Front/,
+  );
+  assert.match(html, /data-joint-brackets="part-2@part-1"/);
+});
+
+test('a fastened joint says how many brackets it has, and a fastening is a step', async () => {
+  const { fastenWithBrackets } = await import('../src/cad/fastening.ts');
+  const { history: before, joints } = await railAndUpright();
+  const history = fastenWithBrackets(before, 'part-2@part-1');
+  const html = partInspectorHTML(history, history[1], undefined, joints(history));
+  assert.match(html, /✓ 2 corner brackets/);
+  assert.match(html, /data-side="-z" aria-pressed="true"[^>]*>✓ Back/);
+  assert.doesNotMatch(html, /data-joint-brackets/);
+  const step = panel({ history });
+  assert.match(step, /Fastens B to A<\/strong><small>2 × 40 corner bracket/);
+  const inspector = partInspectorHTML(history, history[2]);
+  assert.match(inspector, /Puts 2 × 40 corner bracket on the joint of <strong>B<\/strong>/);
+  assert.match(inspector, /id="deleteStep"/);
+});

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderList, ROOT } from '../src/render-list.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { drawCadProfiles } from '../src/render-cad.ts';
+import { drawCadProfiles, drawConnectors } from '../src/render-cad.ts';
 import { degToRad } from '../src/geometry.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
@@ -132,5 +132,30 @@ test('a part about to be added is drawn as a preview', () => {
   assert.deepEqual(
     bars(primitives).map((bar) => bar.material),
     ['selected', 'preview'],
+  );
+});
+
+test('a corner bracket is drawn as an L: a plate against the part, one on the face it meets', () => {
+  const r = createRenderList();
+  drawConnectors(r, ROOT, [
+    {
+      id: 'op-3:+z',
+      jointId: 'part-2@part-1',
+      typeId: 'corner-bracket-40',
+      side: '+z',
+      name: '40 corner bracket of B',
+      toFace: '+y',
+      box: { min: { x: -18, y: 40, z: 520 }, max: { x: 18, y: 80, z: 560 } },
+      tiltDeg: 0,
+    },
+  ]);
+  const plates = r.primitives.filter((p) => p.kind === 'box');
+  const rounded = (values) => values.map((value) => Math.round(value * 1000) / 1000);
+  assert.deepEqual(
+    plates.map((plate) => [rounded(plate.size), rounded(plate.position), plate.material]),
+    [
+      [[3.6, 4, 0.4], [0, 6, 52.2], 'dark'],
+      [[3.6, 0.4, 4], [0, 4.2, 54], 'dark'],
+    ],
   );
 });

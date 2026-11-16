@@ -167,3 +167,29 @@ test('a foot reads back with its type and its place under the profile', () => {
   assert.throws(() => readDesign(withFoot({ alongMm: '36' })), /number/);
   assert.throws(() => readDesign(withFoot({ face: '-y' })), /face/);
 });
+
+test('a fastening reads back with its connectors, once per joint', async () => {
+  const { fastenWithBrackets } = await import('../src/cad/fastening.ts');
+  const base = editProfile(addAnchoredProfile([]).history, 'part-1', { lengthMm: 1000 });
+  const grown = addOperation(base, editDraft(base, draftGrowth(base, 'part-1'), {}));
+  const history = fastenWithBrackets(grown, 'part-2@part-1');
+  const data = stored({ history });
+  assert.deepEqual(readDesign(data).history, history);
+  const fastening = data.history[2];
+  const withFastening = (changes) => ({
+    ...data,
+    history: [data.history[0], data.history[1], { ...fastening, ...changes }],
+  });
+  assert.throws(
+    () => readDesign(withFastening({ connectors: [{ typeId: 'glue', side: '+z' }] })),
+    /glue/,
+  );
+  assert.throws(
+    () => readDesign(withFastening({ connectors: [{ typeId: 'corner-bracket-40', side: 'up' }] })),
+    /face/,
+  );
+  assert.throws(() => readDesign(withFastening({ connectors: [] })), /at least one/);
+  assert.throws(() => readDesign(withFastening({ jointId: 'x' })), /jointId/);
+  const twice = { ...data, history: [...data.history, { ...fastening, id: 'op-4' }] };
+  assert.throws(() => readDesign(twice), /twice/);
+});

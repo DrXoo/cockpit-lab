@@ -17,10 +17,13 @@ import {
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   partMadeBy,
+  type FastenJoint,
   type MakingOperation,
   type Operation,
   type RemovePart,
 } from './operations.ts';
+import { placedConnector, type PlacedConnector } from './connectors.ts';
+import { jointIdOf, jointsOf, type Joint } from './joints.ts';
 
 export interface ReplayedDesign {
   /** The parts the replayed steps leave, in the order they were made. */
@@ -28,6 +31,9 @@ export interface ReplayedDesign {
   resolved: Map<string, ResolvedPart>;
   /** Why each failed operation no longer applies, by operation id. */
   failures: Map<string, string>;
+  joints: Joint[];
+  /** The connectors on the joints, from the fastenings that apply. */
+  connectors: PlacedConnector[];
 }
 
 /** Replays the first `upTo` operations: all of them unless the history marker is back. */
@@ -37,12 +43,19 @@ export function replayDesign(
 ): ReplayedDesign {
   const steps = history.slice(0, upTo);
   // Whether a span is long enough is only known once every part it may reach is placed, so a
-  // span found too short or too long fails and the steps are replayed again without it.
+  // span found too short or too long fails and the steps are replayed again without it. So does
+  // a fastening whose connectors do not fit.
   const lateFailures = new Map<string, string>();
   for (;;) {
     const design = replaySteps(history, steps, lateFailures);
     const found = misfitSpans(history, design);
-    if (found.size === 0) return design;
+    if (found.size === 0) {
+      // Connectors fit or not once every part is where it ends up, as spans do.
+      const connectors = placedConnectors(steps, design);
+      if (connectors.misfits.size === 0) return { ...design, connectors: connectors.placed };
+      for (const [id, reason] of connectors.misfits) lateFailures.set(id, reason);
+      continue;
+    }
     for (const [id, reason] of found) lateFailures.set(id, reason);
   }
 }
@@ -60,12 +73,60 @@ function replaySteps(
   steps.forEach((operation, index) => {
     if (failures.has(operation.id)) return;
     const context: StepContext = { history, index, parts, failures };
+    if (operation.kind === 'fasten-joint') {
+      const missing = missingJoint(operation, context);
+      if (missing) failures.set(operation.id, missing);
+      return;
+    }
     const result =
       operation.kind === 'remove-part' ? removal(operation, context) : making(operation, context);
     if (typeof result === 'string') failures.set(operation.id, result);
     else parts = result;
   });
-  return { parts, resolved: resolveAssembly(parts), failures };
+  const resolved = resolveAssembly(parts);
+  return { parts, resolved, failures, joints: jointsOf(resolved), connectors: [] };
+}
+
+/** Why the joint a fastening puts connectors on is not in the design at its step, or null. */
+function missingJoint(operation: FastenJoint, context: StepContext): string | null {
+  const missing =
+    missingPart(operation.partId, context, 'It fastens') ??
+    missingPart(operation.toPartId, context, 'It fastens a part to');
+  if (missing) return missing;
+  const joints = jointsOf(resolveAssembly(context.parts));
+  if (joints.some((joint) => joint.id === jointIdOf(operation))) return null;
+  const nameOf = (id: string) => context.parts.find((part) => part.id === id)?.name ?? id;
+  return `${nameOf(operation.partId)} is not joined to ${nameOf(operation.toPartId)} at this step.`;
+}
+
+/**
+ * The connectors of the fastenings that apply, placed on the joints the design still has: a
+ * joint that went with a removed part takes its connectors with it. A fastening with a connector
+ * that does not fit fails, with why.
+ */
+function placedConnectors(
+  steps: readonly Operation[],
+  design: ReplayedDesign,
+): { placed: PlacedConnector[]; misfits: Map<string, string> } {
+  const placed: PlacedConnector[] = [];
+  const misfits = new Map<string, string>();
+  for (const operation of steps) {
+    if (operation.kind !== 'fasten-joint' || design.failures.has(operation.id)) continue;
+    const joint = design.joints.find((candidate) => candidate.id === jointIdOf(operation));
+    const joined = design.resolved.get(operation.partId);
+    const met = design.resolved.get(operation.toPartId);
+    if (!joint || !joined || !met) continue;
+    for (const choice of operation.connectors) {
+      const connector = placedConnector(joint, joined, met, {
+        id: `${operation.id}:${choice.side}`,
+        jointId: joint.id,
+        ...choice,
+      });
+      if (typeof connector === 'string') misfits.set(operation.id, connector);
+      else placed.push(connector);
+    }
+  }
+  return { placed, misfits };
 }
 
 interface StepContext {

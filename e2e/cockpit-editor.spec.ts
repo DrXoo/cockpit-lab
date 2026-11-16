@@ -353,3 +353,31 @@ test('feet go under a profile as steps, and the design then stands on them', asy
   await expect(page.locator('#cockpitChecks [data-check="cad-support"]')).toHaveClass(/ok/);
   await expect(page.locator('#partsToBuy [data-buy="foot"]')).toHaveCount(2);
 });
+
+test('a joint is fastened with corner brackets from the inspector of either part', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  const joint = page.locator('[data-joint-row="part-2@part-1"]');
+  await expect(joint).toBeVisible();
+  await page.locator('[data-joint-brackets="part-2@part-1"]').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'fasten-joint', partId: 'part-2', toPartId: 'part-1' });
+  await expect(page.locator('#cockpitChecks [data-check="cad-pending-joints"]')).toHaveClass(/ok/);
+  await expect(page.locator('#partsToBuy [data-buy="connector"]')).toHaveCount(1);
+  await expect(page.locator('#partsToBuy [data-buy="fastener"]')).toHaveCount(2);
+
+  await page.locator('[data-operation="op-1"]').click();
+  const sides = page.locator('[data-joint="part-2@part-1"][aria-pressed="true"]');
+  await expect(sides).toHaveCount(2);
+  await sides.first().click();
+  await expect.poll(async () => (await savedHistory(page))?.[2]?.connectors?.length).toBe(1);
+  await page.locator('[data-joint="part-2@part-1"][aria-pressed="true"]').click();
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(2);
+  await expect(page.locator('#cockpitChecks [data-check="cad-pending-joints"]')).toHaveClass(
+    /warning/,
+  );
+});

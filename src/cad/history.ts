@@ -264,6 +264,19 @@ export function deleteOperation(history: readonly Operation[], operationId: stri
   return checkedHistory(history.filter((operation) => operation.id !== operationId));
 }
 
+/**
+ * Puts an edited operation in the place of the one with its id. The edit is refused when it
+ * would make the operation fail, unless it had failed already and is being fixed.
+ */
+export function changeOperation(history: readonly Operation[], edited: Operation): Operation[] {
+  const checked = checkedOperation(edited);
+  const changed = checkedHistory(
+    history.map((existing) => (existing.id === checked.id ? checked : existing)),
+  );
+  const failedBefore = replayDesign(history).failures.has(checked.id);
+  return failedBefore ? changed : refusedIfItFails(changed, checked.id);
+}
+
 /** The history, unless the operation would fail in it: then the reason it would fail. */
 function refusedIfItFails(history: Operation[], operationId: string): Operation[] {
   const failure = replayDesign(history).failures.get(operationId);
@@ -543,7 +556,7 @@ function nameOf(history: readonly Operation[], partId: string): string {
  * The next free identifiers. A part identifier that an operation still refers to stays taken
  * after the operation that made it is deleted, so a new part never answers for it.
  */
-function nextIdentifiers(history: readonly Operation[]): { id: string; partId: string } {
+export function nextIdentifiers(history: readonly Operation[]): { id: string; partId: string } {
   return {
     id: `op-${nextNumber(
       'op',
@@ -557,6 +570,7 @@ function partIdsNamed(operation: Operation): string[] {
   if (operation.kind === 'remove-part') return [operation.removedId];
   if (operation.kind === 'add-anchored-profile') return [operation.partId];
   if (operation.kind === 'add-foot') return [operation.partId, operation.parentId];
+  if (operation.kind === 'fasten-joint') return [operation.partId, operation.toPartId];
   return [
     operation.partId,
     operation.parentId,

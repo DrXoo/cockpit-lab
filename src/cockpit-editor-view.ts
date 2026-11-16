@@ -2,7 +2,14 @@
 // and the inspector of the selected part on the right. The design is shown on its own, in an
 // empty workspace without any room. Cockpit files are imported from the actions above the panel.
 import { faceAxis, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
-import { footType, footTypes, profileSection, profileSystem } from './cad/catalog.ts';
+import {
+  connectorType,
+  footType,
+  footTypes,
+  profileSection,
+  profileSystem,
+} from './cad/catalog.ts';
+import type { JointOfPart } from './cad/fastening.ts';
 import {
   FACES,
   facingParts,
@@ -18,6 +25,7 @@ import {
   stepTitle,
   type AddAnchoredProfile,
   type AddFoot,
+  type FastenJoint,
   type FootValues,
   type GrowProfile,
   type ProfileOperation,
@@ -157,12 +165,22 @@ function stepDetail(history: readonly Operation[], operation: Operation): string
   if (operation.kind === 'remove-part') return 'What hangs from it stays where it is, anchored';
   if (operation.kind === 'add-foot')
     return `Under ${escapeHTML(nameOf(history, operation.parentId))} · ${escapeHTML(footType(operation.footTypeId).name)}`;
+  if (operation.kind === 'fasten-joint') return escapeHTML(connectorCountText(operation));
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
   const made =
     operation.kind === 'add-anchored-profile'
       ? 'Anchored profile'
       : `${operation.way === 'out' ? 'Grown out of' : 'Laid on'} ${escapeHTML(parentName(history, operation))}${reachText(history, operation)}`;
   return `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
+}
+
+/** How many connectors of each type a fastening puts on its joint, such as "2 × 40 corner bracket". */
+function connectorCountText(fastening: FastenJoint): string {
+  const counts = new Map<string, number>();
+  for (const { typeId } of fastening.connectors) counts.set(typeId, (counts.get(typeId) ?? 0) + 1);
+  return [...counts]
+    .map(([typeId, count]) => `${count} × ${connectorType(typeId).name}`)
+    .join(', ');
 }
 
 const nameOf = (history: readonly Operation[], partId: string): string =>
@@ -208,6 +226,7 @@ export function partInspectorHTML(
   history: readonly Operation[],
   operation: Operation | undefined,
   failure?: string,
+  joints: readonly JointOfPart[] = [],
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
@@ -218,16 +237,51 @@ export function partInspectorHTML(
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
   if (operation.kind === 'remove-part')
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+  if (operation.kind === 'fasten-joint')
+    return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
   const removePart = `<button class="button button-light" id="removePart" title="Remove it from the design from the marker on"><i data-icon="close"></i>Remove this part</button>`;
   if (operation.kind === 'add-foot') {
     const actions = failure === undefined ? removePart : '';
-    return `<div class="part-inspector" id="partInspectorFields">${failed}${footFieldsHTML(history, operation)}<div class="part-actions">${actions}${deleteStep}</div></div>`;
+    return `<div class="part-inspector" id="partInspectorFields">${failed}${footFieldsHTML(history, operation)}${jointsHTML(joints)}<div class="part-actions">${actions}${deleteStep}</div></div>`;
   }
   const partActions =
     failure === undefined
       ? `<button class="button button-light" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button><button class="button button-light" id="addFoot" title="Under the end that has fewer feet"><i data-icon="plus"></i>Add a foot under it</button>${removePart}`
       : '';
-  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
+  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}${jointsHTML(joints)}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
+}
+
+/**
+ * The joints of the selected part, with their connectors: a corner bracket can be put on or
+ * taken off each side of the joined part where it fits, or two at once along the part it meets.
+ */
+function jointsHTML(joints: readonly JointOfPart[]): string {
+  if (joints.length === 0) return '';
+  return `<div class="part-joints" id="partJoints"><h4 class="buy-group">Joints</h4>${joints.map(jointHTML).join('')}</div>`;
+}
+
+function jointHTML(joint: JointOfPart): string {
+  const id = escapeHTML(joint.jointId);
+  const count = joint.sides.length;
+  const status =
+    count === 0
+      ? '⚠ No connectors yet'
+      : `✓ ${count} corner ${count === 1 ? 'bracket' : 'brackets'}`;
+  const sides = joint.fittingSides
+    .map((side) => {
+      const on = joint.sides.includes(side);
+      return `<button class="text-button joint-side" data-joint="${id}" data-side="${side}" aria-pressed="${on}" title="${on ? 'Take away the bracket on this side' : 'Put a corner bracket on this side'}">${on ? '✓' : '+'} ${SIDE_FACE_NAMES[side]}</button>`;
+    })
+    .join('');
+  const missingAlong = joint.alongSides.some((side) => !joint.sides.includes(side));
+  const quick = missingAlong
+    ? `<button class="button button-light" data-joint-brackets="${id}" title="One on each side along ${escapeHTML(joint.toPartName)}"><i data-icon="plus"></i>Two corner brackets</button>`
+    : '';
+  const choices =
+    joint.fittingSides.length === 0
+      ? '<p class="layout-hint">No connector in the catalog fits this joint yet: a corner bracket needs a part that meets a face end on, with room for its legs.</p>'
+      : `<div class="joint-sides">${sides}</div>${quick}`;
+  return `<div class="joint-row" data-joint-row="${id}"><p class="joint-name"><strong>${escapeHTML(joint.partName)} to ${escapeHTML(joint.toPartName)}</strong><small>${status}</small></p>${choices}</div>`;
 }
 
 /** The values of a foot: its type and where it stands under its profile. */
@@ -454,7 +508,7 @@ function axisOf(value: string): Axis {
   return axis;
 }
 
-function faceOf(value: string): Face {
+export function faceOf(value: string): Face {
   const face = FACES.find((known) => known === value);
   if (!face) throw new Error(`Unknown face: ${value}`);
   return face;

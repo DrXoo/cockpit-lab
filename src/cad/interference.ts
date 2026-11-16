@@ -3,6 +3,7 @@
 // the rectangles are compared exactly, by separating axes, even at different tilts.
 // A geometric check of the approximate model only.
 import type { Axis, BoxMm, ResolvedPart } from './assembly.ts';
+import type { PlacedConnector } from './connectors.ts';
 
 /**
  * Overlaps up to this depth, in mm, are contact rather than interference: parts placed face to
@@ -26,28 +27,48 @@ interface SidePoint {
   z: number;
 }
 
-/** Every pair of parts that interfere, in design order, deepest first. */
+/** Something that takes up room in the cockpit: a part, or a connector on a joint. */
+interface Solid {
+  id: string;
+  name: string;
+  box: BoxMm;
+  tiltDeg: number;
+}
+
+/**
+ * Every pair of parts or connectors that interfere, in design order, deepest first. A connector
+ * sits outside the two parts of its joint, so it only touches them.
+ */
 export function cockpitInterferences(
   resolved: ReadonlyMap<string, ResolvedPart>,
+  connectors: readonly PlacedConnector[] = [],
 ): CadInterference[] {
-  const parts = [...resolved.values()];
+  const solids: Solid[] = [
+    ...[...resolved.values()].map(({ part, box, tiltDeg }) => ({
+      id: part.id,
+      name: part.name,
+      box,
+      tiltDeg,
+    })),
+    ...connectors,
+  ];
   const found: CadInterference[] = [];
-  for (let i = 0; i < parts.length; i++)
-    for (let j = i + 1; j < parts.length; j++) {
-      const overlap = shortestWayOut(parts[i], parts[j]);
+  for (let i = 0; i < solids.length; i++)
+    for (let j = i + 1; j < solids.length; j++) {
+      const overlap = shortestWayOut(solids[i], solids[j]);
       if (!overlap || overlap.depthMm <= CAD_CONTACT_MM) continue;
       found.push({
-        partId: parts[i].part.id,
-        partName: parts[i].part.name,
-        otherId: parts[j].part.id,
-        otherName: parts[j].part.name,
+        partId: solids[i].id,
+        partName: solids[i].name,
+        otherId: solids[j].id,
+        otherName: solids[j].name,
         ...overlap,
       });
     }
   return found.sort((a, b) => b.depthMm - a.depthMm);
 }
 
-function shortestWayOut(a: ResolvedPart, b: ResolvedPart): { depthMm: number; axis: Axis } | null {
+function shortestWayOut(a: Solid, b: Solid): { depthMm: number; axis: Axis } | null {
   const alongX = penetration(a.box.min.x, a.box.max.x, b.box.min.x, b.box.max.x);
   if (alongX <= 0) return null;
   let best = { depthMm: alongX, axis: 'x' as Axis };
