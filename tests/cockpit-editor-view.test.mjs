@@ -163,3 +163,19 @@ test('the place on the face comes from its own fields', () => {
   assert.throws(() => partChange(growth, 'startX', '0'), /no start/);
   assert.throws(() => partChange(growth, 'face', 'up'), /face/);
 });
+
+test('a growth grows out of its face or lies along it, the ways the face allows', () => {
+  const history = railAndGrowth();
+  const html = partInspectorHTML(history, history[1]);
+  const choices = /data-part-field="way"[^>]*>([\s\S]*?)<\/select>/.exec(html)[1];
+  assert.deepEqual(
+    [...choices.matchAll(/value="([^"]+)"/g)].map(([, way]) => way),
+    ['out', '+x', '-x', '+z', '-z'],
+  );
+  assert.match(choices, /value="out" selected>Out of the face</);
+  assert.match(choices, /value="\+z">Along the face, towards the front \(\+Z\)</);
+  assert.deepEqual(partChange(history[1], 'way', '-x'), { way: '-x' });
+  assert.deepEqual(partChange(history[1], 'way', 'out'), { way: 'out' });
+  const lying = editProfile(history, 'part-2', { way: '+x' });
+  assert.match(panel({ history: lying }), /Laid on Rail/);
+});

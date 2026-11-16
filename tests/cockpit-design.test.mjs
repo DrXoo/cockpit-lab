@@ -98,3 +98,11 @@ test('a growth must come after the part it grows from and stay on its face', () 
     /startMm/,
   );
 });
+
+test('a profile lying on a face reads back, and one lying towards its face is rejected', () => {
+  const data = stored(withGrowth());
+  const [rail, growth] = data.history;
+  const lying = { ...data, history: [rail, { ...growth, way: '+x' }] };
+  assert.equal(readDesign(lying).history[1].way, '+x');
+  assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, way: '-y' }] }), /way/);
+});

@@ -38,17 +38,22 @@ export interface Anchor {
 export interface Attachment {
   kind: 'attachment';
   parentId: string;
-  /** The face of the parent the part grows out of, perpendicular to it. */
+  /** The face of the parent the part grows out of, perpendicular to it unless it lies on it. */
   face: Face;
   /** Distance along the parent from the end named by `fromEnd`. */
   alongMm: number;
   fromEnd: 'start' | 'end';
   /** Off the center of the face, towards + on the axis across it. */
   acrossMm?: number;
+  /**
+   * For a profile lying on the face rather than growing out of it, the way it runs from the
+   * attachment point, along the face; its section rests on the face.
+   */
+  lying?: Face;
 }
 
 /** An attachment whose far end meets the facing face of another part. */
-export interface Span extends Omit<Attachment, 'kind'> {
+export interface Span extends Omit<Attachment, 'kind' | 'lying'> {
   kind: 'span';
   reachesId: string;
 }
@@ -240,6 +245,8 @@ function resolveProfile(part: ProfilePart, dependency: (id: string) => ResolvedP
   }
   const parent = dependency(placement.parentId);
   const facePoint = attachmentPoint(parent, placement);
+  if (placement.kind === 'attachment' && placement.lying)
+    return resolveLying(part, parent, facePoint, placement.face, placement.lying);
   if (part.axis !== faceAxis(placement.face))
     throw new Error(`Part ${part.id} must run perpendicular to face ${placement.face}.`);
   let lengthMm = part.lengthMm;
@@ -256,6 +263,26 @@ function resolveProfile(part: ProfilePart, dependency: (id: string) => ResolvedP
   if (faceSign(placement.face) < 0) start[part.axis] -= lengthMm;
   const box = profileBox(part, start, lengthMm);
   return { part, tiltDeg: parent.tiltDeg, box, lengthMm, openEnd };
+}
+
+/** A profile lying on a face: its section rests on it, and it runs `way` from `facePoint`. */
+function resolveLying(
+  part: ProfilePart,
+  parent: ResolvedPart,
+  facePoint: Vec3Mm,
+  face: Face,
+  way: Face,
+): ResolvedPart {
+  const normal = faceAxis(face);
+  if (part.axis !== faceAxis(way) || part.axis === normal)
+    throw new Error(`Part ${part.id} must run along face ${face}, the way it lies: ${way}.`);
+  const section = profileSection(profileSystem(part.systemId), part.sectionId);
+  const restingMm = part.heightAxis === normal ? section.heightMm : section.widthMm;
+  const start = { ...facePoint };
+  start[normal] += (faceSign(face) * restingMm) / 2;
+  if (faceSign(way) < 0) start[part.axis] -= part.lengthMm;
+  const box = profileBox(part, start, part.lengthMm);
+  return { part, tiltDeg: parent.tiltDeg, box, lengthMm: part.lengthMm, openEnd: false };
 }
 
 /** The eight corners of a resolved part in cockpit coordinates. */

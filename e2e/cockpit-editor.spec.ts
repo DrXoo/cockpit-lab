@@ -223,3 +223,15 @@ test('a part cannot change so that what grows out of it would hang off', async (
   await expect(page.locator('#toast')).toHaveClass(/visible/);
   await expect(page.locator('#part-lengthMm')).toHaveValue('500');
 });
+
+test('a profile can lie along a face instead of growing out of it', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#grow-way').selectOption('+x');
+  await page.locator('#confirmGrowth').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'grow-profile', face: '+y', way: '+x' });
+  await page.locator('#part-face').selectOption('+x');
+  await expect(page.locator('#part-way')).toHaveValue('+z');
+});

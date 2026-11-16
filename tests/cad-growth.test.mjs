@@ -152,3 +152,46 @@ test('a click on a face of the parent puts the growth there, measured from the n
   assert.equal(nearEnd.alongMm, 300);
   assert.equal(growthAt(history, draft, '-z', { x: 0, y: 20, z: 0 }).alongMm, 0);
 });
+
+test('a profile can lie along a face, running the way it is given from its place there', () => {
+  const forward = grow(railHistory(), 'part-1', {
+    face: '+y',
+    way: '+z',
+    fromEnd: 'start',
+    alongMm: 100,
+    lengthMm: 300,
+  });
+  assert.equal(forward[1].way, '+z');
+  assert.deepEqual(boxOf(forward, 'part-2'), {
+    min: { x: -20, y: 40, z: 100 },
+    max: { x: 20, y: 80, z: 400 },
+  });
+  const sideways = grow(railHistory(), 'part-1', { way: '-x', lengthMm: 300 });
+  assert.deepEqual(boxOf(sideways, 'part-2'), {
+    min: { x: -300, y: 40, z: 480 },
+    max: { x: 0, y: 80, z: 520 },
+  });
+});
+
+test('a profile lying on a face rests its whole section on it', () => {
+  const history = grow(railHistory(), 'part-1', {
+    face: '+x',
+    way: '+z',
+    sectionId: '40x80',
+    heightAxis: 'x',
+    alongMm: 0,
+    lengthMm: 200,
+  });
+  assert.deepEqual(boxOf(history, 'part-2'), {
+    min: { x: 20, y: 0, z: 0 },
+    max: { x: 100, y: 40, z: 200 },
+  });
+});
+
+test('a profile cannot lie towards the face it lies on, and a new face keeps it lying', () => {
+  const lying = grow(railHistory(), 'part-1', { way: '+x' });
+  assert.throws(() => editProfile(lying, 'part-2', { way: '+y' }), /way/);
+  const moved = editProfile(lying, 'part-2', { face: '+x' });
+  assert.equal(moved[1].way, '+z', 'it turns to lie along the part it grows from');
+  assert.equal(editProfile(lying, 'part-2', { way: 'out' })[1].way, 'out');
+});

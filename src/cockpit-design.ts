@@ -94,7 +94,6 @@ function readAnchored(data: Record<string, unknown>): Operation {
 
 function readGrowth(data: Record<string, unknown>): Operation {
   onlyKeys(data, [...SHAPE_KEYS, 'parentId', 'face', 'fromEnd', 'alongMm', 'acrossMm', 'way']);
-  if (data.way !== 'out') throw new Error(`Unknown way to grow: ${data.way}`);
   return {
     kind: 'grow-profile',
     ...readShape(data),
@@ -103,7 +102,7 @@ function readGrowth(data: Record<string, unknown>): Operation {
     fromEnd: parentEnd(data.fromEnd),
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
-    way: 'out',
+    way: data.way === 'out' ? 'out' : wayAlongAFace(data.way),
   };
 }
 
@@ -116,6 +115,12 @@ function onlyKeys(data: Record<string, unknown>, keys: readonly string[]) {
 function face(value: unknown): Face {
   const known = FACES.find((candidate) => candidate === value);
   if (!known) throw new Error(`Unknown face: ${value}`);
+  return known;
+}
+
+function wayAlongAFace(value: unknown): Face {
+  const known = FACES.find((candidate) => candidate === value);
+  if (!known) throw new Error(`Unknown way to grow: ${value}`);
   return known;
 }
 

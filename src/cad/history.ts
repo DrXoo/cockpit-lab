@@ -55,9 +55,14 @@ export interface GrowProfile extends ProfileShape {
   alongMm: number;
   /** Off the center of the face, towards + on the axis across it; always 0 on an end face. */
   acrossMm: number;
-  /** 'out' grows out of the face, perpendicular to it. */
-  way: 'out';
+  /**
+   * 'out' grows out of the face, perpendicular to it; a direction along the face lays the
+   * profile on it, running that way.
+   */
+  way: GrowthWay;
 }
+
+export type GrowthWay = 'out' | Face;
 
 /** One step of a design history. Every kind is part of the file format. */
 export type Operation = AddAnchoredProfile | GrowProfile;
@@ -74,6 +79,7 @@ export interface ProfileValues {
   fromEnd: ParentEnd;
   alongMm: number;
   acrossMm: number;
+  way: GrowthWay;
 }
 
 /** Shorter pieces are spacers rather than profiles. */
@@ -90,7 +96,13 @@ export const FACES: readonly Face[] = ['+y', '-y', '+x', '-x', '+z', '-z'];
 
 /** Values only an anchored profile has, and only a grown one has. */
 const ANCHORED_ONLY: readonly (keyof ProfileValues)[] = ['axis', 'startMm'];
-const GROWN_ONLY: readonly (keyof ProfileValues)[] = ['face', 'fromEnd', 'alongMm', 'acrossMm'];
+const GROWN_ONLY: readonly (keyof ProfileValues)[] = [
+  'face',
+  'fromEnd',
+  'alongMm',
+  'acrossMm',
+  'way',
+];
 
 /** A new profile is a 40 × 40, half a metre long. */
 const NEW_PROFILE = {
@@ -105,7 +117,9 @@ const NEW_PROFILE_GAP_MM = 60;
 
 /** The axis a profile's length runs along. */
 export const lengthAxisOf = (operation: Operation): Axis =>
-  operation.kind === 'add-anchored-profile' ? operation.axis : faceAxis(operation.face);
+  operation.kind === 'add-anchored-profile'
+    ? operation.axis
+    : faceAxis(operation.way === 'out' ? operation.face : operation.way);
 
 /** Replays the history into the parts it makes, in order. */
 export function replayHistory(history: readonly Operation[]): Part[] {
@@ -134,6 +148,7 @@ function partMadeBy(operation: Operation): ProfilePart {
       alongMm: operation.alongMm,
       fromEnd: operation.fromEnd,
       acrossMm: operation.acrossMm,
+      ...(operation.way === 'out' ? {} : { lying: operation.way }),
     },
   };
 }
@@ -298,14 +313,32 @@ function editedGrowth(
     throw new Error(
       `${operation.name} takes its position from ${nameOf(history, operation.parentId)}: change where it grows from instead.`,
     );
+  const face = changes.face ?? operation.face;
   return onItsFace(history, {
     ...operation,
     ...shapeChanges(operation, changes),
-    face: changes.face ?? operation.face,
+    face,
     fromEnd: changes.fromEnd ?? operation.fromEnd,
     alongMm: changes.alongMm ?? operation.alongMm,
     acrossMm: changes.acrossMm ?? operation.acrossMm,
+    way: changes.way ?? keptLying(history, operation, face),
   });
+}
+
+/**
+ * The way a profile lying on a face runs once it moves to `face`. On a face across its way it
+ * turns to lie along the part it grows from, or along another axis of the face.
+ */
+function keptLying(history: readonly Operation[], operation: GrowProfile, face: Face): GrowthWay {
+  const { way } = operation;
+  if (way === 'out' || faceAxis(way) !== faceAxis(face)) return way;
+  const parent = operationMaking(history, operation.parentId);
+  const parentAxis = parent ? lengthAxisOf(parent) : 'z';
+  const axis =
+    parentAxis !== faceAxis(face)
+      ? parentAxis
+      : (AXES.find((candidate) => candidate !== faceAxis(face)) ?? 'z');
+  return `+${axis}`;
 }
 
 /** The shape of a profile with the changes given, keeping the values not given. */
@@ -378,7 +411,12 @@ function checkGrowth(operation: GrowProfile) {
   if (!FACES.includes(operation.face)) throw new Error(`Unknown face: ${operation.face}`);
   if (operation.fromEnd !== 'start' && operation.fromEnd !== 'end')
     throw new Error(`Unknown end: ${operation.fromEnd}`);
-  if (operation.way !== 'out') throw new Error(`Unknown way to grow: ${operation.way}`);
+  const { way } = operation;
+  if (way !== 'out' && !FACES.includes(way)) throw new Error(`Unknown way to grow: ${way}`);
+  if (way !== 'out' && faceAxis(way) === faceAxis(operation.face))
+    throw new Error(
+      'A profile lying on a face runs along it: choose a way across the face, or out of it.',
+    );
   if (!Number.isFinite(operation.alongMm) || operation.alongMm < 0)
     throw new Error('A distance along a part must be 0 mm or more.');
   if (!Number.isFinite(operation.acrossMm))

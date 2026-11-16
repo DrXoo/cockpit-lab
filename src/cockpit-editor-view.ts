@@ -56,7 +56,8 @@ export type PartField =
   | 'face'
   | 'fromEnd'
   | 'alongMm'
-  | 'acrossMm';
+  | 'acrossMm'
+  | 'way';
 
 const AXIS_NAMES: Record<Axis, string> = {
   x: 'Across (X)',
@@ -83,6 +84,15 @@ const END_FACE_NAMES: Record<Face, string> = {
   '-x': 'Right end (−X)',
   '+z': 'Front end (+Z)',
   '-z': 'Back end (−Z)',
+};
+/** The ways a profile lying on a face can run, as the driver sees them. */
+const DIRECTION_NAMES: Record<Face, string> = {
+  '+x': 'towards the left (+X)',
+  '-x': 'towards the right (−X)',
+  '+y': 'upwards (+Y)',
+  '-y': 'downwards (−Y)',
+  '+z': 'towards the front (+Z)',
+  '-z': 'towards the back (−Z)',
 };
 /** The ends of a profile along each axis: its start has the lower coordinate. */
 const END_NAMES: Record<Axis, Record<ParentEnd, string>> = {
@@ -116,7 +126,7 @@ function historyStepHTML(
   const made =
     operation.kind === 'add-anchored-profile'
       ? 'Anchored profile'
-      : `Grown out of ${escapeHTML(parentName(history, operation))}`;
+      : `${operation.way === 'out' ? 'Grown out of' : 'Laid on'} ${escapeHTML(parentName(history, operation))}`;
   const detail = `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
   return `<li><button class="history-step" data-part="${escapeHTML(operation.partId)}" aria-pressed="${selected}"><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(operation.name)}</strong><small>${detail}</small></span></button></li>`;
 }
@@ -223,8 +233,14 @@ function grownPlacementHTML(
   const onTheSide = onAnEnd
     ? '<p class="layout-hint">Out of an end face it grows from the center of the end.</p>'
     : `${fields.select('fromEnd', 'Measured from', ends, growth.fromEnd)}${fields.number('alongMm', 'Distance from that end', growth.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', growth.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
+  const ways = [
+    ['out', 'Out of the face'] as [string, string],
+    ...FACES.filter((way) => faceAxis(way) !== faceAxis(growth.face)).map(
+      (way): [string, string] => [way, `Along the face, ${DIRECTION_NAMES[way]}`],
+    ),
+  ];
   return {
-    before: `${parentLine}${fields.select('face', 'Grows out of the face', faces, growth.face)}${onTheSide}`,
+    before: `${parentLine}${fields.select('face', 'Face', faces, growth.face)}${fields.select('way', 'Grows', ways, growth.way)}${onTheSide}`,
     after: '',
   };
 }
@@ -270,6 +286,7 @@ const PART_FIELDS: readonly PartField[] = [
   'fromEnd',
   'alongMm',
   'acrossMm',
+  'way',
 ];
 
 /** The inspector field a `data-part-field` names. The markup is the app's, so others are bugs. */
@@ -324,6 +341,8 @@ export function partChange(
       return { alongMm: typedNumber(value) };
     case 'acrossMm':
       return { acrossMm: typedNumber(value) };
+    case 'way':
+      return { way: value === 'out' ? 'out' : faceOf(value) };
     case 'startX':
     case 'startY':
     case 'startZ':
