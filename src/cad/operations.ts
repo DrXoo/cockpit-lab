@@ -210,3 +210,9 @@ function checkGrowth(operation: GrowProfile) {
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
 }
+
+/** How a step is named in the history: the part it makes, or the part a removal takes away. */
+export function stepTitle(history: readonly Operation[], operation: Operation): string {
+  if (operation.kind !== 'remove-part') return operation.name;
+  return `Removes ${operationMaking(history, operation.removedId)?.name ?? 'a deleted part'}`;
+}

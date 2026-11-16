@@ -14,6 +14,7 @@ import {
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   replayDesign,
+  stepTitle,
   type AddAnchoredProfile,
   type GrowProfile,
   type MakingOperation,
@@ -146,12 +147,6 @@ function historyStepHTML(panel: DesignPanel, index: number) {
       ? ''
       : `<small class="history-failure">⚠ Failed: ${escapeHTML(failure)}</small>`;
   return `<li><button class="${classes}" data-operation="${escapeHTML(operation.id)}"${part} aria-pressed="${selected}"${waiting ? ' disabled' : ''}><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(stepTitle(history, operation))}</strong><small>${stepDetail(history, operation)}</small>${failed}</span></button></li>`;
-}
-
-function stepTitle(history: readonly Operation[], operation: Operation): string {
-  return operation.kind === 'remove-part'
-    ? `Removes ${nameOf(history, operation.removedId)}`
-    : operation.name;
 }
 
 function stepDetail(history: readonly Operation[], operation: Operation): string {

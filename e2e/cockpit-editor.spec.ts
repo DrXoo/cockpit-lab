@@ -17,6 +17,7 @@ test('the cockpit editor starts empty, without layouts or room checks', async ({
   await expect(page.locator('#roomInspector')).toBeHidden();
   await expect(page.locator('#validationBanner')).toBeHidden();
   await expect(page.locator('#cockpitChecksNote')).toBeVisible();
+  await expect(page.locator('#cockpitChecksSection')).toBeHidden();
   await expect(page.locator('#importCockpit')).toBeVisible();
   await expect(page.locator('#exportCockpit')).toBeHidden();
 
@@ -315,4 +316,22 @@ test('the history marker shows an earlier step, and new steps go in there', asyn
   await page.locator('#markerEnd').click();
   await expect(page.locator('[data-operation="op-2"]')).toBeEnabled();
   await expect(page.locator('#markerForward')).toBeDisabled();
+});
+
+test('the inspector checks the whole design and lists the parts to buy', async ({ page }) => {
+  await startDesign(page);
+  await expect(page.locator('#cockpitChecksNote')).toBeHidden();
+  await expect(page.locator('#cockpitChecks [data-check="cad-support"]')).toHaveClass(/warning/);
+  await expect(page.locator('#cockpitChecks [data-check="cad-failed-steps"]')).toHaveClass(/ok/);
+  await expect(page.locator('#partsToBuy [data-buy="cut"]')).toHaveCount(1);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  await expect(page.locator('#cockpitChecks [data-check="cad-pending-joints"]')).toHaveClass(
+    /warning/,
+  );
+  await expect(page.locator('#partsPending')).toBeVisible();
+  await expect(page.locator('#partsToBuy [data-buy="cut"]')).toHaveCount(1);
+  await expect(page.locator('#wholeDesignNote')).toBeHidden();
+  await page.locator('#markerBack').click();
+  await expect(page.locator('#wholeDesignNote')).toBeVisible();
 });

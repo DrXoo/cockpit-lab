@@ -125,6 +125,9 @@ import {
   type ThemePreference,
 } from './theme-preference.ts';
 import { checkRowHTML } from './check-view.ts';
+import { cadChecks } from './cad-checks.ts';
+import { partsToBuy } from './cad/parts-to-buy.ts';
+import { partsToBuyHTML } from './cockpit-parts-view.ts';
 import {
   unitFor,
   controlValue as controlValueOf,
@@ -623,6 +626,31 @@ function bindDesignPanel() {
 }
 /** The inspector HTML last shown, so it is only rebuilt when it changes. */
 let shownPartInspector = '';
+/** What the checks and the parts to buy last showed, so an open list of items stays open. */
+const shownCockpitLists = new Map<HTMLElement, string>();
+function showCockpitList(container: HTMLElement, html: string) {
+  if (shownCockpitLists.get(container) === html) return;
+  container.innerHTML = html;
+  shownCockpitLists.set(container, html);
+}
+/** The checks and the parts to buy of the whole design, wherever the history marker is. */
+function renderCockpitChecks() {
+  const shown = editor() === 'cockpit' && designHasParts();
+  $('#cockpitChecksNote').hidden = editor() !== 'cockpit' || designHasParts();
+  $('#cockpitChecksSection').hidden = !shown;
+  $('#partsToBuySection').hidden = !shown;
+  if (!shown) return;
+  const history = designHistory();
+  const design = replayDesign(history);
+  $('#wholeDesignNote').hidden = markerIndex() === history.length;
+  showCockpitList(
+    $('#cockpitChecks'),
+    cadChecks({ history, ...design })
+      .map(checkRowHTML)
+      .join(''),
+  );
+  showCockpitList($('#partsToBuy'), partsToBuyHTML(partsToBuy(design.resolved, [])));
+}
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
   const history = designHistory();
@@ -1004,7 +1032,6 @@ function renderWorkflow() {
   $('#layoutBtn').classList.toggle('active', layoutEditing);
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
   $('#validationBanner').hidden = inCockpit;
-  $('#cockpitChecksNote').hidden = !inCockpit;
   inspectorSectionOf('#deskSizeTag').hidden =
     !shown.deskEnabled || (guided && setup.step !== 'desk');
   inspectorSectionOf('#deskSizeTag').querySelector('h3')!.lastChild!.textContent =
@@ -1331,6 +1358,7 @@ function refresh() {
   $('#metricSpace').innerHTML = metrics.spaceHTML;
   renderWorkflow();
   renderPartInspector();
+  renderCockpitChecks();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
 function download(filename: string, text: string, type: string) {

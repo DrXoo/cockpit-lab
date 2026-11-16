@@ -1,0 +1,60 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { partsToBuyHTML } from '../src/cockpit-parts-view.ts';
+
+const cut = (sectionId, lengthMm, names) => ({
+  systemId: 'motedis-40-i-slot-8',
+  sectionId,
+  lengthMm,
+  quantity: names.length,
+  names,
+});
+const nothing = { cuts: [], connectors: [], fasteners: [], feet: [], pendingJoints: [] };
+const textOf = (html) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+test('the cuts are listed by section and length, with the names of their parts', () => {
+  const html = partsToBuyHTML({
+    ...nothing,
+    cuts: [cut('40x80', 1200, ['Left rail', 'Right rail']), cut('40x40', 460, ['Crossmember'])],
+  });
+  assert.match(textOf(html), /2 × 40 × 80 profile, 1200 mm Left rail, Right rail/);
+  assert.match(textOf(html), /1 × 40 × 40 profile, 460 mm Crossmember/);
+  assert.equal(html.match(/data-buy="cut"/g)?.length, 2);
+});
+
+test('connectors, fasteners and feet are counted, and estimated items say so', () => {
+  const html = partsToBuyHTML({
+    ...nothing,
+    cuts: [cut('40x40', 500, ['A'])],
+    connectors: [{ typeId: 'corner-bracket-40', name: '40 corner bracket', quantity: 2 }],
+    fasteners: [
+      { id: 'bolt-m8', quantity: 8 },
+      { id: 't-nut-slot-8-m8', quantity: 8 },
+    ],
+    feet: [{ typeId: 'leveling-foot', name: 'Leveling foot', quantity: 4 }],
+  });
+  const text = textOf(html);
+  assert.match(text, /2 × 40 corner bracket Estimated: check the data sheet/);
+  assert.match(text, /8 × M8 bolt/);
+  assert.match(text, /8 × T-nut, slot 8, M8/);
+  assert.match(text, /4 × Leveling foot Estimated: check the data sheet/);
+});
+
+test('pending joints are a warning that the list is not complete yet', () => {
+  const html = partsToBuyHTML({
+    ...nothing,
+    cuts: [cut('40x40', 500, ['A', 'B'])],
+    pendingJoints: [{ jointId: 'part-2@part-1', partName: 'B', toPartName: 'A' }],
+  });
+  assert.match(textOf(html), /⚠ 1 joint has no connectors yet/);
+  assert.doesNotMatch(html, /data-buy="connector"/);
+});
+
+test('names are escaped, as the user typed them', () => {
+  const html = partsToBuyHTML({ ...nothing, cuts: [cut('40x40', 500, ['<b>A</b>'])] });
+  assert.match(html, /&lt;b&gt;A&lt;\/b&gt;/);
+});
