@@ -1,9 +1,9 @@
-// Draws the profiles of a CAD cockpit design. Parts are in mm in cockpit coordinates; the scene
-// works in cm. Profiles at a tilt go into one group per tilt, turned about the cockpit origin as
-// their frame is (src/cad/assembly.ts).
+// Draws the profiles and feet of a CAD cockpit design. Parts are in mm in cockpit coordinates;
+// the scene works in cm. Parts at a tilt go into one group per tilt, turned about the cockpit
+// origin as their frame is (src/cad/assembly.ts).
 import { degToRad } from './geometry.ts';
 import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
-import type { Axis, ResolvedPart } from './cad/assembly.ts';
+import type { Axis, BoxMm, ResolvedPart } from './cad/assembly.ts';
 import { profileSystem } from './cad/catalog.ts';
 import { MM_PER_CM } from './units.ts';
 
@@ -21,6 +21,10 @@ const GROOVE_SHORTFALL_CM = 0.5;
 const GROOVE_WIDTH_CM = 0.3;
 const GROOVE_THICKNESS_CM = 0.09;
 const GROOVE_PROUD_CM = 0.04;
+
+/** A foot as drawn: a rubber pad on the floor and a threaded stem up to the profile. */
+const FOOT_PAD_HEIGHT_MM = 15;
+const FOOT_STEM_RADIUS_MM = 8;
 
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
 const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
@@ -43,8 +47,8 @@ export function drawCadProfiles(
     return group;
   };
   for (const { part, box, tiltDeg } of resolved.values()) {
+    if (part.kind === 'foot') drawFoot(r, frameOf(tiltDeg), box, part.id === selectedId);
     if (part.kind !== 'profile') continue;
-    const cm = (mm: number) => mm / MM_PER_CM;
     const size: Vec3 = [
       cm(box.max.x - box.min.x),
       cm(box.max.y - box.min.y),
@@ -61,6 +65,33 @@ export function drawCadProfiles(
     );
     drawGrooves(r, bar.id, size, part.axis, cm(profileSystem(part.systemId).series));
   }
+}
+
+const cm = (mm: number) => mm / MM_PER_CM;
+
+function drawFoot(r: RenderList, frame: ParentRef, box: BoxMm, selected: boolean): void {
+  const x = cm((box.min.x + box.max.x) / 2);
+  const z = cm((box.min.z + box.max.z) / 2);
+  const padTopMm = box.min.y + FOOT_PAD_HEIGHT_MM;
+  r.box(
+    cm(box.max.x - box.min.x),
+    cm(FOOT_PAD_HEIGHT_MM),
+    cm(box.max.z - box.min.z),
+    x,
+    cm(box.min.y + FOOT_PAD_HEIGHT_MM / 2),
+    z,
+    selected ? 'selected' : 'rubber',
+    frame,
+  );
+  r.cylinder(
+    cm(FOOT_STEM_RADIUS_MM),
+    cm(box.max.y - padTopMm),
+    x,
+    cm((padTopMm + box.max.y) / 2),
+    z,
+    selected ? 'selected' : 'silver',
+    frame,
+  );
 }
 
 /**

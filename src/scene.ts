@@ -15,6 +15,7 @@ import { renderModel } from './render-model.ts';
 import {
   cameraPose,
   designBounds,
+  floorHeightCm,
   sceneBounds,
   viewHeight,
   type Framing,
@@ -174,6 +175,9 @@ function screenTexture(): T.CanvasTexture {
   return texture;
 }
 
+/** The ground sits just under the grid, so the grid lines stay on top of it. */
+const GROUND_BELOW_GRID_CM = -0.25;
+
 /** Ground, grid and lights, which do not depend on the configuration. */
 function addEnvironment(scene: T.Scene, vectorFallback: boolean, theme: SceneTheme): Environment {
   const hemisphere = new T.HemisphereLight(0xffffff, theme.groundLight, vectorFallback ? 0 : 2.5);
@@ -202,7 +206,7 @@ function addEnvironment(scene: T.Scene, vectorFallback: boolean, theme: SceneThe
       : new T.MeshStandardMaterial({ color: theme.background, roughness: 1 }),
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.25;
+  ground.position.y = GROUND_BELOW_GRID_CM;
   ground.receiveShadow = true;
   if (!vectorFallback) scene.add(ground);
   const grid = createGrid(theme);
@@ -373,6 +377,7 @@ export class CockpitScene {
     this.e = e;
     this.cockpit = cockpit;
     this.sceneBounds = cockpit ? designBounds(cockpit.resolved) : sceneBounds(s, e);
+    this.placeFloor();
     if (this.root) {
       this.disposeDrawing(this.root);
       this.scene.remove(this.root);
@@ -396,6 +401,13 @@ export class CockpitScene {
     this.setFrustum();
   }
 
+  /** Puts the ground and the grid at the floor of what the scene shows. */
+  private placeFloor() {
+    const floorCm = this.sceneBounds ? floorHeightCm(this.sceneBounds) : 0;
+    this.environment.grid.position.y = floorCm;
+    this.environment.ground.position.y = floorCm + GROUND_BELOW_GRID_CM;
+  }
+
   /** Takes the scene colors from the stylesheet again, after the interface theme changed. */
   applyTheme() {
     const theme = themeOfPage();
@@ -412,6 +424,7 @@ export class CockpitScene {
     const next = createGrid(theme);
     this.scene.add(next);
     this.environment = { hemisphere, ground, grid: next };
+    this.placeFloor();
     this.revision++;
     this.redraw();
   }

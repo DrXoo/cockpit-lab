@@ -92,15 +92,38 @@ test('tilted profiles are drawn in one group turned by their tilt about the orig
   assert.ok(bars(primitives).every((bar) => bar.parent === groups[0].id));
 });
 
-test('feet, plates and peripherals are not drawn as profiles', () => {
-  const foot = {
-    kind: 'foot',
-    id: 'foot',
-    name: 'Foot',
-    footTypeId: 'leveling-foot',
-    placement: { kind: 'attachment', parentId: 'rail', face: '-y', alongMm: 0, fromEnd: 'start' },
-  };
+const foot = {
+  kind: 'foot',
+  id: 'foot',
+  name: 'Foot',
+  footTypeId: 'leveling-foot',
+  placement: { kind: 'attachment', parentId: 'rail', face: '-y', alongMm: 36, fromEnd: 'start' },
+};
+
+test('feet are not drawn as profiles', () => {
   assert.equal(bars(draw([profile('rail'), foot])).length, 1);
+});
+
+test('a foot is drawn as a rubber pad and a threaded stem up to the underside', () => {
+  const primitives = draw([profile('rail'), foot]);
+  const pad = primitives.find((p) => p.kind === 'box' && p.material === 'rubber');
+  const near = (actual, expected, message) =>
+    assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} is not ${expected}`);
+  // The rail's underside is 6 cm up, and a leveling foot is 6 cm tall.
+  assert.deepEqual(pad.size, [7.2, 1.5, 7.2]);
+  near(pad.position[0], -28, 'under the rail');
+  near(pad.position[1], 0.75, 'on the floor');
+  near(pad.position[2], 3.6, 'flush with the start');
+  const stem = primitives.find((p) => p.kind === 'cylinder');
+  assert.equal(stem.material, 'silver');
+  near(stem.position[1] + stem.length / 2, 6, 'the stem reaches the underside');
+  near(stem.position[1] - stem.length / 2, 1.5, 'and stands on the pad');
+});
+
+test('a selected foot is drawn in the accent color', () => {
+  const primitives = draw([profile('rail'), foot], 'foot');
+  assert.ok(primitives.some((p) => p.kind === 'box' && p.material === 'selected'));
+  assert.ok(!primitives.some((p) => p.material === 'rubber'));
 });
 
 test('a part about to be added is drawn as a preview', () => {

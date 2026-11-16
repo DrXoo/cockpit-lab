@@ -147,3 +147,23 @@ test('a removal reads back, and must name the part it removes', () => {
     /extra/,
   );
 });
+
+test('a foot reads back with its type and its place under the profile', () => {
+  const { history } = designWith(1);
+  const foot = {
+    kind: 'add-foot',
+    id: 'op-2',
+    partId: 'part-2',
+    name: 'Leveling foot 2',
+    footTypeId: 'leveling-foot',
+    parentId: 'part-1',
+    fromEnd: 'start',
+    alongMm: 36,
+  };
+  const data = stored({ history: [...history, foot] });
+  assert.deepEqual(readDesign(data).history[1], foot);
+  const withFoot = (changes) => ({ ...data, history: [data.history[0], { ...foot, ...changes }] });
+  assert.throws(() => readDesign(withFoot({ footTypeId: 'wheel' })), /wheel/);
+  assert.throws(() => readDesign(withFoot({ alongMm: '36' })), /number/);
+  assert.throws(() => readDesign(withFoot({ face: '-y' })), /face/);
+});

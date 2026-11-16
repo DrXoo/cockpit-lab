@@ -335,3 +335,21 @@ test('the inspector checks the whole design and lists the parts to buy', async (
   await page.locator('#markerBack').click();
   await expect(page.locator('#wholeDesignNote')).toBeVisible();
 });
+
+test('feet go under a profile as steps, and the design then stands on them', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#addFoot').click();
+  await expect(page.locator('[data-operation="op-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-footTypeId')).toHaveValue('leveling-foot');
+  await page.locator('#part-footTypeId').selectOption('locking-caster');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'add-foot', parentId: 'part-1', footTypeId: 'locking-caster' });
+  await page.locator('[data-operation="op-1"]').click();
+  await page.locator('#addFoot').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'add-foot', fromEnd: 'end' });
+  await expect(page.locator('#cockpitChecks [data-check="cad-support"]')).toHaveClass(/ok/);
+  await expect(page.locator('#partsToBuy [data-buy="foot"]')).toHaveCount(2);
+});

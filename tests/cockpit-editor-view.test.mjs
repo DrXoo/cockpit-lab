@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   designPanelHTML,
+  footChange,
   growPanelHTML,
   partChange,
   partField,
@@ -9,6 +10,7 @@ import {
 } from '../src/cockpit-editor-view.ts';
 import {
   addAnchoredProfile,
+  addFoot,
   addOperation,
   draftGrowth,
   editDraft,
@@ -274,4 +276,32 @@ test('the inspector of a part can remove it or delete its step; a failed one say
   assert.match(failed, /⚠ Failed: It grows out of a part that was deleted\./);
   assert.doesNotMatch(failed, /id="removePart"|id="growProfile"/);
   assert.match(failed, /data-part-field="name"/, 'its values can still be fixed');
+});
+
+test('a foot is a step under its profile, and its inspector sets its type and place', () => {
+  const { history } = addFoot(historyWith(1), 'part-1');
+  const step = panel({ history });
+  assert.match(step, /Leveling foot 2/);
+  assert.match(step, /Under 40 × 40 profile 1 · Leveling foot/);
+  const html = partInspectorHTML(history, history[1]);
+  assert.match(html, /Stands under <strong>40 × 40 profile 1<\/strong>/);
+  assert.match(html, /id="part-footTypeId"[^>]*><option value="leveling-foot" selected>/);
+  assert.match(html, /<option value="locking-caster">Locking caster/);
+  assert.match(html, /id="part-fromEnd"/);
+  assert.match(html, /id="part-alongMm"[^>]*value="36"/);
+  assert.match(html, /estimated/);
+  assert.match(html, /id="removePart"/);
+  assert.doesNotMatch(html, /id="growProfile"|id="addFoot"|id="part-lengthMm"/);
+});
+
+test('a profile offers a foot under it', () => {
+  const history = historyWith(1);
+  assert.match(partInspectorHTML(history, history[0]), /id="addFoot"/);
+});
+
+test('the fields of a foot change the values of its operation', () => {
+  assert.deepEqual(footChange('footTypeId', 'locking-caster'), { footTypeId: 'locking-caster' });
+  assert.deepEqual(footChange('fromEnd', 'end'), { fromEnd: 'end' });
+  assert.deepEqual(footChange('alongMm', ''), { alongMm: Number.NaN });
+  assert.throws(() => footChange('lengthMm', '300'), /lengthMm/);
 });

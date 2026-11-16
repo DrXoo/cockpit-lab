@@ -56,6 +56,7 @@ function readOperation(data: unknown): Operation {
   if (data.kind === 'add-anchored-profile') return checkedOperation(readAnchored(data));
   if (data.kind === 'grow-profile') return checkedOperation(readGrowth(data));
   if (data.kind === 'remove-part') return checkedOperation(readRemoval(data));
+  if (data.kind === 'add-foot') return checkedOperation(readFoot(data));
   throw new Error('Unknown operation in the design history');
 }
 
@@ -97,6 +98,21 @@ function readAnchored(data: Record<string, unknown>): Operation {
 function readRemoval(data: Record<string, unknown>): Operation {
   onlyKeys(data, ['kind', 'id', 'removedId']);
   return { kind: 'remove-part', id: identifier(data.id), removedId: identifier(data.removedId) };
+}
+
+function readFoot(data: Record<string, unknown>): Operation {
+  onlyKeys(data, ['kind', 'id', 'partId', 'name', 'footTypeId', 'parentId', 'fromEnd', 'alongMm']);
+  if (typeof data.name !== 'string') throw new Error('A part name must be text');
+  return {
+    kind: 'add-foot',
+    id: identifier(data.id),
+    partId: identifier(data.partId),
+    name: cleanUserText(data.name, 'Foot', MAX_PART_NAME_LENGTH),
+    footTypeId: text(data.footTypeId, 'foot type'),
+    parentId: identifier(data.parentId),
+    fromEnd: parentEnd(data.fromEnd),
+    alongMm: millimetres(data.alongMm, 'distance along a part'),
+  };
 }
 
 function readGrowth(data: Record<string, unknown>): Operation {

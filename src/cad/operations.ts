@@ -1,8 +1,15 @@
 // The operations of a design history, as the file format stores them, and the part each one
 // makes when it is replayed (docs/adr/0005). Every kind of operation, and every value it holds,
 // is part of the file format. Lengths are in mm.
-import { faceAxis, type Axis, type Face, type ProfilePart, type Vec3Mm } from './assembly.ts';
-import { profileSystem } from './catalog.ts';
+import {
+  faceAxis,
+  type Axis,
+  type Face,
+  type Part,
+  type ProfilePart,
+  type Vec3Mm,
+} from './assembly.ts';
+import { footType, profileSystem } from './catalog.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {
@@ -68,14 +75,44 @@ export interface RemovePart {
   removedId: string;
 }
 
+/**
+ * Puts a leveling foot or a caster under a profile, on its underside, through which the design
+ * stands on the floor. Under an upright the underside is its lower end.
+ */
+export interface AddFoot {
+  kind: 'add-foot';
+  id: string;
+  partId: string;
+  name: string;
+  footTypeId: string;
+  parentId: string;
+  fromEnd: ParentEnd;
+  /** From `fromEnd` along the profile to the center of the foot; always 0 under an end. */
+  alongMm: number;
+}
+
+/** An operation that makes a profile. */
+export type ProfileOperation = AddAnchoredProfile | GrowProfile;
+
 /** An operation that makes a part. */
-export type MakingOperation = AddAnchoredProfile | GrowProfile;
+export type MakingOperation = ProfileOperation | AddFoot;
 
 /** One step of a design history. Every kind is part of the file format. */
 export type Operation = MakingOperation | RemovePart;
 
 export const makesAPart = (operation: Operation): operation is MakingOperation =>
   operation.kind !== 'remove-part';
+
+export const makesAProfile = (operation: Operation): operation is ProfileOperation =>
+  operation.kind === 'add-anchored-profile' || operation.kind === 'grow-profile';
+
+/** The values the inspector edits on a foot. */
+export interface FootValues {
+  name: string;
+  footTypeId: string;
+  fromEnd: ParentEnd;
+  alongMm: number;
+}
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
 export interface ProfileValues {
@@ -107,13 +144,31 @@ export const AXES: readonly Axis[] = ['x', 'y', 'z'];
 export const FACES: readonly Face[] = ['+y', '-y', '+x', '-x', '+z', '-z'];
 
 /** The axis a profile's length runs along. */
-export const lengthAxisOf = (operation: MakingOperation): Axis =>
+export const lengthAxisOf = (operation: ProfileOperation): Axis =>
   operation.kind === 'add-anchored-profile'
     ? operation.axis
     : faceAxis(operation.way === 'out' ? operation.face : operation.way);
 
 /** The part an operation makes, placed as its values say. */
-export function partMadeBy(operation: MakingOperation): ProfilePart {
+export function partMadeBy(operation: MakingOperation): Part {
+  if (operation.kind === 'add-foot')
+    return {
+      kind: 'foot',
+      id: operation.partId,
+      name: operation.name,
+      footTypeId: operation.footTypeId,
+      placement: {
+        kind: 'attachment',
+        parentId: operation.parentId,
+        face: '-y',
+        alongMm: operation.alongMm,
+        fromEnd: operation.fromEnd,
+      },
+    };
+  return profileMadeBy(operation);
+}
+
+function profileMadeBy(operation: ProfileOperation): ProfilePart {
   const profile = {
     kind: 'profile' as const,
     id: operation.partId,
@@ -163,6 +218,10 @@ export function checkedOperation<T extends Operation>(operation: T): T {
       throw new Error('A removal needs the part it removes');
     return operation;
   }
+  if (operation.kind === 'add-foot') {
+    checkFoot(operation);
+    return operation;
+  }
   const system = profileSystem(operation.systemId);
   if (!system.sections.some((section) => section.id === operation.sectionId))
     throw new Error(`Profile section ${operation.sectionId} is not in ${system.id}.`);
@@ -193,10 +252,22 @@ function checkStart(startMm: Vec3Mm) {
     throw new Error(`A position must be within ${MAX_POSITION_MM} mm of the cockpit origin.`);
 }
 
-function checkGrowth(operation: GrowProfile) {
-  if (!FACES.includes(operation.face)) throw new Error(`Unknown face: ${operation.face}`);
+function checkFoot(operation: AddFoot) {
+  footType(operation.footTypeId);
+  checkPlaceAlong(operation);
+}
+
+/** A place along a parent: from one of its ends, never before it. */
+function checkPlaceAlong(operation: { fromEnd: ParentEnd; alongMm: number }) {
   if (operation.fromEnd !== 'start' && operation.fromEnd !== 'end')
     throw new Error(`Unknown end: ${operation.fromEnd}`);
+  if (!Number.isFinite(operation.alongMm) || operation.alongMm < 0)
+    throw new Error('A distance along a part must be 0 mm or more.');
+}
+
+function checkGrowth(operation: GrowProfile) {
+  if (!FACES.includes(operation.face)) throw new Error(`Unknown face: ${operation.face}`);
+  checkPlaceAlong(operation);
   const { way } = operation;
   if (way !== 'out' && !FACES.includes(way)) throw new Error(`Unknown way to grow: ${way}`);
   if (way !== 'out' && faceAxis(way) === faceAxis(operation.face))
@@ -205,8 +276,6 @@ function checkGrowth(operation: GrowProfile) {
     );
   if (operation.reachesId !== undefined && way !== 'out')
     throw new Error('A profile lying on a face cannot reach another part: it lies along the face.');
-  if (!Number.isFinite(operation.alongMm) || operation.alongMm < 0)
-    throw new Error('A distance along a part must be 0 mm or more.');
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
 }

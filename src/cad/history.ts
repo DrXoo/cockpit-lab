@@ -12,23 +12,27 @@ import {
   type ResolvedPart,
   type Vec3Mm,
 } from './assembly.ts';
-import { MOTEDIS_SERIES_40_SLOT_8, profileSection } from './catalog.ts';
+import { footType, MOTEDIS_SERIES_40_SLOT_8, profileSection } from './catalog.ts';
 import { replayDesign } from './replay.ts';
 import {
   AXES,
   checkedOperation,
   makesAPart,
+  makesAProfile,
   lengthAxisOf,
   MAX_PART_NAME_LENGTH,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   type AddAnchoredProfile,
+  type AddFoot,
+  type FootValues,
   type GrowProfile,
   type GrowthWay,
   type MakingOperation,
   type Operation,
   type ParentEnd,
+  type ProfileOperation,
   type ProfileShape,
   type ProfileValues,
   type RemovePart,
@@ -101,6 +105,7 @@ export function draftGrowth(
   const parent = operationMaking(history, parentId);
   const resolved = replayDesign(history, at).resolved.get(parentId);
   if (!parent || !resolved) throw new Error(`Part ${parentId} is not in the design at this step.`);
+  if (!makesAProfile(parent)) throw new Error(`Nothing grows out of ${parent.name}: it is a foot.`);
   const { system, sectionId, lengthMm } = NEW_PROFILE;
   const section = profileSection(system, sectionId);
   const face: Face = lengthAxisOf(parent) === 'y' ? '+z' : '+y';
@@ -156,9 +161,78 @@ export function addOperation(
   at: number = history.length,
 ): Operation[] {
   const checked = checkedOperation(operation);
-  const added = makesAPart(checked) ? onItsFace(history, checked) : checked;
+  const added =
+    checked.kind === 'grow-profile'
+      ? onItsFace(history, checked)
+      : checked.kind === 'add-foot'
+        ? footOnItsFace(history, checked)
+        : checked;
   const inserted = [...history.slice(0, at), added, ...history.slice(at)];
   return refusedIfItFails(checkedHistory(inserted), added.id);
+}
+
+/** A new foot is a leveling foot. */
+const NEW_FOOT_TYPE_ID = 'leveling-foot';
+
+/**
+ * Adds a foot under a profile at step `at`, the history marker: under the end that has fewer
+ * feet, flush with it, so the first two go under both ends.
+ */
+export function addFoot(
+  history: readonly Operation[],
+  parentId: string,
+  at: number = history.length,
+): { history: Operation[]; partId: string } {
+  const parent = replayDesign(history, at).resolved.get(parentId);
+  if (!parent) throw new Error(`Part ${parentId} is not in the design at this step.`);
+  if (parent.part.kind !== 'profile')
+    throw new Error(`A foot goes under a profile, and ${parent.part.name} is not one.`);
+  const type = footType(NEW_FOOT_TYPE_ID);
+  const feetUnder = (end: ParentEnd) =>
+    history.filter(
+      (operation) =>
+        operation.kind === 'add-foot' &&
+        operation.parentId === parentId &&
+        operation.fromEnd === end,
+    ).length;
+  const halfAlongMm: Record<Axis, number> = { x: type.widthMm / 2, y: 0, z: type.depthMm / 2 };
+  const foot: AddFoot = {
+    kind: 'add-foot',
+    ...nextIdentifiers(history),
+    name: `${type.name} ${at + 1}`,
+    footTypeId: type.id,
+    parentId,
+    fromEnd: feetUnder('end') < feetUnder('start') ? 'end' : 'start',
+    alongMm: halfAlongMm[parent.part.axis],
+  };
+  return { history: addOperation(history, foot, at), partId: foot.partId };
+}
+
+/** Changes the values of the operation that put a foot under a profile. */
+export function editFoot(
+  history: readonly Operation[],
+  partId: string,
+  changes: Partial<FootValues>,
+): Operation[] {
+  const operation = operationMaking(history, partId);
+  if (!operation) throw new Error(`Part ${partId} is not in the design history.`);
+  if (operation.kind !== 'add-foot') throw new Error(`${operation.name} is not a foot.`);
+  const named = withCleanName(operation, changes);
+  const edited = footOnItsFace(
+    history,
+    checkedOperation({
+      ...operation,
+      name: named.name ?? operation.name,
+      footTypeId: changes.footTypeId ?? operation.footTypeId,
+      fromEnd: changes.fromEnd ?? operation.fromEnd,
+      alongMm: changes.alongMm ?? operation.alongMm,
+    }),
+  );
+  const changed = checkedHistory(
+    history.map((existing) => (existing === operation ? edited : existing)),
+  );
+  const failedBefore = replayDesign(history).failures.has(operation.id);
+  return failedBefore ? changed : refusedIfItFails(changed, operation.id);
 }
 
 /**
@@ -209,6 +283,8 @@ export function editProfile(
 ): Operation[] {
   const operation = operationMaking(history, partId);
   if (!operation) throw new Error(`Part ${partId} is not in the design history.`);
+  if (!makesAProfile(operation))
+    throw new Error(`${operation.name} is a foot: it has no profile values to change.`);
   const edited = editedOperation(history, operation, changes);
   const changed = checkedHistory(
     history.map((existing) => (existing === operation ? edited : existing)),
@@ -230,11 +306,11 @@ export function editDraft(
 
 function editedOperation(
   history: readonly Operation[],
-  operation: MakingOperation,
+  operation: ProfileOperation,
   changes: Partial<ProfileValues>,
-): MakingOperation {
+): ProfileOperation {
   const named = withCleanName(operation, changes);
-  const edited: MakingOperation =
+  const edited: ProfileOperation =
     operation.kind === 'add-anchored-profile'
       ? editedAnchored(operation, named)
       : editedGrowth(history, operation, named);
@@ -242,10 +318,7 @@ function editedOperation(
 }
 
 /** A typed name is cleaned; one left empty keeps the name the part had. */
-const withCleanName = (
-  operation: MakingOperation,
-  changes: Partial<ProfileValues>,
-): Partial<ProfileValues> => ({
+const withCleanName = <T extends { name?: string }>(operation: MakingOperation, changes: T): T => ({
   ...changes,
   name: cleanUserText(changes.name, operation.name, MAX_PART_NAME_LENGTH),
 });
@@ -337,7 +410,10 @@ export function facingParts(history: readonly Operation[], partId: string): stri
   end[normal] = outwards ? min[normal] : max[normal];
   const dependents = dependentsOf(history, partId);
   return [...resolved.values()]
-    .filter(({ part, tiltDeg }) => !dependents.has(part.id) && tiltDeg === profile.tiltDeg)
+    .filter(
+      ({ part, tiltDeg }) =>
+        part.kind === 'profile' && !dependents.has(part.id) && tiltDeg === profile.tiltDeg,
+    )
     .map(({ part, box }) => ({ id: part.id, gapMm: gapTo(box, end, operation.face) }))
     .filter(
       (candidate): candidate is { id: string; gapMm: number } =>
@@ -356,8 +432,11 @@ function dependentsOf(history: readonly Operation[], partId: string): Set<string
   while (grown) {
     grown = false;
     for (const operation of history.filter(makesAPart)) {
-      if (operation.kind !== 'grow-profile' || dependents.has(operation.partId)) continue;
-      const reached = operation.reachesId !== undefined && dependents.has(operation.reachesId);
+      if (operation.kind === 'add-anchored-profile' || dependents.has(operation.partId)) continue;
+      const reached =
+        operation.kind === 'grow-profile' &&
+        operation.reachesId !== undefined &&
+        dependents.has(operation.reachesId);
       if (dependents.has(operation.parentId) || reached) {
         dependents.add(operation.partId);
         grown = true;
@@ -375,7 +454,7 @@ function keptLying(history: readonly Operation[], operation: GrowProfile, face: 
   const { way } = operation;
   if (way === 'out' || faceAxis(way) !== faceAxis(face)) return way;
   const parent = operationMaking(history, operation.parentId);
-  const parentAxis = parent ? lengthAxisOf(parent) : 'z';
+  const parentAxis = parent && makesAProfile(parent) ? lengthAxisOf(parent) : 'z';
   const axis =
     parentAxis !== faceAxis(face)
       ? parentAxis
@@ -384,7 +463,7 @@ function keptLying(history: readonly Operation[], operation: GrowProfile, face: 
 }
 
 /** The shape of a profile with the changes given, keeping the values not given. */
-function shapeChanges(operation: MakingOperation, changes: Partial<ProfileValues>): ProfileShape {
+function shapeChanges(operation: ProfileOperation, changes: Partial<ProfileValues>): ProfileShape {
   return {
     name: changes.name ?? operation.name,
     systemId: operation.systemId,
@@ -395,8 +474,8 @@ function shapeChanges(operation: MakingOperation, changes: Partial<ProfileValues
 }
 
 /** A section whose height would run along the new length turns a quarter, onto the old one. */
-function turnedSection<T extends MakingOperation>(
-  before: MakingOperation,
+function turnedSection<T extends ProfileOperation>(
+  before: ProfileOperation,
   after: T,
   heightAxisAsked: Axis | undefined,
 ): T {
@@ -410,11 +489,18 @@ function turnedSection<T extends MakingOperation>(
 }
 
 /** An end face has a single place to grow from, its center. */
-function onItsFace<T extends MakingOperation>(history: readonly Operation[], operation: T): T {
-  if (operation.kind !== 'grow-profile') return operation;
+function onItsFace(history: readonly Operation[], operation: GrowProfile): GrowProfile {
   const parent = operationMaking(history, operation.parentId);
-  if (!parent || lengthAxisOf(parent) !== faceAxis(operation.face)) return operation;
+  if (!parent || !makesAProfile(parent) || lengthAxisOf(parent) !== faceAxis(operation.face))
+    return operation;
   return { ...operation, alongMm: 0, acrossMm: 0 };
+}
+
+/** Under an upright, a foot stands under its lower end, the one place there is. */
+function footOnItsFace(history: readonly Operation[], foot: AddFoot): AddFoot {
+  const parent = operationMaking(history, foot.parentId);
+  if (!parent || !makesAProfile(parent) || lengthAxisOf(parent) !== 'y') return foot;
+  return { ...foot, alongMm: 0 };
 }
 
 /**
@@ -470,6 +556,7 @@ function nextIdentifiers(history: readonly Operation[]): { id: string; partId: s
 function partIdsNamed(operation: Operation): string[] {
   if (operation.kind === 'remove-part') return [operation.removedId];
   if (operation.kind === 'add-anchored-profile') return [operation.partId];
+  if (operation.kind === 'add-foot') return [operation.partId, operation.parentId];
   return [
     operation.partId,
     operation.parentId,

@@ -104,6 +104,16 @@ test.describe('cockpit design', () => {
     );
   });
 
+  test('standing on feet', async ({ page }) => {
+    for (const rail of ['op-1', 'op-2'])
+      for (let end = 0; end < 2; end++) {
+        await page.locator(`[data-operation="${rail}"]`).click();
+        await page.locator('#addFoot').click();
+      }
+    await expect(page.locator('[data-part]')).toHaveCount(9);
+    await expect(page.locator('#viewport')).toHaveScreenshot('cockpit-design-feet.png', SCREENSHOT);
+  });
+
   test('history and inspector', async ({ page }) => {
     expect(await page.locator('#controls').innerText()).toMatchSnapshot(
       'cockpit-design-history.txt',

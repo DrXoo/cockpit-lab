@@ -89,6 +89,12 @@ export function designBounds(resolved: ReadonlyMap<string, ResolvedPart>): Scene
   };
 }
 
+/**
+ * Where the floor is drawn, in cm. A room's floor is at zero; a cockpit design on its own stands
+ * on its lowest part, as it would on a real floor: its feet once it has them.
+ */
+export const floorHeightCm = (bounds: SceneBounds): number => bounds.vertical?.bottom ?? 0;
+
 /** Height of the orthographic frustum, in cm, for a viewport of the given aspect ratio. */
 export function viewHeight(view: SceneView, aspect: number, framing: Framing | null): number {
   const s = framing?.state;

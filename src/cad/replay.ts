@@ -6,6 +6,7 @@ import {
   anchorWhereItIs,
   faceAxis,
   resolveAssembly,
+  type Face,
   type Part,
   type ResolvedPart,
 } from './assembly.ts';
@@ -16,7 +17,6 @@ import {
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   partMadeBy,
-  type GrowProfile,
   type MakingOperation,
   type Operation,
   type RemovePart,
@@ -79,13 +79,17 @@ interface StepContext {
 
 /** The parts with the one the operation makes, or why it cannot make it at this step. */
 function making(operation: MakingOperation, context: StepContext): Part[] | string {
-  if (operation.kind === 'grow-profile') {
-    const missing = missingPart(operation.parentId, context, 'It grows out of');
-    if (missing) return missing;
-  }
+  if (operation.kind === 'add-anchored-profile') return [...context.parts, partMadeBy(operation)];
+  const refers = operation.kind === 'add-foot' ? 'It stands under' : 'It grows out of';
+  const missing = missingPart(operation.parentId, context, refers);
+  if (missing) return missing;
+  const parent = context.parts.find((part) => part.id === operation.parentId);
+  if (operation.kind === 'add-foot' && parent?.kind !== 'profile')
+    return `${refers} ${parent?.name ?? operation.parentId}, and a foot only goes under a profile.`;
   const parts = [...context.parts, partMadeBy(operation)];
-  if (operation.kind !== 'grow-profile') return parts;
-  const misfit = misfitOnItsFace(operation, resolveAssembly(parts));
+  const place: PlaceOnAFace =
+    operation.kind === 'add-foot' ? { ...operation, face: '-y', acrossMm: 0 } : operation;
+  const misfit = misfitOnItsFace(place, resolveAssembly(parts));
   return misfit ?? parts;
 }
 
@@ -97,8 +101,12 @@ function removal(operation: RemovePart, context: StepContext): Part[] | string {
   const missing = missingPart(operation.removedId, context, 'It removes');
   if (missing) return missing;
   const resolved = resolveAssembly(context.parts);
+  // A foot is fastened to its profile by its own adapter, so it goes with it.
+  const goesWithIt = (part: Part) =>
+    part.id === operation.removedId ||
+    (part.kind === 'foot' && part.placement.parentId === operation.removedId);
   return context.parts
-    .filter((part) => part.id !== operation.removedId)
+    .filter((part) => !goesWithIt(part))
     .map((part) => {
       const placement = part.placement;
       const where = resolved.get(part.id);
@@ -132,9 +140,18 @@ function missingPart(partId: string, context: StepContext, refers: string): stri
   return `${refers} ${maker.name}, which is not in the design at this step.`;
 }
 
-/** Why a grown profile does not stay on its parent's face, or null when it does. */
+/** Where on a face of its parent a grown profile or a foot is. */
+interface PlaceOnAFace {
+  name: string;
+  parentId: string;
+  face: Face;
+  alongMm: number;
+  acrossMm: number;
+}
+
+/** Why a part placed on a face of its parent does not stay on it, or null when it does. */
 function misfitOnItsFace(
-  operation: GrowProfile,
+  operation: PlaceOnAFace,
   resolved: ReadonlyMap<string, ResolvedPart>,
 ): string | null {
   const parentPart = resolved.get(operation.parentId)?.part;

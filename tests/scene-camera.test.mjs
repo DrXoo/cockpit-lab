@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sceneBounds, viewHeight, cameraPose, designBounds } from '../src/scene-camera.ts';
+import {
+  sceneBounds,
+  viewHeight,
+  cameraPose,
+  designBounds,
+  floorHeightCm,
+} from '../src/scene-camera.ts';
 import { defaults, evaluate, sanitize } from '../src/model.ts';
 import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
@@ -116,6 +122,17 @@ test('a design on its own is framed by its parts, in cm, from the floor to its t
     front: 110,
     vertical: { bottom: 0, top: 60 },
   });
+});
+
+test('a design on its own stands on its lowest part, such as its feet', () => {
+  const raised = designBounds(resolveAssembly([rail('rail', { x: 0, y: 80, z: 0 })]));
+  assert.equal(floorHeightCm(raised), 6);
+  const below = designBounds(resolveAssembly([rail('rail', { x: 0, y: -40, z: 0 })]));
+  assert.equal(floorHeightCm(below), -6);
+});
+
+test('a room keeps its floor at zero', () => {
+  assert.equal(floorHeightCm({ left: 0, right: 100, back: 0, front: 100 }), 0);
 });
 
 test("the side view looks at the design from the driver's right, with the front to the right", () => {

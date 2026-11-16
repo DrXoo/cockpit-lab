@@ -143,6 +143,9 @@ export function fastenerType(id: string): FastenerType {
   return type;
 }
 
+/** Every foot type in the catalog, to choose from. */
+export const footTypes = (): readonly FootType[] => FOOT_TYPES;
+
 export function footType(id: string): FootType {
   const type = FOOT_TYPES.find((candidate) => candidate.id === id);
   if (!type) throw new Error(`Foot type ${id} is not in the catalog.`);

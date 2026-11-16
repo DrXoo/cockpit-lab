@@ -2,12 +2,13 @@
 // and the inspector of the selected part on the right. The design is shown on its own, in an
 // empty workspace without any room. Cockpit files are imported from the actions above the panel.
 import { faceAxis, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
-import { profileSection, profileSystem } from './cad/catalog.ts';
+import { footType, footTypes, profileSection, profileSystem } from './cad/catalog.ts';
 import {
   FACES,
   facingParts,
   lengthAxisOf,
   makesAPart,
+  makesAProfile,
   MAX_PART_NAME_LENGTH,
   MAX_POSITION_MM,
   MAX_PROFILE_LENGTH_MM,
@@ -16,8 +17,10 @@ import {
   replayDesign,
   stepTitle,
   type AddAnchoredProfile,
+  type AddFoot,
+  type FootValues,
   type GrowProfile,
-  type MakingOperation,
+  type ProfileOperation,
   type Operation,
   type ParentEnd,
   type ProfileValues,
@@ -67,7 +70,8 @@ export type PartField =
   | 'alongMm'
   | 'acrossMm'
   | 'way'
-  | 'reachesId';
+  | 'reachesId'
+  | 'footTypeId';
 
 const AXIS_NAMES: Record<Axis, string> = {
   x: 'Across (X)',
@@ -151,6 +155,8 @@ function historyStepHTML(panel: DesignPanel, index: number) {
 
 function stepDetail(history: readonly Operation[], operation: Operation): string {
   if (operation.kind === 'remove-part') return 'What hangs from it stays where it is, anchored';
+  if (operation.kind === 'add-foot')
+    return `Under ${escapeHTML(nameOf(history, operation.parentId))} · ${escapeHTML(footType(operation.footTypeId).name)}`;
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
   const made =
     operation.kind === 'add-anchored-profile'
@@ -165,13 +171,19 @@ const nameOf = (history: readonly Operation[], partId: string): string =>
 const parentName = (history: readonly Operation[], growth: GrowProfile): string =>
   operationMaking(history, growth.parentId)?.name ?? growth.parentId;
 
+/** The axis a part's length runs along, when an operation made it as a profile. */
+function profileAxisOf(history: readonly Operation[], partId: string): Axis | null {
+  const operation = operationMaking(history, partId);
+  return operation && makesAProfile(operation) ? lengthAxisOf(operation) : null;
+}
+
 /** What a span reaches, and whether its end still meets it. */
 interface Reach {
   targetName: string;
   meets: boolean;
 }
 
-function reachOf(history: readonly Operation[], operation: MakingOperation): Reach | null {
+function reachOf(history: readonly Operation[], operation: ProfileOperation): Reach | null {
   if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) return null;
   const resolved = replayDesign(history).resolved.get(operation.partId);
   return {
@@ -206,12 +218,37 @@ export function partInspectorHTML(
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
   if (operation.kind === 'remove-part')
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+  const removePart = `<button class="button button-light" id="removePart" title="Remove it from the design from the marker on"><i data-icon="close"></i>Remove this part</button>`;
+  if (operation.kind === 'add-foot') {
+    const actions = failure === undefined ? removePart : '';
+    return `<div class="part-inspector" id="partInspectorFields">${failed}${footFieldsHTML(history, operation)}<div class="part-actions">${actions}${deleteStep}</div></div>`;
+  }
   const partActions =
     failure === undefined
-      ? `<button class="button button-light" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button><button class="button button-light" id="removePart" title="Remove it from the design from the marker on"><i data-icon="close"></i>Remove this part</button>`
+      ? `<button class="button button-light" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button><button class="button button-light" id="addFoot" title="Under the end that has fewer feet"><i data-icon="plus"></i>Add a foot under it</button>${removePart}`
       : '';
   return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
 }
+
+/** The values of a foot: its type and where it stands under its profile. */
+function footFieldsHTML(history: readonly Operation[], foot: AddFoot): string {
+  const fields = new FieldTemplates('part');
+  const types = footTypes().map((type): [string, string] => [type.id, escapeHTML(type.name)]);
+  const parentAxis = profileAxisOf(history, foot.parentId) ?? 'z';
+  const ends = (['start', 'end'] as const).map((end): [string, string] => [
+    end,
+    END_NAMES[parentAxis][end],
+  ]);
+  const place =
+    parentAxis === 'y'
+      ? '<p class="layout-hint">Under an upright it stands under its bottom end.</p>'
+      : `${fields.select('fromEnd', 'Measured from', ends, foot.fromEnd)}${fields.number('alongMm', 'Distance to its center', foot.alongMm, 0, MAX_PROFILE_LENGTH_MM)}`;
+  const type = footType(foot.footTypeId);
+  return `${nameFieldHTML('part', foot.name)}<p class="part-parent">Stands under <strong>${escapeHTML(nameOf(history, foot.parentId))}</strong></p>${fields.select('footTypeId', 'Type', types, foot.footTypeId)}<p class="layout-hint">${type.heightMm} mm tall, ${type.widthMm} × ${type.depthMm} mm on the floor${type.source.kind === 'estimated' ? ' (estimated: check the chosen product)' : ''}.</p>${place}`;
+}
+
+const nameFieldHTML = (prefix: string, name: string): string =>
+  `<div class="room-name"><label for="${prefix}-name">Name</label><input id="${prefix}-name" data-part-field="name" value="${escapeHTML(name)}" maxlength="${MAX_PART_NAME_LENGTH}"></div>`;
 
 /** The panel of a profile about to grow out of another, shown in the view as a preview. */
 export function growPanelHTML(history: readonly Operation[], draft: GrowProfile): string {
@@ -225,7 +262,7 @@ export function growPanelHTML(history: readonly Operation[], draft: GrowProfile)
 function profileFieldsHTML(
   prefix: string,
   history: readonly Operation[],
-  operation: MakingOperation,
+  operation: ProfileOperation,
   { reach }: { reach: boolean },
 ) {
   const fields = new FieldTemplates(prefix);
@@ -240,7 +277,7 @@ function profileFieldsHTML(
     axis,
     AXIS_NAMES[axis],
   ]);
-  const name = `<div class="room-name"><label for="${prefix}-name">Name</label><input id="${prefix}-name" data-part-field="name" value="${escapeHTML(operation.name)}" maxlength="${MAX_PART_NAME_LENGTH}"></div>`;
+  const name = nameFieldHTML(prefix, operation.name);
   const longSide =
     section.widthMm === section.heightMm
       ? ''
@@ -307,8 +344,7 @@ function grownPlacementHTML(
   growth: GrowProfile,
   reach: boolean,
 ): PlacementHTML {
-  const parent = operationMaking(history, growth.parentId);
-  const parentAxis = parent ? lengthAxisOf(parent) : 'z';
+  const parentAxis = profileAxisOf(history, growth.parentId) ?? 'z';
   const faces = FACES.map((face): [string, string] => [
     face,
     faceAxis(face) === parentAxis ? END_FACE_NAMES[face] : SIDE_FACE_NAMES[face],
@@ -402,6 +438,7 @@ const PART_FIELDS: readonly PartField[] = [
   'acrossMm',
   'way',
   'reachesId',
+  'footTypeId',
 ];
 
 /** The inspector field a `data-part-field` names. The markup is the app's, so others are bugs. */
@@ -433,7 +470,7 @@ const typedNumber = (value: string): number => (value.trim() === '' ? Number.NaN
 
 /** The change one field of the inspector makes to the values of the part's operation. */
 export function partChange(
-  operation: MakingOperation,
+  operation: ProfileOperation,
   field: PartField,
   value: string,
 ): Partial<ProfileValues> {
@@ -460,6 +497,8 @@ export function partChange(
       return { way: value === 'out' ? 'out' : faceOf(value) };
     case 'reachesId':
       return { reachesId: value === '' ? null : value };
+    case 'footTypeId':
+      throw new Error(`A profile has no ${field}`);
     case 'startX':
     case 'startY':
     case 'startZ':
@@ -467,7 +506,23 @@ export function partChange(
   }
 }
 
-function changedStart(operation: MakingOperation, field: PartField, valueMm: number): Vec3Mm {
+/** The change one field of a foot's inspector makes to the values of its operation. */
+export function footChange(field: PartField, value: string): Partial<FootValues> {
+  switch (field) {
+    case 'name':
+      return { name: value };
+    case 'footTypeId':
+      return { footTypeId: value };
+    case 'fromEnd':
+      return { fromEnd: endOf(value) };
+    case 'alongMm':
+      return { alongMm: typedNumber(value) };
+    default:
+      throw new Error(`A foot has no ${field}`);
+  }
+}
+
+function changedStart(operation: ProfileOperation, field: PartField, valueMm: number): Vec3Mm {
   if (operation.kind !== 'add-anchored-profile')
     throw new Error(`${operation.name} has no start of its own`);
   const axis = AXES.find((candidate) => START_FIELDS[candidate] === field) ?? 'x';

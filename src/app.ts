@@ -16,19 +16,23 @@ import {
   designPanelHTML,
   growPanelHTML,
   NOTHING_AROUND,
+  footChange,
   partChange,
   partField,
   partInspectorHTML,
 } from './cockpit-editor-view.ts';
 import {
   addAnchoredProfile,
+  addFoot,
   addOperation,
   deleteOperation,
   draftGrowth,
   editDraft,
+  editFoot,
   editProfile,
   growthAt,
   makesAPart,
+  makesAProfile,
   operationMaking,
   removePart,
   replayDesign,
@@ -484,8 +488,21 @@ function changeHistory(change: (history: readonly Operation[]) => Operation[]): 
 /** Changes the operation of the selected step; values it cannot have are explained. */
 function editSelectedPart(changes: Partial<ProfileValues>) {
   const operation = selectedOperation();
-  if (!operation || !makesAPart(operation)) return;
+  if (!operation || !makesAProfile(operation)) return;
   changeHistory((history) => editProfile(history, operation.partId, changes));
+}
+/** Puts a foot under the selected profile, at the marker, and selects it. */
+function addFootUnderSelected() {
+  const partId = selectedPartId();
+  if (partId === null) return;
+  try {
+    const added = addFoot(designHistory(), partId, markerIndex());
+    selectedOperationId = operationMaking(added.history, added.partId)?.id ?? null;
+    stepAddedAtMarker();
+    changeDesign({ history: added.history });
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
 }
 /** Removes the selected part from the marker on, as a step of its own. */
 function removeSelectedPart() {
@@ -683,9 +700,16 @@ function renderPartInspector({ force = false } = {}) {
   if (!makesAPart(operation)) return;
   fields.forEach((el) => {
     const field = partField(el.dataset.partField);
-    el.addEventListener('change', () => editSelectedPart(partChange(operation, field, el.value)));
+    el.addEventListener('change', () =>
+      operation.kind === 'add-foot'
+        ? changeHistory((history) =>
+            editFoot(history, operation.partId, footChange(field, el.value)),
+          )
+        : editSelectedPart(partChange(operation, field, el.value)),
+    );
   });
   $optional('#growProfile')?.addEventListener('click', startGrowth);
+  $optional('#addFoot')?.addEventListener('click', addFootUnderSelected);
   $optional('#removePart')?.addEventListener('click', removeSelectedPart);
 }
 /**
