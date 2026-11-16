@@ -1259,3 +1259,90 @@ select option {
 .cockpit-file-actions .text-button {
   padding: 0;
 }
+
+/* The cockpit editor: the design history and the inspector of the selected part. */
+.history-tools {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+.history-tools .text-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.history-list {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.history-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  text-align: left;
+}
+.history-step:hover {
+  border-color: var(--accent-border);
+}
+.history-step[aria-pressed='true'] {
+  border-color: var(--accent-border);
+  border-left-color: var(--accent-fill);
+  background: var(--accent-surface);
+}
+.history-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.history-step[aria-pressed='true'] .history-number {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+.history-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.history-text strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-text small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.history-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.part-inspector {
+  display: grid;
+  gap: 10px;
+}
+.part-inspector .control {
+  margin: 0;
+}
+#emptyDesign .history-add {
+  margin-top: 8px;
+}

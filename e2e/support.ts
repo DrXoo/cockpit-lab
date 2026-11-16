@@ -4,6 +4,13 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { projectConfig, readProject } from '../src/project.ts';
+import {
+  addAnchoredProfile,
+  editProfile,
+  type Operation,
+  type ProfileValues,
+} from '../src/cad/history.ts';
+import { cockpitFileData } from '../src/cockpit-file.ts';
 
 export const STORAGE_KEY = 'cockpit-lab-v5';
 
@@ -27,6 +34,12 @@ export const test = base.extend<{ page: Page }>({
 
 export { expect };
 
+/**
+ * With software WebGL and every visual worker busy, a screenshot can take longer than the default
+ * 5 s to hold still. How long it takes is not what the screenshot tests check.
+ */
+export const SCREENSHOT_TIMEOUT_MS = 15_000;
+
 export async function openApp(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.locator('#viewport canvas, #viewport svg').first()).toBeAttached();
@@ -49,3 +62,36 @@ export const getSavedProject = (page: Page) =>
 
 /** The configuration of the active layout in a saved or exported project file. */
 export const activeLayoutConfig = (file: unknown) => projectConfig(readProject(file).project);
+
+/** A small frame built with the design history: two rails, crossmembers and an upright. */
+export function sampleFrameHistory(): Operation[] {
+  const profiles: [name: string, values: Partial<ProfileValues>][] = [
+    ['Left rail', { sectionId: '40x80', lengthMm: 1200, startMm: { x: -260, y: 40, z: 0 } }],
+    ['Right rail', { sectionId: '40x80', lengthMm: 1200, startMm: { x: 260, y: 40, z: 0 } }],
+    ['Front crossmember', { axis: 'x', lengthMm: 480, startMm: { x: -240, y: 60, z: 1100 } }],
+    ['Wheel upright', { axis: 'y', lengthMm: 700, startMm: { x: -260, y: 80, z: 1000 } }],
+    [
+      'Seat crossmember',
+      {
+        sectionId: '40x120',
+        axis: 'x',
+        heightAxis: 'z',
+        lengthMm: 480,
+        startMm: { x: -240, y: 20, z: 300 },
+      },
+    ],
+  ];
+  let history: Operation[] = [];
+  for (const [name, values] of profiles) {
+    const added = addAnchoredProfile(history);
+    history = editProfile(added.history, added.partId, { name, ...values });
+  }
+  return history;
+}
+
+/** A cockpit file, as the file chooser receives it. */
+export const cockpitFileOf = (history: Operation[]) => ({
+  name: 'cockpit.json',
+  mimeType: 'application/json',
+  buffer: Buffer.from(JSON.stringify(cockpitFileData({ history }))),
+});

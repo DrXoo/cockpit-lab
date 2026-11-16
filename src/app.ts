@@ -12,7 +12,24 @@ import {
   readCockpitFile,
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
-import { emptyDesignHTML, NOTHING_AROUND } from './cockpit-editor-view.ts';
+import {
+  designPanelHTML,
+  NOTHING_AROUND,
+  partChange,
+  partField,
+  partInspectorHTML,
+} from './cockpit-editor-view.ts';
+import { resolveAssembly } from './cad/assembly.ts';
+import {
+  addAnchoredProfile,
+  editProfile,
+  operationMaking,
+  replayHistory,
+  type Operation,
+  type ProfileValues,
+} from './cad/history.ts';
+import type { CockpitDrawing } from './render-cad.ts';
+import { canRedo, canUndo, noEdits, recordEdit, redo, undo, type Edits } from './undo.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
 import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
@@ -162,6 +179,9 @@ const paths: Record<string, string> = {
   copy: 'M6 6h9v9H6zM3 12V3h9',
   edit: 'M3 15l.8-3.6L12 3.2 14.8 6l-8.2 8.2ZM10.5 4.7l2.8 2.8',
   trash: 'M3 5h12M7 5V3h4v2M5 5l.8 11h6.4L13 5M7.5 8v5m3-5v5',
+  undo: 'M6 3 2 7l4 4M2 7h8.5a4.5 4.5 0 0 1 0 9H7',
+  redo: 'm12 3 4 4-4 4m4-4H7.5a4.5 4.5 0 0 0 0 9H11',
+  plus: 'M9 3v12M3 9h12',
 };
 function icons(root: ParentNode = document) {
   root
@@ -226,7 +246,7 @@ type Editor = 'cockpit' | 'room';
 type Section = SettingsSection | 'furniture' | 'design';
 const SECTIONS: readonly string[] = ['room', 'furniture', 'desk', 'design'];
 const EDITORS: readonly string[] = ['cockpit', 'room'];
-const VIEWS: readonly string[] = ['iso', 'top', 'desk'];
+const VIEWS: readonly string[] = ['iso', 'top', 'desk', 'side'];
 /** The panels that narrow screens show one at a time, through the studio nav. */
 const WORKSPACES = ['view', 'config', 'checks'] as const;
 type Workspace = (typeof WORKSPACES)[number];
@@ -273,7 +293,11 @@ let library: LayoutLibrary = newProject.library,
    * The arm pose last chosen, saved or updated, or '' for none. A layout opens with the pose its
    * arm is in, so moving the arm afterwards shows that pose as changed.
    */
-  selectedArmPose = '';
+  selectedArmPose = '',
+  /** The part selected in the cockpit editor, or null. */
+  selectedPartId: string | null = null,
+  /** The edits made to the cockpit design since the project was opened, to undo and redo. */
+  designEdits: Edits<CockpitDesign | null> = noEdits();
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -299,6 +323,15 @@ if (!state.roomEnabled && cockpit !== null) {
 const editor = (): Editor => editorOfSection(section);
 /** Whether the project has a cockpit design. */
 const hasDesign = (): boolean => cockpit !== null;
+/** The cockpit design's parts where its history puts them; none without a design. */
+const resolvedDesign = () => resolveAssembly(replayHistory(cockpit?.history ?? []));
+/** Whether the cockpit design has parts to show. */
+const designHasParts = (): boolean => (cockpit?.history.length ?? 0) > 0;
+/** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
+const cockpitDrawing = (): CockpitDrawing | null =>
+  editor() === 'cockpit' && designHasParts()
+    ? { resolved: resolvedDesign(), selectedPartId }
+    : null;
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
 const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
 let evaluation = evaluate(shownConfig());
@@ -318,6 +351,8 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
 function openProject(project: Project) {
   library = project.library;
   cockpit = project.cockpit;
+  selectedPartId = null;
+  designEdits = noEdits();
   state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
@@ -342,6 +377,7 @@ function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
 }
 /** Dragging in the plan arranges the room, so the cockpit editor has nothing to drag. */
 function syncSceneEditing() {
+  scene?.setPartPicking(editor() === 'cockpit');
   scene?.setLayoutEditing(
     editor() === 'room' && layoutEditing,
     layoutTarget,
@@ -363,6 +399,122 @@ function update(change: SettingChange) {
   queueSave();
   refresh();
 }
+/** Makes `next` the cockpit design, as an edit that can be undone, and shows it. */
+function changeDesign(next: CockpitDesign) {
+  const hadParts = designHasParts();
+  designEdits = recordEdit(designEdits, cockpit);
+  cockpit = next;
+  showChangedDesign(hadParts);
+}
+/** Shows the design after it changed, framing it when its first part appears. */
+function showChangedDesign(hadParts: boolean) {
+  if (selectedPartId !== null && !operationMaking(cockpit?.history ?? [], selectedPartId))
+    selectedPartId = null;
+  queueSave();
+  renderControls();
+  refresh();
+  if (!hadParts && designHasParts()) setActiveView(view);
+}
+function addProfile() {
+  const added = addAnchoredProfile(cockpit?.history ?? []);
+  selectedPartId = added.partId;
+  changeDesign({ history: added.history });
+}
+/** Changes the operation that made the selected part; values it cannot have are explained. */
+function editSelectedPart(changes: Partial<ProfileValues>) {
+  if (cockpit === null || selectedPartId === null) return;
+  let history: Operation[];
+  try {
+    history = editProfile(cockpit.history, selectedPartId, changes);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+    renderPartInspector({ force: true });
+    return;
+  }
+  if (JSON.stringify(history) === JSON.stringify(cockpit.history)) {
+    renderPartInspector({ force: true });
+    return;
+  }
+  changeDesign({ history });
+}
+function undoDesignEdit() {
+  const hadParts = designHasParts();
+  const step = undo(designEdits, cockpit);
+  if (!step) return;
+  designEdits = step.edits;
+  cockpit = step.value;
+  showChangedDesign(hadParts);
+}
+function redoDesignEdit() {
+  const hadParts = designHasParts();
+  const step = redo(designEdits, cockpit);
+  if (!step) return;
+  designEdits = step.edits;
+  cockpit = step.value;
+  showChangedDesign(hadParts);
+}
+function selectPart(partId: string | null) {
+  selectedPartId = partId;
+  renderControls();
+  refresh();
+}
+/**
+ * Replaces what `container` shows and gives the focus back to the element that had it, found
+ * by its id or by the part it stands for.
+ */
+function replaceKeepingFocus(container: HTMLElement, html: string) {
+  const active = document.activeElement;
+  let selector = '';
+  if (active instanceof HTMLElement && container.contains(active)) {
+    if (active.id) selector = `#${CSS.escape(active.id)}`;
+    else if (active.dataset.part) selector = `[data-part="${CSS.escape(active.dataset.part)}"]`;
+  }
+  container.innerHTML = html;
+  icons(container);
+  if (selector) container.querySelector<HTMLElement>(selector)?.focus();
+}
+function bindDesignPanel() {
+  $optional('#addProfile')?.addEventListener('click', addProfile);
+  $optional('#undoEdit')?.addEventListener('click', undoDesignEdit);
+  $optional('#redoEdit')?.addEventListener('click', redoDesignEdit);
+  controlsAll('[data-part]').forEach((step) =>
+    step.addEventListener('click', () => selectPart(dataOf(step, 'part'))),
+  );
+}
+/** The inspector HTML last shown, so it is only rebuilt when it changes. */
+let shownPartInspector = '';
+function renderPartInspector({ force = false } = {}) {
+  const body = $('#partInspectorBody');
+  const history = cockpit?.history ?? [];
+  const operation = selectedPartId === null ? undefined : operationMaking(history, selectedPartId);
+  const html = partInspectorHTML(operation);
+  if (!force && html === shownPartInspector) return;
+  shownPartInspector = html;
+  replaceKeepingFocus(body, html);
+  if (!operation) return;
+  body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-part-field]').forEach((el) => {
+    const field = partField(el.dataset.partField);
+    el.addEventListener('change', () => editSelectedPart(partChange(operation, field, el.value)));
+  });
+}
+/**
+ * Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo the design's edits in the cockpit editor.
+ * In a text field they keep undoing its typing.
+ */
+document.addEventListener('keydown', (event) => {
+  if (editor() !== 'cockpit' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+    return;
+  if (document.querySelector('dialog[open]')) return;
+  const key = event.key.toLowerCase();
+  if (key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    undoDesignEdit();
+  } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+    event.preventDefault();
+    redoDesignEdit();
+  }
+});
 // Control templates read the current state and evaluation.
 const controlView = () => ({ state, evaluation });
 const controlValue = (key: NumericField) => controlValueOf(controlView(), key);
@@ -667,15 +819,19 @@ function renderWorkflow() {
   $<HTMLButtonElement>('#setupNext').disabled = buttons.nextDisabled;
   $('#setupSkip').hidden = buttons.skipHidden;
   $('#setupSkip').textContent = buttons.skipLabel;
-  const hasScene = shown.roomEnabled || shown.deskEnabled;
+  const hasScene = inCockpit ? designHasParts() : shown.roomEnabled || shown.deskEnabled;
   $('#emptyScene').hidden = hasScene;
   $('#emptySceneTitle').textContent = inCockpit
     ? 'Your cockpit starts here'
     : 'Your space starts here';
   $('#emptySceneHint').textContent = inCockpit
-    ? 'Cockpit designs are built from parts.'
+    ? 'Add a profile to start the design.'
     : 'Set up your room to start arranging it.';
   $('[data-view="desk"]').hidden = !shown.deskEnabled;
+  $('[data-view="side"]').hidden = !inCockpit;
+  $('#inspectorTitle').textContent = inCockpit ? 'Inspector' : 'Checks';
+  $('[data-workspace="checks"]').textContent = inCockpit ? 'Inspector' : 'Checks';
+  $('#partInspector').hidden = !inCockpit || !designHasParts();
   $('#layoutBtn').hidden = inCockpit;
   $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
   $('#layoutBtn').classList.toggle('active', layoutEditing);
@@ -732,7 +888,12 @@ function renderControls() {
     layoutTarget = 'desk';
   let html = '';
   if (editor() === 'cockpit') {
-    html = emptyDesignHTML();
+    html = designPanelHTML({
+      history: cockpit?.history ?? [],
+      selectedPartId,
+      canUndo: canUndo(designEdits),
+      canRedo: canRedo(designEdits),
+    });
   } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
     html = creationControls(
       state,
@@ -751,7 +912,9 @@ function renderControls() {
   } else {
     html = deskPanelHTML(controlView(), layoutTarget, selectedArmPose);
   }
-  $('#controls').innerHTML = html;
+  if (editor() === 'cockpit') replaceKeepingFocus($('#controls'), html);
+  else $('#controls').innerHTML = html;
+  bindDesignPanel();
   bindRoomEditor();
   bindCreationControls();
   $optional('#startWithCockpit')?.addEventListener('click', startWithCockpit);
@@ -998,7 +1161,8 @@ function refresh() {
   $('#metricFootprint').innerHTML = metrics.footprintHTML;
   $('#metricSpace').innerHTML = metrics.spaceHTML;
   renderWorkflow();
-  scene?.update(shown, evaluation);
+  renderPartInspector();
+  scene?.update(shown, evaluation, cockpitDrawing());
 }
 function download(filename: string, text: string, type: string) {
   const blob = new Blob([text], { type }),
@@ -1136,13 +1300,15 @@ function setActiveView(next: SceneView) {
   });
   scene?.setView(view);
   $('.viewport-note span').textContent =
-    view === 'iso'
-      ? 'Drag to orbit · scroll to zoom'
-      : (view === 'top' || view === 'desk') && layoutEditing
-        ? layoutTarget === 'arm'
-          ? 'Drag ELBOW or VESA · mount on the desktop'
-          : 'Drag an item · select and turn it in ' + (isRoomSection(section) ? 'Room' : 'Desk')
-        : 'Scroll to zoom · drag to pan';
+    editor() === 'cockpit'
+      ? `Click a part to select it · ${view === 'iso' ? 'drag to orbit' : 'drag to pan'} · scroll to zoom`
+      : view === 'iso'
+        ? 'Drag to orbit · scroll to zoom'
+        : (view === 'top' || view === 'desk') && layoutEditing
+          ? layoutTarget === 'arm'
+            ? 'Drag ELBOW or VESA · mount on the desktop'
+            : 'Drag an item · select and turn it in ' + (isRoomSection(section) ? 'Room' : 'Desk')
+          : 'Scroll to zoom · drag to pan';
 }
 $$('[data-view]').forEach((b) =>
   b.addEventListener('click', () => setActiveView(viewOf(dataOf(b, 'view')))),
@@ -1385,9 +1551,10 @@ if (loaded.status === 'loaded' && loaded.parametricCockpitLeftOut)
   reportLeftOutCockpit({ fromBrowser: true });
 try {
   scene = new CockpitScene($('#viewport'), $('#sceneLabels'));
-  scene.update(shownConfig(), evaluation);
+  scene.update(shownConfig(), evaluation, cockpitDrawing());
   setActiveView(view);
   syncSceneEditing();
+  scene.onPartPick = selectPart;
   scene.onArmMove = (joint, x, z) => {
     state = moveArmJoint(state, joint, x, z);
     queueSave();

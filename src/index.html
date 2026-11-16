@@ -199,7 +199,8 @@
           <div class="view-tabs" role="group" aria-label="Camera view">
             <button class="active" data-view="iso" aria-pressed="true">3D</button
             ><button data-view="top" aria-pressed="false">Top</button
-            ><button data-view="desk" aria-pressed="false">Desk</button>
+            ><button data-view="desk" aria-pressed="false">Desk</button
+            ><button data-view="side" aria-pressed="false" hidden>Side</button>
           </div>
           <div class="scene-options">
             <button
@@ -263,7 +264,7 @@
       </section>
 
       <aside class="inspector" id="inspector" tabindex="-1" aria-label="Design checks">
-        <div class="inspector-heading"><h2>Checks</h2></div>
+        <div class="inspector-heading"><h2 id="inspectorTitle">Checks</h2></div>
         <div id="setupGuide" class="setup-guide" hidden>
           <h3 id="setupGuideTitle"></h3>
           <p id="setupGuideHint"></p>
@@ -274,8 +275,14 @@
             <strong>Set up your space</strong><small>Checks appear as you add items.</small>
           </div>
         </div>
+        <section class="inspector-section" id="partInspector" hidden>
+          <div class="section-line">
+            <h3><i data-icon="frame"></i>Selected part</h3>
+          </div>
+          <div id="partInspectorBody"></div>
+        </section>
         <p class="control-hint" id="cockpitChecksNote" hidden>
-          The checks of the cockpit design appear once it has parts.
+          The checks of the cockpit design come with joints and feet.
         </p>
         <section class="inspector-section">
           <div class="section-line">

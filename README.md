@@ -4,7 +4,7 @@ Cockpit Lab is a web app for designing a compact DIY cockpit built from aluminiu
 
 It runs entirely in your browser, with no accounts, servers or external services. Designs are saved locally and can be exported as JSON.
 
-> **Status:** the room editor works today. The cockpit is being rebuilt as a **mini CAD for profiles, peripherals and custom plates**: precise parts, joints, cut lists and plate drawings. The parametric cockpit of the earlier configurator is retired, and the cockpit editor starts empty until it can add parts (see [the staged plan](docs/mini-cad.md)).
+> **Status:** the room editor works today. The cockpit is being rebuilt as a **mini CAD for profiles, peripherals and custom plates**: precise parts, joints, cut lists and plate drawings. The parametric cockpit of the earlier configurator is retired, and the cockpit editor builds a design from anchored profiles while the rest of the CAD comes (see [the staged plan](docs/mini-cad.md)).
 
 ## Getting started
 
@@ -46,13 +46,13 @@ The tests cover geometry, the cockpit parts model, the monitor arm, desk, room, 
 
 ## Features
 
-- A cockpit editor that designs the cockpit on its own, as a design history in mm, and cockpit files to move a design between projects.
+- A cockpit editor that designs the cockpit on its own, as a design history in mm: add profiles, select them in the view or in the history, edit them in the inspector, and undo and redo the edits. Cockpit files move a design between projects.
 - Guided room setup (room, openings, furniture and desk) that resumes where you left off.
 - Adjustable desk with PC, keyboard, mouse and XL mouse pad.
 - Generic articulated monitor arm with desk and VR positions, and saved arm poses.
 - Rectangular room with doors, windows, furniture, wall shelves at a set mounting height, and an office chair.
 - Built-in sliding-door wardrobes with a clearance zone kept free in front of them.
-- 3D, plan and desk views, with drag-and-drop layout.
+- 3D, plan and desk views, with drag-and-drop layout, and a side view of the cockpit design.
 - Several layouts of the same room, to try another arrangement and compare it with the one you started from. Furniture can be left out of a single layout.
 - Approximate geometric checks, a summary, and JSON export.
 
@@ -72,7 +72,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |
 | `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the desk panel of the room editor |
-| `src/cockpit-design.ts`, `src/cockpit-editor-view.ts` | The cockpit design as its design history, and the cockpit editor while the design has no parts |
+| `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/undo.ts` | The cockpit design as its design history and how files store it, the cockpit editor's history panel and inspector, and undo and redo of its edits |
 | `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, joints, support, interference, cuts and parts to buy, their checks and their drawing |
 | `src/project-summary.ts`, `src/inspector-view.ts`, `src/check-view.ts`, `src/html.ts` | Summary, validation banner, metrics and checks |
 | `src/model.ts` | Public entry point of the room model |

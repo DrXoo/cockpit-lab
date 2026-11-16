@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deskPanelHTML } from '../src/settings-panels.ts';
-import { emptyDesignHTML } from '../src/cockpit-editor-view.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import { saveArmPose, applyArmPose } from '../src/arm-poses.ts';
 
@@ -34,10 +33,6 @@ test('the desk panel places the desk and its items, and nothing else in the room
     ['desk'],
   );
   assert.doesNotMatch(html, /id="layoutPreset"/);
-});
-
-test('an empty cockpit design explains how designs start', () => {
-  assert.match(emptyDesignHTML(), /id="emptyDesign"/);
 });
 
 const panelWith = (state, selectedPose = '') =>

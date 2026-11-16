@@ -2,8 +2,11 @@
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, type PlanPoint, type Point3 } from './geometry.ts';
+import { cornersMm, type ResolvedPart } from './cad/assembly.ts';
+import { MM_PER_CM } from './units.ts';
 
-export type SceneView = 'iso' | 'top' | 'desk';
+/** The side view only shows a cockpit design on its own. */
+export type SceneView = 'iso' | 'top' | 'desk' | 'side';
 
 /** Plan extent of everything drawn, in world cm. */
 export interface SceneBounds {
@@ -11,6 +14,8 @@ export interface SceneBounds {
   right: number;
   back: number;
   front: number;
+  /** How high it reaches, known for a cockpit design on its own. */
+  vertical?: { bottom: number; top: number };
 }
 
 /** What the camera frames once the scene has been built. */
@@ -38,16 +43,19 @@ const FALLBACK_CM = {
   deskWidth: 140,
   spaceW: 180,
   spaceD: 165,
+  height: 120,
 };
 /** Distance from the target to the camera; far enough for an orthographic camera. */
 const CAMERA_DISTANCE_CM = 650;
 /** Height of the point the 3D view looks at. */
 const ISO_TARGET_HEIGHT_CM = 37;
 /** Offsets of the 3D camera from its target. */
-const ISO_OFFSET_CM = { x: -320, y: 245, z: 320 };
+const ISO_OFFSET_CM = { x: -320, y: 208, z: 320 };
 /** Keeps the 3D camera above the floor. */
 const ISO_POLAR_RAD: [number, number] = [0.05, Math.PI / 2 - 0.02];
 const PLAN_POLAR_RAD: [number, number] = [0, Math.PI];
+/** Room left around what the top and side views frame. */
+const FRAME_MARGIN_CM = 60;
 
 export function sceneBounds(s: RoomConfig, e: CockpitEvaluation): SceneBounds {
   const roomPoints: PlanPoint[] =
@@ -67,6 +75,20 @@ export function sceneBounds(s: RoomConfig, e: CockpitEvaluation): SceneBounds {
   };
 }
 
+/** The extent of a cockpit design's parts, in world cm: the design's origin is the world's. */
+export function designBounds(resolved: ReadonlyMap<string, ResolvedPart>): SceneBounds {
+  const corners = [...resolved.values()].flatMap(cornersMm);
+  const extent = (axis: 'x' | 'y' | 'z', pick: (...values: number[]) => number) =>
+    pick(...corners.map((corner) => corner[axis])) / MM_PER_CM;
+  return {
+    left: extent('x', Math.min),
+    right: extent('x', Math.max),
+    back: extent('z', Math.min),
+    front: extent('z', Math.max),
+    vertical: { bottom: extent('y', Math.min), top: extent('y', Math.max) },
+  };
+}
+
 /** Height of the orthographic frustum, in cm, for a viewport of the given aspect ratio. */
 export function viewHeight(view: SceneView, aspect: number, framing: Framing | null): number {
   const s = framing?.state;
@@ -78,7 +100,12 @@ export function viewHeight(view: SceneView, aspect: number, framing: Framing | n
       (s?.deskDepth || FALLBACK_CM.deskDepth) + 30,
       ((s?.deskWidth || FALLBACK_CM.deskWidth) + 40) / aspect,
     );
-  if (view === 'top') return Math.max(spanZ + 60, (spanX + 60) / aspect);
+  if (view === 'top') return Math.max(spanZ + FRAME_MARGIN_CM, (spanX + FRAME_MARGIN_CM) / aspect);
+  if (view === 'side') {
+    const vertical = framing?.bounds.vertical;
+    const height = vertical ? vertical.top - vertical.bottom : FALLBACK_CM.height;
+    return Math.max(height + FRAME_MARGIN_CM, (spanZ + FRAME_MARGIN_CM) / aspect);
+  }
   // The diagonal projection must also fit the width of a portrait screen.
   return Math.max(
     245,
@@ -115,11 +142,24 @@ export function cameraPose(view: SceneView, framing: Framing): CameraPose {
       rotate: false,
       polar: PLAN_POLAR_RAD,
     };
+  if (view === 'side') {
+    const vertical = framing.bounds.vertical;
+    const height = vertical ? (vertical.bottom + vertical.top) / 2 : FALLBACK_CM.height / 2;
+    return {
+      target: { x: center.x, y: height, z: center.z },
+      position: { x: center.x - CAMERA_DISTANCE_CM, y: height, z: center.z },
+      up: { x: 0, y: 1, z: 0 },
+      rotate: false,
+      polar: PLAN_POLAR_RAD,
+    };
+  }
+  const vertical = framing.bounds.vertical;
+  const targetHeight = vertical ? (vertical.bottom + vertical.top) / 2 : ISO_TARGET_HEIGHT_CM;
   return {
-    target: { x: center.x, y: ISO_TARGET_HEIGHT_CM, z: center.z },
+    target: { x: center.x, y: targetHeight, z: center.z },
     position: {
       x: center.x + ISO_OFFSET_CM.x,
-      y: ISO_OFFSET_CM.y,
+      y: targetHeight + ISO_OFFSET_CM.y,
       z: center.z + ISO_OFFSET_CM.z,
     },
     up: { x: 0, y: 1, z: 0 },

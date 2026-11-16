@@ -2,15 +2,32 @@
 // works in cm. Profiles at a tilt go into one group per tilt, turned about the cockpit origin as
 // their frame is (src/cad/assembly.ts).
 import { degToRad } from './geometry.ts';
-import type { ParentRef, RenderList } from './render-list.ts';
-import { profileBeam, type ProfileSection } from './render-profile.ts';
-import type { ProfilePart, ResolvedPart } from './cad/assembly.ts';
+import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
+import type { Axis, ResolvedPart } from './cad/assembly.ts';
+import { profileSystem } from './cad/catalog.ts';
 import { MM_PER_CM } from './units.ts';
+
+/** A cockpit design as the scene shows it: its resolved parts and the one selected. */
+export interface CockpitDrawing {
+  resolved: ReadonlyMap<string, ResolvedPart>;
+  selectedPartId: string | null;
+}
+
+/** Grooves stop this much short of the profile length. */
+const GROOVE_SHORTFALL_CM = 0.5;
+/** A groove as drawn: a thin strip standing just proud of its face. */
+const GROOVE_WIDTH_CM = 0.3;
+const GROOVE_THICKNESS_CM = 0.09;
+const GROOVE_PROUD_CM = 0.04;
+
+const AXES: readonly Axis[] = ['x', 'y', 'z'];
+const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 
 export function drawCadProfiles(
   r: RenderList,
   parent: ParentRef,
   resolved: ReadonlyMap<string, ResolvedPart>,
+  selectedId: string | null = null,
 ): void {
   const tiltGroups = new Map<number, ParentRef>();
   const frameOf = (tiltDeg: number): ParentRef => {
@@ -22,26 +39,56 @@ export function drawCadProfiles(
     }
     return group;
   };
-  for (const { part, box, lengthMm, tiltDeg } of resolved.values()) {
+  for (const { part, box, tiltDeg } of resolved.values()) {
     if (part.kind !== 'profile') continue;
     const cm = (mm: number) => mm / MM_PER_CM;
-    profileBeam(
-      r,
-      frameOf(tiltDeg),
-      part.axis,
-      cm(lengthMm),
+    const size: Vec3 = [
+      cm(box.max.x - box.min.x),
+      cm(box.max.y - box.min.y),
+      cm(box.max.z - box.min.z),
+    ];
+    const bar = r.box(
+      ...size,
       cm((box.min.x + box.max.x) / 2),
       cm((box.min.y + box.max.y) / 2),
       cm((box.min.z + box.max.z) / 2),
-      drawnSection(part),
+      part.id === selectedId ? 'selected' : 'silver',
+      frameOf(tiltDeg),
+      true,
     );
+    drawGrooves(r, bar.id, size, part.axis, cm(profileSystem(part.systemId).series));
   }
 }
 
-/** The drawing has a 40 × 80 upright across X, and lying 40 × 80s upright. */
-function drawnSection(part: ProfilePart): ProfileSection {
-  if (part.sectionId === '40x40') return '40x40';
-  const drawnHeightAxis = part.axis === 'y' ? 'x' : 'y';
-  if (part.sectionId === '40x80' && part.heightAxis === drawnHeightAxis) return '40x80';
-  throw new Error(`Profile ${part.id} has a section or orientation the drawing cannot show.`);
+/**
+ * One groove per slot on each long face of a bar of `size`, centered on the bar. The slots of
+ * a series sit one series module apart, so a face as wide as two modules has two.
+ */
+function drawGrooves(
+  r: RenderList,
+  bar: ParentRef,
+  size: Vec3,
+  lengthAxis: Axis,
+  moduleCm: number,
+): void {
+  const along = AXIS_INDEX[lengthAxis];
+  for (const normalAxis of AXES) {
+    if (normalAxis === lengthAxis) continue;
+    const normal = AXIS_INDEX[normalAxis];
+    const across = 3 - along - normal;
+    const faceWidth = size[across];
+    const slots = Math.max(1, Math.round(faceWidth / moduleCm));
+    for (const side of [-1, 1]) {
+      for (let slot = 0; slot < slots; slot++) {
+        const grooveSize: Vec3 = [0, 0, 0];
+        grooveSize[along] = size[along] - GROOVE_SHORTFALL_CM;
+        grooveSize[normal] = GROOVE_THICKNESS_CM;
+        grooveSize[across] = GROOVE_WIDTH_CM;
+        const position: Vec3 = [0, 0, 0];
+        position[normal] = side * (size[normal] / 2 + GROOVE_PROUD_CM);
+        position[across] = (slot + 0.5) * (faceWidth / slots) - faceWidth / 2;
+        r.box(...grooveSize, ...position, 'groove', bar);
+      }
+    }
+  }
 }

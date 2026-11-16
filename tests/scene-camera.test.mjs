@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sceneBounds, viewHeight, cameraPose } from '../src/scene-camera.ts';
+import { sceneBounds, viewHeight, cameraPose, designBounds } from '../src/scene-camera.ts';
 import { defaults, evaluate, sanitize } from '../src/model.ts';
+import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
+import { resolveAssembly } from '../src/cad/assembly.ts';
 
 const framingOf = (state) => {
   const evaluation = evaluate(state);
@@ -78,4 +80,63 @@ test('the desk view is centred on the desk and turns with it', () => {
   assert.equal(pose.target.z, state.deskZ);
   assert.equal(pose.target.y, state.deskH);
   assert.ok(Math.abs(pose.up.z + 1) < 1e-9);
+});
+
+const rail = (id, startMm, lengthMm = 1000) => ({
+  kind: 'profile',
+  id,
+  name: id,
+  systemId: 'motedis-40-i-slot-8',
+  sectionId: '40x40',
+  axis: 'z',
+  heightAxis: 'y',
+  lengthMm,
+  placement: { kind: 'anchor', startMm },
+});
+const designFraming = (parts) => {
+  const evaluation = evaluate(NOTHING_AROUND);
+  return {
+    state: NOTHING_AROUND,
+    evaluation,
+    bounds: designBounds(resolveAssembly(parts)),
+  };
+};
+
+test('a design on its own is framed by its parts, in cm, from the floor to its top', () => {
+  const bounds = designBounds(
+    resolveAssembly([
+      rail('low', { x: -200, y: 20, z: 0 }),
+      rail('high', { x: 300, y: 580, z: 100 }),
+    ]),
+  );
+  assert.deepEqual(bounds, {
+    left: -22,
+    right: 32,
+    back: 0,
+    front: 110,
+    vertical: { bottom: 0, top: 60 },
+  });
+});
+
+test("the side view looks at the design from the driver's right, with the front to the right", () => {
+  const framing = designFraming([rail('rail', { x: 0, y: 20, z: 0 })]);
+  const pose = cameraPose('side', framing);
+  assert.equal(pose.rotate, false);
+  assert.deepEqual(pose.up, { x: 0, y: 1, z: 0 });
+  assert.ok(pose.position.x < pose.target.x, 'the camera stands on the -X side');
+  assert.equal(pose.position.z, pose.target.z);
+  assert.equal(pose.target.z, 50);
+  assert.equal(pose.target.y, 2);
+});
+
+test('the side view fits the height and the length of the design with a margin', () => {
+  const framing = designFraming([rail('rail', { x: 0, y: 20, z: 0 }, 2000)]);
+  assert.ok(viewHeight('side', 1, framing) >= 200);
+  assert.ok(viewHeight('side', 0.5, framing) * 0.5 >= 200, 'the length fits a portrait screen');
+});
+
+test('the 3D view looks at the middle of the height of a design on its own', () => {
+  const framing = designFraming([rail('rail', { x: 0, y: 380, z: 0 })]);
+  const pose = cameraPose('iso', framing);
+  assert.deepEqual(pose.target, { x: 0, y: 38, z: 50 });
 });

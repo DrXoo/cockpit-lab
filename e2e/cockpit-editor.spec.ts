@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect, openApp, importProject, getSavedProject } from './support.ts';
 
 // The cockpit design is edited on its own (docs/adr/0001). Until the mini CAD is complete, no room
@@ -55,4 +56,119 @@ test('the first room step leads to the cockpit for those who only design one', a
   await page.locator('#startWithCockpit').click();
   await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#emptyDesign')).toBeVisible();
+});
+
+/** The design history the app autosaved in this browser. */
+const savedHistory = async (page: Page) => (await getSavedProject(page))?.cockpit?.history;
+
+async function startDesign(page: Page) {
+  await openApp(page);
+  await page.locator('#startWithCockpit').click();
+  await page.locator('#addProfile').click();
+}
+
+/** Clicks the viewport at a fraction of its width and height. */
+async function clickViewport(page: Page, x: number, y: number) {
+  const canvas = page.locator('#viewport canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('The viewport has no canvas');
+  await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+}
+
+test('the first profile starts the design, selected and shown in the view', async ({ page }) => {
+  await startDesign(page);
+  await expect(page.locator('#designHistory [data-part]')).toHaveCount(1);
+  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#emptyScene')).toBeHidden();
+  await expect(page.locator('#partInspector')).toBeVisible();
+  await expect(page.locator('#part-name')).toHaveValue('40 × 40 profile 1');
+  await expect(page.locator('#part-lengthMm')).toHaveValue('500');
+  await expect(page.locator('#exportCockpit')).toBeVisible();
+  await expect.poll(() => savedHistory(page)).toHaveLength(1);
+});
+
+test('the inspector changes the operation that made the part', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#part-name').fill('Left rail');
+  await page.locator('#part-name').press('Enter');
+  await page.locator('#part-sectionId').selectOption('40x80');
+  await page.locator('#part-lengthMm').fill('1200');
+  await page.locator('#part-lengthMm').press('Enter');
+  await page.locator('#part-startX').fill('-260');
+  await page.locator('#part-startX').press('Enter');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[0])
+    .toMatchObject({
+      name: 'Left rail',
+      sectionId: '40x80',
+      lengthMm: 1200,
+      startMm: { x: -260, y: 20, z: 0 },
+    });
+  await expect(page.locator('#part-heightAxis')).toHaveValue('y');
+  await expect(page.locator('#part-startX')).toBeFocused();
+});
+
+test('a value a profile cannot have is explained and not applied', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#part-lengthMm').fill('5');
+  await page.locator('#part-lengthMm').press('Enter');
+  await expect(page.locator('#toast')).toHaveClass(/visible/);
+  await expect(page.locator('#part-lengthMm')).toHaveValue('500');
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBe(500);
+});
+
+test('undo and redo step through the edits of the session', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#part-lengthMm').fill('800');
+  await page.locator('#part-lengthMm').press('Enter');
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBe(800);
+
+  await page.locator('#viewport canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('#part-lengthMm')).toHaveValue('500');
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBe(500);
+  await page.keyboard.press('Control+y');
+  await expect(page.locator('#part-lengthMm')).toHaveValue('800');
+
+  await page.locator('#undoEdit').click();
+  await page.locator('#undoEdit').click();
+  await expect(page.locator('#emptyDesign')).toBeVisible();
+  await expect(page.locator('#undoEdit')).toBeDisabled();
+  await expect.poll(async () => (await getSavedProject(page)).cockpit).toBeNull();
+  await page.locator('#redoEdit').click();
+  await expect(page.locator('[data-part="part-1"]')).toBeVisible();
+  await expect.poll(async () => (await savedHistory(page))?.[0].partId).toBe('part-1');
+});
+
+test('a step of the history selects the part it made', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-part="part-1"]').click();
+  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#part-name')).toHaveValue('40 × 40 profile 1');
+});
+
+test('clicking a part in the view selects it, and clicking around it clears the selection', async ({
+  page,
+}) => {
+  await startDesign(page);
+  for (const view of ['top', 'side', 'iso']) {
+    await page.locator(`[data-view="${view}"]`).click();
+    await clickViewport(page, 0.05, 0.95);
+    await expect(page.locator('#noPartSelected')).toBeVisible();
+    await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'false');
+    await clickViewport(page, 0.5, 0.5);
+    await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+  }
+});
+
+test('the side view belongs to the cockpit editor', async ({ page }) => {
+  await startDesign(page);
+  await expect(page.locator('[data-view="side"]')).toBeVisible();
+  await page.locator('[data-view="side"]').click();
+  await page.locator('#roomEditor').click();
+  await expect(page.locator('[data-view="side"]')).toBeHidden();
+  await expect(page.locator('[data-view="side"]')).toHaveAttribute('aria-pressed', 'false');
 });

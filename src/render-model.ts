@@ -7,6 +7,7 @@ import {
   drawLayoutSelection,
   type LayoutSelection,
 } from './render-annotations.ts';
+import { drawCadProfiles, type CockpitDrawing } from './render-cad.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
 import { drawRoom } from './render-room.ts';
@@ -14,6 +15,8 @@ import { drawRoom } from './render-room.ts';
 export interface RenderOptions extends LayoutSelection {
   /** The room floor follows the interface theme. */
   roomFloor: string;
+  /** A cockpit design shown on its own, at the origin. */
+  cockpit?: CockpitDrawing | null;
 }
 
 export interface RenderModel {
@@ -46,5 +49,7 @@ export function renderModel(
   const room = r.group(ROOT, {}, { visible: s.roomEnabled !== false });
   drawRoom(r, room, dimensions, s, e, options.roomFloor);
   drawLayoutSelection(r, ROOT, s, e, options);
+  if (options.cockpit)
+    drawCadProfiles(r, ROOT, options.cockpit.resolved, options.cockpit.selectedPartId);
   return { primitives: r.primitives, labels: r.labels, armHandles };
 }

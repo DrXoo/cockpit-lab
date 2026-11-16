@@ -1,4 +1,11 @@
-import { test, expect, openApp, importProject, STORAGE_KEY } from './support.ts';
+import {
+  test,
+  expect,
+  openApp,
+  importProject,
+  STORAGE_KEY,
+  SCREENSHOT_TIMEOUT_MS,
+} from './support.ts';
 
 const theme = (page: import('@playwright/test').Page) =>
   page.locator('html').getAttribute('data-theme');
@@ -44,7 +51,9 @@ test.describe('with a dark system', () => {
     await openApp(page);
     await importProject(page, 'gt-room.json');
     await page.locator('[data-view="top"]').click();
-    await expect(page.locator('#viewport')).toHaveScreenshot('dark-gt-room-top.png');
+    await expect(page.locator('#viewport')).toHaveScreenshot('dark-gt-room-top.png', {
+      timeout: SCREENSHOT_TIMEOUT_MS,
+    });
   });
 });
 
@@ -55,7 +64,9 @@ test('switching to dark repaints the open 3D view as a dark start would', async 
   await page.locator('#themeBtn').click();
   await page.locator('#themeBtn').click();
   expect(await theme(page)).toBe('dark');
-  await expect(page.locator('#viewport')).toHaveScreenshot('dark-gt-room-top.png');
+  await expect(page.locator('#viewport')).toHaveScreenshot('dark-gt-room-top.png', {
+    timeout: SCREENSHOT_TIMEOUT_MS,
+  });
 });
 
 test('the theme button cycles through system, light and dark, and remembers it', async ({

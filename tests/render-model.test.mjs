@@ -4,6 +4,9 @@ import { renderModel } from '../src/render-model.ts';
 import { ROOT } from '../src/render-list.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import { degToRad } from '../src/geometry.ts';
+import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
+import { resolveAssembly } from '../src/cad/assembly.ts';
+import { addAnchoredProfile, replayHistory } from '../src/cad/history.ts';
 
 const options = {
   view: 'iso',
@@ -53,4 +56,18 @@ test('the arm handles are always returned, but only drawn while editing the arm'
 
 test('no desk means no monitor and no arm handles', () => {
   assert.deepEqual(render({ deskEnabled: false }).model.armHandles, []);
+});
+
+test('a cockpit design shown on its own is drawn at the origin, with its selected part', () => {
+  const history = addAnchoredProfile(addAnchoredProfile([]).history).history;
+  const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-2' };
+  const { model } = render(NOTHING_AROUND, { cockpit });
+  const bars = model.primitives.filter(
+    (p) => p.kind === 'box' && p.parent === ROOT && ['silver', 'selected'].includes(p.material),
+  );
+  assert.deepEqual(
+    bars.map((bar) => bar.material),
+    ['silver', 'selected'],
+  );
+  assert.deepEqual(bars[0].position, [0, 2, 25]);
 });

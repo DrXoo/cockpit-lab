@@ -1,6 +1,16 @@
 // Characterization of what the app renders, compared with local references (not committed).
 // Run `npx playwright test --update-snapshots` to accept an intended change.
-import { test, expect, openApp, importProject } from './support.ts';
+import {
+  test,
+  expect,
+  openApp,
+  importProject,
+  cockpitFileOf,
+  sampleFrameHistory,
+  SCREENSHOT_TIMEOUT_MS,
+} from './support.ts';
+
+const SCREENSHOT = { timeout: SCREENSHOT_TIMEOUT_MS };
 
 const FIXTURES = ['gt-room.json', 'flight-lifted.json', 'desk-only.json'];
 const VIEWS = ['iso', 'top', 'desk'];
@@ -19,7 +29,10 @@ for (const fixture of FIXTURES) {
       test(`${view} view`, async ({ page }) => {
         await page.locator(`[data-view="${view}"]`).click();
         await expect(page.locator(`[data-view="${view}"]`)).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('#viewport')).toHaveScreenshot(`${nameOf(fixture)}-${view}.png`);
+        await expect(page.locator('#viewport')).toHaveScreenshot(
+          `${nameOf(fixture)}-${view}.png`,
+          SCREENSHOT,
+        );
       });
 
     test('settings panels', async ({ page }) => {
@@ -55,5 +68,37 @@ test('the dimensions toggle', async ({ page }) => {
   await importProject(page, 'gt-room.json');
   await page.locator('[data-view="top"]').click();
   await page.locator('#dimensionBtn').click();
-  await expect(page.locator('#viewport')).toHaveScreenshot('gt-room-top-no-dimensions.png');
+  await expect(page.locator('#viewport')).toHaveScreenshot(
+    'gt-room-top-no-dimensions.png',
+    SCREENSHOT,
+  );
+});
+
+test.describe('cockpit design', () => {
+  test.beforeEach(async ({ page }) => {
+    await openApp(page);
+    await page.locator('#startWithCockpit').click();
+    await page.locator('#importCockpitFile').setInputFiles(cockpitFileOf(sampleFrameHistory()));
+    await expect(page.locator('[data-part]')).toHaveCount(5);
+    await page.locator('[data-part="part-4"]').click();
+  });
+
+  for (const view of ['iso', 'top', 'side'])
+    test(`${view} view`, async ({ page }) => {
+      await page.locator(`[data-view="${view}"]`).click();
+      await expect(page.locator(`[data-view="${view}"]`)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#viewport')).toHaveScreenshot(
+        `cockpit-design-${view}.png`,
+        SCREENSHOT,
+      );
+    });
+
+  test('history and inspector', async ({ page }) => {
+    expect(await page.locator('#controls').innerText()).toMatchSnapshot(
+      'cockpit-design-history.txt',
+    );
+    expect(await page.locator('#inspector').innerText()).toMatchSnapshot(
+      'cockpit-design-inspector.txt',
+    );
+  });
 });

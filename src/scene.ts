@@ -6,12 +6,15 @@ import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { inversePoint } from './geometry.ts';
+import { partAlongRay } from './cad/picking.ts';
 import { draggedPosition, pickLayoutItem, type LayoutGrab } from './layout-picking.ts';
+import type { CockpitDrawing } from './render-cad.ts';
 import type { ArmHandle } from './render-desk.ts';
 import { labelShownIn, type SceneLabel } from './render-list.ts';
 import { renderModel } from './render-model.ts';
 import {
   cameraPose,
+  designBounds,
   sceneBounds,
   viewHeight,
   type Framing,
@@ -20,6 +23,7 @@ import {
 } from './scene-camera.ts';
 import { readSceneTheme, type SceneTheme } from './scene-theme.ts';
 import { addPrimitives, type Palette } from './three-adapter.ts';
+import { MM_PER_CM } from './units.ts';
 
 type ArmJoint = ArmHandle['id'];
 
@@ -48,6 +52,8 @@ const ARM_HANDLE_LIFT_CM = 3;
 /** Labels a little outside the viewport stay visible, so they do not flicker at the edges. */
 const LABEL_VIEWPORT_MARGIN = 1.04;
 const PRIMARY_BUTTON = 0;
+/** A press that moves less than this before it is released is a click, not an orbit or a pan. */
+const CLICK_TOLERANCE_PX = 4;
 
 const isPlanView = (view: SceneView) => view === 'top' || view === 'desk';
 
@@ -106,6 +112,7 @@ function createPalette(vectorFallback: boolean): Palette {
     dim: new T.LineBasicMaterial({ color: 0x9ba78d, transparent: true, opacity: 0.85 }),
     arm: new T.MeshStandardMaterial({ color: 0x4f5951, metalness: 0.6, roughness: 0.4 }),
     screen,
+    selected: new T.MeshStandardMaterial({ color: 0xca6036, metalness: 0.45, roughness: 0.45 }),
   };
 }
 
@@ -225,6 +232,12 @@ export class CockpitScene {
   /** The configuration last drawn, with its evaluation and extent. */
   declare s: RoomConfig | null;
   declare e: CockpitEvaluation | null;
+  /** The cockpit design drawn on its own, if any. */
+  declare cockpit: CockpitDrawing | null;
+  /** Clicking picks a part of the cockpit design. */
+  declare partPicking: boolean;
+  /** Where a press that may become a click started. */
+  declare press: { pointerId: number; x: number; y: number } | null;
   declare sceneBounds: SceneBounds | null;
   declare root: T.Group | null;
   declare dims: T.Object3D | null;
@@ -237,6 +250,8 @@ export class CockpitScene {
   declare onArmMove: ((joint: ArmJoint, x: number, z: number) => void) | undefined;
   declare onLayoutMove: ((target: string, x: number, z: number) => void) | undefined;
   declare onLayoutSelect: ((target: string) => void) | undefined;
+  /** A click picked a part of the cockpit design, or nothing (null). */
+  declare onPartPick: ((partId: string | null) => void) | undefined;
 
   constructor(container: HTMLElement, labels: HTMLElement) {
     this.container = container;
@@ -248,6 +263,9 @@ export class CockpitScene {
     this.roomEditing = false;
     this.s = null;
     this.e = null;
+    this.cockpit = null;
+    this.partPicking = false;
+    this.press = null;
     this.sceneBounds = null;
     this.root = null;
     this.dims = null;
@@ -258,6 +276,7 @@ export class CockpitScene {
     this.onArmMove = undefined;
     this.onLayoutMove = undefined;
     this.onLayoutSelect = undefined;
+    this.onPartPick = undefined;
     this.theme = themeOfPage();
     this.scene = new T.Scene();
     this.scene.background = new T.Color(this.theme.background);
@@ -340,11 +359,13 @@ export class CockpitScene {
     });
   }
 
-  update(s: RoomConfig, e: CockpitEvaluation) {
+  /** Draws a configuration, or a cockpit design on its own with the empty configuration `s`. */
+  update(s: RoomConfig, e: CockpitEvaluation, cockpit: CockpitDrawing | null = null) {
     this.revision++;
     this.s = s;
     this.e = e;
-    this.sceneBounds = sceneBounds(s, e);
+    this.cockpit = cockpit;
+    this.sceneBounds = cockpit ? designBounds(cockpit.resolved) : sceneBounds(s, e);
     if (this.root) {
       this.disposeDrawing(this.root);
       this.scene.remove(this.root);
@@ -359,6 +380,7 @@ export class CockpitScene {
       layoutEditing: this.layoutEditing,
       layoutTarget: this.layoutTarget,
       roomFloor: this.theme.roomFloor,
+      cockpit,
     });
     this.dims = addPrimitives(model.primitives, root, this.mat).dimensions;
     if (this.dims) this.dims.visible = this.dimensions;
@@ -389,7 +411,7 @@ export class CockpitScene {
 
   /** Rebuilds the drawing for the current options, once there is something to draw. */
   private redraw() {
-    if (this.s && this.e) this.update(this.s, this.e);
+    if (this.s && this.e) this.update(this.s, this.e, this.cockpit);
   }
 
   setView(view: SceneView) {
@@ -418,6 +440,12 @@ export class CockpitScene {
     this.redraw();
   }
 
+  /** Lets a click pick a part of the cockpit design drawn on its own. */
+  setPartPicking(on: boolean) {
+    this.partPicking = on;
+    this.press = null;
+  }
+
   setDimensions(on: boolean) {
     this.revision++;
     this.dimensions = on;
@@ -425,8 +453,8 @@ export class CockpitScene {
     for (const item of this.labelItems) item.el.hidden = !on;
   }
 
-  /** The point under the pointer on the horizontal plane at `height`. */
-  private pointerOnPlane(event: PointerEvent, height = 0): T.Vector3 | null {
+  /** The ray from the camera through the point under the pointer, in world cm. */
+  private rayAt(event: PointerEvent): T.Ray {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ray = new T.Raycaster();
     ray.setFromCamera(
@@ -436,7 +464,25 @@ export class CockpitScene {
       ),
       this.camera,
     );
-    return ray.ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), -height), new T.Vector3());
+    return ray.ray;
+  }
+
+  /** The point under the pointer on the horizontal plane at `height`. */
+  private pointerOnPlane(event: PointerEvent, height = 0): T.Vector3 | null {
+    return this.rayAt(event).intersectPlane(
+      new T.Plane(new T.Vector3(0, 1, 0), -height),
+      new T.Vector3(),
+    );
+  }
+
+  /** The part of the cockpit design under the pointer, or null. */
+  private partAt(event: PointerEvent): string | null {
+    if (!this.cockpit) return null;
+    const { origin, direction } = this.rayAt(event);
+    return partAlongRay(this.cockpit.resolved, {
+      originMm: { x: origin.x * MM_PER_CM, y: origin.y * MM_PER_CM, z: origin.z * MM_PER_CM },
+      directionMm: { x: direction.x, y: direction.y, z: direction.z },
+    });
   }
 
   /** The arm joint whose marker or label is under the pointer. */
@@ -470,6 +516,8 @@ export class CockpitScene {
   }
 
   private onPointerDown(event: PointerEvent) {
+    if (this.partPicking && event.button === PRIMARY_BUTTON)
+      this.press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
     const s = this.s;
     const e = this.e;
     if (!s || !e) return;
@@ -513,6 +561,15 @@ export class CockpitScene {
     this.onLayoutMove?.(grab.target, x, z);
   }
 
+  /** A press released where it started picks the part under it. */
+  private onPointerUp(event: PointerEvent) {
+    const press = this.press;
+    this.press = null;
+    if (!this.partPicking || !press || press.pointerId !== event.pointerId) return;
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+    if (moved <= CLICK_TOLERANCE_PX) this.onPartPick?.(this.partAt(event));
+  }
+
   private onPointerEnd(event: PointerEvent) {
     if (!this.drag) return;
     event.stopImmediatePropagation();
@@ -528,6 +585,7 @@ export class CockpitScene {
     const element: GlobalEventHandlers = this.renderer.domElement;
     element.addEventListener('pointerdown', (event) => this.onPointerDown(event), true);
     element.addEventListener('pointermove', (event) => this.onPointerMove(event), true);
+    element.addEventListener('pointerup', (event) => this.onPointerUp(event), true);
     element.addEventListener('pointerup', (event) => this.onPointerEnd(event), true);
     element.addEventListener('pointercancel', (event) => this.onPointerEnd(event), true);
   }

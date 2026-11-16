@@ -1,13 +1,15 @@
 // The whole page, panels included, in both color themes, compared with local references (not
 // committed). The viewport tests in rendering.spec.ts only cover the 3D view.
-import { test, expect, openApp, importProject } from './support.ts';
+import {
+  test,
+  expect,
+  openApp,
+  importProject,
+  cockpitFileOf,
+  sampleFrameHistory,
+  SCREENSHOT_TIMEOUT_MS,
+} from './support.ts';
 import type { Page } from '@playwright/test';
-
-/**
- * With software WebGL and every worker busy, a full-page screenshot can take longer than the
- * default 5 s. How long it takes is not what these tests check.
- */
-const FULL_PAGE_SCREENSHOT_TIMEOUT_MS = 15_000;
 
 /**
  * Waits for the pending autosave, whose status shows in the page, and keeps the pointer from
@@ -19,7 +21,7 @@ async function expectPage(page: Page, name: string) {
   await page.mouse.move(0, 0);
   await expect(page).toHaveScreenshot(name, {
     fullPage: true,
-    timeout: FULL_PAGE_SCREENSHOT_TIMEOUT_MS,
+    timeout: SCREENSHOT_TIMEOUT_MS,
     // Under load, Chrome rasterizes the diagonal strokes of the brand mark one of two ways. The
     // mask covers only the strokes: the mark's colored box still shows around them.
     mask: [page.locator('.brand-mark svg')],
@@ -59,6 +61,15 @@ for (const [colorScheme, prefix] of Object.entries(THEMES)) {
         await page.locator('#cockpitEditor').click();
         await expect(page.locator('#emptyDesign')).toBeVisible();
         await expectPage(page, `${prefix}cockpit-editor.png`);
+      });
+
+      test('cockpit editor with a selected part', async ({ page }) => {
+        await openApp(page);
+        await page.locator('#startWithCockpit').click();
+        await page.locator('#importCockpitFile').setInputFiles(cockpitFileOf(sampleFrameHistory()));
+        await page.locator('[data-part="part-1"]').click();
+        await expect(page.locator('#part-name')).toHaveValue('Left rail');
+        await expectPage(page, `${prefix}cockpit-design.png`);
       });
 
       test('layout mode and warnings', async ({ page }) => {
