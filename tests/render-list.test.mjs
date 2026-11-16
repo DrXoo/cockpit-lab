@@ -65,13 +65,9 @@ test('labels for objects are told apart from measurements', () => {
 test('each label belongs to the views it describes', () => {
   const label = (flags) => ({ text: 'x', position: { x: 0, y: 0, z: 0 }, object: false, ...flags });
   assert.equal(labelShownIn(label({}), 'iso'), true);
-  assert.equal(labelShownIn(label({ object: true }), 'side'), false);
-  assert.equal(labelShownIn(label({ notSide: true }), 'side'), false);
-  assert.equal(labelShownIn(label({ rigLabel: true }), 'desk'), false);
+  assert.equal(labelShownIn(label({ object: true }), 'desk'), true);
   assert.equal(labelShownIn(label({ topOnly: true }), 'top'), true);
   assert.equal(labelShownIn(label({ topOnly: true }), 'iso'), false);
-  assert.equal(labelShownIn(label({ sideOnly: true }), 'side'), true);
-  assert.equal(labelShownIn(label({ sideOnly: true }), 'top'), false);
   assert.equal(labelShownIn(label({ armHandle: true }), 'desk'), true);
   assert.equal(labelShownIn(label({ armHandle: true }), 'iso'), false);
 });

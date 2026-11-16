@@ -1,4 +1,4 @@
-// Desk tab: placing the desk, the cockpit and the items on the tabletop, and the monitor position.
+// Desk tab: placing the desk and the items on the tabletop, and the monitor position.
 import type { CockpitConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { clampEdge, desktopTargets } from './desk.ts';
@@ -16,13 +16,12 @@ import { escapeHTML } from './html.ts';
 const CROSS = '×';
 
 const AUTOMATIC_POSITION_LABELS: Record<(typeof AUTOMATIC_MONITOR_MODES)[number], string> = {
-  cockpit: 'Facing the cockpit',
   desk: 'On the desk',
   vr: 'VR · parked',
 };
 
-const optionHTML = (value: string, label: string, selected: boolean, disabled = false): string =>
-  `<option value="${escapeHTML(value)}"${selected ? ' selected' : ''}${disabled ? ' disabled' : ''}>${escapeHTML(label)}</option>`;
+const optionHTML = (value: string, label: string, selected: boolean): string =>
+  `<option value="${escapeHTML(value)}"${selected ? ' selected' : ''}>${escapeHTML(label)}</option>`;
 
 function poseOptionsHTML(s: CockpitConfig, position: MonitorPosition): string {
   if (!s.armPoses.length) return '';
@@ -35,16 +34,10 @@ function poseOptionsHTML(s: CockpitConfig, position: MonitorPosition): string {
   return `<optgroup label="Your poses">${options.join('')}</optgroup>`;
 }
 
-function automaticOptionsHTML(s: CockpitConfig, position: MonitorPosition): string {
+function automaticOptionsHTML(position: MonitorPosition): string {
   const options = AUTOMATIC_MONITOR_MODES.map((mode) => {
     const value = `auto:${mode}`;
-    const unavailable = mode === 'cockpit' && s.cockpitEnabled === false;
-    return optionHTML(
-      value,
-      AUTOMATIC_POSITION_LABELS[mode],
-      position.choice === value,
-      unavailable,
-    );
+    return optionHTML(value, AUTOMATIC_POSITION_LABELS[mode], position.choice === value);
   });
   return `<optgroup label="Automatic">${options.join('')}</optgroup>`;
 }
@@ -71,7 +64,7 @@ export function monitorPositionHTML(s: CockpitConfig, selectedPoseId: string): s
   const hint = s.armPoses.length
     ? ''
     : '<p class="layout-hint" id="armPoseHint">Place the monitor and save the pose to come back to it exactly. Each layout keeps its own poses.</p>';
-  return `<div class="select-control"><label for="monitorPosition">Monitor position</label><select id="monitorPosition">${custom}${poseOptionsHTML(s, position)}${automaticOptionsHTML(s, position)}</select></div>${chosenPoseHTML(s, position)}${hint}`;
+  return `<div class="select-control"><label for="monitorPosition">Monitor position</label><select id="monitorPosition">${custom}${poseOptionsHTML(s, position)}${automaticOptionsHTML(position)}</select></div>${chosenPoseHTML(s, position)}${hint}`;
 }
 
 /** The monitor position, and the field to save the current arm as a new pose. */
@@ -91,7 +84,7 @@ export function deskElementControls(
     prefix = item ? item.prefix : target;
   // Position settings of the selected item: `<prefix>X`, `<prefix>Z` and `<prefix>Angle`.
   const setting = (suffix: 'X' | 'Z' | 'Angle') => `${prefix}${suffix}` as NumericField;
-  const picker = `<div class="select-control target-picker"><label for="layoutTargetSelect">Item to move</label><select id="layoutTargetSelect"><optgroup label="Room layout">${s.cockpitEnabled !== false ? `<option value="cockpit" ${target === 'cockpit' ? 'selected' : ''}>Cockpit</option>` : ''}<option value="desk" ${target === 'desk' ? 'selected' : ''}>Whole desk</option></optgroup><optgroup label="On the desktop">${desktopTargets
+  const picker = `<div class="select-control target-picker"><label for="layoutTargetSelect">Item to move</label><select id="layoutTargetSelect"><optgroup label="Room layout"><option value="desk" ${target === 'desk' ? 'selected' : ''}>Whole desk</option></optgroup><optgroup label="On the desktop">${desktopTargets
     .filter((t) => e.desktopItems.some((i) => i.id === t.id))
     .map((t) => `<option value="${t.id}" ${target === t.id ? 'selected' : ''}>${t.label}</option>`)
     .join('')}</optgroup></select></div>`;
@@ -127,7 +120,7 @@ export function deskElementControls(
       range(setting('Z'), item ? 'Z position on the desktop' : 'Z position (depth)') +
       range(setting('Angle'), 'Rotation in the plan') +
       `<div class="rotate-actions"><button data-rotate="-90">↶ −90°</button><button data-rotate="90">+90° ↷</button></div>`;
-    placement += `<p class="layout-hint" ${item ? 'data-desktop-hint' : ''}>${item ? `Reference: the center of the desktop, which turns with the desk. X runs along its ${s.deskDepth} cm depth; Z along its ${s.deskWidth} cm width.` : target === 'desk' ? 'Reference: the center of the desktop in the room.' : 'Reference: the center of the rear end of the chassis.'} Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.</p>`;
+    placement += `<p class="layout-hint" ${item ? 'data-desktop-hint' : ''}>${item ? `Reference: the center of the desktop, which turns with the desk. X runs along its ${s.deskDepth} cm depth; Z along its ${s.deskWidth} cm width.` : 'Reference: the center of the desktop in the room.'} Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.</p>`;
   }
   html += group('Place items', picker + placement, item ? 'On the desktop' : 'In the room');
   if (target === 'keyboard')

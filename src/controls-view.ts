@@ -5,7 +5,6 @@ import type { CockpitConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { fieldSpec } from './field-spec.ts';
 import { wrapAngle } from './monitor-arm.ts';
-import { floorHeight, isRigHeightKey } from './rig.ts';
 
 export interface ControlView {
   state: CockpitConfig;
@@ -26,7 +25,7 @@ export interface ControlTemplates {
   select(key: ChoiceSetting, label: string, options: [value: string, text: string][]): string;
 }
 
-const ANGLE_SETTINGS: readonly string[] = ['recline', 'wheelTilt', 'pedalTilt', 'monitorYaw'];
+const ANGLE_SETTINGS: readonly string[] = ['monitorYaw'];
 
 export const unitFor = (key: string): string =>
   key === 'monitorInches'
@@ -38,11 +37,10 @@ export const unitFor = (key: string): string =>
         : 'cm';
 
 /**
- * The value a control shows: rig heights from the floor, and the arm angles as currently
- * evaluated (they follow the monitor mode unless the arm is in manual mode).
+ * The value a control shows: the arm angles as currently evaluated (they follow the monitor
+ * mode unless the arm is in manual mode), and every other setting as it is.
  */
 export function controlValue({ state, evaluation }: ControlView, key: NumericField): number {
-  if (isRigHeightKey(key)) return floorHeight(state, key);
   if (key === 'armBaseAngle') return evaluation.armPose.baseAngle;
   if (key === 'armElbowAngle') return evaluation.armPose.elbowAngle;
   if (key === 'monitorYaw') return wrapAngle(evaluation.monitorAngle - state.deskAngle);

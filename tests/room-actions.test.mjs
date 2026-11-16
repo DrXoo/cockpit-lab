@@ -89,8 +89,8 @@ test('editing a value positions items from the room walls', () => {
   assert.equal(moved.roomFurniture[0].x, 70);
   const desk = updateRoomItem(state, 'desk', 'z', 40);
   assert.equal(desk.deskZ, 50);
-  const turned = updateRoomItem(state, 'cockpit', 'angle', 90);
-  assert.equal(turned.cockpitAngle, 90);
+  const turned = updateRoomItem(state, 'desk', 'angle', 90);
+  assert.equal(turned.deskAngle, 90);
 });
 
 test('an edited opening is validated again', () => {
@@ -114,14 +114,12 @@ test('a chair can be moved back in front of the desk', () => {
   assert.deepEqual({ x: back.x, z: back.z, angle: back.angle }, officeChairPlacement(away, back));
 });
 
-test('centring moves desk and cockpit together to the middle of the room', () => {
+test('centring moves the desk, with everything on it, to the middle of the room', () => {
   const state = { ...room, roomEnabled: true };
   const centred = centerInRoom(state, evaluate(state));
   const e = evaluate(centred);
   assert.ok(Math.abs((e.allLeft + e.allRight) / 2 - 150) <= 0.1);
   assert.ok(Math.abs((e.allBack + e.allFront) / 2 - 200) <= 0.1);
-  assert.equal(
-    centred.deskX - centred.cockpitX,
-    Math.round((state.deskX - state.cockpitX) * 10) / 10,
-  );
+  assert.equal(centred.deskAngle, state.deskAngle);
+  assert.equal(centred.keyboardX, state.keyboardX);
 });

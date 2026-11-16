@@ -6,16 +6,15 @@ import {
   recordProject,
   replaceCockpitDesign,
 } from './project.ts';
-import { cockpitFileData, readCockpitFile } from './cockpit-file.ts';
-import { designFromBase, designOf, designOnItsOwn, type CockpitDesign } from './cockpit-design.ts';
-import { creationControls, progressHTML } from './setup-editor.ts';
 import {
-  partialSummary,
-  roomSummaryHTML,
-  fullSummaryHTML,
-  usesPartialSummary,
-  summaryHeading,
-} from './project-summary.ts';
+  cockpitFileData,
+  PARAMETRIC_COCKPIT_FILE_MESSAGE,
+  readCockpitFile,
+} from './cockpit-file.ts';
+import type { CockpitDesign } from './cockpit-design.ts';
+import { emptyDesignHTML, NOTHING_AROUND } from './cockpit-editor-view.ts';
+import { creationControls, progressHTML } from './setup-editor.ts';
+import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
 import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
 import {
   roomControls,
@@ -26,11 +25,9 @@ import {
   roomTarget,
 } from './room-editor.ts';
 import {
-  presets,
   clamp,
   round,
   evaluate,
-  layoutPreset,
   desktopTargets,
   placeDeskItem,
   updateDeskItem,
@@ -57,8 +54,6 @@ import {
   renameLayout,
   selectLayout,
   showFurniture,
-  includeCockpit,
-  leaveOutCockpit,
   type LayoutLibrary,
 } from './layouts.ts';
 import {
@@ -74,15 +69,7 @@ import {
 import { layoutOptionsHTML } from './layouts-view.ts';
 import type { SettingsSection } from './setup-actions.ts';
 import { applySetting, type SettingChange } from './setting-change.ts';
-import {
-  numericField,
-  booleanSetting,
-  choiceSetting,
-  presetId,
-  roomItemType,
-  layoutPresetName,
-} from './dom-input.ts';
-import { cutListCsv } from './cut-list-csv.ts';
+import { numericField, booleanSetting, choiceSetting, roomItemType } from './dom-input.ts';
 import { validationBanner, metricsView } from './inspector-view.ts';
 import {
   sectionOfStep,
@@ -100,13 +87,7 @@ import {
   placeChairAtDesk,
   centerInRoom,
 } from './room-actions.ts';
-import {
-  cockpitPlacementHTML,
-  deskPanelHTML,
-  framePanelHTML,
-  newDesignHTML,
-  posturePanelHTML,
-} from './settings-panels.ts';
+import { deskPanelHTML } from './settings-panels.ts';
 import { monitorPositionHTML } from './desk-editor.ts';
 import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
 import {
@@ -238,11 +219,14 @@ const store = createProjectStore(() => window.localStorage);
  * and places the design in each layout. See docs/adr/0001.
  */
 type Editor = 'cockpit' | 'room';
-/** The settings tabs: frame and posture in the cockpit editor, the rest in the room editor. */
-type Section = SettingsSection | 'furniture' | 'frame' | 'posture';
-const SECTIONS: readonly string[] = ['room', 'furniture', 'desk', 'cockpit', 'frame', 'posture'];
+/**
+ * The settings sections: the tabs of the room editor, and the design, the cockpit editor's only
+ * panel until it has tools of its own.
+ */
+type Section = SettingsSection | 'furniture' | 'design';
+const SECTIONS: readonly string[] = ['room', 'furniture', 'desk', 'design'];
 const EDITORS: readonly string[] = ['cockpit', 'room'];
-const VIEWS: readonly string[] = ['iso', 'top', 'desk', 'side'];
+const VIEWS: readonly string[] = ['iso', 'top', 'desk'];
 /** The panels that narrow screens show one at a time, through the studio nav. */
 const WORKSPACES = ['view', 'config', 'checks'] as const;
 type Workspace = (typeof WORKSPACES)[number];
@@ -254,8 +238,7 @@ function editorOf(value: string): Editor {
   if (!EDITORS.includes(value)) throw new Error(`Unknown editor: ${value}`);
   return value as Editor;
 }
-const editorOfSection = (value: Section): Editor =>
-  value === 'frame' || value === 'posture' ? 'cockpit' : 'room';
+const editorOfSection = (value: Section): Editor => (value === 'design' ? 'cockpit' : 'room');
 function viewOf(value: string): SceneView {
   if (!VIEWS.includes(value)) throw new Error(`Unknown view: ${value}`);
   return value as SceneView;
@@ -277,11 +260,11 @@ const newProject = createProject();
 // design and every layout as last recorded. Saving and exporting record `state` into them first.
 let library: LayoutLibrary = newProject.library,
   cockpit: CockpitDesign | null = newProject.cockpit,
-  state: CockpitConfig = layoutConfig(library, cockpit),
+  state: CockpitConfig = layoutConfig(library),
   setup: SetupProgress = newProject.setup,
   section: Section = 'room',
   /** The tab each editor shows when it opens again. */
-  lastSection: Record<Editor, Section> = { cockpit: 'frame', room: 'room' },
+  lastSection: Record<Editor, Section> = { cockpit: 'design', room: 'room' },
   view: SceneView = 'top',
   scene: CockpitScene | undefined,
   layoutTarget = '',
@@ -297,20 +280,27 @@ if (loaded.status === 'loaded') {
   setSaveStatus('Design restored from this browser');
 } else if (loaded.status === 'unavailable')
   setSaveStatus('This browser blocks saving · export a JSON file', 'error');
+/**
+ * Explains that the project held a parametric cockpit, which was left out because it is retired
+ * (docs/adr/0004). A project restored from this browser keeps the earlier version's saved copy.
+ */
+function reportLeftOutCockpit({ fromBrowser }: { fromBrowser: boolean }) {
+  $('#leftOutCockpitKept').hidden = !fromBrowser;
+  $<HTMLDialogElement>('#leftOutCockpitDialog').showModal();
+}
 if (setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(setup.step);
 if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
 // A project with a cockpit design and no room yet opens where the design is edited.
 if (!state.roomEnabled && cockpit !== null) {
-  section = 'frame';
+  section = 'design';
   view = 'iso';
 }
 const editor = (): Editor => editorOfSection(section);
-/** Whether the project has a cockpit design, included in the room or not. */
+/** Whether the project has a cockpit design. */
 const hasDesign = (): boolean => cockpit !== null;
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
-const shownConfig = (): CockpitConfig =>
-  editor() === 'cockpit' ? designOnItsOwn(hasDesign() ? designOf(state) : null) : state;
+const shownConfig = (): CockpitConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
 let evaluation = evaluate(shownConfig());
 let pendingSave: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -328,7 +318,7 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
 function openProject(project: Project) {
   library = project.library;
   cockpit = project.cockpit;
-  state = layoutConfig(library, cockpit);
+  state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
 }
@@ -342,7 +332,7 @@ function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
   clearTimeout(pendingSave);
   const recorded = recordedProject();
   library = change(recorded.library);
-  state = layoutConfig(library, cockpit);
+  state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   if (layoutTarget.startsWith('furniture:') && !roomItem(state, layoutTarget)) layoutTarget = '';
   persist();
@@ -551,7 +541,7 @@ function bindRoomEditor() {
     state = centerInRoom(state, evaluation);
     roomChanged(true);
     setActiveView('top');
-    toast('Desk and cockpit centered, keeping their layout');
+    toast('Desk centered, with everything on it');
   });
 }
 function enterStep(id: StepId) {
@@ -661,9 +651,10 @@ function renderWorkflow() {
   $('#setupProgress').hidden = !guided;
   $('#setupProgress').innerHTML = guided ? progressHTML(setup) : '';
   $('#setupActions').hidden = !guided;
-  $('.config-tabs').hidden = guided || (inCockpit && !hasDesign());
+  $('.config-tabs').hidden = guided || inCockpit;
   renderLayoutPicker(guided || inCockpit);
-  $('.preset-area').hidden = !inCockpit || !hasDesign();
+  $('.cockpit-area').hidden = !inCockpit;
+  $('#exportCockpit').hidden = !hasDesign();
   const heading = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Settings';
   $('.panel-heading h2').textContent = heading;
   $('#controls').setAttribute('aria-label', guided ? (step?.title ?? '') : heading);
@@ -676,22 +667,21 @@ function renderWorkflow() {
   $<HTMLButtonElement>('#setupNext').disabled = buttons.nextDisabled;
   $('#setupSkip').hidden = buttons.skipHidden;
   $('#setupSkip').textContent = buttons.skipLabel;
-  const hasScene = shown.roomEnabled || shown.deskEnabled || shown.cockpitEnabled;
+  const hasScene = shown.roomEnabled || shown.deskEnabled;
   $('#emptyScene').hidden = hasScene;
   $('#emptySceneTitle').textContent = inCockpit
     ? 'Your cockpit starts here'
     : 'Your space starts here';
   $('#emptySceneHint').textContent = inCockpit
-    ? 'Choose a base to start the design.'
+    ? 'Cockpit designs are built from parts.'
     : 'Set up your room to start arranging it.';
-  $('#personBtn').hidden = !shown.cockpitEnabled;
   $('[data-view="desk"]').hidden = !shown.deskEnabled;
-  $('[data-view="side"]').hidden = !shown.cockpitEnabled;
   $('#layoutBtn').hidden = inCockpit;
   $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
   $('#layoutBtn').classList.toggle('active', layoutEditing);
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
-  inspectorSectionOf('#heightTag').hidden = !shown.cockpitEnabled || guided;
+  $('#validationBanner').hidden = inCockpit;
+  $('#cockpitChecksNote').hidden = !inCockpit;
   inspectorSectionOf('#deskSizeTag').hidden =
     !shown.deskEnabled || (guided && setup.step !== 'desk');
   inspectorSectionOf('#deskSizeTag').querySelector('h3')!.lastChild!.textContent =
@@ -701,31 +691,15 @@ function renderWorkflow() {
   $('.reach-card').hidden = !(shown.deskEnabled && shown.monitorEnabled);
   $('#editArmBtn').hidden = !(shown.deskEnabled && shown.monitorEnabled);
   const metrics = $$('.metrics>div');
-  metrics[0].hidden = !shown.cockpitEnabled && !shown.roomEnabled;
-  metrics[0].querySelector('span')!.textContent = shown.cockpitEnabled
-    ? 'COCKPIT FOOTPRINT'
-    : 'ROOM';
-  // The setup footprint is the room's: the cockpit on its own has the cockpit footprint.
-  metrics[1].hidden = inCockpit || (!shown.cockpitEnabled && !shown.deskEnabled);
-  metrics[1].querySelector(':scope > small')!.textContent = 'Added items, without walkway';
-  metrics[2].hidden = !shown.cockpitEnabled;
-  $('.scene-legend').hidden = !shown.deskEnabled && !shown.cockpitEnabled;
-  $('.metrics').hidden = !shown.roomEnabled && !shown.deskEnabled && !shown.cockpitEnabled;
+  metrics[0].hidden = !shown.roomEnabled;
+  metrics[1].hidden = !shown.deskEnabled;
+  $('.scene-legend').hidden = !shown.deskEnabled;
+  $('.metrics').hidden = !shown.roomEnabled && !shown.deskEnabled;
   $('.scene-badge').hidden = !hasScene;
   $('.viewport-note').hidden = !hasScene;
   $('.view-toolbar').hidden = !hasScene;
   $('.build-note').hidden = !hasScene;
-  $$('.scene-legend>span').forEach(
-    (item, index) => (item.hidden = index === 2 ? !shown.deskEnabled : !shown.cockpitEnabled),
-  );
-  const showsCockpit = inCockpit ? hasDesign() : state.cockpitEnabled;
-  const sceneTitle = guided
-    ? stepLabel
-    : showsCockpit
-      ? presets[state.preset].label
-      : inCockpit
-        ? 'New cockpit design'
-        : 'Your room';
+  const sceneTitle = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Your room';
   $('#sceneTitle').textContent =
     !guided && !inCockpit && library.layouts.length > 1
       ? `${sceneTitle} · ${activeLayout(library).name}`
@@ -753,16 +727,12 @@ function renderControls() {
   if (
     section === 'desk' &&
     !evaluation.desktopItems.some((i) => i.id === layoutTarget) &&
-    !['desk', 'cockpit'].includes(layoutTarget)
+    layoutTarget !== 'desk'
   )
     layoutTarget = 'desk';
   let html = '';
   if (editor() === 'cockpit') {
-    html = !hasDesign()
-      ? newDesignHTML()
-      : section === 'posture'
-        ? posturePanelHTML(controlView())
-        : framePanelHTML(controlView());
+    html = emptyDesignHTML();
   } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
     html = creationControls(
       state,
@@ -772,8 +742,6 @@ function renderControls() {
       { range, toggle, select },
       selectedArmPose,
     );
-  } else if (section === 'cockpit') {
-    html = cockpitPlacementHTML(controlView(), hasDesign());
   } else if (isRoomSection(section)) {
     html = roomControls(state, evaluation, layoutTarget, range, toggle, {
       mode: section === 'furniture' ? 'furniture' : 'room',
@@ -786,51 +754,7 @@ function renderControls() {
   $('#controls').innerHTML = html;
   bindRoomEditor();
   bindCreationControls();
-  $optional('#editCockpitDesign')?.addEventListener('click', () => showEditor('cockpit'));
   $optional('#startWithCockpit')?.addEventListener('click', startWithCockpit);
-  $optional('#importCockpitInstead')?.addEventListener('click', () =>
-    $('#importCockpitFile').click(),
-  );
-  const newDesignForm = $optional<HTMLFormElement>('#newDesignForm');
-  newDesignForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (!newDesignForm.reportValidity()) return;
-    const base = presetId($<HTMLSelectElement>('#newDesignBase').value);
-    // The design starts on its own: the room includes it only when the user adds it there.
-    cockpit = designFromBase(base);
-    state = { ...state, ...cockpit };
-    persist();
-    renderControls();
-    refresh();
-    setActiveView('iso');
-    toast(
-      state.roomEnabled
-        ? `${presets[base].label} design started. Add it to the room from Room → Cockpit.`
-        : `${presets[base].label} design started. Adjust the frame and the posture.`,
-    );
-  });
-  $optional('#includeCockpit')?.addEventListener('click', () => {
-    const design = designOf(state);
-    changeLayouts((layouts) => includeCockpit(layouts, design));
-    layoutTarget = 'cockpit';
-    syncSceneEditing();
-    setActiveView('top');
-    toast('Cockpit added to every layout. Place it in each one.');
-  });
-  $optional('#leaveOutCockpit')?.addEventListener('click', () => {
-    if (layoutTarget === 'cockpit') layoutTarget = '';
-    changeLayouts(leaveOutCockpit);
-    toast('Cockpit left out of the room. The design stays in the project.');
-  });
-  controlsAll('[data-place]').forEach((b) =>
-    b.addEventListener('click', () => {
-      layoutTarget = dataOf(b, 'place');
-      layoutEditing = true;
-      scene?.setLayoutEditing(true, layoutTarget, true);
-      setActiveView('top');
-      showWorkspace('view');
-    }),
-  );
   $optional('#goRoom')?.addEventListener('click', () => {
     switchSection('room');
     setActiveView('top');
@@ -964,16 +888,6 @@ function renderControls() {
     renderControls();
     refresh();
   });
-  const layoutPresetSelect = $optional<HTMLSelectElement>('#layoutPreset');
-  layoutPresetSelect?.addEventListener('change', () => {
-    if (layoutPresetSelect.value === 'free') return;
-    state = layoutPreset(state, layoutPresetName(layoutPresetSelect.value));
-    persist();
-    renderControls();
-    refresh();
-    setActiveView('top');
-    toast('Layout applied. You can move and turn both items.');
-  });
 }
 function switchSection(value: Section) {
   const editorChanged = editorOfSection(value) !== editor();
@@ -986,11 +900,7 @@ function switchSection(value: Section) {
     (layoutTarget.startsWith('feature:') || layoutTarget.startsWith('furniture:'))
   )
     layoutTarget = 'desk';
-  if (
-    value === 'room' &&
-    !roomItem(state, layoutTarget) &&
-    !['desk', 'cockpit'].includes(layoutTarget)
-  )
+  if (value === 'room' && !roomItem(state, layoutTarget) && layoutTarget !== 'desk')
     layoutTarget = 'desk';
   $$<HTMLButtonElement>('.config-tabs button').forEach((b) => {
     const active = dataOf(b, 'section') === section;
@@ -1034,8 +944,6 @@ function refresh() {
   $('#roomChecks').innerHTML = [...e.extra.filter((c) => c.id === 'room'), ...e.room.checks]
     .map(checkRowHTML)
     .join('');
-  $<HTMLSelectElement>('#preset').value = state.preset;
-  $('#presetDescription').textContent = presets[state.preset].description;
   $('#desktopChecks').innerHTML = e.desktopChecks.map(checkRowHTML).join('');
   $('#matTag').textContent = `${state.matWidth} × ${state.matDepth}`;
   $('#deskSizeTag').textContent = `${state.deskWidth} × ${state.deskDepth}`;
@@ -1073,10 +981,6 @@ function refresh() {
   const coordinateHint = $optional('[data-desktop-hint]');
   if (coordinateHint)
     coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${state.deskDepth} cm depth; Z along its ${state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
-  $('#heightTag').textContent = `${state.height} cm`;
-  $('#ergonomics').innerHTML = e.bodyCheck.map(checkRowHTML).join('');
-  $('#designInspector').hidden = !shown.cockpitEnabled;
-  $('#designChecks').innerHTML = e.designCheck.map(checkRowHTML).join('');
   $('#spaceChecks').innerHTML = [
     ...e.spaceCheck,
     ...e.extra.filter((c) => c.id !== 'room' && c.level !== 'ok'),
@@ -1092,10 +996,7 @@ function refresh() {
   $('#reachMeter').classList.toggle('over', e.reach > state.armReach);
   const metrics = metricsView(shown, e);
   $('#metricFootprint').innerHTML = metrics.footprintHTML;
-  $('#metricWidthNote').textContent = metrics.widthNote;
   $('#metricSpace').innerHTML = metrics.spaceHTML;
-  $('#metricProfiles').innerHTML = metrics.profilesHTML;
-  $('#metricPieces').textContent = metrics.piecesText;
   renderWorkflow();
   scene?.update(shown, evaluation);
 }
@@ -1127,13 +1028,9 @@ function exportConfig() {
   toast('JSON exported. Use Open JSON to bring this design back.');
 }
 function summary() {
-  const heading = summaryHeading(state);
-  $('#summaryTitle').textContent = heading.title;
-  $('#summaryDialog .section-kicker').textContent = heading.kicker;
-  $('#csvBtn').hidden = !evaluation.parts.length && !evaluation.accessories.length;
-  $('#summaryContent').innerHTML = usesPartialSummary(state, setup)
-    ? partialSummary(state, evaluation, setup, roomSummaryHTML(state))
-    : fullSummaryHTML(state, evaluation);
+  $('#summaryTitle').textContent = SUMMARY_HEADING.title;
+  $('#summaryDialog .section-kicker').textContent = SUMMARY_HEADING.kicker;
+  $('#summaryContent').innerHTML = summaryHTML(state, evaluation, setup);
   $<HTMLDialogElement>('#summaryDialog').showModal();
 }
 $$('.config-tabs button').forEach((b) =>
@@ -1163,14 +1060,6 @@ $('.config-tabs').addEventListener('keydown', (event) => {
     tabs[next].click();
     tabs[next].focus();
   }
-});
-$('#preset').addEventListener('change', () => {
-  const key = presetId($<HTMLSelectElement>('#preset').value);
-  state = { ...state, ...presets[key].values, preset: key };
-  persist();
-  renderControls();
-  refresh();
-  toast(`${presets[key].label} preset applied`);
 });
 const layoutSelect = $<HTMLSelectElement>('#layoutSelect');
 layoutSelect.addEventListener('change', () => {
@@ -1228,11 +1117,11 @@ function startNewProject(start: Editor) {
     return;
   }
   startWithCockpit();
-  toast('New project. Start the cockpit from a base.');
+  toast('New project. Its cockpit design starts empty.');
 }
 /** Opens the cockpit editor to design first; the room setup waits where it was. */
 function startWithCockpit() {
-  showEditor('cockpit', 'frame');
+  showEditor('cockpit', 'design');
   refresh();
   showWorkspace('config');
 }
@@ -1264,8 +1153,7 @@ $('#layoutBtn').addEventListener('click', () => {
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
   syncSceneEditing();
   if (layoutEditing) {
-    if (setup.step === 'complete' && !isRoomSection(section) && section !== 'cockpit')
-      switchSection('desk');
+    if (setup.step === 'complete' && !isRoomSection(section)) switchSection('desk');
     setActiveView(desktopTargets.some((t) => t.id === layoutTarget) ? 'desk' : 'top');
   } else setActiveView(view);
 });
@@ -1275,13 +1163,6 @@ $('#dimensionBtn').addEventListener('click', () => {
   $('#dimensionBtn').setAttribute('aria-label', on ? 'Hide dimensions' : 'Show dimensions');
   $('#dimensionBtn').classList.toggle('active', on);
   scene?.setDimensions(on);
-});
-$('#personBtn').addEventListener('click', () => {
-  const on = $('#personBtn').getAttribute('aria-pressed') !== 'true';
-  $('#personBtn').setAttribute('aria-pressed', String(on));
-  $('#personBtn').setAttribute('aria-label', on ? 'Hide driver' : 'Show driver');
-  $('#personBtn').classList.toggle('active', on);
-  scene?.setPerson(on);
 });
 $('#fitBtn').addEventListener('click', () => scene?.setView(view));
 function focusArmControls() {
@@ -1318,10 +1199,6 @@ $('#adjustRoom').addEventListener('click', () => {
   $('#tab-room').click();
   showWorkspace('config');
 });
-$('#adjustBody').addEventListener('click', () => {
-  showEditor('cockpit', 'posture');
-  showWorkspace('config');
-});
 $('#adjustDesk').addEventListener('click', () => {
   switchSection('desk');
   showWorkspace('config');
@@ -1353,10 +1230,6 @@ $$<HTMLDialogElement>('dialog').forEach((d) =>
   }),
 );
 $('#saveConfig').addEventListener('click', exportConfig);
-$('#csvBtn').addEventListener('click', () => {
-  download('cockpit-lab-cut-list.csv', cutListCsv(evaluation), 'text/csv;charset=utf-8');
-  toast('Cut list downloaded');
-});
 $('#printBtn').addEventListener('click', () => window.print());
 // The monitor position is redrawn as the arm moves, so its controls are handled here, once.
 $('#controls').addEventListener('change', (event) => {
@@ -1411,7 +1284,8 @@ importFile.addEventListener('change', async () => {
       toast('This is a cockpit file: import it from the Cockpit editor.');
       return;
     }
-    openProject(readProject(data));
+    const opened = readProject(data);
+    openProject(opened.project);
     persist();
     renderControls();
     refresh();
@@ -1422,7 +1296,8 @@ importFile.addEventListener('change', async () => {
       switchSection('room');
       setActiveView('iso');
     }
-    toast('Design loaded');
+    if (opened.parametricCockpitLeftOut) reportLeftOutCockpit({ fromBrowser: false });
+    else toast('Design loaded');
   } catch {
     toast('Could not load the file: use a JSON file exported by Cockpit Lab.');
   } finally {
@@ -1433,9 +1308,10 @@ importFile.addEventListener('change', async () => {
 const isCockpitFile = (data: unknown): boolean =>
   typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'cockpit';
 $('#exportCockpit').addEventListener('click', () => {
+  if (cockpit === null) return;
   download(
     'cockpit-lab-cockpit.json',
-    JSON.stringify(cockpitFileData(designOf(state)), null, 2),
+    JSON.stringify(cockpitFileData(cockpit), null, 2),
     'application/json',
   );
   toast('Cockpit file exported. Import it from the Cockpit editor of another project.');
@@ -1455,10 +1331,13 @@ importCockpitFile.addEventListener('change', async () => {
       $<HTMLDialogElement>('#replaceCockpitDialog').showModal();
     } else useImportedDesign(design);
   } catch (error) {
+    const message = error instanceof Error ? error.message : '';
     toast(
-      error instanceof Error && error.message === 'This is not a cockpit file'
+      message === 'This is not a cockpit file'
         ? 'This is a project file: open it with Open JSON.'
-        : 'Could not import the file: use a cockpit file exported by Cockpit Lab.',
+        : message === PARAMETRIC_COCKPIT_FILE_MESSAGE
+          ? 'This cockpit file holds a cockpit of the retired configurator, which is not converted. Design it again from parts.'
+          : 'Could not import the file: use a cockpit file exported by Cockpit Lab.',
     );
   } finally {
     importCockpitFile.value = '';
@@ -1477,11 +1356,7 @@ function useImportedDesign(design: CockpitDesign) {
   renderControls();
   refresh();
   setActiveView('iso');
-  toast(
-    state.cockpitEnabled
-      ? 'Cockpit file imported. Every layout of the room shows the new design.'
-      : 'Cockpit file imported.',
-  );
+  toast('Cockpit file imported.');
 }
 window.addEventListener('pagehide', () => {
   clearTimeout(pendingSave);
@@ -1506,6 +1381,8 @@ if (setup.step !== 'complete') showWorkspace('config');
 renderControls();
 refresh();
 if (loaded.status === 'unreadable') reportUnreadableSave(loaded.keptAs, loaded.text);
+if (loaded.status === 'loaded' && loaded.parametricCockpitLeftOut)
+  reportLeftOutCockpit({ fromBrowser: true });
 try {
   scene = new CockpitScene($('#viewport'), $('#sceneLabels'));
   scene.update(shownConfig(), evaluation);
@@ -1524,9 +1401,7 @@ try {
           ? 'furniture'
           : target.startsWith('feature:')
             ? 'room'
-            : target === 'cockpit'
-              ? 'cockpit'
-              : 'desk',
+            : 'desk',
       );
     } else if (section === 'desk' || isRoomSection(section)) renderControls();
     syncSceneEditing();

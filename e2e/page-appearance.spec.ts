@@ -47,7 +47,7 @@ for (const [colorScheme, prefix] of Object.entries(THEMES)) {
       test('editor sections', async ({ page }) => {
         await openApp(page);
         await importProject(page, 'gt-room.json');
-        for (const section of ['room', 'furniture', 'desk', 'cockpit']) {
+        for (const section of ['room', 'furniture', 'desk']) {
           await page.locator(`#tab-${section}`).click();
           await expectPage(page, `${prefix}editor-${section}.png`);
         }
@@ -57,10 +57,8 @@ for (const [colorScheme, prefix] of Object.entries(THEMES)) {
         await openApp(page);
         await importProject(page, 'gt-room.json');
         await page.locator('#cockpitEditor').click();
-        for (const section of ['frame', 'posture']) {
-          await page.locator(`#tab-${section}`).click();
-          await expectPage(page, `${prefix}cockpit-${section}.png`);
-        }
+        await expect(page.locator('#emptyDesign')).toBeVisible();
+        await expectPage(page, `${prefix}cockpit-editor.png`);
       });
 
       test('layout mode and warnings', async ({ page }) => {

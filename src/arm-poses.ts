@@ -194,11 +194,7 @@ export function readArmPoses(raw: unknown): ArmPose[] {
 }
 
 /** The automatic monitor modes, which work the joints out towards a target. */
-export const AUTOMATIC_MONITOR_MODES = [
-  'cockpit',
-  'desk',
-  'vr',
-] as const satisfies readonly MonitorMode[];
+export const AUTOMATIC_MONITOR_MODES = ['desk', 'vr'] as const satisfies readonly MonitorMode[];
 type AutomaticMonitorMode = (typeof AUTOMATIC_MONITOR_MODES)[number];
 
 /**

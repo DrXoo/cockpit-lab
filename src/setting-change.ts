@@ -3,7 +3,6 @@ import { choiceOptions, type CockpitConfig, type NumericField } from './config.t
 import type { BooleanSetting, ChoiceSetting } from './controls-view.ts';
 import { desktopTargets, placeDeskItem, updateDeskItem } from './desk.ts';
 import { editArm } from './monitor-arm.ts';
-import { isRigHeightKey, setRigHeight } from './rig.ts';
 
 export type SettingChange =
   | { kind: 'number'; key: NumericField; value: number }
@@ -11,14 +10,12 @@ export type SettingChange =
   | { kind: 'choice'; key: ChoiceSetting; value: string };
 
 /**
- * Applies a change with the rules that depend on it: rig heights are measured from the floor,
- * the monitor arm follows its mode, and desktop objects stay on the desk.
+ * Applies a change with the rules that depend on it: the monitor arm follows its mode, and
+ * desktop objects stay on the desk.
  */
 export function applySetting(s: CockpitConfig, change: SettingChange): CockpitConfig {
-  if (change.kind === 'number') {
-    if (isRigHeightKey(change.key)) return setRigHeight(s, change.key, change.value);
+  if (change.kind === 'number')
     return updateDeskItem(editArm(s, change.key, change.value), change.key, change.value);
-  }
   if (change.kind === 'choice' && !choiceOptions(change.key)?.includes(change.value))
     throw new Error(`Invalid value for ${change.key}: ${change.value}`);
   const next: CockpitConfig = {

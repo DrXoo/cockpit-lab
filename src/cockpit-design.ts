@@ -1,174 +1,41 @@
-// The cockpit design: the frame, the driver and the controls, defined without any room. A project
-// has at most one; the room links to it and each layout only places it. See docs/adr/0001.
-import { defaults, presets, type CockpitConfig, type PresetId } from './config.ts';
-
-/** Settings that make up a cockpit design. Everything else belongs to the room or a layout. */
-export const COCKPIT_DESIGN_KEYS = [
-  'length',
-  'width',
-  'baseLift',
-  'feet',
-  'height',
-  'seatZ',
-  'seatH',
-  'recline',
-  'wheel',
-  'wheelZ',
-  'wheelH',
-  'wheelTilt',
-  'pedalZ',
-  'pedalH',
-  'pedalTilt',
-  'hotas',
-  'hotasZ',
-  'hotasH',
-  'hotasOut',
-  'centerStick',
-  'stickZ',
-  'stickH',
-  'shifter',
-  'handbrake',
-  'vrHeadset',
-  'drivingSide',
-  'preset',
-] as const satisfies readonly (keyof CockpitConfig)[];
-
-export type CockpitDesignKey = (typeof COCKPIT_DESIGN_KEYS)[number];
-export type CockpitDesign = Pick<CockpitConfig, CockpitDesignKey>;
-/**
- * The settings of a room and its layout, without a cockpit design. Its `cockpitEnabled` says
- * whether the room includes the project's design.
- */
-export type RoomConfig = Omit<CockpitConfig, CockpitDesignKey>;
-
-export const isCockpitDesignSetting = (key: string): boolean =>
-  COCKPIT_DESIGN_KEYS.some((designKey) => designKey === key);
-
-function separate(config: CockpitConfig): { design: CockpitDesign; room: RoomConfig } {
-  const {
-    length,
-    width,
-    baseLift,
-    feet,
-    height,
-    seatZ,
-    seatH,
-    recline,
-    wheel,
-    wheelZ,
-    wheelH,
-    wheelTilt,
-    pedalZ,
-    pedalH,
-    pedalTilt,
-    hotas,
-    hotasZ,
-    hotasH,
-    hotasOut,
-    centerStick,
-    stickZ,
-    stickH,
-    shifter,
-    handbrake,
-    vrHeadset,
-    drivingSide,
-    preset,
-    ...room
-  } = config;
-  const design = {
-    length,
-    width,
-    baseLift,
-    feet,
-    height,
-    seatZ,
-    seatH,
-    recline,
-    wheel,
-    wheelZ,
-    wheelH,
-    wheelTilt,
-    pedalZ,
-    pedalH,
-    pedalTilt,
-    hotas,
-    hotasZ,
-    hotasH,
-    hotasOut,
-    centerStick,
-    stickZ,
-    stickH,
-    shifter,
-    handbrake,
-    vrHeadset,
-    drivingSide,
-    preset,
-  };
-  return { design, room };
-}
-
-/** The cockpit design settings of a configuration, whether its room includes the cockpit or not. */
-export const designOf = (config: CockpitConfig): CockpitDesign => separate(config).design;
-
-/** The room settings of a configuration, including whether the room includes the cockpit. */
-export const roomOf = (config: CockpitConfig): RoomConfig => separate(config).room;
+// The cockpit design: its design history, the ordered list of operations that builds it, in mm
+// (docs/adr/0005). A project has at most one, and until the mini CAD is complete no room
+// includes it (docs/adr/0004).
 
 /**
- * A single configuration as earlier files and new projects hold it: the cockpit design only
- * exists if the configuration includes it.
+ * One step of a design history. There are no kinds of operation yet: the first one, adding an
+ * anchored profile, comes with the next stage of the editor. Every kind is part of the file
+ * format, so a history saved with one this version doesn't know is rejected.
  */
-export function splitCockpit(config: CockpitConfig): {
-  cockpit: CockpitDesign | null;
-  room: RoomConfig;
-} {
-  const { design, room } = separate(config);
-  return { cockpit: config.cockpitEnabled ? design : null, room };
+export type Operation = never;
+
+export interface CockpitDesign {
+  history: readonly Operation[];
 }
 
-/** The settings a configuration without a cockpit keeps in the cockpit's place. */
-const NO_COCKPIT = separate(defaults).design;
+/** A cockpit design as project and cockpit files store it, with its units. */
+export interface CockpitDesignData {
+  units: 'mm';
+  history: readonly Operation[];
+}
 
-/** A new cockpit design, as its base sets it up. */
-export const designFromBase = (base: PresetId): CockpitDesign => ({
-  ...NO_COCKPIT,
-  ...presets[base].values,
-  preset: base,
+/** A new design starts empty. */
+export const emptyDesign = (): CockpitDesign => ({ history: [] });
+
+export const designData = (design: CockpitDesign): CockpitDesignData => ({
+  units: 'mm',
+  history: design.history,
 });
 
-/** The cockpit settings of a configuration with this design, or with none. */
-export const cockpitSettings = (
-  cockpit: CockpitDesign | null,
-): CockpitDesign & Pick<CockpitConfig, 'cockpitEnabled'> => ({
-  ...(cockpit ?? NO_COCKPIT),
-  cockpitEnabled: cockpit !== null,
-});
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** Puts the project's cockpit design, or none, into the settings of a room that may include it. */
-export const placeCockpit = (room: RoomConfig, cockpit: CockpitDesign | null): CockpitConfig => ({
-  ...room,
-  ...(cockpit ?? NO_COCKPIT),
-  cockpitEnabled: room.cockpitEnabled && cockpit !== null,
-});
-
-/** What surrounds a design in its own workspace: nothing, with the cockpit at the origin. */
-const NOTHING_AROUND: RoomConfig = {
-  ...separate(defaults).room,
-  cockpitEnabled: true,
-  roomEnabled: false,
-  deskEnabled: false,
-  monitorEnabled: false,
-  keyboardEnabled: false,
-  pcEnabled: false,
-  mouseEnabled: false,
-  matEnabled: false,
-  roomFeatures: [],
-  roomFurniture: [],
-  armPoses: [],
-  cockpitX: 0,
-  cockpitZ: 0,
-  cockpitAngle: 0,
-};
-
-/** A configuration that shows a cockpit design, or none, without any room. */
-export const designOnItsOwn = (cockpit: CockpitDesign | null): CockpitConfig =>
-  placeCockpit(NOTHING_AROUND, cockpit);
+/** The design a file stores. Throws a user-facing message when it can't be used. */
+export function readDesign(data: unknown): CockpitDesign {
+  if (!isPlainRecord(data)) throw new Error('Invalid cockpit design');
+  if (data.units !== 'mm') throw new Error('Unsupported cockpit design units');
+  const { history } = data;
+  if (!Array.isArray(history)) throw new Error('Invalid design history');
+  if (history.length > 0) throw new Error('Unknown operation in the design history');
+  return emptyDesign();
+}

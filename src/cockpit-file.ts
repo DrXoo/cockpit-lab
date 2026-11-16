@@ -1,27 +1,31 @@
 // Cockpit files: a cockpit design on its own, without any room, to move it from one project to
-// another (see CONTEXT.md and docs/adr/0001). Lengths are in cm, as in project files.
-import { sanitize } from './config.ts';
+// another (see CONTEXT.md and docs/adr/0001). Version 2 stores the design history in mm
+// (docs/adr/0005); version 1 held a parametric cockpit, which is retired (docs/adr/0004).
 import {
-  COCKPIT_DESIGN_KEYS,
-  designOf,
-  isCockpitDesignSetting,
+  designData,
+  readDesign,
   type CockpitDesign,
+  type CockpitDesignData,
 } from './cockpit-design.ts';
 
 export interface CockpitFile {
   app: 'Cockpit Lab';
   kind: 'cockpit';
-  version: 1;
-  units: 'cm';
-  cockpit: CockpitDesign;
+  version: 2;
+  cockpit: CockpitDesignData;
 }
+
+/** The version of the cockpit files that held a parametric cockpit. */
+const PARAMETRIC_VERSION = 1;
+
+export const PARAMETRIC_COCKPIT_FILE_MESSAGE =
+  'This cockpit file was made with the retired configurator';
 
 export const cockpitFileData = (cockpit: CockpitDesign): CockpitFile => ({
   app: 'Cockpit Lab',
   kind: 'cockpit',
-  version: 1,
-  units: 'cm',
-  cockpit,
+  version: 2,
+  cockpit: designData(cockpit),
 });
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
@@ -29,29 +33,13 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * The cockpit design of a cockpit file. Throws a user-facing message when the file is something
- * else, or when its design is incomplete or has values this version can't use.
+ * else, holds a retired parametric cockpit, or has a design this version can't use.
  */
-/** Settings added after version 1 files were written; a missing one takes its default. */
-const ADDED_AFTER_VERSION_1: readonly string[] = ['vrHeadset'];
-
 export function readCockpitFile(data: unknown): CockpitDesign {
   if (!isPlainRecord(data) || data.app !== 'Cockpit Lab')
     throw new Error('File from another program');
   if (data.kind !== 'cockpit') throw new Error('This is not a cockpit file');
-  if (data.version !== 1) throw new Error('Unsupported cockpit file version');
-  if (data.units !== 'cm') throw new Error('Unsupported units');
-  const raw = data.cockpit;
-  if (!isPlainRecord(raw)) throw new Error('Invalid cockpit design');
-  for (const key of Object.keys(raw))
-    if (!isCockpitDesignSetting(key)) throw new Error(`Not a cockpit setting: ${key}`);
-  for (const key of COCKPIT_DESIGN_KEYS)
-    if (!(key in raw) && !ADDED_AFTER_VERSION_1.includes(key))
-      throw new Error(`Missing cockpit setting: ${key}`);
-  const design = designOf(sanitize(raw));
-  // Lengths and angles are fitted to their ranges, as in project files, but an unknown option
-  // would silently become the default one, so it is rejected.
-  for (const key of COCKPIT_DESIGN_KEYS)
-    if (key in raw && typeof raw[key] !== 'number' && design[key] !== raw[key])
-      throw new Error(`Invalid value: ${key}`);
-  return design;
+  if (data.version === PARAMETRIC_VERSION) throw new Error(PARAMETRIC_COCKPIT_FILE_MESSAGE);
+  if (data.version !== 2) throw new Error('Unsupported cockpit file version');
+  return readDesign(data.cockpit);
 }

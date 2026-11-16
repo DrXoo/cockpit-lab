@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { designFromBase } from '../src/cockpit-design.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { partsFromParametric } from '../src/cad/from-parametric.ts';
 import { unsupportedParts } from '../src/cad/support.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
@@ -68,30 +66,6 @@ test('parts that no joint connects to a part on feet are unsupported, in design 
   };
   const parts = [rail('left-rail', -280), floating, rail('right-rail', 280), crossmember];
   assert.deepEqual(unsupported(parts), ['left-rail', 'floating', 'right-rail', 'rear']);
-});
-
-test('a converted design reports the parts the parametric drawing leaves unconnected', () => {
-  const design = { ...designFromBase('gt'), baseLift: 10, wheel: true, hotas: false };
-  const parts = partsFromParametric(design);
-  const reported = unsupported(parts);
-  const supported = parts
-    .map((part) => part.id)
-    .filter((id) => !reported.includes(id))
-    .filter((id) => !id.startsWith('foot-'));
-  assert.deepEqual(supported.sort(), [
-    'base-crossmember-front',
-    'base-crossmember-middle',
-    'base-crossmember-rear',
-    'base-extension-front-left',
-    'base-extension-front-right',
-    'base-extension-rear-left',
-    'base-extension-rear-right',
-    'base-rail-left',
-    'base-rail-right',
-    'wheel-upright-left',
-    'wheel-upright-right',
-  ]);
-  assert.ok(reported.includes('seat-post-rear-right'));
 });
 
 test('a peripheral on a plate is supported through the plate', () => {

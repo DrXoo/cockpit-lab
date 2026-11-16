@@ -42,7 +42,7 @@ async function useEveryControl(page: Page) {
   });
 }
 
-for (const section of ['room', 'furniture', 'desk', 'cockpit']) {
+for (const section of ['room', 'furniture', 'desk']) {
   test(`every control in the ${section} panel can be used`, async ({ page }) => {
     await openApp(page);
     await importProject(page, 'flight-lifted.json');
@@ -50,21 +50,6 @@ for (const section of ['room', 'furniture', 'desk', 'cockpit']) {
     const before = await getState(page);
     await useEveryControl(page);
     // The panel is still there and the configuration is still valid.
-    await expect(page.locator('#controls')).not.toBeEmpty();
-    expect(Object.keys(await getState(page))).toEqual(Object.keys(before));
-  });
-}
-
-for (const section of ['frame', 'posture']) {
-  test(`every control in the ${section} panel of the cockpit design can be used`, async ({
-    page,
-  }) => {
-    await openApp(page);
-    await importProject(page, 'flight-lifted.json');
-    await page.locator('#cockpitEditor').click();
-    await page.locator(`#tab-${section}`).click();
-    const before = await getState(page);
-    await useEveryControl(page);
     await expect(page.locator('#controls')).not.toBeEmpty();
     expect(Object.keys(await getState(page))).toEqual(Object.keys(before));
   });

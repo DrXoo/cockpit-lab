@@ -13,11 +13,8 @@ import {
   hideFurniture,
   showFurniture,
   layoutById,
-  includeCockpit,
-  leaveOutCockpit,
 } from '../src/layouts.ts';
 import { saveArmPose } from '../src/arm-poses.ts';
-import { splitCockpit } from '../src/cockpit-design.ts';
 
 const room = sanitize({
   ...defaults,
@@ -40,48 +37,15 @@ const room = sanitize({
     },
   ],
 });
-const { cockpit } = splitCockpit(room);
 
 const furniture = (config, id) => config.roomFurniture.find((item) => item.id === id);
-
-test('adding the cockpit puts it in every layout, centred where it did not fit in the room', () => {
-  let library = createLayoutLibrary({ ...room, cockpitEnabled: false, cockpitX: -500 });
-  library = duplicateLayout(library, 'Inside');
-  library = recordLayout(library, {
-    ...layoutConfig(library, cockpit),
-    cockpitX: 60,
-    cockpitZ: 80,
-  });
-  library = duplicateLayout(library, 'On the wall');
-  library = recordLayout(library, { ...layoutConfig(library, cockpit), cockpitX: 0, cockpitZ: 0 });
-  assert.equal(layoutConfig(library, cockpit).cockpitEnabled, false);
-
-  const added = includeCockpit(library, cockpit);
-  const outside = layoutConfig(added, cockpit, 'layout-1');
-  assert.equal(outside.cockpitEnabled, true);
-  assert.deepEqual(
-    [outside.cockpitX, outside.cockpitZ],
-    [room.roomX + room.roomW / 2, room.roomZ + (room.roomD - cockpit.length) / 2],
-  );
-  const inside = layoutConfig(added, cockpit, 'layout-2');
-  assert.deepEqual([inside.cockpitEnabled, inside.cockpitX, inside.cockpitZ], [true, 60, 80]);
-  // Half the chassis would stand outside the wall, so it is centred too.
-  assert.equal(layoutConfig(added, cockpit, 'layout-3').cockpitX, room.roomX + room.roomW / 2);
-
-  const leftOut = leaveOutCockpit(added);
-  for (const id of ['layout-1', 'layout-2']) {
-    const config = layoutConfig(leftOut, cockpit, id);
-    assert.equal(config.cockpitEnabled, false, id);
-    assert.equal(config.cockpitX, layoutConfig(added, cockpit, id).cockpitX, id);
-  }
-});
 
 test('a new library has one layout that reproduces the configuration', () => {
   const library = createLayoutLibrary(room);
   assert.equal(library.layouts.length, 1);
   assert.equal(library.layouts[0].name, 'Base');
   assert.equal(library.activeLayoutId, library.layouts[0].id);
-  assert.deepEqual(layoutConfig(library, cockpit), room);
+  assert.deepEqual(layoutConfig(library), room);
 });
 
 test('a duplicated layout becomes active and starts as a copy of the original', () => {
@@ -90,20 +54,20 @@ test('a duplicated layout becomes active and starts as a copy of the original', 
   assert.equal(library.layouts.length, 2);
   assert.notEqual(library.activeLayoutId, base.activeLayoutId);
   assert.equal(library.layouts[1].name, 'Desk by the window');
-  assert.deepEqual(layoutConfig(library, cockpit), room);
+  assert.deepEqual(layoutConfig(library), room);
 });
 
-test('moving the cockpit, desk or furniture changes only the active layout', () => {
+test('moving the desk or furniture changes only the active layout', () => {
   const base = createLayoutLibrary(room);
   const baseId = base.activeLayoutId;
   let library = duplicateLayout(base, 'Trial');
-  let config = { ...layoutConfig(library, cockpit), cockpitX: 150, deskAngle: 90 };
+  let config = { ...layoutConfig(library), deskX: 150, deskAngle: 90 };
   config = updateRoomItem(config, 'furniture:bed', 'x', 250);
   library = recordLayout(library, config);
 
-  assert.deepEqual(layoutConfig(library, cockpit), config);
-  const original = layoutConfig(selectLayout(library, baseId), cockpit);
-  assert.equal(original.cockpitX, room.cockpitX);
+  assert.deepEqual(layoutConfig(library), config);
+  const original = layoutConfig(selectLayout(library, baseId));
+  assert.equal(original.deskX, room.deskX);
   assert.equal(original.deskAngle, room.deskAngle);
   assert.equal(furniture(original, 'bed').x, 100);
 });
@@ -112,14 +76,14 @@ test('desktop items and the monitor arm pose are stored per layout', () => {
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Trial');
   library = recordLayout(library, {
-    ...layoutConfig(library, cockpit),
+    ...layoutConfig(library),
     keyboardZ: 10,
     matAngle: 90,
     monitorMode: 'manual',
     armBaseAngle: 45,
     clampSide: 'zmax',
   });
-  const original = layoutConfig(selectLayout(library, base.activeLayoutId), cockpit);
+  const original = layoutConfig(selectLayout(library, base.activeLayoutId));
   assert.equal(original.keyboardZ, room.keyboardZ);
   assert.equal(original.matAngle, room.matAngle);
   assert.equal(original.monitorMode, room.monitorMode);
@@ -131,16 +95,16 @@ test('each layout keeps its own arm poses, and a duplicate starts with a copy', 
   const base = recordLayout(createLayoutLibrary(room), saveArmPose(room, 'Racing'));
   const copy = duplicateLayout(base, 'Trial');
   assert.deepEqual(
-    layoutConfig(copy, cockpit).armPoses.map((pose) => pose.name),
+    layoutConfig(copy).armPoses.map((pose) => pose.name),
     ['Racing'],
   );
-  const edited = recordLayout(copy, saveArmPose(layoutConfig(copy, cockpit), 'Desk'));
+  const edited = recordLayout(copy, saveArmPose(layoutConfig(copy), 'Desk'));
   assert.deepEqual(
-    layoutConfig(edited, cockpit).armPoses.map((pose) => pose.name),
+    layoutConfig(edited).armPoses.map((pose) => pose.name),
     ['Racing', 'Desk'],
   );
   assert.deepEqual(
-    layoutConfig(edited, cockpit, 'layout-1').armPoses.map((pose) => pose.name),
+    layoutConfig(edited, 'layout-1').armPoses.map((pose) => pose.name),
     ['Racing'],
   );
 });
@@ -148,29 +112,21 @@ test('each layout keeps its own arm poses, and a duplicate starts with a copy', 
 test('a wall shelf keeps its wall, offset and height per layout', () => {
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Trial');
-  let config = updateRoomItem(
-    layoutConfig(library, cockpit),
-    'furniture:shelf',
-    'mountWall',
-    'east',
-  );
+  let config = updateRoomItem(layoutConfig(library), 'furniture:shelf', 'mountWall', 'east');
   config = updateRoomItem(config, 'furniture:shelf', 'elevation', 100);
   library = recordLayout(library, config);
-  const original = furniture(
-    layoutConfig(selectLayout(library, base.activeLayoutId), cockpit),
-    'shelf',
-  );
+  const original = furniture(layoutConfig(selectLayout(library, base.activeLayoutId)), 'shelf');
   assert.deepEqual(original, furniture(room, 'shelf'));
-  assert.equal(furniture(layoutConfig(library, cockpit), 'shelf').mountWall, 'east');
+  assert.equal(furniture(layoutConfig(library), 'shelf').mountWall, 'east');
 });
 
 test('the room and the furniture sizes are shared by every layout', () => {
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Trial');
-  let config = { ...layoutConfig(library, cockpit), roomW: 380, deskWidth: 160 };
+  let config = { ...layoutConfig(library), roomW: 380, deskWidth: 160 };
   config = updateRoomItem(config, 'furniture:bed', 'width', 90);
   library = recordLayout(library, config);
-  const original = layoutConfig(selectLayout(library, base.activeLayoutId), cockpit);
+  const original = layoutConfig(selectLayout(library, base.activeLayoutId));
   assert.equal(original.roomW, 380);
   assert.equal(original.deskWidth, 160);
   assert.equal(furniture(original, 'bed').width, 90);
@@ -180,21 +136,21 @@ test('the room and the furniture sizes are shared by every layout', () => {
 test('furniture added in one layout appears in the others where it was created', () => {
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Trial');
-  const added = addRoomItem(layoutConfig(library, cockpit), 'cabinet', 'cabinet').state;
+  const added = addRoomItem(layoutConfig(library), 'cabinet', 'cabinet').state;
   library = recordLayout(library, added);
   library = recordLayout(
     library,
-    updateRoomItem(layoutConfig(library, cockpit), 'furniture:cabinet', 'x', 50),
+    updateRoomItem(layoutConfig(library), 'furniture:cabinet', 'x', 50),
   );
-  const original = layoutConfig(selectLayout(library, base.activeLayoutId), cockpit);
+  const original = layoutConfig(selectLayout(library, base.activeLayoutId));
   assert.deepEqual(furniture(original, 'cabinet'), furniture(added, 'cabinet'));
 });
 
 test('furniture deleted in one layout is gone from every layout', () => {
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Trial');
-  library = recordLayout(library, deleteRoomItem(layoutConfig(library, cockpit), 'furniture:bed'));
-  const original = layoutConfig(selectLayout(library, base.activeLayoutId), cockpit);
+  library = recordLayout(library, deleteRoomItem(layoutConfig(library), 'furniture:bed'));
+  const original = layoutConfig(selectLayout(library, base.activeLayoutId));
   assert.equal(furniture(original, 'bed'), undefined);
 });
 
@@ -202,15 +158,15 @@ test('hidden furniture leaves only the active layout and comes back where it was
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Without the bed');
   library = hideFurniture(library, 'bed');
-  assert.equal(furniture(layoutConfig(library, cockpit), 'bed'), undefined);
+  assert.equal(furniture(layoutConfig(library), 'bed'), undefined);
   assert.deepEqual(library.layouts[1].hiddenFurniture, ['bed']);
 
-  library = recordLayout(library, { ...layoutConfig(library, cockpit), cockpitX: 120 });
-  const original = layoutConfig(selectLayout(library, base.activeLayoutId), cockpit);
+  library = recordLayout(library, { ...layoutConfig(library), deskX: 120 });
+  const original = layoutConfig(selectLayout(library, base.activeLayoutId));
   assert.deepEqual(furniture(original, 'bed'), furniture(room, 'bed'));
 
   library = showFurniture(library, 'bed');
-  assert.deepEqual(furniture(layoutConfig(library, cockpit), 'bed'), furniture(room, 'bed'));
+  assert.deepEqual(furniture(layoutConfig(library), 'bed'), furniture(room, 'bed'));
   assert.deepEqual(library.layouts[1].hiddenFurniture, []);
 });
 
@@ -220,24 +176,21 @@ test('furniture hidden in another layout follows shared changes and deletions', 
   library = showFurniture(library, 'bed');
   library = recordLayout(
     library,
-    updateRoomItem(layoutConfig(library, cockpit), 'furniture:bed', 'width', 90),
+    updateRoomItem(layoutConfig(library), 'furniture:bed', 'width', 90),
   );
   const hiddenBed = showFurniture(selectLayout(library, base.activeLayoutId), 'bed');
-  assert.equal(furniture(layoutConfig(hiddenBed, cockpit), 'bed').width, 90);
+  assert.equal(furniture(layoutConfig(hiddenBed), 'bed').width, 90);
 
-  library = recordLayout(library, deleteRoomItem(layoutConfig(library, cockpit), 'furniture:bed'));
+  library = recordLayout(library, deleteRoomItem(layoutConfig(library), 'furniture:bed'));
   assert.deepEqual(layoutById(library, base.activeLayoutId).hiddenFurniture, []);
 });
 
 test('a layout lists its furniture in the shared order, hidden items included', () => {
   let library = hideFurniture(createLayoutLibrary(room), 'bed');
-  library = recordLayout(
-    library,
-    addRoomItem(layoutConfig(library, cockpit), 'cabinet', 'cabinet').state,
-  );
+  library = recordLayout(library, addRoomItem(layoutConfig(library), 'cabinet', 'cabinet').state);
   library = showFurniture(library, 'bed');
   assert.deepEqual(
-    layoutConfig(library, cockpit).roomFurniture.map((item) => item.id),
+    layoutConfig(library).roomFurniture.map((item) => item.id),
     ['bed', 'shelf', 'cabinet'],
   );
 });
@@ -245,8 +198,8 @@ test('a layout lists its furniture in the shared order, hidden items included', 
 test('a layout fits shared changes that leave its items out of place', () => {
   const base = createLayoutLibrary({ ...room, keyboardZ: 60, deskWidth: 160 });
   let library = duplicateLayout(base, 'Trial');
-  library = recordLayout(library, { ...layoutConfig(library, cockpit), deskWidth: 120 });
-  const original = layoutConfig(selectLayout(library, base.activeLayoutId), cockpit);
+  library = recordLayout(library, { ...layoutConfig(library), deskWidth: 120 });
+  const original = layoutConfig(selectLayout(library, base.activeLayoutId));
   assert.ok(Math.abs(original.keyboardZ) + original.keyboardWidth / 2 <= 60);
 });
 

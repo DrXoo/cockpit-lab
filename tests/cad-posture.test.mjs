@@ -1,112 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { designFromBase, designOnItsOwn } from '../src/cockpit-design.ts';
-import { anatomy, parametricContacts } from '../src/anatomy.ts';
-import { evaluate } from '../src/model.ts';
-import { readProject } from '../src/project.ts';
-import { rigLift } from '../src/rig.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { partsFromParametric } from '../src/cad/from-parametric.ts';
 import { cadContacts } from '../src/cad/posture.ts';
 
-const fixtureDesign = (name) => {
-  const data = JSON.parse(readFileSync(new URL(`../e2e/fixtures/${name}.json`, import.meta.url)));
-  return readProject(data).cockpit;
-};
-
-const designs = {
-  'GT base': designFromBase('gt'),
-  'flight base': designFromBase('flight'),
-  'hybrid base': designFromBase('hybrid'),
-  'small base': designFromBase('small'),
-  'gt-room fixture': fixtureDesign('gt-room'),
-  'flight-lifted fixture': fixtureDesign('flight-lifted'),
-  'legacy-v1 fixture': fixtureDesign('legacy-v1'),
-  'steep design': {
-    ...designFromBase('gt'),
-    pedalTilt: 35,
-    wheelTilt: 30,
-    recline: 40,
-    baseLift: 9,
-  },
-};
-
-const near = (actual, expected, label) => {
-  assert.ok(Math.abs(actual.z - expected.z) < 1e-9, `${label} z: ${actual.z} != ${expected.z}`);
-  assert.ok(Math.abs(actual.y - expected.y) < 1e-9, `${label} y: ${actual.y} != ${expected.y}`);
-};
-
-for (const [name, design] of Object.entries(designs)) {
-  test(`the ${name} meets the driver at the same points once converted`, () => {
-    // The parametric points are above the base; the CAD's are in cockpit coordinates.
-    const lift = rigLift(design);
-    const raised = (point) => ({ z: point.z, y: point.y + lift });
-    const parametric = parametricContacts(designOnItsOwn(design));
-    const expected = {
-      hip: raised(parametric.hip),
-      heel: raised(parametric.heel),
-      hands: raised(parametric.hands),
-    };
-    const contacts = cadContacts(resolveAssembly(partsFromParametric(design)));
-    near(contacts.hip, expected.hip, 'hip');
-    near(contacts.heel, expected.heel, 'heel');
-    if (design.wheel) near(contacts.hands, expected.hands, 'hands');
-    else assert.equal(contacts.hands, null);
-    assert.equal(contacts.reclineDeg, design.recline);
+const peripheral = (id, contactPoints, changes = {}) => ({
+  kind: 'peripheral',
+  id,
+  name: id,
+  envelope: { widthMm: 400, heightMm: 200, depthMm: 400 },
+  mountingPattern: { holes: [] },
+  contactPoints,
+  source: { kind: 'estimated', reference: 'test' },
+  placement: { kind: 'anchor', startMm: { x: 0, y: 0, z: 0 } },
+  ...changes,
+});
+const seat = (changes = {}) =>
+  peripheral('seat', [{ role: 'hip', offsetMm: { x: 0, y: 0, z: 0 } }], {
+    backrestDeg: 20,
+    ...changes,
   });
-}
-
-test('a converted design has a seat, pedals and a wheel, sized as estimates', () => {
-  const parts = partsFromParametric({ ...designFromBase('gt'), wheel: true });
-  const peripherals = parts.filter((part) => part.kind === 'peripheral');
-  const ids = peripherals.map((part) => part.id);
-  for (const id of ['seat', 'pedals', 'wheel']) assert.ok(ids.includes(id), id);
-  for (const part of peripherals) assert.equal(part.source.kind, 'estimated');
+const pedals = peripheral('pedals', [{ role: 'heel', offsetMm: { x: 0, y: 0, z: 0 } }], {
+  placement: { kind: 'anchor', startMm: { x: 0, y: 0, z: 1000 } },
+});
+const wheel = peripheral('wheel', [{ role: 'hands', offsetMm: { x: 0, y: 0, z: 0 } }], {
+  placement: { kind: 'anchor', startMm: { x: 0, y: 0, z: 600 } },
 });
 
-test('the pedals stand on the tilted pedal plate, and the wheel on its plate', () => {
-  const design = { ...designFromBase('gt'), wheel: true };
-  const parts = partsFromParametric(design);
-  const byId = new Map(parts.map((part) => [part.id, part]));
-  assert.equal(byId.get('pedals').placement.parentId, 'pedal-plate');
-  assert.equal(byId.get('pedal-plate').placement.tiltDeg, design.pedalTilt);
-  assert.equal(byId.get('wheel').placement.parentId, 'wheel-plate');
-  assert.equal(byId.get('wheel-plate').placement.tiltDeg, design.wheelTilt);
+const contactsOf = (parts) => cadContacts(resolveAssembly(parts));
+
+test('the contacts are where the peripherals carry them, in cm on the side plane', () => {
+  const contacts = contactsOf([seat(), pedals, wheel]);
+  const atSeat = contacts.hip;
+  assert.equal(contacts.heel.z - atSeat.z, 100);
+  assert.equal(contacts.hands.z - atSeat.z, 60);
+  assert.equal(contacts.heel.y, atSeat.y);
+  assert.equal(contacts.reclineDeg, 20);
+});
+
+test('without a part for the hands, the hands have no contact', () => {
+  assert.equal(contactsOf([seat(), pedals]).hands, null);
+});
+
+test('a design without a seat or pedals cannot seat the driver', () => {
+  assert.throws(() => contactsOf([pedals]), /hip/);
+  assert.throws(() => contactsOf([seat()]), /heel/);
 });
 
 test('two parts that seat the driver are an error', () => {
-  const parts = partsFromParametric(designFromBase('gt'));
-  const seat = parts.find((part) => part.id === 'seat');
-  assert.throws(
-    () => cadContacts(resolveAssembly([...parts, { ...seat, id: 'second-seat' }])),
-    /hip/,
-  );
+  assert.throws(() => contactsOf([seat(), seat({ id: 'second-seat' }), pedals]), /hip/);
 });
-
-const close = (actual, expected, path = 'posture') => {
-  if (typeof expected === 'number') {
-    assert.ok(Math.abs(actual - expected) < 1e-9, `${path}: ${actual} != ${expected}`);
-    return;
-  }
-  if (typeof expected === 'boolean' || expected === null) {
-    assert.equal(actual, expected, path);
-    return;
-  }
-  for (const key of Object.keys(expected)) close(actual[key], expected[key], `${path}.${key}`);
-};
-
-for (const [name, design] of Object.entries({
-  ...designs,
-  'design without a wheel': { ...designFromBase('gt'), wheel: false, baseLift: 6 },
-})) {
-  test(`the posture of the ${name} comes from its CAD contact points, as before`, () => {
-    const config = designOnItsOwn(design);
-    const before = anatomy(config);
-    const after = evaluate(config).body;
-    const { hands, ...rest } = before;
-    close(after, rest);
-    if (design.wheel) close(after.hands, hands, 'hands');
-    else assert.equal(after.hands, null);
-  });
-}

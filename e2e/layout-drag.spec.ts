@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test, expect, openApp, importProject, getState, getEvaluation } from './support.ts';
 import { cameraPose, sceneBounds, viewHeight, type SceneView } from '../src/scene-camera.ts';
-import { inversePoint, transformPoint, type PlanPoint } from '../src/geometry.ts';
+import { inversePoint, type PlanPoint } from '../src/geometry.ts';
 
 /** Maps world plan points to page pixels for a plan view, from the camera framing. */
 async function planProjection(page: Page, view: SceneView) {
@@ -57,27 +57,6 @@ async function startLayoutEditing(page: Page, section: 'room' | 'desk', view: Sc
   await page.locator(`[data-view="${view}"]`).click();
   await expect(page.locator('#layoutBtn')).toHaveAttribute('aria-pressed', 'true');
 }
-
-test('dragging the cockpit in the plan moves it by the same distance', async ({ page }) => {
-  await startLayoutEditing(page, 'room', 'top');
-  const plan = await planProjection(page, 'top');
-  const { state, evaluation } = plan;
-  const middle = transformPoint(
-    {
-      x: (evaluation.rigLeft + evaluation.rigRight) / 2,
-      z: (evaluation.lowerZ + evaluation.upperZ) / 2,
-    },
-    evaluation.rigPose,
-  );
-  const from = plan.toScreen(middle);
-  const by = { x: 30, y: -20 };
-  await drag(page, from, by);
-  const moved = await getState(page);
-  const end = plan.toWorld({ x: from.x + by.x, y: from.y + by.y });
-  expect(moved.cockpitX).toBeCloseTo(state.cockpitX + end.x - middle.x, 0);
-  expect(moved.cockpitZ).toBeCloseTo(state.cockpitZ + end.z - middle.z, 0);
-  expect(moved.deskX).toBe(state.deskX);
-});
 
 test('dragging a desktop object in the desk view moves it on the desk', async ({ page }) => {
   await startLayoutEditing(page, 'desk', 'desk');

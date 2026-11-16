@@ -1,6 +1,6 @@
 import { clamp, degToRad, transformPoint, type PlanPoint } from './geometry.ts';
 import type { CockpitConfig, MonitorMode, ArmBend } from './config.ts';
-import { pose } from './layout.ts';
+import { deskPose } from './layout.ts';
 
 // Planar two-link monitor arm. Angles follow the desk's Y rotation convention.
 /** Wraps an angle in degrees to [-180, 180). */
@@ -48,22 +48,12 @@ export function armKinematics(
   return { base, elbow, end, first, second, minReach, maxReach, baseAngle, elbowAngle, reachable };
 }
 export function monitorGeometry(s: CockpitConfig) {
-  const anchor = transformPoint({ x: s.clampX, z: s.clampZ, y: s.deskH }, pose(s, 'desk'));
-  const mode = s.cockpitEnabled === false && s.monitorMode === 'cockpit' ? 'desk' : s.monitorMode;
-  const target =
-    mode === 'manual'
-      ? null
-      : mode === 'cockpit'
-        ? transformPoint({ x: 0, z: s.wheelZ + s.monitorAhead, y: s.monitorH }, pose(s, 'cockpit'))
-        : transformPoint({ x: -10, z: 0, y: s.monitorH }, pose(s, 'desk'));
+  const anchor = transformPoint({ x: s.clampX, z: s.clampZ, y: s.deskH }, deskPose(s));
+  const manual = s.monitorMode === 'manual';
+  const target = manual ? null : transformPoint({ x: -10, z: 0, y: s.monitorH }, deskPose(s));
   const arm = armKinematics(s, anchor, target),
     point = target ?? arm.end,
-    angle =
-      mode === 'manual'
-        ? s.deskAngle + s.monitorYaw
-        : mode === 'cockpit'
-          ? s.cockpitAngle
-          : s.deskAngle + 90;
+    angle = manual ? s.deskAngle + s.monitorYaw : s.deskAngle + 90;
   return { anchor, arm, point, angle };
 }
 export function setMonitorMode(s: CockpitConfig, mode: MonitorMode): CockpitConfig {

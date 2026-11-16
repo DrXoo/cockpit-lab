@@ -1,7 +1,7 @@
-// Guided setup: the form of each step, the progress bar and the shared placement controls.
+// Guided setup: the form of each step and the progress bar.
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 import { steps, type SetupProgress } from './project.ts';
-import { presets, type CockpitConfig } from './config.ts';
+import type { CockpitConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { BooleanSetting, ControlTemplates } from './controls-view.ts';
 import { roomControls } from './room-editor.ts';
@@ -28,12 +28,6 @@ export function accessoryControls(toggle: ControlTemplates['toggle']): string {
   return `<div class="control-group"><h3 class="group-title">Your desk accessories</h3>${ACCESSORIES.map(
     ([key, label]) => toggle(key, label),
   ).join('')}</div>`;
-}
-export function placementControls(
-  target: 'desk' | 'cockpit',
-  range: ControlTemplates['range'],
-): string {
-  return `<div class="control-group"><h3 class="group-title">Position in the room</h3>${range(`${target}X`, 'X position') + range(`${target}Z`, 'Z position') + range(`${target}Angle`, 'Rotation in the plan')}<button class="arm-edit-action" data-place="${target}">Place in the plan ↗</button><p class="layout-hint">Drag the item in the plan or type its position. Shared room reference, in cm.</p></div>`;
 }
 export function creationControls(
   s: CockpitConfig,

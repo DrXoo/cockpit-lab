@@ -10,7 +10,7 @@ import {
 } from '../src/project.ts';
 import { defaults, sanitize } from '../src/model.ts';
 
-const [V3_STORAGE_KEY, V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
+const [V4_STORAGE_KEY, V3_STORAGE_KEY, V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
 
 function memoryStorage(entries = {}) {
   const data = new Map(Object.entries(entries));
@@ -33,61 +33,97 @@ test('a saved project loads back unchanged', () => {
   const store = createProjectStore(() => storage);
   const project = createProject();
   assert.equal(store.save(project), true);
-  assert.deepEqual(store.load(), { status: 'loaded', project: asLoaded(project) });
+  assert.deepEqual(store.load(), {
+    status: 'loaded',
+    project: asLoaded(project),
+    parametricCockpitLeftOut: false,
+  });
 });
 
-test('the project is saved as a v4 file under the current key', () => {
+test('the project is saved as a v5 file under the current key', () => {
   const storage = memoryStorage();
   createProjectStore(() => storage).save(createProject());
   const saved = JSON.parse(storage.data.get(STORAGE_KEY));
-  assert.equal(STORAGE_KEY, 'cockpit-lab-v4');
-  assert.deepEqual(LEGACY_STORAGE_KEYS, ['cockpit-lab-v3', 'cockpit-lab-v2', 'cockpit-lab-v1']);
+  assert.equal(STORAGE_KEY, 'cockpit-lab-v5');
+  assert.deepEqual(LEGACY_STORAGE_KEYS, [
+    'cockpit-lab-v4',
+    'cockpit-lab-v3',
+    'cockpit-lab-v2',
+    'cockpit-lab-v1',
+  ]);
   assert.equal(saved.app, 'Cockpit Lab');
-  assert.equal(saved.version, 4);
+  assert.equal(saved.version, 5);
   assert.equal(saved.units, 'cm');
 });
 
-test('designs saved by earlier versions are recovered from their keys', () => {
-  const v1 = { version: 1, units: 'cm', config: { ...defaults, seatH: 30 } };
+test('rooms saved by earlier versions are recovered from their keys, without their cockpit', () => {
+  const v1 = { version: 1, units: 'cm', config: { ...defaults, deskH: 70 } };
   const v2 = {
     app: 'Cockpit Lab',
     version: 2,
     units: 'cm',
-    config: { ...defaults, seatH: 31 },
+    config: { ...defaults, deskH: 71, cockpitEnabled: true },
     setup: completeSetup(),
   };
-  // As the v3 writer stored it: the cockpit design among the room's shared settings.
   const current = projectData(
-    projectFromConfig(sanitize({ ...defaults, seatH: 32 }), completeSetup()),
+    projectFromConfig(sanitize({ ...defaults, deskH: 72 }), completeSetup()),
   );
+  // As the v3 writer stored it: the parametric cockpit among the room's shared settings.
   const v3 = {
     ...current,
     ...current.room,
     version: 3,
-    shared: { ...current.room.shared, ...current.cockpit, cockpitEnabled: true },
+    shared: { ...current.room.shared, seatH: 32, cockpitEnabled: true },
   };
   delete v3.room;
   delete v3.cockpit;
-  for (const [key, file, seatH] of [
-    [V1_STORAGE_KEY, v1, 30],
-    [V2_STORAGE_KEY, v2, 31],
-    [V3_STORAGE_KEY, v3, 32],
+  const v4 = {
+    ...current,
+    version: 4,
+    cockpit: { seatH: 32 },
+    room: { ...current.room, shared: { ...current.room.shared, deskH: 73 } },
+  };
+  for (const [key, file, deskH] of [
+    [V1_STORAGE_KEY, v1, 70],
+    [V2_STORAGE_KEY, v2, 71],
+    [V3_STORAGE_KEY, v3, 72],
+    [V4_STORAGE_KEY, v4, 73],
   ]) {
     const result = createProjectStore(() => memoryStorage({ [key]: JSON.stringify(file) })).load();
-    assert.equal(result.status, 'loaded');
-    assert.equal(projectConfig(result.project).seatH, seatH);
-    assert.equal(result.project.setup.step, 'complete');
+    assert.equal(result.status, 'loaded', key);
+    assert.equal(projectConfig(result.project).deskH, deskH, key);
+    assert.equal(result.project.cockpit, null, key);
+    assert.equal(result.parametricCockpitLeftOut, true, key);
+    assert.equal(result.project.setup.step, 'complete', key);
   }
+});
+
+test('the first save over a v4 project leaves the v4 copy untouched', () => {
+  const v4 = JSON.stringify({
+    ...projectData({ ...createProject(), setup: completeSetup() }),
+    version: 4,
+    cockpit: { seatH: 32 },
+  });
+  const storage = memoryStorage({ [V4_STORAGE_KEY]: v4 });
+  const store = createProjectStore(() => storage);
+  const loaded = store.load();
+  assert.equal(loaded.status, 'loaded');
+  assert.equal(store.save(loaded.project), true);
+  assert.equal(storage.data.get(V4_STORAGE_KEY), v4);
+  assert.equal(JSON.parse(storage.data.get(STORAGE_KEY)).version, 5);
+  const reloaded = createProjectStore(() => storage).load();
+  assert.equal(reloaded.parametricCockpitLeftOut, false);
 });
 
 test('the newest key takes precedence and older keys are left untouched', () => {
   const current = createProject();
-  const v1 = JSON.stringify({ version: 1, config: { ...defaults, seatH: 30 } });
+  const v1 = JSON.stringify({ version: 1, config: { ...defaults, deskH: 70 } });
   const storage = memoryStorage({ [V1_STORAGE_KEY]: v1 });
   createProjectStore(() => storage).save(current);
   assert.deepEqual(createProjectStore(() => storage).load(), {
     status: 'loaded',
     project: asLoaded(current),
+    parametricCockpitLeftOut: false,
   });
   assert.equal(storage.data.get(V1_STORAGE_KEY), v1);
 });

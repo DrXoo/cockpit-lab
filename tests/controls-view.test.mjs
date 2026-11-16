@@ -10,20 +10,19 @@ import {
 } from '../src/controls-view.ts';
 import { defaults, evaluate, fieldSpec, wrapAngle } from '../src/model.ts';
 
-const state = { ...defaults, baseLift: 12, wheel: true, monitorMode: 'manual' };
+const state = { ...defaults, monitorEnabled: true, keyboardEnabled: false, monitorMode: 'manual' };
 const view = { state, evaluation: evaluate(state) };
 
 test('each setting shows its unit', () => {
   assert.equal(unitFor('monitorInches'), '″');
   assert.equal(unitFor('armSplit'), '%');
-  assert.equal(unitFor('recline'), '°');
+  assert.equal(unitFor('monitorYaw'), '°');
   assert.equal(unitFor('deskAngle'), '°');
-  assert.equal(unitFor('length'), 'cm');
+  assert.equal(unitFor('deskH'), 'cm');
 });
 
-test('rig heights are shown from the floor, including the base elevation', () => {
-  assert.equal(controlValue(view, 'seatH'), state.seatH + 12);
-  assert.equal(controlValue(view, 'length'), state.length);
+test('a setting outside the arm is shown as it is', () => {
+  assert.equal(controlValue(view, 'deskH'), state.deskH);
 });
 
 test('arm angles are shown as the evaluated pose, the screen yaw relative to the desk', () => {
@@ -34,28 +33,28 @@ test('arm angles are shown as the evaluated pose, the screen yaw relative to the
 });
 
 test('a range control has a slider and a number field with the current limits', () => {
-  const html = rangeHTML(view, 'seatH', 'Cushion height');
-  const [min, max, step] = fieldSpec('seatH', state);
+  const html = rangeHTML(view, 'deskH', 'Desktop height');
+  const [min, max, step] = fieldSpec('deskH', state);
   assert.match(
     html,
     new RegExp(
-      `id="seatH-range" type="range" data-key="seatH" min="${min}" max="${max}" step="${step}" value="${state.seatH + 12}"`,
+      `id="deskH-range" type="range" data-key="deskH" min="${min}" max="${max}" step="${step}" value="${state.deskH}"`,
     ),
   );
-  assert.match(html, /id="seatH-number" type="number"/);
-  assert.match(html, /aria-label="Cushion height, value in cm"/);
+  assert.match(html, /id="deskH-number" type="number"/);
+  assert.match(html, /aria-label="Desktop height, value in cm"/);
   assert.match(html, /<span>cm<\/span>/);
 });
 
 test('toggles and selects reflect the current value', () => {
-  assert.match(toggleHTML(view, 'wheel', 'Volante'), /data-key="wheel" checked/);
-  assert.doesNotMatch(toggleHTML(view, 'hotas', 'HOTAS'), /checked/);
-  const html = selectHTML(view, 'feet', 'Apoyo', [
-    ['level', 'Pies'],
-    ['casters', 'Ruedas'],
+  assert.match(toggleHTML(view, 'monitorEnabled', 'Monitor'), /data-key="monitorEnabled" checked/);
+  assert.doesNotMatch(toggleHTML(view, 'keyboardEnabled', 'Keyboard'), /checked/);
+  const html = selectHTML(view, 'clampMount', 'Mount', [
+    ['clamp', 'Clamp'],
+    ['grommet', 'Grommet'],
   ]);
-  assert.match(html, /<option value="level" selected>Pies<\/option>/);
-  assert.match(html, /<option value="casters" >Ruedas<\/option>/);
+  assert.match(html, /<option value="clamp" selected>Clamp<\/option>/);
+  assert.match(html, /<option value="grommet" >Grommet<\/option>/);
 });
 
 test('a group has a title and an optional hint', () => {

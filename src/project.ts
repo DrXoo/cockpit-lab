@@ -1,7 +1,8 @@
-// Project file format and guided-setup progress. Lengths are in cm (`units: 'cm'`). Format v4
-// stores the cockpit design apart from the room and its layouts. v3 files keep the design among
-// the room's shared settings; v1 and v2 files hold a single configuration and open as one
-// layout.
+// Project file format and guided-setup progress. Room lengths are in cm (`units: 'cm'`); the
+// cockpit design states its own units, mm. Format v5 stores the cockpit design as its design
+// history (docs/adr/0005). v1 to v4 files open with their room only: the parametric cockpit
+// they may hold is retired without conversion (docs/adr/0004). v3 and v4 files store the room as
+// v5 does; v1 and v2 files hold a single configuration and open as one layout.
 import { defaults, sanitize, type CockpitConfig } from './config.ts';
 import {
   FURNITURE_PLACEMENT_KEYS,
@@ -15,10 +16,10 @@ import {
   type LayoutLibrary,
 } from './layouts.ts';
 import {
-  designOf,
-  isCockpitDesignSetting,
-  splitCockpit,
+  designData,
+  readDesign,
   type CockpitDesign,
+  type CockpitDesignData,
 } from './cockpit-design.ts';
 
 export type StepId = 'room' | 'openings' | 'furniture' | 'desk';
@@ -87,7 +88,7 @@ export interface SetupProgress {
   drafts?: SetupDrafts;
 }
 
-/** A cockpit design, or none, and the room whose layouts place it. */
+/** A cockpit design, or none, and the room with its layouts. */
 export interface Project {
   cockpit: CockpitDesign | null;
   library: LayoutLibrary;
@@ -95,24 +96,42 @@ export interface Project {
 }
 
 export interface ProjectFile {
-  cockpit: CockpitDesign | null;
+  cockpit: CockpitDesignData | null;
   room: LayoutLibrary;
   app: 'Cockpit Lab';
-  version: 4;
+  version: 5;
   units: 'cm';
   setup: SetupProgress;
 }
 
-/** Elements every v2 and v3 file must state explicitly as present or absent. */
+/** A project as read from a file. */
+export interface OpenedProject {
+  project: Project;
+  /** The file held a parametric cockpit, which was left out: it is retired (docs/adr/0004). */
+  parametricCockpitLeftOut: boolean;
+}
+
+/** Elements every file since v2 must state explicitly as present or absent. */
 const PRESENCE_SETTINGS = [
   'deskEnabled',
-  'cockpitEnabled',
   'monitorEnabled',
   'keyboardEnabled',
   'pcEnabled',
   'mouseEnabled',
   'matEnabled',
 ] as const;
+/** v2 and v3 files also state whether the room includes the cockpit. */
+const PRESENCE_SETTINGS_BEFORE_V4 = [...PRESENCE_SETTINGS, 'cockpitEnabled'] as const;
+/**
+ * Layout settings of v3 and v4 files that placed the retired parametric cockpit, or the monitor
+ * in front of it. They are read and left out.
+ */
+const RETIRED_LAYOUT_SETTINGS: readonly string[] = [
+  'cockpitX',
+  'cockpitZ',
+  'cockpitAngle',
+  'monitorAhead',
+];
 
 type RawRecord = Record<string, unknown>;
 
@@ -163,30 +182,23 @@ function readDrafts(input: unknown = {}): SetupDrafts {
 
 /** The configuration of a layout of the project, the active one by default. */
 export const projectConfig = (project: Project, layoutId?: string): CockpitConfig =>
-  layoutConfig(project.library, project.cockpit, layoutId);
+  layoutConfig(project.library, layoutId);
 
-/**
- * Stores an edited configuration of the active layout: its cockpit design, if the project has
- * one, and its room. The design is kept even while the room leaves it out.
- */
+/** Stores an edited configuration of the active layout. */
 export const recordProject = (project: Project, config: CockpitConfig): Project => ({
   ...project,
-  cockpit: project.cockpit === null ? null : designOf(config),
   library: recordLayout(project.library, config),
 });
 
-/**
- * The project with another cockpit design, such as one imported from a cockpit file, in place of
- * the one it had. The room keeps including or leaving out the cockpit, now with this design.
- */
+/** The project with another cockpit design, such as one imported from a cockpit file. */
 export const replaceCockpitDesign = (project: Project, cockpit: CockpitDesign): Project => ({
   ...project,
   cockpit,
 });
 
-/** A project from a single configuration, as v1 and v2 files and new projects have. */
+/** A project without a cockpit design from a single configuration, as v1 and v2 files have. */
 export const projectFromConfig = (config: CockpitConfig, setup: SetupProgress): Project => ({
-  cockpit: splitCockpit(config).cockpit,
+  cockpit: null,
   library: createLayoutLibrary(config),
   setup,
 });
@@ -199,7 +211,6 @@ export function createProject(): Project {
     roomZ: 0,
     roomEnabled: false,
     deskEnabled: false,
-    cockpitEnabled: false,
     monitorEnabled: false,
     keyboardEnabled: false,
     pcEnabled: false,
@@ -209,20 +220,24 @@ export function createProject(): Project {
   return projectFromConfig(config, { step: 'room', furthest: 0, deferred: [] });
 }
 
-/** Explicit v1 adapter: earlier projects always had a desk and a cockpit, and used cm. */
-function readVersion1(data: RawRecord & { config: RawRecord }): Project {
+/**
+ * Explicit v1 adapter: earlier projects always had a desk and a parametric cockpit, and used cm.
+ */
+function readVersion1(data: RawRecord & { config: RawRecord }): OpenedProject {
   if (data.units && data.units !== 'cm') throw new Error('v1 designs use cm');
   const config = sanitize({
     ...data.config,
     deskEnabled: true,
-    cockpitEnabled: true,
     monitorEnabled: true,
     keyboardEnabled: true,
     pcEnabled: true,
     mouseEnabled: true,
     matEnabled: true,
   });
-  return projectFromConfig(config, completeSetup());
+  return {
+    project: projectFromConfig(config, completeSetup()),
+    parametricCockpitLeftOut: true,
+  };
 }
 
 /** Progress saved with the retired cockpit step, as if the setup had always had four steps. */
@@ -263,16 +278,19 @@ function readSetup(rawInput: unknown, config: CockpitConfig): SetupProgress {
   };
 }
 
-function readPresence(config: RawRecord): void {
-  for (const key of PRESENCE_SETTINGS)
+function readPresence(config: RawRecord, required: readonly string[] = PRESENCE_SETTINGS): void {
+  for (const key of required)
     if (typeof config[key] !== 'boolean') throw new Error('Invalid item presence');
 }
 
 /** A v2 file holds a single configuration, which opens as one layout. */
-function readVersion2(data: RawRecord, rawConfig: RawRecord): Project {
-  readPresence(rawConfig);
+function readVersion2(data: RawRecord, rawConfig: RawRecord): OpenedProject {
+  readPresence(rawConfig, PRESENCE_SETTINGS_BEFORE_V4);
   const config = sanitize(rawConfig);
-  return projectFromConfig(config, readSetup(data.setup, config));
+  return {
+    project: projectFromConfig(config, readSetup(data.setup, config)),
+    parametricCockpitLeftOut: rawConfig.cockpitEnabled === true,
+  };
 }
 
 type RawSpec = RawRecord & { id: string };
@@ -294,11 +312,30 @@ const pickPlacement = (placement: RawRecord): RawRecord =>
     FURNITURE_PLACEMENT_KEYS.filter((key) => key in placement).map((key) => [key, placement[key]]),
   );
 
+/** How a file version reads its room. */
+interface RoomRules {
+  /** Presence settings the shared settings must state. */
+  presence: readonly string[];
+  /** Layout settings this version may hold that are no longer read. */
+  retiredLayoutSettings: readonly string[];
+}
+
+const ROOM_RULES_V3: RoomRules = {
+  presence: PRESENCE_SETTINGS_BEFORE_V4,
+  retiredLayoutSettings: RETIRED_LAYOUT_SETTINGS,
+};
+const ROOM_RULES_V4: RoomRules = {
+  presence: PRESENCE_SETTINGS,
+  retiredLayoutSettings: RETIRED_LAYOUT_SETTINGS,
+};
+const ROOM_RULES_V5: RoomRules = { presence: PRESENCE_SETTINGS, retiredLayoutSettings: [] };
+
 function readLayoutEntry(
   input: unknown,
   shared: RawRecord,
   specs: RawSpec[],
   seenIds: Set<string>,
+  rules: RoomRules,
 ): LayoutEntry {
   if (!isPlainRecord(input) || typeof input.id !== 'string' || !LAYOUT_ID.test(input.id))
     throw new Error('Invalid layout id');
@@ -307,7 +344,8 @@ function readLayoutEntry(
   const { settings, furniture, hiddenFurniture } = input;
   if (!isPlainRecord(settings) || !isPlainRecord(furniture)) throw new Error('Invalid layout');
   for (const key of Object.keys(settings))
-    if (!isLayoutSetting(key)) throw new Error(`Not a layout setting: ${key}`);
+    if (!isLayoutSetting(key) && !rules.retiredLayoutSettings.includes(key))
+      throw new Error(`Not a layout setting: ${key}`);
   const specIds = specs.map((spec) => spec.id);
   if (
     !Array.isArray(hiddenFurniture) ||
@@ -326,64 +364,75 @@ function readLayoutEntry(
 }
 
 /**
- * The room of a v3 or v4 file: the settings every layout shares, with the cockpit design among
- * them, and each layout's placements. Returns the project it describes. In a v3 file the design
- * exists only if the room includes it.
+ * The room of a v3 to v5 file: the settings every layout shares and each layout's placements,
+ * with the guided-setup progress.
  */
 function readRoom(
   shared: RawRecord,
   room: RawRecord,
   rawSetup: unknown,
-  hasDesign = shared.cockpitEnabled === true,
-): Project {
+  rules: RoomRules,
+): Omit<Project, 'cockpit'> {
   const { layouts, activeLayoutId } = room;
   for (const key of Object.keys(shared))
     if (isLayoutSetting(key)) throw new Error(`Layout setting in the shared settings: ${key}`);
-  readPresence(shared);
+  readPresence(shared, rules.presence);
   if (!Array.isArray(layouts) || layouts.length === 0 || layouts.length > MAX_LAYOUTS)
     throw new Error('Invalid layouts');
   const specs = readFurnitureSpecs(shared.roomFurniture);
   const seenIds = new Set<string>();
-  const entries = layouts.map((layout: unknown) => readLayoutEntry(layout, shared, specs, seenIds));
+  const entries = layouts.map((layout: unknown) =>
+    readLayoutEntry(layout, shared, specs, seenIds, rules),
+  );
   if (typeof activeLayoutId !== 'string') throw new Error('Unknown active layout');
   const library = libraryFromLayouts(entries, activeLayoutId);
-  // Every layout was read with the same design, so the first one has it.
-  const cockpit = hasDesign ? designOf(entries[0].config) : null;
-  return { cockpit, library, setup: readSetup(rawSetup, layoutConfig(library, cockpit)) };
+  return { library, setup: readSetup(rawSetup, layoutConfig(library)) };
 }
 
-/** A v3 file: the cockpit design is among the shared settings of the room. */
-function readVersion3(data: RawRecord): Project {
-  if (!isPlainRecord(data.shared)) throw new Error('Invalid configuration');
-  return readRoom(data.shared, data, data.setup);
+/** A v3 file: a parametric cockpit, if the room includes one, among its shared settings. */
+function readVersion3(data: RawRecord): OpenedProject {
+  const { shared } = data;
+  if (!isPlainRecord(shared)) throw new Error('Invalid configuration');
+  return {
+    project: { cockpit: null, ...readRoom(shared, data, data.setup, ROOM_RULES_V3) },
+    parametricCockpitLeftOut: shared.cockpitEnabled === true,
+  };
 }
 
-/** A v4 file: the cockpit design, or null, apart from the room and its layouts. */
-function readVersion4(data: RawRecord): Project {
+/** A v4 file: a parametric cockpit, or null, apart from the room and its layouts. */
+function readVersion4(data: RawRecord): OpenedProject {
   const { cockpit, room } = data;
   if (cockpit !== null && !isPlainRecord(cockpit)) throw new Error('Invalid cockpit design');
-  for (const key of Object.keys(cockpit ?? {}))
-    if (!isCockpitDesignSetting(key)) throw new Error(`Not a cockpit setting: ${key}`);
   if (!isPlainRecord(room) || !isPlainRecord(room.shared)) throw new Error('Invalid room');
-  for (const key of Object.keys(room.shared))
-    if (isCockpitDesignSetting(key)) throw new Error(`Cockpit setting in the room: ${key}`);
-  // Files saved before a room could leave the design out include it whenever there is one.
-  const includesCockpit = room.shared.cockpitEnabled ?? cockpit !== null;
-  if (includesCockpit === true && cockpit === null)
-    throw new Error('The room includes a missing cockpit design');
-  const shared = { ...room.shared, ...cockpit, cockpitEnabled: includesCockpit };
-  return readRoom(shared, room, data.setup, cockpit !== null);
+  return {
+    project: { cockpit: null, ...readRoom(room.shared, room, data.setup, ROOM_RULES_V4) },
+    parametricCockpitLeftOut: cockpit !== null,
+  };
+}
+
+/** A v5 file: the cockpit design history, or null, apart from the room and its layouts. */
+function readVersion5(data: RawRecord): OpenedProject {
+  const { cockpit, room } = data;
+  if (!isPlainRecord(room) || !isPlainRecord(room.shared)) throw new Error('Invalid room');
+  return {
+    project: {
+      cockpit: cockpit === null ? null : readDesign(cockpit),
+      ...readRoom(room.shared, room, data.setup, ROOM_RULES_V5),
+    },
+    parametricCockpitLeftOut: false,
+  };
 }
 
 /**
- * Reads a project file (v1 to v4). `stored` skips the app check for the browser's own saved
+ * Reads a project file (v1 to v5). `stored` skips the app check for the browser's own saved
  * copy. Throws a user-facing message when the file can't be used.
  */
-export function readProject(data: unknown, { stored = false } = {}): Project {
+export function readProject(data: unknown, { stored = false } = {}): OpenedProject {
   if (!isRecord(data) || (!stored && data.app !== 'Cockpit Lab'))
     throw new Error('File from another program');
-  if (data.version === 3 || data.version === 4) {
+  if (data.version === 3 || data.version === 4 || data.version === 5) {
     if (data.units !== 'cm') throw new Error('Unsupported version or units');
+    if (data.version === 5) return readVersion5(data);
     return data.version === 4 ? readVersion4(data) : readVersion3(data);
   }
   const rawConfig = data.config;
@@ -394,9 +443,15 @@ export function readProject(data: unknown, { stored = false } = {}): Project {
 }
 
 export function projectData({ cockpit, library, setup }: Project): ProjectFile {
-  return { app: 'Cockpit Lab', version: 4, units: 'cm', cockpit, room: library, setup };
+  return {
+    app: 'Cockpit Lab',
+    version: 5,
+    units: 'cm',
+    cockpit: cockpit === null ? null : designData(cockpit),
+    room: library,
+    setup,
+  };
 }
-
 /** Moves to the next step; with `defer`, the current one is kept to revisit later. */
 export function advanceSetup(
   setup: SetupProgress,

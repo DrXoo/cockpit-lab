@@ -1,19 +1,25 @@
 // Autosave of the current project in the browser. The storage is injected so the logic can be
 // tested without a browser, and so a blocked or full storage degrades to "no autosave".
-import { projectData, readProject, type Project } from './project.ts';
+import { projectData, readProject, type OpenedProject, type Project } from './project.ts';
 
-export const STORAGE_KEY = 'cockpit-lab-v4';
+export const STORAGE_KEY = 'cockpit-lab-v5';
 /**
  * Keys used by earlier versions, newest first. Their designs are still recovered, and they are
- * left as they were.
+ * left as they were: saving goes to the current key, so the first save over a project of an
+ * earlier version leaves that version's copy untouched.
  */
-export const LEGACY_STORAGE_KEYS = ['cockpit-lab-v3', 'cockpit-lab-v2', 'cockpit-lab-v1'] as const;
+export const LEGACY_STORAGE_KEYS = [
+  'cockpit-lab-v4',
+  'cockpit-lab-v3',
+  'cockpit-lab-v2',
+  'cockpit-lab-v1',
+] as const;
 /** Prefix of the copies of saved projects that could not be read. */
 export const UNREADABLE_KEY_PREFIX = 'cockpit-lab-unreadable-';
 
 export type LoadResult =
   | { status: 'empty' }
-  | { status: 'loaded'; project: Project }
+  | ({ status: 'loaded' } & OpenedProject)
   /** The saved text is kept, untouched, under `keptAs`. */
   | { status: 'unreadable'; keptAs: string; text: string }
   | { status: 'unavailable' };
@@ -79,7 +85,7 @@ export function createProjectStore(
       }
       if (!saved) return { status: 'empty' };
       try {
-        return { status: 'loaded', project: readProject(JSON.parse(saved.text), { stored: true }) };
+        return { status: 'loaded', ...readProject(JSON.parse(saved.text), { stored: true }) };
       } catch {
         const keptAs = keepUnreadable(storage, saved.key, saved.text);
         return { status: 'unreadable', keptAs, text: saved.text };

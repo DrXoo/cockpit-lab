@@ -143,10 +143,6 @@ export interface SceneLabel {
   /** Extra CSS class. */
   className?: string;
   topOnly?: boolean;
-  sideOnly?: boolean;
-  notSide?: boolean;
-  /** Belongs to the rig, so the desk view hides it. */
-  rigLabel?: boolean;
   /** Marks a draggable monitor arm joint. */
   armHandle?: boolean;
   /** Vertical screen offset, in px. */
@@ -156,10 +152,7 @@ export interface SceneLabel {
 /** Whether a label belongs in a view. Labels outside the viewport are hidden separately. */
 export function labelShownIn(label: SceneLabel, view: SceneView): boolean {
   return !(
-    (view === 'side' && (label.object || label.notSide)) ||
-    (view === 'desk' && label.rigLabel) ||
     (label.topOnly && view !== 'top') ||
-    (label.sideOnly && view !== 'side') ||
     (label.armHandle && view !== 'top' && view !== 'desk')
   );
 }

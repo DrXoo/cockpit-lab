@@ -95,7 +95,7 @@ test('blocked access warns without inventing a physical collision or a window', 
   );
 });
 
-test('the full evaluation takes in furniture, the desk and the cockpit in front of sliding doors', () => {
+test('the full evaluation takes in furniture and the desk in front of sliding doors', () => {
   const furniture = {
     id: 'cajonera',
     type: 'cabinet',
@@ -106,18 +106,13 @@ test('the full evaluation takes in furniture, the desk and the cockpit in front 
     depth: 30,
     height: 60,
   };
-  const cases = [
-    { roomFurniture: [furniture] },
-    { deskEnabled: true, deskX: 100, deskZ: 60 },
-    { cockpitEnabled: true, cockpitX: 100, cockpitZ: 20 },
-  ];
+  const cases = [{ roomFurniture: [furniture] }, { deskEnabled: true, deskX: 100, deskZ: 60 }];
   for (const extra of cases) {
     const e = evaluate(room(extra));
     assert.deepEqual(e.room.accessHits, ['armario']);
     assert.equal(e.room.checks.find((c) => c.id === 'room-access-armario').level, 'warning');
   }
   const e = evaluate(room());
-  assert.deepEqual(e.parts, []);
   assert.deepEqual(e.accessories, []);
 });
 
@@ -186,14 +181,14 @@ test('the project keeps the access and older files still open', () => {
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
   const restored = readProject(
     JSON.parse(JSON.stringify(projectData(projectFromConfig(config, p.setup)))),
-  );
+  ).project;
   assert.deepEqual(projectConfig(restored), config);
   assert.equal(restored.setup.step, 'furniture');
   const old = readProject({
     app: 'Cockpit Lab',
     version: 1,
     config: { ...defaults, roomFeatures: [] },
-  });
+  }).project;
   assert.deepEqual(projectConfig(old).roomFeatures, []);
   const resized = normalizeRoom({ ...config, roomH: 280 });
   assert.equal(resized.roomFeatures[0].height, 250);
@@ -257,7 +252,7 @@ test('the edited height is saved and limited to the ceiling; accesses without a 
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
   const restored = readProject(
     JSON.parse(JSON.stringify(projectData(projectFromConfig(config, p.setup)))),
-  );
+  ).project;
   assert.equal(projectConfig(restored).roomFeatures[0].height, 212.5);
   assert.equal(
     normalizeRoom({ ...projectConfig(restored), roomH: 280 }).roomFeatures[0].height,

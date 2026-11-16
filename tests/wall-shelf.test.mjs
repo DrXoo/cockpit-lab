@@ -168,14 +168,14 @@ test('saving keeps the wall, height and position, and v1 furniture still imports
   p.setup = { step: 'furniture', furthest: 2, deferred: [] };
   const restored = readProject(
     JSON.parse(JSON.stringify(projectData(projectFromConfig(config, p.setup)))),
-  );
+  ).project;
   assert.deepEqual(projectConfig(restored), config);
   assert.equal(restored.setup.step, 'furniture');
   const old = readProject({
     app: 'Cockpit Lab',
     version: 1,
     config: { ...defaults, roomFurniture: [low()] },
-  });
+  }).project;
   assert.equal(projectConfig(old).roomFurniture[0].type, 'shelf');
   assert.equal(evaluateRoom(projectConfig(old), []).furniture[0].y0, 0);
   const invalid = sanitize({

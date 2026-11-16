@@ -2,34 +2,24 @@
 // Run `npx playwright test --update-snapshots` to accept an intended change.
 import { test, expect, openApp, importProject } from './support.ts';
 
-/** Each fixture with the views it offers: the side view needs a cockpit. */
-const FIXTURES: Record<string, string[]> = {
-  'gt-room.json': ['iso', 'top', 'desk', 'side'],
-  'flight-lifted.json': ['iso', 'top', 'desk', 'side'],
-  'desk-only.json': ['iso', 'top', 'desk'],
-};
-const SECTIONS = ['room', 'furniture', 'desk', 'cockpit'];
-const COCKPIT_SECTIONS = ['frame', 'posture'];
+const FIXTURES = ['gt-room.json', 'flight-lifted.json', 'desk-only.json'];
+const VIEWS = ['iso', 'top', 'desk'];
+const SECTIONS = ['room', 'furniture', 'desk'];
 
 const nameOf = (fixture: string) => fixture.replace('.json', '');
 
-for (const [fixture, views] of Object.entries(FIXTURES)) {
+for (const fixture of FIXTURES) {
   test.describe(nameOf(fixture), () => {
     test.beforeEach(async ({ page }) => {
       await openApp(page);
       await importProject(page, fixture);
     });
 
-    for (const view of views)
+    for (const view of VIEWS)
       test(`${view} view`, async ({ page }) => {
         await page.locator(`[data-view="${view}"]`).click();
         await expect(page.locator(`[data-view="${view}"]`)).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#viewport')).toHaveScreenshot(`${nameOf(fixture)}-${view}.png`);
-      });
-
-    if (!views.includes('side'))
-      test('no side view without a cockpit', async ({ page }) => {
-        await expect(page.locator('[data-view="side"]')).toBeHidden();
       });
 
     test('settings panels', async ({ page }) => {
@@ -40,24 +30,6 @@ for (const [fixture, views] of Object.entries(FIXTURES)) {
         );
       }
     });
-
-    if (views.includes('side'))
-      test('cockpit editor', async ({ page }) => {
-        await page.locator('#cockpitEditor').click();
-        await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('#viewport')).toHaveScreenshot(
-          `${nameOf(fixture)}-cockpit-editor.png`,
-        );
-        for (const section of COCKPIT_SECTIONS) {
-          await page.locator(`#tab-${section}`).click();
-          expect(await page.locator('#controls').innerText()).toMatchSnapshot(
-            `${nameOf(fixture)}-controls-${section}.txt`,
-          );
-        }
-        expect(await page.locator('#inspector').innerText()).toMatchSnapshot(
-          `${nameOf(fixture)}-cockpit-inspector.txt`,
-        );
-      });
 
     test('checks and metrics', async ({ page }) => {
       expect(await page.locator('#inspector').innerText()).toMatchSnapshot(
@@ -78,12 +50,10 @@ for (const [fixture, views] of Object.entries(FIXTURES)) {
   });
 }
 
-test('dimensions and person toggles', async ({ page }) => {
+test('the dimensions toggle', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
-  await page.locator('[data-view="side"]').click();
-  await page.locator('#personBtn').click();
-  await expect(page.locator('#viewport')).toHaveScreenshot('gt-room-side-person.png');
+  await page.locator('[data-view="top"]').click();
   await page.locator('#dimensionBtn').click();
-  await expect(page.locator('#viewport')).toHaveScreenshot('gt-room-side-no-dimensions.png');
+  await expect(page.locator('#viewport')).toHaveScreenshot('gt-room-top-no-dimensions.png');
 });

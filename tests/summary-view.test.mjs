@@ -2,13 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { escapeHTML } from '../src/html.ts';
 import { checkLineHTML, checkMark, checkRowHTML } from '../src/check-view.ts';
-import {
-  partialSummary,
-  roomSummaryHTML,
-  fullSummaryHTML,
-  usesPartialSummary,
-  summaryHeading,
-} from '../src/project-summary.ts';
+import { roomSummaryHTML, summaryHTML } from '../src/project-summary.ts';
 import { defaults, sanitize, evaluate } from '../src/model.ts';
 import { completeSetup } from '../src/project.ts';
 
@@ -53,10 +47,10 @@ test('the room summary lists openings and furniture with escaped names', () => {
   assert.equal(roomSummaryHTML({ ...config, roomEnabled: false }), '');
 });
 
-test('the full summary includes every cut, accessory and check', () => {
+test('the summary includes the room, every accessory and every check', () => {
   const evaluation = evaluate(config);
-  const html = fullSummaryHTML(config, evaluation);
-  for (const part of evaluation.parts) assert.ok(html.includes(`<td>${part.name}</td>`), part.name);
+  const html = summaryHTML(config, evaluation, completeSetup());
+  assert.ok(evaluation.accessories.length > 0);
   for (const accessory of evaluation.accessories)
     assert.ok(html.includes(`<td>${accessory.name}</td>`), accessory.name);
   assert.equal(html.match(/<div class="summary-checks"><p>/g)?.length, 1);
@@ -66,25 +60,6 @@ test('the full summary includes every cut, accessory and check', () => {
     'one line per check, each with its symbol',
   );
   assert.ok(html.includes(roomSummaryHTML(config)));
-});
-
-test('the full summary needs a finished project with the room and every element', () => {
-  const finished = completeSetup();
-  assert.equal(usesPartialSummary(config, finished), false);
-  assert.equal(usesPartialSummary({ ...config, roomEnabled: false }, finished), true);
-  assert.equal(usesPartialSummary({ ...config, pcEnabled: false }, finished), true);
-  assert.equal(usesPartialSummary(config, { ...finished, step: 'desk' }), true);
-});
-
-test('the summary heading depends on whether there is a cockpit', () => {
-  assert.deepEqual(summaryHeading(config), {
-    title: 'Your cockpit, piece by piece.',
-    kicker: 'FROM DESIGN TO WORKSHOP',
-  });
-  assert.deepEqual(summaryHeading({ ...config, cockpitEnabled: false }), {
-    title: 'Project summary',
-    kicker: 'YOUR SPACE',
-  });
 });
 
 test('a check with items lists them, escaped, in a list the user opens', () => {
@@ -114,19 +89,4 @@ test('a printed check line lists its items too', () => {
     items: ['Seat & post'],
   });
   assert.match(html, /<ul><li>Seat &amp; post<\/li><\/ul>/);
-});
-
-test('both summaries list joints without connectors, with escaped part names', () => {
-  const evaluation = {
-    ...evaluate(config),
-    pendingJoints: [{ jointId: 'a@b', partName: 'Post <a>', toPartName: 'Rail & b' }],
-  };
-  for (const html of [
-    fullSummaryHTML(config, evaluation),
-    partialSummary(config, evaluation, completeSetup()),
-  ]) {
-    assert.match(html, /Joints without connectors/);
-    assert.match(html, /<td>Post &lt;a&gt;<\/td><td>Rail &amp; b<\/td>/);
-  }
-  assert.doesNotMatch(fullSummaryHTML(config, evaluate(config)), /Joints without connectors/);
 });

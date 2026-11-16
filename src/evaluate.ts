@@ -1,47 +1,25 @@
-// Evaluates a configuration: envelopes, interferences and ergonomic and room checks.
+// Evaluates a room configuration: envelopes, interferences and the desk and room checks.
 // Lengths are in cm. Volumes are approximate envelopes, not a structural model.
 import {
-  degToRad,
   inversePoint,
   overlapDepth,
-  polygonDistance,
   rectangle,
   round,
-  transformPoint,
   type PlanPoint,
   type Placement,
   type Point3,
   type Solid,
 } from './geometry.ts';
 import { evaluateRoom, type Obstacle, type RoomEvaluation } from './room.ts';
-import {
-  describeInterference,
-  findInterferences,
-  type ContactTolerance,
-  type Interference,
-  type NamedSolid,
-} from './interference.ts';
+import type { NamedSolid } from './interference.ts';
 import type { Check, CheckLevel } from './checks.ts';
 import type { CockpitConfig } from './config.ts';
 import { deskBounds, getDesktopItems } from './desk.ts';
-import { pose } from './layout.ts';
+import { deskPose as deskPoseOf } from './layout.ts';
 import { monitorGeometry } from './monitor-arm.ts';
-import { getParts } from './parts.ts';
-import { MM_PER_CM } from './units.ts';
-import { cadChecks } from './cad-checks.ts';
-import { cornersMm, resolveAssembly, type ResolvedPart } from './cad/assembly.ts';
-import { partsFromParametric } from './cad/from-parametric.ts';
-import { designPosture } from './cad/posture.ts';
-import type { postureFrom } from './anatomy.ts';
-import { drivingMount, floorHeight, rigLift, seatBackOf } from './rig.ts';
+import { deskAccessories } from './parts.ts';
 
 // Tolerances. Below these values two volumes are in contact, not interfering.
-/** Minimum vertical and plan overlap for a rig volume to interfere with the desk. */
-const RIG_DESK_OVERLAP_CM = 0.1;
-const RIG_DESK_CONTACT: ContactTolerance = {
-  heightCm: RIG_DESK_OVERLAP_CM,
-  planCm: RIG_DESK_OVERLAP_CM,
-};
 /** The whole setup may stick out of the room by this much and still fit. */
 const ROOM_FIT_TOLERANCE_CM = 0.01;
 /** Minimum plan overlap between two hard items on the tabletop. */
@@ -60,15 +38,10 @@ const MONITOR_ASPECT = { width: 21, height: 9 } as const;
 export type CockpitEvaluation = ReturnType<typeof evaluate>;
 
 interface Presence {
-  hasRig: boolean;
   hasDesk: boolean;
   hasMonitor: boolean;
-  /** A shifter or handbrake is mounted on the rig. */
-  hasDriving: boolean;
 }
 
-type DrivingMount = ReturnType<typeof drivingMount>;
-type Body = ReturnType<typeof postureFrom>;
 type DesktopItem = ReturnType<typeof getDesktopItems>[number];
 
 const named = (label: string, volume: Solid): NamedSolid => ({ ...volume, label });
@@ -92,14 +65,8 @@ const check = (
 ): Check => ({ id, label, value, level, detail });
 
 function presenceOf(s: CockpitConfig): Presence {
-  const hasRig = s.cockpitEnabled !== false;
   const hasDesk = s.deskEnabled !== false;
-  return {
-    hasRig,
-    hasDesk,
-    hasMonitor: hasDesk && s.monitorEnabled !== false,
-    hasDriving: hasRig && (s.shifter || s.handbrake),
-  };
+  return { hasDesk, hasMonitor: hasDesk && s.monitorEnabled !== false };
 }
 
 function monitorSize(inches: number) {
@@ -107,27 +74,6 @@ function monitorSize(inches: number) {
   return {
     monitorW: (inches * CM_PER_INCH * MONITOR_ASPECT.width) / diagonal,
     monitorH: (inches * CM_PER_INCH * MONITOR_ASPECT.height) / diagonal,
-  };
-}
-
-/** Plan footprint of the rig, including side mounts, the pedals and a reclined backrest. */
-function rigFootprint(s: CockpitConfig, presence: Presence, driving: DrivingMount) {
-  const flightExtra = s.hotas ? s.hotasOut + 9 : 0;
-  const drivingExtra = presence.hasDriving ? s.hotasOut + 10 : 0;
-  const rigLeft = -s.width / 2 - Math.max(flightExtra, driving.sign < 0 ? drivingExtra : 0);
-  const rigRight = s.width / 2 + Math.max(flightExtra, driving.sign > 0 ? drivingExtra : 0);
-  const pedalEnd = s.pedalZ + 18 * Math.cos(degToRad(s.pedalTilt));
-  const seatBackZ = seatBackOf(s);
-  const lowerZ = Math.min(0, seatBackZ);
-  const upperZ = Math.max(s.length, pedalEnd, s.wheel ? s.wheelZ + 32 : 0);
-  return {
-    rigLeft,
-    rigRight,
-    pedalEnd,
-    overhang: pedalEnd > s.length,
-    seatBackZ,
-    lowerZ,
-    upperZ,
   };
 }
 
@@ -167,31 +113,6 @@ function setupExtent(s: CockpitConfig, setupPoints: PlanPoint[]) {
   };
 }
 
-/**
- * One volume per part of the CAD design, named by the part: the box around its corners, which
- * holds a tilted part whole. The parts carry the base lift already.
- */
-function cockpitPartVolumes(
-  design: ReadonlyMap<string, ResolvedPart>,
-  rigPose: Placement,
-): NamedSolid[] {
-  return [...design.values()].map((resolved) => {
-    const corners = cornersMm(resolved).map((corner) => ({
-      x: corner.x / MM_PER_CM,
-      y: corner.y / MM_PER_CM,
-      z: corner.z / MM_PER_CM,
-    }));
-    const range = (axis: 'x' | 'y' | 'z') => {
-      const values = corners.map((corner) => corner[axis]);
-      return [Math.min(...values), Math.max(...values)];
-    };
-    const [x0, x1] = range('x');
-    const [y0, y1] = range('y');
-    const [z0, z1] = range('z');
-    return named(resolved.part.name, solid(x0, x1, z0, z1, y0, y1, rigPose));
-  });
-}
-
 /** Tabletop, two columns and two feet. */
 function deskVolumes(
   s: CockpitConfig,
@@ -219,144 +140,19 @@ function deskVolumes(
   return volumes;
 }
 
-/** Joint angles and reach, against approximate comfort guides for average proportions. */
-function bodyChecks(
-  s: CockpitConfig,
-  body: Body,
-  presence: Presence,
-  monitorPoint: Point3,
-  rigPose: Placement,
-): Check[] {
-  if (!presence.hasRig) return [];
-  const checks = [
-    check(
-      'knee',
-      'Knee angle',
-      body.legs.reachable ? `${Math.round(body.legs.angle)}°` : 'Out of reach',
-      !body.legs.reachable
-        ? 'error'
-        : body.legs.angle < 100 || body.legs.angle > 145
-          ? 'warning'
-          : 'ok',
-      'Guide 100–145° · average proportions',
-    ),
-    check(
-      'hip',
-      'Hip angle',
-      `${Math.round(body.hipAngle)}°`,
-      body.hipAngle < 85 || body.hipAngle > 125 ? 'warning' : 'ok',
-      'Guide 85–125° · backrest included',
-    ),
-  ];
-  const arms = body.hands?.arms;
-  if (arms)
-    checks.push(
-      check(
-        'elbow',
-        'Elbow angle',
-        arms.reachable ? `${Math.round(arms.angle)}°` : 'Out of reach',
-        !arms.reachable ? 'error' : arms.angle < 85 || arms.angle > 140 ? 'warning' : 'ok',
-        'Guide 85–140° · side grip',
-      ),
-    );
-  if (s.hotas) {
-    const distance = Math.hypot(
-      s.hotasZ - body.shoulder.z,
-      s.hotasH + 18 - body.shoulder.y,
-      s.width / 2 + s.hotasOut - 18,
-    );
-    checks.push(
-      check(
-        'hotas',
-        'HOTAS reach',
-        `${Math.round(distance)} cm`,
-        distance > s.height * 0.332 ? 'error' : distance > s.height * 0.3 ? 'warning' : 'ok',
-        'Shoulder to grip · approximate',
-      ),
-    );
-  }
-  if (s.centerStick) {
-    const distance = Math.hypot(s.stickZ - body.shoulder.z, s.stickH + 14 - body.shoulder.y);
-    checks.push(
-      check(
-        'stick',
-        'Center stick',
-        `${Math.round(distance)} cm`,
-        distance > s.height * 0.332 ? 'error' : 'ok',
-        'Shoulder to grip · approximate',
-      ),
-    );
-  }
-  if (presence.hasMonitor && s.monitorMode === 'cockpit') {
-    const eye = transformPoint({ x: 0, ...body.eye, y: body.eye.y + rigLift(s) }, rigPose);
-    const distance = Math.hypot(
-      monitorPoint.x - eye.x,
-      monitorPoint.z - eye.z,
-      monitorPoint.y - eye.y,
-    );
-    checks.push(
-      check(
-        'eyes',
-        'Eyes to screen',
-        `${Math.round(distance)} cm`,
-        distance < 50 || distance > 110 ? 'warning' : 'ok',
-        'Straight-line distance · guide 50–110 cm',
-      ),
-    );
-  }
-  return checks;
-}
-
-function deskInterferenceCheck(interferences: Interference[]): Check {
-  const count = interferences.length;
-  if (count === 0)
-    return check(
-      'collision',
-      'Interference',
-      'No interference',
-      'ok',
-      'Approximate volumes · rotation included',
-    );
-  return check(
-    'collision',
-    'Interference',
-    `${count} interference${count > 1 ? 's' : ''}`,
-    'error',
-    interferences.map(describeInterference).join(' · '),
-  );
-}
-
-/** Rig-to-desk separation, interferences and the monitor arm. */
+/** The monitor arm's reach and height, and the monitor parked for VR. */
 function spaceChecks(
   s: CockpitConfig,
   presence: Presence,
   layout: {
-    sideGap: number;
-    deskInterferences: Interference[];
     armPose: ReturnType<typeof monitorGeometry>['arm'];
     reach: number;
     lift: number;
-    monitorH: number;
   },
 ): Check[] {
-  const { sideGap, deskInterferences, armPose, reach, lift, monitorH } = layout;
-  const checks: Check[] = [];
-  if (presence.hasRig && presence.hasDesk) {
-    checks.push(
-      check(
-        'side',
-        'Gap in the plan',
-        sideGap < 0 ? `${Math.ceil(-sideGap)} cm overlap` : `${Math.round(sideGap)} cm`,
-        sideGap < 5 ? 'warning' : 'ok',
-        sideGap < 0
-          ? 'Footprints overlap; check the heights'
-          : 'Smallest distance between the rotated footprints',
-      ),
-      deskInterferenceCheck(deskInterferences),
-    );
-  }
-  if (!presence.hasMonitor) return checks;
-  checks.push(
+  const { armPose, reach, lift } = layout;
+  if (!presence.hasMonitor) return [];
+  const checks = [
     check(
       'arm',
       'Monitor arm',
@@ -371,19 +167,7 @@ function spaceChecks(
       lift < s.armMinH || lift > s.armMaxH ? 'error' : 'ok',
       `VESA center above the desktop · ${s.armMinH}–${s.armMaxH} cm`,
     ),
-  );
-  if (s.monitorMode === 'cockpit' && presence.hasRig) {
-    const monitorClearance = s.monitorH - monitorH / 2 - (floorHeight(s, 'wheelH') + 16);
-    checks.push(
-      check(
-        'screen',
-        'Screen / wheel',
-        s.wheel ? `${Math.round(monitorClearance)} cm` : 'Clear',
-        s.wheel && monitorClearance < 2 ? 'warning' : 'ok',
-        'Vertical gap between envelopes',
-      ),
-    );
-  }
+  ];
   if (s.monitorMode === 'vr')
     checks.push(check('vr', 'VR mode', 'Front clear', 'ok', 'Monitor parked over the desk'));
   return checks;
@@ -491,7 +275,6 @@ function setupObstacles(
   s: CockpitConfig,
   presence: Presence,
   parts: {
-    rigSolids: NamedSolid[];
     deskSolids: NamedSolid[];
     desktopItems: DesktopItem[];
     monitorPolygon: Point3[];
@@ -499,9 +282,8 @@ function setupObstacles(
     monitor: ReturnType<typeof monitorGeometry>;
   },
 ): Obstacle[] {
-  const { rigSolids, deskSolids, desktopItems, monitorPolygon, monitorH, monitor } = parts;
+  const { deskSolids, desktopItems, monitorPolygon, monitorH, monitor } = parts;
   const obstacles: Obstacle[] = [
-    ...rigSolids.map((volume) => ({ ...volume, label: 'Cockpit', part: volume.label })),
     ...deskSolids.map((volume) => ({ ...volume, label: 'Desk', part: volume.label })),
     ...desktopItems
       .filter((item) => item.id !== 'mat')
@@ -559,74 +341,35 @@ function findFreeBand(
   );
 }
 
-function otherChecks(
+/** Whether the setup fits in the room with a free aisle beside it. */
+function roomFitChecks(
   s: CockpitConfig,
-  presence: Presence,
-  rig: ReturnType<typeof rigFootprint>,
   room: { hasSetup: boolean; roomFits: boolean; aisleFits: boolean },
 ): Check[] {
-  const checks: Check[] = [];
-  if (presence.hasRig && rig.overhang)
-    checks.push(
-      check(
-        'overhang',
-        'Pedals',
-        `Sticks out ${Math.ceil(rig.pedalEnd - s.length)} cm`,
-        'error',
-        'Lengthen the chassis or move the pedals back',
-      ),
-    );
-  if (presence.hasRig && rig.seatBackZ < 0)
-    checks.push(
-      check(
-        'seatback',
-        'Backrest',
-        `Sticks out ${Math.ceil(-rig.seatBackZ)} cm`,
-        'warning',
-        'The setup footprint includes this overhang',
-      ),
-    );
-  if (room.hasSetup && s.roomEnabled !== false)
-    checks.push(
-      room.roomFits
-        ? check(
-            'room',
-            'Side clearance',
-            room.aisleFits ? `${s.aisle} cm available` : 'Not enough',
-            room.aisleFits ? 'ok' : 'warning',
-            'A band free of furniture and door swings; does not check a way in',
-          )
-        : check(
-            'room',
-            'Available area',
-            'Outside the area',
-            'error',
-            'Move the items or adjust the origin and size of the area',
-          ),
-    );
-  if (presence.hasRig && s.centerStick && s.wheel && Math.abs(s.stickZ - s.wheelZ) < 24)
-    checks.push(
-      check(
-        'mode',
-        'Center controls',
-        'Check the mounting',
-        'warning',
-        'The stick and the wheel share the same space: fit one at a time',
-      ),
-    );
-  return checks;
+  if (!room.hasSetup || s.roomEnabled === false) return [];
+  return [
+    room.roomFits
+      ? check(
+          'room',
+          'Side clearance',
+          room.aisleFits ? `${s.aisle} cm available` : 'Not enough',
+          room.aisleFits ? 'ok' : 'warning',
+          'A band free of furniture and door swings; does not check a way in',
+        )
+      : check(
+          'room',
+          'Available area',
+          'Outside the area',
+          'error',
+          'Move the items or adjust the origin and size of the area',
+        ),
+  ];
 }
 
 export function evaluate(s: CockpitConfig) {
   const presence = presenceOf(s);
-  const { hasRig, hasDesk, hasMonitor } = presence;
-  const design = resolveAssembly(partsFromParametric(s));
-  const body = designPosture(design, s.height, rigLift(s));
-  const driving = drivingMount(s);
-  const rigPose = pose(s, 'cockpit');
-  const deskPose = pose(s, 'desk');
-  const rig = rigFootprint(s, presence, driving);
-  const { rigLeft, rigRight, lowerZ, upperZ } = rig;
+  const { hasDesk, hasMonitor } = presence;
+  const deskPose = deskPoseOf(s);
 
   const bounds = deskBounds(s);
   const deskLeft = -bounds.halfX;
@@ -643,7 +386,6 @@ export function evaluate(s: CockpitConfig) {
   const reach = Math.hypot(clampPoint.x - monitorPoint.x, clampPoint.z - monitorPoint.z);
   const lift = s.monitorH - s.deskH;
 
-  const rigPolygon = hasRig ? rectangle(rigLeft, rigRight, lowerZ, upperZ, rigPose) : [];
   const deskPolygon = hasDesk
     ? rectangle(-bounds.footprintHalfX, bounds.footprintHalfX, deskBack, deskFront, deskPose)
     : [];
@@ -655,7 +397,6 @@ export function evaluate(s: CockpitConfig) {
     : [];
   const desktopItems = getDesktopItems(s);
   const setupPoints: PlanPoint[] = [
-    ...rigPolygon,
     ...deskPolygon,
     ...monitorPolygon,
     ...desktopItems.flatMap((item) => item.polygon),
@@ -663,54 +404,22 @@ export function evaluate(s: CockpitConfig) {
   ];
   const hasSetup = setupPoints.length > 0;
   const extent = setupExtent(s, setupPoints);
-  const sideGap = hasRig && hasDesk ? polygonDistance(rigPolygon, deskPolygon) : 0;
-
-  const rigSolids = hasRig ? cockpitPartVolumes(design, rigPose) : [];
   const deskSolids = hasDesk ? deskVolumes(s, bounds, deskPose) : [];
-  const deskInterferences = findInterferences(rigSolids, deskSolids, RIG_DESK_CONTACT);
 
   const desktop = desktopLayout(desktopItems);
   const room = evaluateRoom(
     s,
-    setupObstacles(s, presence, {
-      rigSolids,
-      deskSolids,
-      desktopItems,
-      monitorPolygon,
-      monitorH,
-      monitor,
-    }),
+    setupObstacles(s, presence, { deskSolids, desktopItems, monitorPolygon, monitorH, monitor }),
   );
   const freeBand = findFreeBand(s, extent, hasSetup, room);
   const aisleFits = extent.roomFits && !!freeBand;
 
-  const bodyCheck = bodyChecks(s, body, presence, monitorPoint, rigPose);
-  const designCheck = hasRig ? cadChecks(design) : [];
-  const spaceCheck = spaceChecks(s, presence, {
-    sideGap,
-    deskInterferences,
-    armPose,
-    reach,
-    lift,
-    monitorH,
-  });
+  const spaceCheck = spaceChecks(s, presence, { armPose, reach, lift });
   const deskCheck = desktopChecks(s, presence, desktopItems, desktop, bounds);
-  const extra = otherChecks(s, presence, rig, { hasSetup, roomFits: extent.roomFits, aisleFits });
-  const checks = [
-    ...bodyCheck,
-    ...designCheck,
-    ...spaceCheck,
-    ...deskCheck,
-    ...extra,
-    ...room.checks,
-  ];
+  const extra = roomFitChecks(s, { hasSetup, roomFits: extent.roomFits, aisleFits });
+  const checks = [...spaceCheck, ...deskCheck, ...extra, ...room.checks];
 
   return {
-    /** The CAD parts the design converts to, resolved, for the drawing. */
-    design,
-    body: hasRig ? body : null,
-    bodyCheck,
-    designCheck,
     spaceCheck,
     desktopChecks: deskCheck,
     desktopItems,
@@ -720,8 +429,6 @@ export function evaluate(s: CockpitConfig) {
     checks,
     errors: checks.filter((c) => c.level === 'error').length,
     warnings: checks.filter((c) => c.level === 'warning').length,
-    rigLeft,
-    rigRight,
     deskLeft,
     deskRight,
     deskBack,
@@ -740,25 +447,19 @@ export function evaluate(s: CockpitConfig) {
     allFront: extent.allFront,
     freeW: extent.freeW,
     freeD: extent.freeD,
-    lowerZ,
-    upperZ,
-    sideGap,
-    rigPose,
     deskPose,
-    rigPolygon,
     deskPolygon,
     tabletopPolygon,
     deskBounds: bounds,
     monitorAngle,
     armPose,
-    drivingMount: driving,
-    deskInterferences,
     roomFits: extent.roomFits,
     roomBounds: extent.roomBounds,
     clearances: extent.clearances,
     aisleFits,
     freeBand,
     room,
-    ...getParts(s),
+    /** Desk accessories to buy. */
+    accessories: deskAccessories(s),
   };
 }

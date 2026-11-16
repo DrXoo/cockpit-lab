@@ -1,7 +1,7 @@
 // The desk: tabletop bounds, the arm anchor and the items placed on it. Lengths in cm.
 import { clamp, degToRad, rectangle, round, transformPoint } from './geometry.ts';
 import { defaults, type ClampSide, type CockpitConfig, type NumericField } from './config.ts';
-import { pose } from './layout.ts';
+import { deskPose } from './layout.ts';
 
 export type DesktopItemId = 'arm' | 'keyboard' | 'pc' | 'mouse' | 'mat';
 type DesktopPrefix = 'clamp' | 'keyboard' | 'pc' | 'mouse' | 'mat';
@@ -86,8 +86,8 @@ export function getDesktopItems(s: CockpitConfig, { includeInactive = false } = 
           angle: angleOf(s, target.prefix),
         },
         localPolygon = rectangle(-sizeX / 2, sizeX / 2, -sizeZ / 2, sizeZ / 2, local),
-        world = transformPoint(local, pose(s, 'desk')),
-        polygon = localPolygon.map((p) => transformPoint(p, pose(s, 'desk'))),
+        world = transformPoint(local, deskPose(s)),
+        polygon = localPolygon.map((p) => transformPoint(p, deskPose(s))),
         outside = localPolygon.some(
           (p) => Math.abs(p.x) > bounds.halfX + 0.01 || Math.abs(p.z) > bounds.halfZ + 0.01,
         );

@@ -1,4 +1,4 @@
-// Configurator settings: ranges, defaults, presets and validation of saved data. Lengths in cm.
+// Room settings: ranges, defaults and validation of saved data. Lengths in cm.
 import { clamp } from './geometry.ts';
 import { normalizeRoom, type FurnitureItem, type RoomFeature } from './room.ts';
 import { readArmPoses, type ArmPose } from './arm-poses.ts';
@@ -6,26 +6,8 @@ import { readArmPoses, type ArmPose } from './arm-poses.ts';
 /** Allowed range of a numeric setting: [min, max, step]. */
 export type FieldRange = readonly [min: number, max: number, step: number];
 
-// Coordinate system in cm: X lateral, Y from floor, Z from rear chassis edge.
+// Coordinate system in cm: X lateral, Y up from the floor, Z forward.
 export const fields = {
-  length: [125, 180, 1],
-  width: [58, 80, 1],
-  baseLift: [0, 50, 1],
-  seatZ: [30, 55, 1],
-  seatH: [24, 48, 1],
-  recline: [10, 35, 1],
-  height: [155, 200, 1],
-  wheelZ: [58, 105, 1],
-  wheelH: [48, 90, 1],
-  wheelTilt: [0, 30, 1],
-  pedalZ: [90, 162, 1],
-  pedalH: [10, 36, 1],
-  pedalTilt: [0, 35, 1],
-  hotasZ: [35, 82, 1],
-  hotasH: [38, 78, 1],
-  hotasOut: [8, 28, 1],
-  stickZ: [48, 90, 1],
-  stickH: [35, 66, 1],
   deskWidth: [120, 200, 5],
   deskDepth: [60, 80, 5],
   deskH: [66, 131, 0.5],
@@ -33,9 +15,6 @@ export const fields = {
   deskX: [-1500, 1500, 1],
   deskZ: [-1500, 1500, 1],
   deskAngle: [0, 355, 5],
-  cockpitX: [-1500, 1500, 1],
-  cockpitZ: [-1500, 1500, 1],
-  cockpitAngle: [0, 355, 5],
   armReach: [40, 120, 1],
   armSplit: [20, 80, 1],
   armBaseAngle: [-180, 180, 0.1],
@@ -43,7 +22,6 @@ export const fields = {
   monitorYaw: [-180, 180, 0.1],
   clampX: [-34, 34, 0.1],
   clampZ: [-94, 94, 0.1],
-  monitorAhead: [12, 55, 1],
   monitorH: [70, 140, 1],
   monitorInches: [24, 49, 1],
   armMinH: [5, 40, 1],
@@ -78,32 +56,19 @@ export const fields = {
 /** A numeric setting; every one has a range in `fields`. Lengths are in cm, angles in degrees. */
 export type NumericField = keyof typeof fields;
 
-export type DrivingSide = 'right' | 'left';
-export type Feet = 'level' | 'casters';
-export type MonitorMode = 'cockpit' | 'desk' | 'vr' | 'manual';
+export type MonitorMode = 'desk' | 'vr' | 'manual';
 export type ArmBend = 'positive' | 'negative';
 export type ClampMount = 'clamp' | 'grommet';
 export type ClampSide = 'xmin' | 'xmax' | 'zmin' | 'zmax';
-export type PresetId = 'gt' | 'flight' | 'hybrid' | 'small';
 
-/** The whole configurator state, as saved in project files (lengths in cm). */
+/** The settings of a room and its layouts, as saved in project files (lengths in cm). */
 export interface CockpitConfig extends Record<NumericField, number> {
   deskEnabled: boolean;
-  cockpitEnabled: boolean;
   monitorEnabled: boolean;
   keyboardEnabled: boolean;
   pcEnabled: boolean;
   mouseEnabled: boolean;
   matEnabled: boolean;
-  wheel: boolean;
-  hotas: boolean;
-  centerStick: boolean;
-  shifter: boolean;
-  handbrake: boolean;
-  /** The driver wears a VR headset. */
-  vrHeadset: boolean;
-  drivingSide: DrivingSide;
-  feet: Feet;
   armBend: ArmBend;
   clampMount: ClampMount;
   clampSide: ClampSide;
@@ -114,43 +79,15 @@ export interface CockpitConfig extends Record<NumericField, number> {
   roomFullWalls: boolean;
   roomFeatures: RoomFeature[];
   roomFurniture: FurnitureItem[];
-  preset: PresetId;
 }
 
 export const defaults: CockpitConfig = {
   deskEnabled: true,
-  cockpitEnabled: true,
   monitorEnabled: true,
   keyboardEnabled: true,
   pcEnabled: true,
   mouseEnabled: true,
   matEnabled: true,
-  length: 145,
-  width: 64,
-  baseLift: 0,
-  seatZ: 40,
-  seatH: 32,
-  recline: 20,
-  height: 178,
-  wheelZ: 74,
-  wheelH: 68,
-  wheelTilt: 15,
-  pedalZ: 118,
-  pedalH: 18,
-  pedalTilt: 18,
-  wheel: true,
-  hotas: false,
-  centerStick: false,
-  shifter: true,
-  handbrake: true,
-  vrHeadset: false,
-  drivingSide: 'right',
-  feet: 'level',
-  hotasZ: 53,
-  hotasH: 53,
-  hotasOut: 15,
-  stickZ: 68,
-  stickH: 48,
   deskWidth: 140,
   deskDepth: 80,
   deskH: 75,
@@ -158,9 +95,6 @@ export const defaults: CockpitConfig = {
   deskX: 102,
   deskZ: 95,
   deskAngle: 0,
-  cockpitX: 0,
-  cockpitZ: 0,
-  cockpitAngle: 0,
   armReach: 85,
   armSplit: 50,
   armBaseAngle: 0,
@@ -171,12 +105,11 @@ export const defaults: CockpitConfig = {
   clampZ: -15,
   clampMount: 'clamp',
   clampSide: 'xmin',
-  monitorAhead: 24,
   monitorH: 108,
   monitorInches: 34,
   armMinH: 5,
   armMaxH: 55,
-  monitorMode: 'cockpit',
+  monitorMode: 'desk',
   keyboardX: -23,
   keyboardZ: -16,
   keyboardAngle: 0,
@@ -207,164 +140,12 @@ export const defaults: CockpitConfig = {
   roomFurniture: [],
   armPoses: [],
   aisle: 60,
-  preset: 'gt',
-};
-/** Rig settings applied by a preset. */
-export type PresetValues = Pick<
-  CockpitConfig,
-  | 'length'
-  | 'width'
-  | 'seatZ'
-  | 'seatH'
-  | 'recline'
-  | 'wheelZ'
-  | 'wheelH'
-  | 'wheelTilt'
-  | 'pedalZ'
-  | 'pedalH'
-  | 'pedalTilt'
-  | 'wheel'
-  | 'hotas'
-  | 'centerStick'
-  | 'shifter'
-  | 'handbrake'
-  | 'vrHeadset'
-  | 'hotasZ'
-  | 'hotasH'
-  | 'hotasOut'
-  | 'stickZ'
-  | 'stickH'
->;
-
-export const presets: Record<
-  PresetId,
-  { label: string; description: string; values: PresetValues }
-> = {
-  gt: {
-    label: 'Compact GT',
-    description: 'Car seat, three pedals and controls within reach.',
-    values: {
-      length: 145,
-      width: 64,
-      seatZ: 40,
-      seatH: 32,
-      recline: 20,
-      wheelZ: 74,
-      wheelH: 68,
-      wheelTilt: 15,
-      pedalZ: 118,
-      pedalH: 18,
-      pedalTilt: 18,
-      wheel: true,
-      hotas: false,
-      centerStick: false,
-      shifter: true,
-      handbrake: true,
-      vrHeadset: false,
-      hotasZ: 53,
-      hotasH: 53,
-      hotasOut: 15,
-      stickZ: 68,
-      stickH: 48,
-    },
-  },
-  flight: {
-    label: 'VR flight',
-    description: 'Side HOTAS, low pedals and a clear front.',
-    values: {
-      length: 145,
-      width: 64,
-      seatZ: 40,
-      seatH: 36,
-      recline: 15,
-      wheelZ: 76,
-      wheelH: 72,
-      wheelTilt: 10,
-      pedalZ: 120,
-      pedalH: 12,
-      pedalTilt: 8,
-      wheel: false,
-      hotas: true,
-      centerStick: false,
-      shifter: false,
-      handbrake: false,
-      vrHeadset: true,
-      hotasZ: 55,
-      hotasH: 58,
-      hotasOut: 15,
-      stickZ: 68,
-      stickH: 48,
-    },
-  },
-  hybrid: {
-    label: 'GT + flight hybrid',
-    description: 'Wheel and side HOTAS on removable mounts.',
-    values: {
-      length: 150,
-      width: 66,
-      seatZ: 40,
-      seatH: 34,
-      recline: 20,
-      wheelZ: 76,
-      wheelH: 70,
-      wheelTilt: 15,
-      pedalZ: 120,
-      pedalH: 18,
-      pedalTilt: 15,
-      wheel: true,
-      hotas: true,
-      centerStick: false,
-      shifter: true,
-      handbrake: true,
-      vrHeadset: false,
-      hotasZ: 55,
-      hotasH: 57,
-      hotasOut: 16,
-      stickZ: 68,
-      stickH: 48,
-    },
-  },
-  small: {
-    label: 'Smallest footprint',
-    description: '130 cm base; no side controls, for easier access.',
-    values: {
-      length: 130,
-      width: 60,
-      seatZ: 35,
-      seatH: 32,
-      recline: 22,
-      wheelZ: 69,
-      wheelH: 68,
-      wheelTilt: 15,
-      pedalZ: 111,
-      pedalH: 19,
-      pedalTilt: 15,
-      wheel: true,
-      hotas: false,
-      centerStick: false,
-      shifter: false,
-      handbrake: false,
-      vrHeadset: false,
-      hotasZ: 50,
-      hotasH: 53,
-      hotasOut: 12,
-      stickZ: 63,
-      stickH: 48,
-    },
-  },
 };
 
 const BOOLEAN_SETTINGS = [
-  'wheel',
-  'hotas',
-  'centerStick',
-  'shifter',
-  'handbrake',
-  'vrHeadset',
   'roomEnabled',
   'roomFullWalls',
   'deskEnabled',
-  'cockpitEnabled',
   'monitorEnabled',
   'keyboardEnabled',
   'pcEnabled',
@@ -373,16 +154,21 @@ const BOOLEAN_SETTINGS = [
 ] as const;
 
 const CHOICE_SETTINGS = {
-  feet: ['level', 'casters'],
-  drivingSide: ['right', 'left'],
-  monitorMode: ['cockpit', 'desk', 'vr', 'manual'],
+  monitorMode: ['desk', 'vr', 'manual'],
   armBend: ['positive', 'negative'],
   clampMount: ['clamp', 'grommet'],
   clampSide: ['xmin', 'xmax', 'zmin', 'zmax'],
-  preset: Object.keys(presets),
-} satisfies { [K in keyof CockpitConfig]?: readonly CockpitConfig[K][] | string[] };
+} satisfies { [K in keyof CockpitConfig]?: readonly CockpitConfig[K][] };
 
 type ChoiceSetting = keyof typeof CHOICE_SETTINGS;
+
+/**
+ * The chassis width of the retired parametric cockpit, which the oldest files used to place the
+ * desk beside it.
+ */
+const EARLIEST_CHASSIS_WIDTH_CM = { min: 58, max: 80, defaultCm: 64 };
+/** How far those files put the desk's center from the edge of its gap to the chassis. */
+const DESK_CENTER_FROM_EDGE_CM = 40;
 
 /** The values a choice setting accepts, or undefined when `key` is not a choice setting. */
 export const choiceOptions = (key: string): readonly string[] | undefined =>
@@ -397,12 +183,15 @@ export function sanitize(input: unknown): CockpitConfig {
     throw new Error('Invalid configuration');
   const raw = input as Record<string, unknown>;
   const s: CockpitConfig = { ...defaults };
-  // Preserve earlier configurations whose desktop position was implicit.
-  if (!('deskX' in raw))
-    s.deskX =
-      (typeof raw.width === 'number' ? clamp(raw.width, 58, 80) : defaults.width) / 2 +
-      (typeof raw.deskGap === 'number' ? clamp(raw.deskGap, 0, 80) : defaults.deskGap) +
-      40;
+  // Earlier configurations put the desk beside the chassis of the retired parametric cockpit.
+  if (!('deskX' in raw)) {
+    const { min, max, defaultCm } = EARLIEST_CHASSIS_WIDTH_CM;
+    const chassisWidth = typeof raw.width === 'number' ? clamp(raw.width, min, max) : defaultCm;
+    const [gapMin, gapMax] = fields.deskGap;
+    const gap =
+      typeof raw.deskGap === 'number' ? clamp(raw.deskGap, gapMin, gapMax) : defaults.deskGap;
+    s.deskX = chassisWidth / 2 + gap + DESK_CENTER_FROM_EDGE_CM;
+  }
   for (const key of Object.keys(fields) as NumericField[]) {
     if (!(key in raw)) continue;
     const value = raw[key];

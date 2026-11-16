@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { designFromBase } from '../src/cockpit-design.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { partsFromParametric } from '../src/cad/from-parametric.ts';
 import { CAD_CONTACT_MM, cockpitInterferences } from '../src/cad/interference.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
@@ -61,19 +59,4 @@ test('a tilted profile is checked exactly against an upright one, not by its bou
   const [interference] = found([tilted, post]);
   assert.equal(interference.otherName, 'Bar post');
   assert.ok(interference.depthMm > 0);
-});
-
-test('a converted design reports where its parametric drawing crosses parts', () => {
-  const design = { ...designFromBase('gt'), wheel: true };
-  const pairs = cockpitInterferences(resolveAssembly(partsFromParametric(design))).map(
-    ({ partId, otherId }) => `${partId} / ${otherId}`,
-  );
-  assert.ok(
-    pairs.includes('pedal-deck-rail-right / pedal-deck-crossmember-rear'),
-    pairs.join('\n'),
-  );
-  assert.ok(
-    !pairs.some((pair) => pair.includes('base-crossmember-rear / base-rail')),
-    pairs.join('\n'),
-  );
 });

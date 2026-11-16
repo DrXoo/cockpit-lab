@@ -1,6 +1,5 @@
 // Approximate seated posture in the cockpit's side plane, from average body proportions.
 import { clamp, degToRad } from './geometry.ts';
-import type { CockpitConfig } from './config.ts';
 
 /** A point in the cockpit's side (sagittal) plane: Z forward, Y up. */
 export interface SidePoint {
@@ -40,18 +39,6 @@ export interface Driver {
   /** The backrest's angle back from upright. */
   reclineDeg: number;
 }
-
-/** The contact points of a parametric design, from its settings. */
-export function parametricContacts(s: CockpitConfig): Contacts {
-  return {
-    hip: { z: s.seatZ, y: s.seatH + 4 },
-    heel: { z: s.pedalZ - 5, y: s.pedalH + 8 },
-    hands: { z: s.wheelZ - 2, y: s.wheelH + 1 },
-  };
-}
-
-export const anatomy = (s: CockpitConfig) =>
-  postureFrom({ heightCm: s.height, reclineDeg: s.recline }, parametricContacts(s));
 
 /** The seated posture that follows from the driver and the points where the design meets them. */
 export function postureFrom(driver: Driver, contacts: Contacts) {

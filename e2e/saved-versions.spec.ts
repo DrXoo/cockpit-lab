@@ -1,37 +1,70 @@
+import type { Page } from '@playwright/test';
 import { test, expect, openApp, readFixture, getState, getSavedProject } from './support.ts';
 import { projectConfig, projectData, readProject } from '../src/project.ts';
 
-const V3_STORAGE_KEY = 'cockpit-lab-v3';
+/** The settings of a parametric cockpit, as versions before v5 saved it. */
+const PARAMETRIC_COCKPIT = { length: 145, width: 64, seatH: 32, preset: 'gt' };
 
-/** The gt-room design as the previous version saved it: v3, the design among the shared settings. */
+const fixtureFile = () => projectData(readProject(readFixture('gt-room.json')).project);
+
+/** The gt-room project as v4 saved it, with a parametric cockpit the room includes. */
+function savedByVersion4(): string {
+  const { room, ...file } = fixtureFile();
+  return JSON.stringify({
+    ...file,
+    version: 4,
+    cockpit: PARAMETRIC_COCKPIT,
+    room: { ...room, shared: { ...room.shared, cockpitEnabled: true } },
+  });
+}
+
+/** The gt-room project as v3 saved it: the parametric cockpit among the shared settings. */
 function savedByVersion3(): string {
-  const current = projectData(readProject(readFixture('gt-room.json')));
-  const { room, cockpit, ...file } = current;
+  const { room, cockpit, ...file } = fixtureFile();
   return JSON.stringify({
     ...file,
     ...room,
     version: 3,
-    shared: { ...room.shared, ...cockpit, cockpitEnabled: cockpit !== null },
+    shared: { ...room.shared, ...PARAMETRIC_COCKPIT, cockpitEnabled: true },
   });
 }
 
-test('a design saved by the previous version opens, and is saved anew without touching it', async ({
-  page,
-}) => {
-  const saved = savedByVersion3();
+/** Seeds the browser storage once, as an earlier version left it. */
+async function seed(page: Page, key: string, text: string) {
   await page.addInitScript(
-    ([key, text]) => {
+    ([storageKey, saved]) => {
       if (sessionStorage.getItem('seeded')) return;
-      localStorage.setItem(key, text);
+      localStorage.setItem(storageKey, saved);
       sessionStorage.setItem('seeded', 'yes');
     },
-    [V3_STORAGE_KEY, saved],
+    [key, text],
   );
-  await openApp(page);
-  expect(await getState(page)).toEqual(projectConfig(readProject(JSON.parse(saved))));
+}
 
-  await page.reload();
-  expect((await getSavedProject(page)).version).toBe(4);
-  expect(await getState(page)).toEqual(projectConfig(readProject(JSON.parse(saved))));
-  expect(await page.evaluate((key) => localStorage.getItem(key), V3_STORAGE_KEY)).toBe(saved);
-});
+const readKey = (page: Page, key: string) =>
+  page.evaluate((storageKey) => localStorage.getItem(storageKey), key);
+
+for (const [version, key, saved] of [
+  [4, 'cockpit-lab-v4', savedByVersion4],
+  [3, 'cockpit-lab-v3', savedByVersion3],
+] as const)
+  test(`a v${version} save opens with its room, without its cockpit, and stays untouched`, async ({
+    page,
+  }) => {
+    const text = saved();
+    const expected = projectConfig(readProject(JSON.parse(text)).project);
+    await seed(page, key, text);
+    await openApp(page);
+    const dialog = page.locator('#leftOutCockpitDialog');
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('#leftOutCockpitKept')).toBeVisible();
+    await dialog.locator('[data-close]').last().click();
+    expect(await getState(page)).toEqual(expected);
+
+    await page.reload();
+    expect((await getSavedProject(page)).version).toBe(5);
+    expect((await getSavedProject(page)).cockpit).toBeNull();
+    await expect(page.locator('#leftOutCockpitDialog')).toBeHidden();
+    expect(await getState(page)).toEqual(expected);
+    expect(await readKey(page, key)).toBe(text);
+  });

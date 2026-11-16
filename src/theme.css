@@ -48,7 +48,6 @@
   --error-border: #e9d5c9;
 
   /* Legend swatches and scene labels that stand for parts of the 3D scene. */
-  --legend-frame: #a5ada0;
   --legend-desk: #c0a87d;
   --opening: #46717c;
   --opening-border: #bad0d3;
@@ -112,7 +111,6 @@
     --error-surface: #33201c;
     --error-border: #5b3129;
 
-    --legend-frame: #a5ada0;
     --legend-desk: #c0a87d;
     --opening: #86bccb;
     --opening-border: #3c5a62;

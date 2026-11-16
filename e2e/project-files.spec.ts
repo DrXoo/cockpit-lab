@@ -5,37 +5,34 @@ import {
   openApp,
   importProject,
   getState,
-  getEvaluation,
   getSavedProject,
   readFixture,
   activeLayoutConfig,
 } from './support.ts';
 
-test('importing a v2 project restores its configuration and survives a reload', async ({
-  page,
-}) => {
+test('importing a project restores its configuration and survives a reload', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
-  // A v2 file has no saved arm poses and predates the VR headset, so it opens without either.
-  const expected = { ...readFixture('gt-room.json').config, armPoses: [], vrHeadset: false };
+  const expected = activeLayoutConfig(readFixture('gt-room.json'));
   expect(await getState(page)).toEqual(expected);
   await page.reload();
   expect(await getState(page)).toEqual(expected);
 });
 
-test('a v1 file opens with a desk and a cockpit, as earlier projects always had', async ({
+test('a v1 file opens with its desk and room, and says its cockpit was left out', async ({
   page,
 }) => {
   await openApp(page);
-  await importProject(page, 'legacy-v1.json');
-  expect(await getState(page)).toMatchObject({
-    deskEnabled: true,
-    cockpitEnabled: true,
-    length: 150,
-    width: 66,
-    preset: 'hybrid',
-  });
-  expect((await getSavedProject(page)).version).toBe(4);
+  await page.locator('#importFile').setInputFiles('e2e/fixtures/legacy-v1.json');
+  const dialog = page.locator('#leftOutCockpitDialog');
+  await expect(dialog).toBeVisible();
+  // Imported from a file: there is no copy of an earlier version in this browser to mention.
+  await expect(page.locator('#leftOutCockpitKept')).toBeHidden();
+  await dialog.locator('[data-close]').last().click();
+  await expect(dialog).toBeHidden();
+  expect(await getState(page)).toMatchObject({ deskEnabled: true, roomW: 300, roomD: 300 });
+  await expect.poll(async () => (await getSavedProject(page))?.version).toBe(5);
+  expect((await getSavedProject(page)).cockpit).toBeNull();
 });
 
 test('a file from another program is rejected and the project is kept', async ({ page }) => {
@@ -51,7 +48,7 @@ test('a file from another program is rejected and the project is kept', async ({
   expect(await getState(page)).toEqual(before);
 });
 
-test('exporting JSON writes the current project as a v4 file', async ({ page }) => {
+test('exporting JSON writes the current project as a v5 file', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'flight-lifted.json');
   const [download] = await Promise.all([
@@ -59,37 +56,9 @@ test('exporting JSON writes the current project as a v4 file', async ({ page }) 
     page.locator('#saveConfig').click(),
   ]);
   const file = JSON.parse(await readFile(await download.path(), 'utf8'));
-  expect(file).toMatchObject({ app: 'Cockpit Lab', version: 4, units: 'cm' });
+  expect(file).toMatchObject({ app: 'Cockpit Lab', version: 5, units: 'cm', cockpit: null });
   expect(activeLayoutConfig(file)).toEqual(await getState(page));
   expect(file.setup.step).toBe('complete');
-});
-
-test('the cut list CSV has one row per part and accessory', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'gt-room.json');
-  await page.locator('#openSummary').click();
-  await expect(page.locator('#summaryDialog')).toBeVisible();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.locator('#csvBtn').click(),
-  ]);
-  const csv = await readFile(await download.path(), 'utf8');
-  const { parts, accessories } = await getEvaluation(page);
-  expect(csv.charCodeAt(0), 'UTF-8 byte order mark').toBe(0xfeff);
-  expect(csv.split('\r\n')).toHaveLength(3 + parts.length + accessories.length);
-});
-
-test('choosing a base applies its cockpit settings', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'gt-room.json');
-  await page.locator('#cockpitEditor').click();
-  await page.locator('#preset').selectOption('small');
-  expect(await getState(page)).toMatchObject({
-    preset: 'small',
-    length: 130,
-    width: 60,
-    shifter: false,
-  });
 });
 
 test('a new project, once confirmed, restarts the guided setup', async ({ page }) => {
@@ -98,10 +67,6 @@ test('a new project, once confirmed, restarts the guided setup', async ({ page }
   await page.locator('#newProject').click();
   await page.locator('#newProjectRoom').click();
   await expect(page.locator('body')).toHaveAttribute('data-guided', 'true');
-  expect(await getState(page)).toMatchObject({
-    roomEnabled: false,
-    deskEnabled: false,
-    cockpitEnabled: false,
-  });
+  expect(await getState(page)).toMatchObject({ roomEnabled: false, deskEnabled: false });
   expect((await getSavedProject(page)).setup.step).toBe('room');
 });

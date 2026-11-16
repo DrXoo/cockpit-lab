@@ -1,10 +1,9 @@
 // Camera framing: what each view looks at and how much of the plan it shows.
 import type { CockpitConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad, transformPoint, type PlanPoint, type Point3 } from './geometry.ts';
-import { rigLift } from './rig.ts';
+import { degToRad, type PlanPoint, type Point3 } from './geometry.ts';
 
-export type SceneView = 'iso' | 'top' | 'desk' | 'side';
+export type SceneView = 'iso' | 'top' | 'desk';
 
 /** Plan extent of everything drawn, in world cm. */
 export interface SceneBounds {
@@ -37,14 +36,11 @@ const FALLBACK_CM = {
   spanZ: 280,
   deskDepth: 80,
   deskWidth: 140,
-  length: 145,
   spaceW: 180,
   spaceD: 165,
 };
 /** Distance from the target to the camera; far enough for an orthographic camera. */
 const CAMERA_DISTANCE_CM = 650;
-/** Height of the point the side view looks at. */
-const SIDE_TARGET_HEIGHT_CM = 62;
 /** Height of the point the 3D view looks at. */
 const ISO_TARGET_HEIGHT_CM = 37;
 /** Offsets of the 3D camera from its target. */
@@ -83,8 +79,6 @@ export function viewHeight(view: SceneView, aspect: number, framing: Framing | n
       ((s?.deskWidth || FALLBACK_CM.deskWidth) + 40) / aspect,
     );
   if (view === 'top') return Math.max(spanZ + 60, (spanX + 60) / aspect);
-  if (view === 'side')
-    return Math.max(205 + 2 * rigLift(s ?? {}), ((s?.length || FALLBACK_CM.length) + 50) / aspect);
   // The diagonal projection must also fit the width of a portrait screen.
   return Math.max(
     245,
@@ -95,12 +89,9 @@ export function viewHeight(view: SceneView, aspect: number, framing: Framing | n
   );
 }
 
-function viewCenter(view: SceneView, { state: s, evaluation: e, bounds }: Framing) {
-  if (view === 'top' || view === 'iso')
-    return { x: (bounds.left + bounds.right) / 2, z: (bounds.back + bounds.front) / 2 };
+function viewCenter(view: SceneView, { state: s, bounds }: Framing) {
   if (view === 'desk') return { x: s.deskX, z: s.deskZ };
-  const p = transformPoint({ x: 0, z: s.length / 2 }, e.rigPose);
-  return { x: p.x, z: p.z };
+  return { x: (bounds.left + bounds.right) / 2, z: (bounds.back + bounds.front) / 2 };
 }
 
 export function cameraPose(view: SceneView, framing: Framing): CameraPose {
@@ -124,20 +115,6 @@ export function cameraPose(view: SceneView, framing: Framing): CameraPose {
       rotate: false,
       polar: PLAN_POLAR_RAD,
     };
-  if (view === 'side') {
-    const angle = degToRad(s.cockpitAngle);
-    return {
-      target: { x: center.x, y: SIDE_TARGET_HEIGHT_CM, z: center.z },
-      position: {
-        x: center.x - CAMERA_DISTANCE_CM * Math.cos(angle),
-        y: SIDE_TARGET_HEIGHT_CM,
-        z: center.z + CAMERA_DISTANCE_CM * Math.sin(angle),
-      },
-      up: { x: 0, y: 1, z: 0 },
-      rotate: false,
-      polar: PLAN_POLAR_RAD,
-    };
-  }
   return {
     target: { x: center.x, y: ISO_TARGET_HEIGHT_CM, z: center.z },
     position: {

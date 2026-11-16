@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { designFromBase } from '../src/cockpit-design.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { partsFromParametric } from '../src/cad/from-parametric.ts';
 import { cadChecks } from '../src/cad-checks.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
@@ -62,11 +60,4 @@ test('unsupported parts are one warning listing their names', () => {
   assert.equal(check.level, 'warning');
   assert.equal(check.value, '1');
   assert.deepEqual(check.items, ['Floating post']);
-});
-
-test('peripherals and plates are named among unsupported parts, feet never are', () => {
-  const check = checksFor(partsFromParametric(designFromBase('gt')))['cad-support'];
-  assert.ok(check.items.includes('Seat'));
-  assert.ok(check.items.includes('Pedal plate'));
-  assert.ok(!check.items.some((name) => name.startsWith('Foot')));
 });

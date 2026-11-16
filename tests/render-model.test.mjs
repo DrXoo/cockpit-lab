@@ -7,9 +7,8 @@ import { degToRad } from '../src/geometry.ts';
 
 const options = {
   view: 'iso',
-  person: false,
   layoutEditing: false,
-  layoutTarget: 'cockpit',
+  layoutTarget: 'desk',
   roomFloor: '#e5e9dd',
 };
 const render = (changes = {}, extra = {}) => {
@@ -19,11 +18,9 @@ const render = (changes = {}, extra = {}) => {
 const topGroups = (model) =>
   model.primitives.filter((p) => p.kind === 'group' && p.parent === ROOT);
 
-test('the rig and the desk are drawn in their own placement', () => {
-  const { state, model } = render({ cockpitAngle: 30, deskAngle: -15 });
-  const [rig, , desk] = topGroups(model);
-  assert.deepEqual(rig.position, [state.cockpitX, 0, state.cockpitZ]);
-  assert.equal(rig.rotation[1], degToRad(30));
+test('the desk is drawn in its own placement', () => {
+  const { state, model } = render({ deskAngle: -15 });
+  const [, desk] = topGroups(model);
   assert.deepEqual(desk.position, [state.deskX, 0, state.deskZ]);
   assert.equal(desk.rotation[1], degToRad(-15));
 });
@@ -34,7 +31,7 @@ test('all measurements share one group that can be hidden without rebuilding', (
   assert.equal(groups.length, 1);
   const dimensions = groups[0].id;
   const measured = model.primitives.filter((p) => p.kind === 'group' && p.parent === dimensions);
-  assert.ok(measured.length >= 2, 'rig and desk measurements');
+  assert.ok(measured.length >= 2, 'desk and room measurements');
 });
 
 test('a hidden room is still a group, so the views can rely on it', () => {

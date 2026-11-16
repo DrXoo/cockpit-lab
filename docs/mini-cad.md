@@ -52,7 +52,7 @@ The code is TypeScript; interface and geometry libraries will be chosen in a sep
 
 ## The retired parametric cockpit
 
-The earlier configurator described a cockpit by its main dimensions. Stage 1 converted it into parts as a read-only view; [ADR 0004](adr/0004-retire-the-parametric-cockpit-without-converting-it.md) retires it instead of migrating it. Project files that hold one open with their room only; the cockpit is designed again from parts.
+The earlier configurator described a cockpit by its main dimensions. Stage 1 converted it into parts as a read-only view; [ADR 0004](adr/0004-retire-the-parametric-cockpit-without-converting-it.md) retired it instead of migrating it, and stage 2 deleted it with its conversion. Project files that hold one open with their room only; the cockpit is designed again from parts.
 
 ## Stages and acceptance criteria
 
@@ -75,6 +75,8 @@ Built in slices, each usable in the browser when it lands:
 5. **The whole history.** The history marker to step back and insert, removing a part, deleting an operation, and failed operations marked with text and a symbol.
 6. **Assembly.** Join two parts that only touch, add and remove connectors at each joint (a new joint has none; a quick action puts two corner brackets along the part it meets), feet under profiles, the checks (interference, unsupported parts, pending joints, failed operations) and the parts to buy.
 7. **Measure.** The selected part shows its length in the view; a measure tool gives the gap between two facing faces, or the X, Y and Z offsets between two clicked points. Measurements are not saved.
+
+Slice 1 was done in November 2026. The project file is v5 and the browser saves it under a new key, `cockpit-lab-v5`; the copy an earlier version saved stays under its own key, untouched, which is how the first save over a v4 project leaves it aside. A project has no cockpit design (`null`) until it gets one, from a cockpit file for now; an empty design is `{ "units": "mm", "history": [] }`, and a history with an operation this version doesn't know is rejected. The room settings that placed the cockpit in each layout, and the monitor position in front of it, were deleted with the parametric cockpit; older files are read without them. The side view and the driver went with the rig drawing, and the cut list export with the cuts; slice 2 brings back the views the editor needs, and slice 6 the parts to buy.
 
 The editor shows the history on the left, the view with its tools in the middle (3D, top and side, all of them for picking) and the inspector with the checks and the parts to buy on the right. Editing needs a wide screen; on a phone the design can be looked at.
 

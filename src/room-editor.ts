@@ -46,13 +46,12 @@ export function roomValue(
 ): string | number | undefined {
   const item = roomItem(s, target);
   if (!item) {
-    // Without an item, the target is the desk or the cockpit.
-    const placed = target as 'desk' | 'cockpit';
+    // Without an item, the target is the desk.
     return key === 'x'
-      ? round(s[`${placed}X`] - s.roomX)
+      ? round(s.deskX - s.roomX)
       : key === 'z'
-        ? round(s[`${placed}Z`] - s.roomZ)
-        : s[`${placed}Angle`];
+        ? round(s.deskZ - s.roomZ)
+        : s.deskAngle;
   }
   if (key === 'x') return round((item as { x: number }).x - s.roomX);
   if (key === 'z') return round((item as { z: number }).z - s.roomZ);
@@ -86,7 +85,6 @@ export function roomControls(
   const items = roomItems(s, mode);
   const choices = [
     ...(mode === 'all' && s.deskEnabled !== false ? ['desk'] : []),
-    ...(mode === 'all' && s.cockpitEnabled !== false ? ['cockpit'] : []),
     ...items.map(roomTarget),
   ];
   const active = choices.includes(target) ? target : choices[0],
@@ -109,7 +107,7 @@ export function roomControls(
           range('roomD', 'Wall BC depth') +
           range('roomH', 'Ceiling height') +
           toggle('roomFullWalls', 'Show full-height walls in 3D') +
-          `<details class="room-reference"><summary>Reference and walkway</summary>${range('roomX', 'Room X origin') + range('roomZ', 'Room Z origin') + range('aisle', 'Desired side clearance')}<p class="layout-hint">Changing the origin moves the walls. The desk, cockpit and furniture keep their positions.</p></details><div class="room-actions"><button id="roomFrame">Show the room in the plan</button><button id="roomCenter">Center the desk and cockpit</button></div>`,
+          `<details class="room-reference"><summary>Reference and walkway</summary>${range('roomX', 'Room X origin') + range('roomZ', 'Room Z origin') + range('aisle', 'Desired side clearance')}<p class="layout-hint">Changing the origin moves the walls. The desk and the furniture keep their positions.</p></details><div class="room-actions"><button id="roomFrame">Show the room in the plan</button><button id="roomCenter">Center the desk</button></div>`,
       )
     : '';
   const addTypes =
@@ -161,7 +159,7 @@ export function roomControls(
       num('width', 'Sliding door width', 30, frame.length) +
       num('height', 'Door height from the floor', 30, s.roomH, 0.5) +
       num('clearance', 'Clear space in front', 0, 200, 0.5) +
-      '<p class="layout-hint">Only the sliding door front and its access band are drawn. You do not need to measure the inside. The starting height matches the ceiling: adjust it to your doors. The space above stays available. Drag the front along the wall; change the wall in the selector. The band must stay clear of furniture, the desk and the cockpit. 0 cm turns the clearance off.</p>';
+      '<p class="layout-hint">Only the sliding door front and its access band are drawn. You do not need to measure the inside. The starting height matches the ceiling: adjust it to your doors. The space above stays available. Drag the front along the wall; change the wall in the selector. The band must stay clear of furniture and the desk. 0 cm turns the clearance off.</p>';
   } else if (item && isFeature(item)) {
     const frame = wallFrame(s, item.wall);
     editor +=
@@ -236,16 +234,13 @@ export function roomControls(
         num('x', 'X position from wall DA', -200, s.roomW + 200, 0.5) +
         num('z', 'Z position from wall AB', -200, s.roomD + 200, 0.5) +
         num('angle', 'Rotation in the plan', 0, 359, 1, '°') +
-        `<div class="rotate-actions"><button data-room-rotate="-90">↶ −90°</button><button data-room-rotate="90">+90° ↷</button></div><p class="layout-hint">${active === 'cockpit' ? 'Reference: the center of the rear end of the chassis.' : 'Reference: the center of the item.'} Drag in the plan or type the distances to the walls.</p>`;
+        `<div class="rotate-actions"><button data-room-rotate="-90">↶ −90°</button><button data-room-rotate="90">+90° ↷</button></div><p class="layout-hint">Reference: the center of the item. Drag in the plan or type the distances to the walls.</p>`;
   }
   if (item && hiddenFurniture && !isFeature(item))
     editor += '<button class="room-hide" id="roomHide">Hide in this layout</button>';
   if (item)
     editor += `<button class="room-delete" id="roomDelete">${layoutCount > 1 ? 'Delete from every layout' : 'Delete this item'}</button>`;
-  html += group(
-    item ? escapeHTML(item.name) : active === 'cockpit' ? 'Place the cockpit' : 'Place the desk',
-    editor,
-  );
+  html += group(item ? escapeHTML(item.name) : 'Place the desk', editor);
   html +=
     '<p class="control-hint">Walls A–B–C–D run clockwise from the top left corner. Bounds, furniture and door swings are checked with approximate envelopes. The side clearance does not guarantee a continuous way in.</p>';
   return html;

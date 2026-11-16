@@ -9,7 +9,7 @@ const setup = (changes = {}) => {
 };
 const pick = ({ state, evaluation }, floor, options = {}) =>
   pickLayoutItem(floor, { ...floor, y: state.deskH }, state, evaluation, {
-    layoutTarget: 'cockpit',
+    layoutTarget: 'desk',
     roomEditing: false,
     ...options,
   });
@@ -49,31 +49,18 @@ test('an empty spot on the desk picks the desk in world coordinates', () => {
   assert.deepEqual([grab.x, grab.z], [state.deskX, state.deskZ]);
 });
 
-test('the cockpit is picked inside its footprint, and nothing far away', () => {
-  const world = setup();
-  const { evaluation } = world;
-  const inside = transformPoint(
-    {
-      x: (evaluation.rigLeft + evaluation.rigRight) / 2,
-      z: (evaluation.lowerZ + evaluation.upperZ) / 2,
-    },
-    evaluation.rigPose,
-  );
-  assert.equal(pick(world, inside).target, 'cockpit');
-  assert.equal(pick(world, { x: 5000, z: 5000 }), null);
+test('nothing far from every item is picked', () => {
+  assert.equal(pick(setup(), { x: 5000, z: 5000 }), null);
 });
 
 test('disabled items cannot be picked', () => {
-  const world = setup({ cockpitEnabled: false });
-  const { evaluation } = setup();
-  const inside = transformPoint(
-    {
-      x: (evaluation.rigLeft + evaluation.rigRight) / 2,
-      z: (evaluation.lowerZ + evaluation.upperZ) / 2,
-    },
-    evaluation.rigPose,
+  const world = setup({ deskEnabled: false });
+  const { state, evaluation } = setup();
+  const corner = transformPoint(
+    { x: state.deskDepth / 2 - 2, z: -state.deskWidth / 2 + 2 },
+    evaluation.deskPose,
   );
-  assert.notEqual(pick(world, inside)?.target, 'cockpit');
+  assert.notEqual(pick(world, corner)?.target, 'desk');
 });
 
 test('while editing the room, furniture and openings are picked by their outline', () => {

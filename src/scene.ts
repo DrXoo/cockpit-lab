@@ -219,7 +219,6 @@ export class CockpitScene {
   declare resizeObserver: ResizeObserver;
   declare view: SceneView;
   declare dimensions: boolean;
-  declare person: boolean;
   declare layoutEditing: boolean;
   declare layoutTarget: string;
   declare roomEditing: boolean;
@@ -243,10 +242,9 @@ export class CockpitScene {
     this.container = container;
     this.labels = labels;
     this.dimensions = true;
-    this.person = false;
     this.view = 'iso';
     this.layoutEditing = false;
-    this.layoutTarget = 'cockpit';
+    this.layoutTarget = 'desk';
     this.roomEditing = false;
     this.s = null;
     this.e = null;
@@ -358,7 +356,6 @@ export class CockpitScene {
     this.scene.add(root);
     const model = renderModel(s, e, {
       view: this.view,
-      person: this.person,
       layoutEditing: this.layoutEditing,
       layoutTarget: this.layoutTarget,
       roomFloor: this.theme.roomFloor,
@@ -413,7 +410,7 @@ export class CockpitScene {
     this.redraw();
   }
 
-  setLayoutEditing(on: boolean, target = 'cockpit', roomEditing = false) {
+  setLayoutEditing(on: boolean, target = 'desk', roomEditing = false) {
     this.roomEditing = roomEditing;
     this.layoutEditing = on;
     this.layoutTarget = target;
@@ -426,11 +423,6 @@ export class CockpitScene {
     this.dimensions = on;
     if (this.dims) this.dims.visible = on;
     for (const item of this.labelItems) item.el.hidden = !on;
-  }
-
-  setPerson(on: boolean) {
-    this.person = on;
-    this.redraw();
   }
 
   /** The point under the pointer on the horizontal plane at `height`. */

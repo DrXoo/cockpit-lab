@@ -112,19 +112,7 @@
             >Duplicate this layout to try another arrangement and keep this one.</small
           >
         </div>
-        <div class="preset-area" hidden>
-          <label for="preset">Cockpit base</label>
-          <div class="select-wrap">
-            <i data-icon="wheel"></i
-            ><select id="preset" aria-describedby="presetDescription presetHint">
-              <option value="gt">Compact GT</option>
-              <option value="flight">VR flight</option>
-              <option value="hybrid">GT + flight hybrid</option>
-              <option value="small">Smallest footprint</option>
-            </select>
-          </div>
-          <p id="presetDescription">Car seat, three pedals and controls within reach.</p>
-          <small id="presetHint">Changing the base replaces the cockpit settings.</small>
+        <div class="cockpit-area" hidden>
           <div class="cockpit-file-actions">
             <button
               class="text-button"
@@ -171,41 +159,6 @@
           >
             Desk
           </button>
-          <button
-            id="tab-cockpit"
-            data-section="cockpit"
-            data-in-editor="room"
-            role="tab"
-            tabindex="-1"
-            aria-selected="false"
-            aria-controls="controls"
-          >
-            Cockpit
-          </button>
-          <button
-            id="tab-frame"
-            data-section="frame"
-            data-in-editor="cockpit"
-            role="tab"
-            tabindex="-1"
-            aria-selected="false"
-            aria-controls="controls"
-            hidden
-          >
-            Frame
-          </button>
-          <button
-            id="tab-posture"
-            data-section="posture"
-            data-in-editor="cockpit"
-            role="tab"
-            tabindex="-1"
-            aria-selected="false"
-            aria-controls="controls"
-            hidden
-          >
-            Posture
-          </button>
         </div>
         <div
           class="controls-scroll"
@@ -224,7 +177,7 @@
         <div class="config-footer">
           <div class="save-info">
             <span id="saveStatus" role="status">Saved automatically in this browser</span
-            ><small>Settings in cm · cuts in mm</small>
+            ><small>Room in cm · cockpit in mm</small>
           </div>
           <div class="file-actions">
             <button class="text-button" id="loadConfig" title="Open a JSON design file">
@@ -246,8 +199,7 @@
           <div class="view-tabs" role="group" aria-label="Camera view">
             <button class="active" data-view="iso" aria-pressed="true">3D</button
             ><button data-view="top" aria-pressed="false">Top</button
-            ><button data-view="desk" aria-pressed="false">Desk</button
-            ><button data-view="side" aria-pressed="false">Side</button>
+            ><button data-view="desk" aria-pressed="false">Desk</button>
           </div>
           <div class="scene-options">
             <button
@@ -265,14 +217,6 @@
               title="Dimensions"
             >
               <i data-icon="ruler"></i></button
-            ><button
-              class="icon-button"
-              id="personBtn"
-              aria-label="Show driver"
-              aria-pressed="false"
-              title="Driver"
-            >
-              <i data-icon="person"></i></button
             ><button class="icon-button" id="fitBtn" aria-label="Center the camera" title="Center">
               <i data-icon="expand"></i>
             </button>
@@ -284,7 +228,7 @@
             ><span id="emptySceneHint">Set up your room to start arranging it.</span>
           </div>
           <div class="scene-badge" hidden>
-            <span class="live-dot"></span><span id="sceneTitle">Compact GT</span
+            <span class="live-dot"></span><span id="sceneTitle">Your room</span
             ><span class="scene-badge-divider"></span><span>True scale</span>
           </div>
           <div id="webglFallback" hidden>
@@ -305,23 +249,15 @@
           </div>
         </div>
         <div class="scene-legend" hidden>
-          <span><b class="legend-frame"></b>40 × 80 profile</span
-          ><span><b class="legend-orange"></b>Adjustable mounts</span
-          ><span><b class="legend-desk"></b>Desk</span>
+          <span><b class="legend-desk"></b>Desk</span>
         </div>
         <div class="metrics" hidden>
           <div>
-            <span>COCKPIT FOOTPRINT</span
-            ><strong id="metricFootprint">145 <small>×</small> 64 <small>cm</small></strong
-            ><small id="metricWidthNote">Chassis · without accessories</small>
+            <span>ROOM</span><strong id="metricFootprint">—</strong><small>Inside dimensions</small>
           </div>
           <div>
             <span>SETUP FOOTPRINT</span><strong id="metricSpace">—</strong
-            ><small>Desk + cockpit, without walkway</small>
-          </div>
-          <div>
-            <span>ALUMINIUM PROFILE</span><strong id="metricProfiles">—</strong
-            ><small id="metricPieces">— cuts · 40 series</small>
+            ><small>Added items, without walkway</small>
           </div>
         </div>
       </section>
@@ -333,28 +269,14 @@
           <p id="setupGuideHint"></p>
         </div>
         <div class="validation-banner" id="validationBanner">
-          <span class="status-icon">✓</span>
+          <span class="status-icon">1</span>
           <div>
-            <strong>A good starting point</strong
-            ><small>Review the details before you build.</small>
+            <strong>Set up your space</strong><small>Checks appear as you add items.</small>
           </div>
         </div>
-        <section class="inspector-section">
-          <div class="section-line">
-            <h3><i data-icon="person"></i>Your posture</h3>
-            <span class="tag neutral" id="heightTag">178 cm</span>
-          </div>
-          <div id="ergonomics"></div>
-          <button class="subtle-link" id="adjustBody">
-            Adjust seat and controls <span>→</span>
-          </button>
-        </section>
-        <section class="inspector-section" id="designInspector">
-          <div class="section-line">
-            <h3><i data-icon="frame"></i>Frame and parts</h3>
-          </div>
-          <div id="designChecks"></div>
-        </section>
+        <p class="control-hint" id="cockpitChecksNote" hidden>
+          The checks of the cockpit design appear once it has parts.
+        </p>
         <section class="inspector-section">
           <div class="section-line">
             <h3><i data-icon="desk"></i>Desk and monitor</h3>
@@ -366,8 +288,7 @@
             <div class="meter"><span id="reachMeter"></span><b></b></div>
             <div class="meter-label"><span>Needed</span><span id="reachMax">Max. 85 cm</span></div>
           </div>
-          <button class="subtle-link" id="editArmBtn">
-            Pose the arm / bring it to the cockpit <span>→</span></button
+          <button class="subtle-link" id="editArmBtn">Pose the arm <span>→</span></button
           ><button class="subtle-link" id="adjustDesk">Adjust the layout <span>→</span></button>
         </section>
         <section class="inspector-section" id="roomInspector">
@@ -436,8 +357,8 @@
           </button>
         </div>
         <p id="layoutNameDescription" class="layout-name-description">
-          The copy shares the room, the furniture, the desk and the cockpit. Moving things in it
-          leaves the original as it is.
+          The copy shares the room, the furniture and the desk. Moving things in it leaves the
+          original as it is.
         </p>
         <div class="layout-name-field">
           <label for="layoutName">Layout name</label>
@@ -465,8 +386,8 @@
         </button>
       </div>
       <p id="deleteLayoutDescription">
-        Only this arrangement is deleted. The room, the furniture, the desk, the cockpit and the
-        other layouts stay as they are.
+        Only this arrangement is deleted. The room, the furniture, the desk and the other layouts
+        stay as they are.
       </p>
       <div class="dialog-actions">
         <button class="button button-light" data-close="deleteLayoutDialog" autofocus>
@@ -514,8 +435,8 @@
         </button>
       </div>
       <p id="replaceCockpitDescription">
-        The cockpit file takes the place of this project's design, here and in every layout of the
-        room. Export a cockpit file first to keep the current design.
+        The cockpit file takes the place of this project's design. Export a cockpit file first to
+        keep the current design.
       </p>
       <div class="dialog-actions">
         <button class="button button-light" data-close="replaceCockpitDialog" autofocus>
@@ -523,13 +444,39 @@
         ><button class="button button-dark" id="confirmReplaceCockpit">Replace design</button>
       </div>
     </dialog>
+    <dialog
+      id="leftOutCockpitDialog"
+      class="reset-dialog"
+      aria-labelledby="leftOutCockpitTitle"
+      aria-describedby="leftOutCockpitDescription"
+    >
+      <div class="dialog-header">
+        <h2 id="leftOutCockpitTitle">The cockpit was left out</h2>
+        <button class="icon-button" data-close="leftOutCockpitDialog" aria-label="Close message">
+          <i data-icon="close"></i>
+        </button>
+      </div>
+      <p id="leftOutCockpitDescription">
+        This project held a cockpit of the earlier configurator, which is retired and not converted.
+        The room, its layouts and the desk opened as they were. Design the cockpit again from parts
+        in the Cockpit editor.
+        <span id="leftOutCockpitKept"
+          >The copy saved by the earlier version stays in this browser, untouched.</span
+        >
+      </p>
+      <div class="dialog-actions">
+        <button class="button button-dark" data-close="leftOutCockpitDialog" autofocus>
+          Continue
+        </button>
+      </div>
+    </dialog>
     <input type="file" id="importFile" accept=".json,application/json" hidden />
     <input type="file" id="importCockpitFile" accept=".json,application/json" hidden />
     <dialog id="summaryDialog" class="summary-dialog" aria-labelledby="summaryTitle">
       <div class="dialog-header">
         <div>
-          <span class="section-kicker">03 / FROM DESIGN TO WORKSHOP</span>
-          <h2 id="summaryTitle">Your cockpit, piece by piece<span>.</span></h2>
+          <span class="section-kicker">YOUR SPACE</span>
+          <h2 id="summaryTitle">Project summary</h2>
         </div>
         <button class="icon-button" data-close="summaryDialog" aria-label="Close summary">
           <i data-icon="close"></i>
@@ -538,13 +485,9 @@
       <div id="summaryContent"></div>
       <div class="dialog-actions">
         <button class="text-button" id="importBtn"><i data-icon="upload"></i>Load a design</button>
-        <div>
-          <button class="button button-light" id="csvBtn">
-            <i data-icon="download"></i>CSV list</button
-          ><button class="button button-dark" id="printBtn">
-            <i data-icon="print"></i>Print / PDF
-          </button>
-        </div>
+        <button class="button button-dark" id="printBtn">
+          <i data-icon="print"></i>Print / PDF
+        </button>
       </div>
     </dialog>
     <dialog id="helpDialog" class="help-dialog">
@@ -584,17 +527,12 @@
           </p>
         </li>
         <li>
-          <b>Design the cockpit</b>
+          <b>Arrange and design</b>
           <p>
-            Open the Cockpit editor at the top and choose GT, flight, hybrid or smallest footprint.
-            Adjust the frame and the posture there, with the cockpit on its own: you don't need a
-            room to design it. In Aluminium base, the lift raises the seat, wheel, pedals and
-            controls together without changing your posture. Heights are measured from the floor and
-            include that lift; seat, pedal and control positions are measured from the rear end of
-            the chassis. In the Room editor, the Cockpit section adds the design to the room and
-            then only places it; every layout shows the same design at its own position. Arrange
-            turns on dragging in the plan. In Desk, with the monitor and arm on, you can set or drag
-            the ELBOW and VESA joints.
+            Arrange turns on dragging in the plan. In Desk, with the monitor and arm on, you can set
+            or drag the ELBOW and VESA joints. The Cockpit editor at the top designs the cockpit on
+            its own, from aluminium profiles, plates and peripherals; it is being rebuilt, and a new
+            design starts empty. Cockpits of the earlier configurator are not converted.
           </p>
         </li>
         <li>
@@ -602,17 +540,15 @@
           <p>
             You can go back to the steps you visited without losing anything, or leave openings and
             furniture for later. Progress and half-filled forms are saved. When you finish, the room
-            editor opens with the Room, Furniture, Desk and Cockpit sections. Export a JSON file to
-            keep a copy or move the project to another device; the CSV and the summary only include
-            the items you added.
+            editor opens with the Room, Furniture and Desk sections. Export a JSON file to keep a
+            copy or move the project to another device; the summary only includes the items you
+            added.
           </p>
         </li>
       </ol>
       <div class="method-note">
         <b>What is checked</b>
         <p>
-          A two-segment body model for legs and arms, with average proportions from your height. The
-          ranges are design guides you can adjust in practice, not a clinical assessment.
           Interference is checked approximately with oriented bounding volumes, along with the
           horizontal reach and the monitor height. The arm keeps the length of its two segments and
           lets the base, elbow and VESA mount turn in the plan. Loads, deflection, cabling,

@@ -36,7 +36,7 @@ test('an opening can be moved to another wall', async ({ page }) => {
   expect(window.wall).toBe('west');
 });
 
-test('centring moves the desk and the cockpit to the middle of the room', async ({ page }) => {
+test('centring moves the desk to the middle of the room', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
   await page.locator('#tab-room').click();

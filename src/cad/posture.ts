@@ -1,6 +1,6 @@
 // The driver's contact points in a CAD design, from the peripherals that carry them, in the
 // cockpit's side plane in cm as the posture model takes them.
-import { postureFrom, type Contacts, type SidePoint } from '../anatomy.ts';
+import type { SidePoint } from '../anatomy.ts';
 import { MM_PER_CM } from '../units.ts';
 import { contactPointsMm, type ContactRole, type ResolvedPart } from './assembly.ts';
 
@@ -44,20 +44,4 @@ export function cadContacts(resolved: ReadonlyMap<string, ResolvedPart>): CadCon
     hands: only('hands')?.point ?? null,
     reclineDeg: seat.kind === 'peripheral' ? (seat.backrestDeg ?? 0) : 0,
   };
-}
-
-/**
- * The driver's posture in a CAD design, measured from the top of the base as the posture model
- * and the drawing of the driver expect: the CAD's points are lowered by the base lift.
- */
-export function designPosture(
-  resolved: ReadonlyMap<string, ResolvedPart>,
-  heightCm: number,
-  baseLiftCm: number,
-) {
-  const contacts = cadContacts(resolved);
-  const aboveBase = (point: SidePoint): SidePoint => ({ z: point.z, y: point.y - baseLiftCm });
-  const points: Contacts = { hip: aboveBase(contacts.hip), heel: aboveBase(contacts.heel) };
-  if (contacts.hands) points.hands = aboveBase(contacts.hands);
-  return postureFrom({ heightCm, reclineDeg: contacts.reclineDeg }, points);
 }

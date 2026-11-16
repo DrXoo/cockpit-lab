@@ -1,10 +1,10 @@
 # Cockpit Lab
 
-Cockpit Lab is a web app for designing a compact DIY cockpit built from aluminium profiles. You can switch between sim racing and VR flight, and check how the rig fits next to your desk and inside your room.
+Cockpit Lab is a web app for designing a compact DIY cockpit built from aluminium profiles, for sim racing and VR flight, and for arranging the room it goes in.
 
 It runs entirely in your browser, with no accounts, servers or external services. Designs are saved locally and can be exported as JSON.
 
-> **Status:** the configurator below works today. The project is being turned into a **mini CAD for profiles, peripherals and custom plates**: precise parts, joints, cut lists and plate drawings. The CAD editor isn't implemented yet. The UI is still in Spanish and is being migrated to US English.
+> **Status:** the room editor works today. The cockpit is being rebuilt as a **mini CAD for profiles, peripherals and custom plates**: precise parts, joints, cut lists and plate drawings. The parametric cockpit of the earlier configurator is retired, and the cockpit editor starts empty until it can add parts (see [the staged plan](docs/mini-cad.md)).
 
 ## Getting started
 
@@ -38,28 +38,25 @@ npm run test:e2e  # end-to-end tests in Chrome (Playwright)
 npm run test:e2e:stress  # the screenshot tests, repeated under load, failures grouped by kind
 ```
 
-The end-to-end tests drive the real app in your installed Chrome: guided setup, opening and saving projects, presets, views and the summary. They also compare each view's rendering and the text of the panels with reference copies. Those references live in `e2e/__screenshots__/` and are not committed: the first run on a machine creates them, so create them before changing anything you want to check. After an intended change, review the differences and accept them with `npx playwright test --update-snapshots`.
+The end-to-end tests drive the real app in your installed Chrome: guided setup, opening and saving projects, cockpit files, views and the summary. They also compare each view's rendering and the text of the panels with reference copies. Those references live in `e2e/__screenshots__/` and are not committed: the first run on a machine creates them, so create them before changing anything you want to check. After an intended change, review the differences and accept them with `npx playwright test --update-snapshots`.
 
 The tests run as two Playwright projects. `functional` drives the app and checks its state, on every worker. `visual` compares screenshots (`page-appearance`, `rendering` and `theme`) on three workers at most, because screenshots render WebGL in software and time out when they all compete for the CPU. `npm run test:e2e:stress` repeats the visual tests four times under load and lists every failure grouped by kind (screenshot differs, never stable, test or assertion timeout), with the diff images, in `e2e-stress-results/`. Run it before committing a new or changed screenshot test: a flaky screenshot shows up there instead of weeks later. Arguments replace the default selection, for example `npm run test:e2e:stress -- --project=functional --repeat-each=2`.
 
-The tests cover geometry, approximate ergonomics, the monitor arm, desk, room, doors, furniture, chair, project loading and the cut list export. UI changes also need a check in the browser.
+The tests cover geometry, the cockpit parts model, the monitor arm, desk, room, doors, furniture, chair and project loading. UI changes also need a check in the browser.
 
 ## Features
 
-- A cockpit editor that designs the cockpit on its own, and a room editor that places it in each layout.
-- Presets: GT, flight, hybrid and minimum footprint.
+- A cockpit editor that designs the cockpit on its own, as a design history in mm, and cockpit files to move a design between projects.
 - Guided room setup (room, openings, furniture and desk) that resumes where you left off.
-- Dimensions and positions of the seat, wheel, pedals and side mounts.
-- Cockpit base elevation from 0 to 50 cm, applied to the whole rig.
 - Adjustable desk with PC, keyboard, mouse and XL mouse pad.
-- Generic articulated monitor arm with desk, cockpit and VR positions.
+- Generic articulated monitor arm with desk and VR positions, and saved arm poses.
 - Rectangular room with doors, windows, furniture, wall shelves at a set mounting height, and an office chair.
 - Built-in sliding-door wardrobes with a clearance zone kept free in front of them.
-- 3D, plan, desk and side views, with drag-and-drop layout.
+- 3D, plan and desk views, with drag-and-drop layout.
 - Several layouts of the same room, to try another arrangement and compare it with the one you started from. Furniture can be left out of a single layout.
-- Approximate geometric checks, a summary, and JSON/CSV export.
+- Approximate geometric checks, a summary, and JSON export.
 
-These checks are approximate. They don't validate loads, stiffness or structural safety, and the current cut list is indicative only. Verify real measurements before building anything.
+These checks are approximate. They don't validate loads, stiffness or structural safety. Verify real measurements before building anything.
 
 ## Project structure
 
@@ -74,22 +71,22 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/user-text.ts` | Cleaning names typed by users |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |
-| `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls; the frame and posture panels of the cockpit editor; the desk and cockpit placement panels of the room editor |
+| `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the desk panel of the room editor |
+| `src/cockpit-design.ts`, `src/cockpit-editor-view.ts` | The cockpit design as its design history, and the cockpit editor while the design has no parts |
+| `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, joints, support, interference, cuts and parts to buy, their checks and their drawing |
 | `src/project-summary.ts`, `src/inspector-view.ts`, `src/check-view.ts`, `src/html.ts` | Summary, validation banner, metrics and checks |
-| `src/cut-list-csv.ts` | Cut list CSV export |
-| `src/model.ts` | Public entry point of the configurator model |
-| `src/config.ts` | Settings, ranges, defaults, presets and validation |
-| `src/evaluate.ts` | Envelopes, interferences and checks for a configuration |
+| `src/model.ts` | Public entry point of the room model |
+| `src/config.ts` | Room settings, ranges, defaults and validation |
+| `src/evaluate.ts` | Envelopes, interferences and checks for a room configuration |
 | `src/interference.ts` | How far two volumes overlap and which part reaches into which item |
-| `src/rig.ts`, `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Cockpit rig, placement, desk, monitor arm and seated posture |
+| `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Desk placement, desk, monitor arm and the seated posture model |
 | `src/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
-| `src/cockpit-design.ts` | Which settings make up the cockpit design, kept apart from the room, and the design shown on its own |
-| `src/parts.ts`, `src/field-spec.ts` | Bill of materials and per-setting ranges |
+| `src/parts.ts`, `src/field-spec.ts` | Desk accessories to buy and per-setting ranges |
 | `src/geometry.ts`, `src/units.ts`, `src/checks.ts` | Plan geometry, cm/mm units and the check type |
 | `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
 | `src/scene.ts` | Three.js scene, labels and interaction, with an SVG fallback |
 | `src/render-model.ts`, `src/render-list.ts` | Render model: what the scene draws, as plain data in drawing order |
-| `src/render-rig.ts`, `src/render-desk.ts`, `src/render-room.ts`, `src/render-profile.ts` | Drawings of the rig, desk and monitor, room and aluminium profiles |
+| `src/render-desk.ts`, `src/render-room.ts`, `src/render-profile.ts` | Drawings of the desk and monitor, the room and aluminium profiles |
 | `src/render-annotations.ts` | Measurements, labels and the selection outline |
 | `src/three-adapter.ts` | Turns the render model into Three.js objects |
 | `src/scene-camera.ts`, `src/layout-picking.ts` | Camera framing for each view, and what a drag in the plan grabs |
@@ -111,7 +108,7 @@ New code is written test-first (TDD), following Clean Code and pragmatic SOLID. 
 
 ## Saved designs
 
-Projects are stored in the browser's `localStorage` under `cockpit-lab-v4`, and can be exported and imported as JSON v4 with explicit units (cm). A v4 file keeps the cockpit design apart from the room and its layouts. Older v1, v2 and v3 files, and designs saved under `cockpit-lab-v1`, `cockpit-lab-v2` or `cockpit-lab-v3`, still load and are left as they were. A saved design that can't be read is kept under a key of its own instead of being overwritten, and the app offers it for download. See [guided setup and the save format](docs/guided-setup.md).
+Projects are stored in the browser's `localStorage` under `cockpit-lab-v5`, and can be exported and imported as JSON v5 with explicit units: the room in cm, and the cockpit design apart from it as its design history in mm. Older v1 to v4 files, and designs saved under `cockpit-lab-v1` to `cockpit-lab-v4`, still open with their room and are left as they were; a parametric cockpit they hold is retired and left out, with a message. A saved design that can't be read is kept under a key of its own instead of being overwritten, and the app offers it for download. See [guided setup and the save format](docs/guided-setup.md).
 
 Browser storage is tied to the origin (host and port), so a design saved on one port doesn't appear on another. Export it to JSON to move it. Keep personal design files in `configuraciones-personales/`, which Git ignores.
 

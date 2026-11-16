@@ -1,12 +1,10 @@
 // Layouts: alternative arrangements of one room. What exists is shared by every layout: the
 // room and its openings, each piece of furniture and its size, the desk and its accessories,
 // and the monitor arm's hardware. Each layout stores only where things are, and which pieces of
-// furniture it leaves out. The cockpit design is not part of the room: the project holds it.
-// Once the room includes it, every layout places that same design.
+// furniture it leaves out. The cockpit design is not part of the room: the project holds it,
+// and until the mini CAD is complete no room includes it (docs/adr/0004).
 import type { CockpitConfig } from './config.ts';
-import { placeCockpit, roomOf, type CockpitDesign, type RoomConfig } from './cockpit-design.ts';
 import { resizeDesk } from './desk.ts';
-import { transformPoint } from './geometry.ts';
 import {
   normalizeRoom,
   type Chair,
@@ -22,9 +20,6 @@ const LAYOUT_SETTING_KEYS = [
   'deskX',
   'deskZ',
   'deskAngle',
-  'cockpitX',
-  'cockpitZ',
-  'cockpitAngle',
   'keyboardX',
   'keyboardZ',
   'keyboardAngle',
@@ -46,7 +41,6 @@ const LAYOUT_SETTING_KEYS = [
   'armElbowAngle',
   'armBend',
   'monitorYaw',
-  'monitorAhead',
   'monitorH',
   'armPoses',
 ] as const satisfies readonly (keyof CockpitConfig)[];
@@ -83,7 +77,7 @@ export type FurnitureSpec =
   | Omit<FloorFurniture, 'x' | 'z' | 'angle'>;
 
 /** Every room setting that is not a layout setting, with the furniture as specs. */
-export type SharedSettings = Omit<RoomConfig, keyof LayoutSettings | 'roomFurniture'> & {
+export type SharedSettings = Omit<CockpitConfig, keyof LayoutSettings | 'roomFurniture'> & {
   roomFurniture: FurnitureSpec[];
 };
 
@@ -136,9 +130,6 @@ function splitSettings(config: CockpitConfig): {
     deskX,
     deskZ,
     deskAngle,
-    cockpitX,
-    cockpitZ,
-    cockpitAngle,
     keyboardX,
     keyboardZ,
     keyboardAngle,
@@ -160,21 +151,17 @@ function splitSettings(config: CockpitConfig): {
     armElbowAngle,
     armBend,
     monitorYaw,
-    monitorAhead,
     monitorH,
     armPoses,
     roomFurniture,
     ...shared
-  } = roomOf(config);
+  } = config;
   return {
     shared: { ...shared, roomFurniture: roomFurniture.map(specOf) },
     settings: {
       deskX,
       deskZ,
       deskAngle,
-      cockpitX,
-      cockpitZ,
-      cockpitAngle,
       keyboardX,
       keyboardZ,
       keyboardAngle,
@@ -196,7 +183,6 @@ function splitSettings(config: CockpitConfig): {
       armElbowAngle,
       armBend,
       monitorYaw,
-      monitorAhead,
       monitorH,
       armPoses,
     },
@@ -259,13 +245,11 @@ export const activeLayout = (library: LayoutLibrary): Layout =>
   layoutById(library, library.activeLayoutId);
 
 /**
- * The configuration of a layout: the shared settings with the layout's placements, and the
- * project's cockpit design, or none, placed in it. Shared changes made in another layout, such as
- * a smaller room or desk, are fitted here.
+ * The configuration of a layout: the shared settings with the layout's placements. Shared
+ * changes made in another layout, such as a smaller room or desk, are fitted here.
  */
 export function layoutConfig(
   library: LayoutLibrary,
-  cockpit: CockpitDesign | null,
   layoutId: string = library.activeLayoutId,
 ): CockpitConfig {
   const layout = layoutById(library, layoutId);
@@ -273,15 +257,14 @@ export function layoutConfig(
   const roomFurniture = library.shared.roomFurniture
     .filter((spec) => !hidden.has(spec.id))
     .map((spec) => ({ ...spec, ...layout.furniture[spec.id] }));
-  const room = normalizeRoom({ ...library.shared, ...layout.settings, roomFurniture });
-  const config = placeCockpit(room, cockpit);
+  const config = normalizeRoom({ ...library.shared, ...layout.settings, roomFurniture });
   return resizeDesk(config, config.deskWidth, config.deskDepth);
 }
 
 /**
- * Stores an edited configuration of the active layout. Its cockpit design is left out: the
- * project keeps it. Placements go to the active layout and everything else is shared: furniture added here appears in every layout where it was
- * created, and furniture deleted here is deleted from every layout.
+ * Stores an edited configuration of the active layout. Placements go to the active layout and
+ * everything else is shared: furniture added here appears in every layout where it was created,
+ * and furniture deleted here is deleted from every layout.
  */
 export function recordLayout(library: LayoutLibrary, config: CockpitConfig): LayoutLibrary {
   const active = activeLayout(library);
@@ -316,54 +299,6 @@ export function recordLayout(library: LayoutLibrary, config: CockpitConfig): Lay
   }));
   return { ...library, shared: { ...shared, roomFurniture }, layouts };
 }
-
-/** Whether the whole chassis stands inside the room, where this layout places the cockpit. */
-function chassisFits(shared: SharedSettings, settings: LayoutSettings, cockpit: CockpitDesign) {
-  const placement = { x: settings.cockpitX, z: settings.cockpitZ, angle: settings.cockpitAngle };
-  // The chassis runs forward from its rear end, which is centred on the placement.
-  const halfWidth = cockpit.width / 2;
-  return [
-    { x: -halfWidth, z: 0 },
-    { x: halfWidth, z: 0 },
-    { x: -halfWidth, z: cockpit.length },
-    { x: halfWidth, z: cockpit.length },
-  ]
-    .map((corner) => transformPoint(corner, placement))
-    .every(
-      ({ x, z }) =>
-        x >= shared.roomX &&
-        x <= shared.roomX + shared.roomW &&
-        z >= shared.roomZ &&
-        z <= shared.roomZ + shared.roomD,
-    );
-}
-
-/**
- * Adds the project's cockpit design to the room, in every layout. A layout keeps where it put
- * the cockpit before if the chassis fits in the room there; otherwise the cockpit is centred.
- */
-export function includeCockpit(library: LayoutLibrary, cockpit: CockpitDesign): LayoutLibrary {
-  const { shared } = library;
-  const centred = {
-    cockpitX: shared.roomX + shared.roomW / 2,
-    cockpitZ: shared.roomZ + Math.max(0, (shared.roomD - cockpit.length) / 2),
-  };
-  return {
-    ...library,
-    shared: { ...shared, cockpitEnabled: true },
-    layouts: library.layouts.map((layout) =>
-      chassisFits(shared, layout.settings, cockpit)
-        ? layout
-        : { ...layout, settings: { ...layout.settings, ...centred } },
-    ),
-  };
-}
-
-/** Leaves the cockpit design out of the room. Each layout keeps its placement for its return. */
-export const leaveOutCockpit = (library: LayoutLibrary): LayoutLibrary => ({
-  ...library,
-  shared: { ...library.shared, cockpitEnabled: false },
-});
 
 function nextLayoutId(library: LayoutLibrary): string {
   const numbers = library.layouts.map((layout) =>

@@ -2,17 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   defaults,
-  presets,
   evaluate,
-  getParts,
+  deskAccessories,
   sanitize,
-  solveJoint,
-  pose,
+  deskPose,
   transformPoint,
   inversePoint,
   rectangle,
   overlapDepth,
-  layoutPreset,
   getDesktopItems,
   placeDeskItem,
   updateDeskItem,
@@ -25,65 +22,18 @@ import {
   setMonitorMode,
   editArm,
   moveArmJoint,
-  drivingMount,
 } from '../src/model.ts';
+import { solveJoint } from '../src/anatomy.ts';
 
-test('The initial GT preset has reachable limbs, a reachable monitor and fits the zone', () => {
+test('The default room has a reachable monitor, nothing to fix and room to walk', () => {
   const e = evaluate(defaults);
   assert.equal(e.errors, 0);
-  // The only warnings are the parts its parametric drawing leaves crossing or unsupported.
-  assert.deepEqual(
-    e.checks.filter((check) => check.level === 'warning').map((check) => check.id),
-    ['cad-interference', 'cad-support'],
-  );
-  assert.ok(e.body.legs.reachable);
-  assert.ok(e.body.hands.arms.reachable);
   assert.ok(e.reach < defaults.armReach);
   assert.ok(e.freeW > defaults.aisle);
 });
-test('All presets produce finite positive cut lengths and no blocking error', () => {
-  for (const preset of Object.values(presets)) {
-    const e = evaluate({ ...defaults, ...preset.values });
-    assert.equal(e.errors, 0, preset.label);
-    for (const p of e.parts) {
-      assert.ok(Number.isFinite(p.mm) && p.mm > 0);
-      assert.equal(p.total, p.mm * p.qty);
-    }
-  }
-});
-test('Cut list totals and exterior-to-interior widths are consistent', () => {
-  const e = getParts(defaults);
+test('Room and arm problems are actionable errors', () => {
   assert.equal(
-    e.totalMm,
-    e.parts.reduce((a, p) => a + p.mm * p.qty, 0),
-  );
-  assert.equal(
-    e.cuts,
-    e.parts.reduce((a, p) => a + p.qty, 0),
-  );
-  assert.equal(e.parts.find((p) => p.name.includes('Base crossmember, rear')).mm, 560);
-  const longer = getParts({ ...defaults, length: 155 });
-  assert.equal(longer.totalMm - e.totalMm, 200);
-  const wider = getParts({ ...defaults, width: 70 });
-  assert.equal(wider.totalMm - e.totalMm, 480);
-});
-test('Flight removes wheel structure and adds HOTAS hardware', () => {
-  const e = getParts({ ...defaults, ...presets.flight.values });
-  assert.ok(!e.parts.some((p) => p.name.includes('volante')));
-  assert.ok(e.parts.some((p) => p.name.includes('HOTAS')));
-  assert.ok(e.accessories.some((p) => p.name.includes('HOTAS')));
-});
-test('Unreachable limbs, pedal overhang, room and arm problems are actionable errors', () => {
-  assert.equal(
-    evaluate({ ...defaults, pedalZ: 162 }).checks.find((c) => c.id === 'knee').level,
-    'error',
-  );
-  assert.equal(
-    evaluate({ ...defaults, pedalZ: 162 }).checks.find((c) => c.id === 'overhang').level,
-    'error',
-  );
-  assert.equal(
-    evaluate({ ...defaults, armReach: 40 }).checks.find((c) => c.id === 'arm').level,
+    evaluate({ ...defaults, armReach: 40, clampZ: -64 }).checks.find((c) => c.id === 'arm').level,
     'error',
   );
   assert.equal(
@@ -97,10 +47,6 @@ test('Unreachable limbs, pedal overhang, room and arm problems are actionable er
     'error',
   );
 });
-test('Side plate crossing the desktop is detected', () => {
-  const e = evaluate({ ...defaults, hotas: true, hotasH: 75, deskX: 72 });
-  assert.equal(e.checks.find((c) => c.id === 'collision').level, 'error');
-});
 test('VR parks over the desk but still validates the actual parked arm', () => {
   const e = evaluate({ ...defaults, monitorMode: 'vr', armReach: 40 });
   assert.equal(e.checks.find((c) => c.id === 'arm').level, 'ok');
@@ -112,19 +58,15 @@ test('VR parks over the desk but still validates the actual parked arm', () => {
     'error',
   );
 });
-test('Reclined seat envelope contributes to the full footprint', () => {
-  const e = evaluate({ ...defaults, seatZ: 30, recline: 35 });
-  assert.ok(e.lowerZ < 0);
-  assert.ok(e.checks.some((c) => c.id === 'seatback'));
-  assert.ok(e.spaceD > defaults.length);
-});
 test('Import validates types and clamps numeric values without injecting data', () => {
-  assert.equal(sanitize({ ...defaults, length: 999 }).length, 180);
-  assert.throws(() => sanitize({ ...defaults, length: '150' }));
-  assert.throws(() => sanitize({ ...defaults, wheel: 'true' }));
+  assert.equal(sanitize({ ...defaults, deskH: 999 }).deskH, 131);
+  assert.throws(() => sanitize({ ...defaults, deskH: '150' }));
+  assert.throws(() => sanitize({ ...defaults, deskEnabled: 'true' }));
   assert.throws(() => sanitize(null));
-  assert.throws(() => sanitize({ ...defaults, height: Infinity }));
-  assert.equal(sanitize({ ...defaults, monitorMode: '<script>' }).monitorMode, 'cockpit');
+  assert.throws(() => sanitize({ ...defaults, deskH: Infinity }));
+  assert.equal(sanitize({ ...defaults, monitorMode: '<script>' }).monitorMode, 'desk');
+  // The monitor faced the retired parametric cockpit; without it, it stays on the desk.
+  assert.equal(sanitize({ ...defaults, monitorMode: 'cockpit' }).monitorMode, 'desk');
 });
 test('Joint solver handles degenerate and extreme distances without NaN', () => {
   for (const b of [
@@ -154,31 +96,25 @@ test('Rotated rectangles use oriented intersection rather than their global boxe
   assert.equal(overlapDepth(a, b), 0);
   assert.ok(overlapDepth(a, a) > 0);
 });
-/** The same parts in the same order, with depths equal up to floating point noise. */
-function assertSameInterferences(actual, expected) {
-  const parts = (list) => list.map(({ part, item, axis }) => ({ part, item, axis }));
-  assert.deepEqual(parts(actual), parts(expected));
-  actual.forEach((interference, i) =>
-    assert.ok(Math.abs(interference.depthCm - expected[i].depthCm) < 1e-8),
-  );
-}
-test('Moving the desk changes reach, while moving both together preserves physical checks', () => {
+test('The monitor on the desk moves with it, and moving both with the room keeps the checks', () => {
   const before = evaluate(defaults),
     moved = evaluate({ ...defaults, deskX: defaults.deskX + 80 });
-  assert.ok(moved.reach > before.reach + 50);
+  assert.ok(Math.abs(moved.reach - before.reach) < 1e-8);
+  assert.ok(Math.abs(moved.monitorPoint.x - before.monitorPoint.x - 80) < 1e-8);
   const translated = evaluate({
     ...defaults,
     deskX: 132,
     deskZ: 115,
-    cockpitX: 30,
-    cockpitZ: 20,
     roomX: -70,
     roomZ: -80,
   });
   assert.ok(Math.abs(translated.reach - before.reach) < 1e-8);
   assert.ok(Math.abs(translated.spaceW - before.spaceW) < 1e-8);
-  assertSameInterferences(translated.deskInterferences, before.deskInterferences);
   assert.equal(translated.roomFits, before.roomFits);
+  assert.deepEqual(
+    translated.checks.map((c) => [c.id, c.level]),
+    before.checks.map((c) => [c.id, c.level]),
+  );
 });
 test('Rotating the entire layout preserves reach and collisions while swapping its bounds', () => {
   const before = evaluate(defaults),
@@ -187,7 +123,6 @@ test('Rotating the entire layout preserves reach and collisions while swapping i
       deskX: 95,
       deskZ: -102,
       deskAngle: 90,
-      cockpitAngle: 90,
       roomX: -100,
       roomZ: -160,
       roomW: 280,
@@ -196,35 +131,22 @@ test('Rotating the entire layout preserves reach and collisions while swapping i
   assert.ok(Math.abs(before.reach - after.reach) < 1e-8);
   assert.ok(Math.abs(before.spaceW - after.spaceD) < 1e-8);
   assert.ok(Math.abs(before.spaceD - after.spaceW) < 1e-8);
-  assertSameInterferences(after.deskInterferences, before.deskInterferences);
   assert.equal(after.roomFits, true);
 });
 test('Room placement remains fixed when moving objects out of its boundaries', () => {
-  const s = { ...defaults, cockpitX: 250, deskX: 352 },
+  const s = { ...defaults, deskX: 352 },
     e = evaluate(s);
   assert.equal(e.roomFits, false);
   assert.equal(e.checks.find((c) => c.id === 'room').level, 'error');
-});
-test('Quick layouts are relative to the cockpit position and yaw', () => {
-  const s = { ...defaults, cockpitX: 100, cockpitZ: 80, cockpitAngle: 90 },
-    left = layoutPreset(s, 'left'),
-    right = layoutPreset(s, 'right');
-  assert.equal(left.deskAngle, 270);
-  assert.equal(right.deskAngle, 90);
-  assert.equal(left.cockpitX, 100);
-  assert.ok(left.deskZ > s.cockpitZ);
-  assert.ok(right.deskZ < s.cockpitZ);
 });
 test('Old saved configurations migrate their implicit desktop position', () => {
   const old = { ...defaults, width: 70, deskGap: 18, deskZ: 120 };
   delete old.deskX;
   delete old.deskAngle;
-  delete old.cockpitX;
   const s = sanitize(old);
   assert.equal(s.deskX, 93);
   assert.equal(s.deskZ, 120);
   assert.equal(s.deskAngle, 0);
-  assert.equal(s.cockpitX, 0);
   const restored = sanitize(JSON.parse(JSON.stringify(s)));
   assert.deepEqual(restored, s);
 });
@@ -245,10 +167,10 @@ test('Every desktop object follows the desktop translation and rotation', () => 
   const s = { ...defaults, deskX: -60, deskZ: 130, deskAngle: 90 },
     items = getDesktopItems(s);
   for (const item of items) {
-    const expected = transformPoint(item.local, pose(s, 'desk'));
+    const expected = transformPoint(item.local, deskPose(s));
     assert.ok(Math.abs(item.world.x - expected.x) < 1e-8);
     assert.ok(Math.abs(item.world.z - expected.z) < 1e-8);
-    const back = inversePoint(item.world, pose(s, 'desk'));
+    const back = inversePoint(item.world, deskPose(s));
     assert.ok(Math.abs(back.x - item.local.x) < 1e-8);
     assert.ok(Math.abs(back.z - item.local.z) < 1e-8);
   }
@@ -265,7 +187,6 @@ test('Peripheral movement and rotation stay inside the tabletop when the item fi
         item = getDesktopItems(moved).find((i) => i.id === id);
       if (item.sizeX <= 40 && item.sizeZ <= 60)
         assert.equal(item.outside, false, `${id} at ${angle}`);
-      assert.equal(moved.cockpitX, defaults.cockpitX);
       assert.equal(moved.deskAngle, defaults.deskAngle);
     }
   const moved = placeDeskItem(defaults, 'keyboard', 0, 20);
@@ -294,7 +215,7 @@ test('Moving the clamp changes reach without moving the screen or the keyboard',
   const before = evaluate(defaults),
     s = placeDeskItem(defaults, 'arm', 34, 0),
     after = evaluate(s);
-  assert.ok(Math.abs(after.reach - before.reach) > 20);
+  assert.ok(Math.abs(after.reach - before.reach) > 10);
   assert.deepEqual(after.monitorPoint, before.monitorPoint);
   assert.equal(s.keyboardX, defaults.keyboardX);
   assert.equal(s.deskX, defaults.deskX);
@@ -315,10 +236,7 @@ test('Sizing, saved state migration and JSON round trips preserve accessory para
   assert.equal(updated.keyboardAngle, 90);
   const wide = updateDeskItem(defaults, 'matWidth', 120);
   assert.equal(wide.matWidth, 120);
-  assert.equal(getParts(wide).totalMm, getParts(defaults).totalMm);
-  assert.ok(
-    getParts(wide).accessories.some((i) => i.name === 'XL desk mat' && i.note.includes('120')),
-  );
+  assert.ok(deskAccessories(wide).some((i) => i.name === 'XL desk mat' && i.note.includes('120')));
   const old = { ...defaults };
   for (const k of [
     'clampX',
@@ -354,7 +272,6 @@ test('Table sizes 120 by 80 and 140 by 60 have independent physical bounds', () 
     assert.equal(s.deskDepth, depth);
     assert.equal(Math.max(...local.map((p) => p.x)) - Math.min(...local.map((p) => p.x)), depth);
     assert.equal(Math.max(...local.map((p) => p.z)) - Math.min(...local.map((p) => p.z)), width);
-    assert.equal(getParts(s).totalMm, getParts(defaults).totalMm);
   }
 });
 test('Smaller tabletops refit object positions while preserving their size and the room layout', () => {
@@ -415,10 +332,11 @@ test('Table size changes persist and old configurations keep the initial tableto
   assert.throws(() => sanitize({ ...defaults, deskWidth: '120' }));
 });
 
-test('Two-link arm keeps both segment lengths and reaches the automatic cockpit target', () => {
+test('Two-link arm keeps both segment lengths and reaches the automatic desk target', () => {
   for (const armSplit of [20, 50, 80])
     for (const armBend of ['positive', 'negative']) {
-      const s = { ...defaults, armSplit, armBend },
+      // Mounted at the end of the desk, the target is within reach of every split.
+      const s = { ...defaults, clampZ: -64, armSplit, armBend },
         e = evaluate(s),
         a = e.armPose;
       assert.ok(Math.abs(Math.hypot(a.elbow.x - a.base.x, a.elbow.z - a.base.z) - a.first) < 1e-8);
@@ -428,7 +346,7 @@ test('Two-link arm keeps both segment lengths and reaches the automatic cockpit 
     }
 });
 test('Switching to manual seeds the current joints and VESA angle without moving the monitor', () => {
-  for (const monitorMode of ['cockpit', 'desk', 'vr'])
+  for (const monitorMode of ['desk', 'vr'])
     for (const deskAngle of [0, 90, 225]) {
       const s = { ...defaults, monitorMode, deskAngle },
         g = monitorGeometry(s),
@@ -488,7 +406,7 @@ test('Unequal segments detect the minimum reach and both elbow branches keep the
     Math.hypot(a.armPose.end.x - b.armPose.end.x, a.armPose.end.z - b.armPose.end.z) < 1e-8,
   );
 });
-test('Manual arm follows its desk and anchor, returns to cockpit, and persists through old/new JSON', () => {
+test('Manual arm follows its desk and anchor, returns to the desk, and persists through old/new JSON', () => {
   const manual = {
       ...defaults,
       monitorMode: 'manual',
@@ -501,52 +419,16 @@ test('Manual arm follows its desk and anchor, returns to cockpit, and persists t
     moved = evaluate({ ...manual, deskX: manual.deskX + 30, deskZ: manual.deskZ + 15 });
   assert.ok(Math.abs(moved.monitorPoint.x - before.monitorPoint.x - 30) < 1e-8);
   assert.ok(Math.abs(moved.monitorPoint.z - before.monitorPoint.z - 15) < 1e-8);
-  const cockpit = evaluate(setMonitorMode(manual, 'cockpit')),
-    expected = transformPoint(
-      { x: 0, z: manual.wheelZ + manual.monitorAhead },
-      pose(manual, 'cockpit'),
-    );
-  assert.equal(cockpit.monitorPoint.x, expected.x);
-  assert.equal(cockpit.monitorPoint.z, expected.z);
+  const onDesk = evaluate(setMonitorMode(manual, 'desk')),
+    expected = transformPoint({ x: -10, z: 0 }, deskPose(manual));
+  assert.equal(onDesk.monitorPoint.x, expected.x);
+  assert.equal(onDesk.monitorPoint.z, expected.z);
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(manual))), manual);
   const old = { ...defaults };
   for (const key of ['armSplit', 'armBaseAngle', 'armElbowAngle', 'monitorYaw', 'armBend'])
     delete old[key];
   const restored = sanitize(old);
   assert.equal(restored.armSplit, 50);
-  assert.equal(restored.monitorMode, 'cockpit');
+  assert.equal(restored.monitorMode, 'desk');
   assert.equal(editArm(defaults, 'deskWidth', 120), defaults);
-});
-
-test('Shifter and handbrake default to the seated driver right at every cockpit yaw', () => {
-  for (const cockpitAngle of [0, 45, 90, 180, 270, 355]) {
-    const s = { ...defaults, cockpitX: 35, cockpitZ: 60, cockpitAngle },
-      placement = pose(s, 'cockpit'),
-      origin = transformPoint({ x: 0, z: 0 }, placement),
-      forward = transformPoint({ x: 0, z: 1 }, placement),
-      right = { x: -(forward.z - origin.z), z: forward.x - origin.x },
-      mount = transformPoint(drivingMount(s), placement);
-    assert.ok((mount.x - origin.x) * right.x + (mount.z - origin.z) * right.z > 0);
-  }
-  const right = evaluate(defaults),
-    left = evaluate({ ...defaults, drivingSide: 'left' });
-  assert.equal(right.rigLeft, -left.rigRight);
-  assert.equal(right.rigRight, -left.rigLeft);
-  assert.equal(right.rigRight - right.rigLeft, left.rigRight - left.rigLeft);
-});
-test('Side selection moves physical collision checks and survives old/new saved configurations', () => {
-  const s = { ...defaults, hotasH: 75, deskX: -72 };
-  assert.equal(evaluate(s).checks.find((c) => c.id === 'collision').level, 'error');
-  assert.equal(
-    evaluate({ ...s, drivingSide: 'left' }).checks.find((c) => c.id === 'collision').level,
-    'ok',
-  );
-  const old = { ...defaults };
-  delete old.drivingSide;
-  assert.equal(sanitize(old).drivingSide, 'right');
-  assert.equal(sanitize({ ...defaults, drivingSide: 'left' }).drivingSide, 'left');
-  assert.equal(sanitize({ ...defaults, drivingSide: 'invalid' }).drivingSide, 'right');
-  const rightParts = getParts(defaults),
-    leftParts = getParts({ ...defaults, drivingSide: 'left' });
-  assert.deepEqual(rightParts, leftParts);
 });

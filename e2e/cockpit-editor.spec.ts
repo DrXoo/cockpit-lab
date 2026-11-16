@@ -1,115 +1,37 @@
-import type { Page } from '@playwright/test';
-import { test, expect, openApp, importProject, getState, getSavedProject } from './support.ts';
+import { test, expect, openApp, importProject, getSavedProject } from './support.ts';
 
-// The cockpit design is edited on its own; the room only places it (docs/adr/0001).
+// The cockpit design is edited on its own (docs/adr/0001). Until the mini CAD is complete, no room
+// includes it, and a new design starts empty (docs/adr/0004).
 
-async function setNumber(page: Page, key: string, value: string) {
-  await page.locator(`#${key}-number`).fill(value);
-  await page.locator(`#${key}-number`).press('Enter');
-}
-
-test('the room only places the cockpit, and leads to its design', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'gt-room.json');
-  await page.locator('#tab-cockpit').click();
-  await expect(page.locator('#controls [data-key="cockpitX"]').first()).toBeVisible();
-  await expect(page.locator('#controls [data-key="length"]')).toHaveCount(0);
-
-  await page.locator('#editCockpitDesign').click();
-  await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#tab-frame')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#controls [data-key="length"]').first()).toBeVisible();
-  await expect(page.locator('#controls [data-key="cockpitX"]')).toHaveCount(0);
-});
-
-test('the cockpit editor shows the design alone, without layouts or room checks', async ({
-  page,
-}) => {
+test('the cockpit editor starts empty, without layouts or room checks', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
   await page.locator('#cockpitEditor').click();
+  await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#emptyDesign')).toBeVisible();
+  await expect(page.locator('#emptyScene')).toBeVisible();
+  await expect(page.locator('.config-tabs')).toBeHidden();
   await expect(page.locator('#layoutArea')).toBeHidden();
-  await expect(page.locator('#tab-room')).toBeHidden();
   await expect(page.locator('#layoutBtn')).toBeHidden();
-  await expect(page.locator('[data-view="desk"]')).toBeHidden();
   await expect(page.locator('#roomInspector')).toBeHidden();
-  await expect(page.locator('#deskSizeTag')).toBeHidden();
-  await expect(page.locator('#heightTag')).toBeVisible();
+  await expect(page.locator('#validationBanner')).toBeHidden();
+  await expect(page.locator('#cockpitChecksNote')).toBeVisible();
+  await expect(page.locator('#importCockpit')).toBeVisible();
+  await expect(page.locator('#exportCockpit')).toBeHidden();
 
   await page.locator('#roomEditor').click();
   await expect(page.locator('#layoutArea')).toBeVisible();
   await expect(page.locator('#roomInspector')).toBeVisible();
+  await expect(page.locator('#validationBanner')).toBeVisible();
 });
 
-test('a change to the design shows in every layout of the room', async ({ page }) => {
+test('the room editor has no cockpit to place', async ({ page }) => {
   await openApp(page);
   await importProject(page, 'gt-room.json');
-  await page.locator('#duplicateLayout').click();
-  await page.locator('#layoutName').fill('Second');
-  await page.locator('#confirmLayoutName').click();
-
-  await page.locator('#cockpitEditor').click();
-  await setNumber(page, 'length', '160');
-  await page.locator('#tab-posture').click();
-  await setNumber(page, 'height', '186');
-  await page.locator('#roomEditor').click();
-
-  for (const layout of ['layout-1', 'layout-2']) {
-    await page.locator('#layoutSelect').selectOption(layout);
-    const state = await getState(page);
-    expect([state.length, state.height]).toEqual([160, 186]);
-  }
-  await expect.poll(async () => (await getSavedProject(page)).cockpit?.length).toBe(160);
-});
-
-test('the room can leave the cockpit out and add it back where it was', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'gt-room.json');
-  await page.locator('#tab-cockpit').click();
-  const placed = await getState(page);
-
-  await page.locator('#leaveOutCockpit').click();
-  expect((await getState(page)).cockpitEnabled).toBe(false);
-  await expect(page.locator('#controls [data-key="cockpitX"]')).toHaveCount(0);
-  await expect.poll(async () => (await getSavedProject(page)).cockpit?.preset).toBe('gt');
-  await page.locator('#cockpitEditor').click();
-  await expect(page.locator('#preset')).toHaveValue('gt');
-  await page.locator('#roomEditor').click();
-
-  await page.locator('#includeCockpit').click();
-  const back = await getState(page);
-  expect([back.cockpitEnabled, back.cockpitX, back.cockpitZ]).toEqual([
-    true,
-    placed.cockpitX,
-    placed.cockpitZ,
-  ]);
-});
-
-test('a new design joins the room only when it is added', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'desk-only.json');
-  await page.locator('#tab-cockpit').click();
-  await page.locator('#editCockpitDesign').click();
-  await page.locator('#newDesignBase').selectOption('small');
-  await page.locator('#newDesignForm [type="submit"]').click();
-  await page.locator('#roomEditor').click();
-  await page.locator('#tab-cockpit').click();
-  expect((await getState(page)).cockpitEnabled).toBe(false);
-
-  await page.locator('#includeCockpit').click();
-  const state = await getState(page);
-  expect([state.cockpitEnabled, state.preset]).toEqual([true, 'small']);
-  expect(state.cockpitX).toBeGreaterThan(state.roomX);
-  expect(state.cockpitX).toBeLessThan(state.roomX + state.roomW);
-});
-
-test('the posture check opens the posture of the design', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'gt-room.json');
-  await page.locator('#adjustBody').click();
-  await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#tab-posture')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#controls [data-key="height"]').first()).toBeVisible();
+  await expect(page.locator('.config-tabs [data-section]')).toHaveCount(3);
+  await page.locator('#tab-desk').click();
+  await expect(page.locator('#layoutTargetSelect option[value="cockpit"]')).toHaveCount(0);
+  await expect(page.locator('#monitorPosition option[value="auto:cockpit"]')).toHaveCount(0);
 });
 
 test('a new project can start with the cockpit, leaving the room setup for later', async ({
@@ -120,7 +42,7 @@ test('a new project can start with the cockpit, leaving the room setup for later
   await page.locator('#newProject').click();
   await page.locator('#newProjectCockpit').click();
   await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#newDesignForm')).toBeVisible();
+  await expect(page.locator('#emptyDesign')).toBeVisible();
   await expect.poll(async () => (await getSavedProject(page)).cockpit).toBeNull();
   expect((await getSavedProject(page)).setup.step).toBe('room');
 
@@ -132,35 +54,5 @@ test('the first room step leads to the cockpit for those who only design one', a
   await openApp(page);
   await page.locator('#startWithCockpit').click();
   await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#newDesignForm')).toBeVisible();
-});
-
-test('a cockpit can be designed without a room, and opens where it is designed', async ({
-  page,
-}) => {
-  await openApp(page);
-  await page.locator('#cockpitEditor').click();
-  await expect(page.locator('#emptyScene')).toBeVisible();
-  await page.locator('#newDesignBase').selectOption('flight');
-  await page.locator('#newDesignForm [type="submit"]').click();
-  await expect(page.locator('#emptyScene')).toBeHidden();
-  const state = await getState(page);
-  expect([state.preset, state.roomEnabled]).toEqual(['flight', false]);
-
-  await expect.poll(async () => (await getSavedProject(page)).cockpit?.preset).toBe('flight');
-  await page.reload();
-  await expect(page.locator('#cockpitEditor')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#preset')).toHaveValue('flight');
-});
-
-test('the frame checks list the unsupported parts when opened', async ({ page }) => {
-  await openApp(page);
-  await importProject(page, 'gt-room.json');
-  await page.locator('#cockpitEditor').click();
-  const unsupported = page.locator('#designChecks [data-check="cad-support"]');
-  const parts = unsupported.getByRole('listitem');
-  await expect(parts.first()).toBeHidden();
-  await unsupported.locator('summary').click();
-  await expect(parts.first()).toBeVisible();
-  expect(await parts.count()).toBeGreaterThan(0);
+  await expect(page.locator('#emptyDesign')).toBeVisible();
 });

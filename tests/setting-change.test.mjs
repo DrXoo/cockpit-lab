@@ -1,15 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applySetting } from '../src/setting-change.ts';
-import { defaults, placeDeskItem, setRigHeight, editArm, resizeDesk } from '../src/model.ts';
-
-test('a rig height is set as measured from the floor', () => {
-  const lifted = { ...defaults, baseLift: 10 };
-  assert.deepEqual(
-    applySetting(lifted, { kind: 'number', key: 'seatH', value: 50 }),
-    setRigHeight(lifted, 'seatH', 50),
-  );
-});
+import { defaults, placeDeskItem, editArm, resizeDesk } from '../src/model.ts';
 
 test('resizing the desk keeps the desktop objects on it', () => {
   assert.deepEqual(
@@ -42,13 +34,13 @@ test('a monitor mode goes through the arm rules', () => {
 });
 
 test('other toggles and choices are set as they are', () => {
-  assert.deepEqual(applySetting(defaults, { kind: 'toggle', key: 'wheel', value: false }), {
+  assert.deepEqual(applySetting(defaults, { kind: 'toggle', key: 'roomFullWalls', value: true }), {
     ...defaults,
-    wheel: false,
+    roomFullWalls: true,
   });
-  assert.deepEqual(applySetting(defaults, { kind: 'choice', key: 'feet', value: 'casters' }), {
+  assert.deepEqual(applySetting(defaults, { kind: 'choice', key: 'armBend', value: 'negative' }), {
     ...defaults,
-    feet: 'casters',
+    armBend: 'negative',
   });
 });
 

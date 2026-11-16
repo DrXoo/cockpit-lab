@@ -1,12 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  framePanelHTML,
-  posturePanelHTML,
-  deskPanelHTML,
-  cockpitPlacementHTML,
-  newDesignHTML,
-} from '../src/settings-panels.ts';
+import { deskPanelHTML } from '../src/settings-panels.ts';
+import { emptyDesignHTML } from '../src/cockpit-editor-view.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import { saveArmPose, applyArmPose } from '../src/arm-poses.ts';
 
@@ -15,72 +10,6 @@ const viewOf = (overrides = {}) => {
   return { state, evaluation: evaluate(state) };
 };
 const keysIn = (html) => [...html.matchAll(/id="([a-zA-Z]+)-range"/g)].map((match) => match[1]);
-
-test('the frame panel sets the base, its lift, the modules and their mounts, not where the cockpit stands', () => {
-  const bare = { wheel: false, hotas: false, shifter: false, handbrake: false, centerStick: false };
-  const html = framePanelHTML(viewOf(bare));
-  assert.deepEqual(keysIn(html), ['length', 'width', 'baseLift', 'seatH', 'pedalH', 'pedalTilt']);
-  for (const key of ['wheel', 'hotas', 'centerStick', 'shifter', 'handbrake'])
-    assert.match(html, new RegExp(`type="checkbox" id="${key}"`));
-  assert.match(html, /<select id="drivingSide"/);
-  assert.match(html, /<select id="feet"/);
-});
-
-test('in the room the cockpit is only placed, with a way to its design and out', () => {
-  const html = cockpitPlacementHTML(viewOf({ preset: 'flight', length: 150, width: 66 }), true);
-  assert.deepEqual(keysIn(html), ['cockpitX', 'cockpitZ', 'cockpitAngle']);
-  assert.match(html, /VR flight/);
-  assert.match(html, /150 × 66 cm/);
-  assert.match(html, /<button[^>]*id="editCockpitDesign"/);
-  assert.match(html, /data-place="cockpit"/);
-  assert.match(html, /<button[^>]*id="leaveOutCockpit"/);
-  assert.doesNotMatch(html, /id="includeCockpit"/);
-});
-
-test('a room that leaves the design out offers to add it, with nothing to place yet', () => {
-  const html = cockpitPlacementHTML(viewOf({ cockpitEnabled: false, preset: 'flight' }), true);
-  assert.deepEqual(keysIn(html), []);
-  assert.match(html, /VR flight/);
-  assert.match(html, /<button[^>]*id="includeCockpit"/);
-  assert.match(html, /<button[^>]*id="editCockpitDesign"/);
-  assert.doesNotMatch(html, /id="leaveOutCockpit"/);
-});
-
-test('a project without a cockpit design offers to design one, with nothing to place', () => {
-  const html = cockpitPlacementHTML(viewOf({ cockpitEnabled: false }), false);
-  assert.deepEqual(keysIn(html), []);
-  assert.match(html, /<button[^>]*id="editCockpitDesign"[^>]*>Design a cockpit/);
-  assert.doesNotMatch(html, /id="includeCockpit"/);
-});
-
-test('a new design starts from one of the bases', () => {
-  const html = newDesignHTML();
-  assert.match(html, /<form id="newDesignForm"/);
-  for (const base of ['gt', 'flight', 'hybrid', 'small'])
-    assert.match(html, new RegExp(`<option value="${base}">`), base);
-  assert.match(html, /<select id="newDesignBase" required>/);
-  assert.match(html, /<button[^>]*id="importCockpitInstead"/);
-});
-
-test('the frame panel mounts each module only when it is on', () => {
-  const full = keysIn(framePanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true })));
-  for (const key of ['wheelH', 'wheelTilt', 'hotasZ', 'hotasH', 'hotasOut', 'stickZ', 'stickH'])
-    assert.ok(full.includes(key), key);
-});
-
-test('the posture panel fits the driver with the adjustments and the recline', () => {
-  const bare = { wheel: false, hotas: false, shifter: false, handbrake: false, centerStick: false };
-  assert.deepEqual(keysIn(posturePanelHTML(viewOf(bare))), [
-    'height',
-    'seatZ',
-    'recline',
-    'pedalZ',
-  ]);
-  const html = posturePanelHTML(viewOf({ wheel: true, hotas: true, centerStick: true }));
-  assert.deepEqual(keysIn(html), ['height', 'seatZ', 'recline', 'wheelZ', 'pedalZ']);
-  assert.match(html, /200 mm of travel/);
-  assert.match(html, /100 mm of travel/);
-});
 
 test('the desk panel includes the monitor arm only when there is a monitor', () => {
   const withMonitor = deskPanelHTML(viewOf(), 'desk');
@@ -91,14 +20,24 @@ test('the desk panel includes the monitor arm only when there is a monitor', () 
   assert.ok(!keysIn(without).includes('armReach'));
 });
 
-test('the desk panel marks the current tabletop size and offers layouts next to the cockpit', () => {
+test('the desk panel marks the current tabletop size', () => {
   const html = deskPanelHTML(viewOf({ deskWidth: 160, deskDepth: 80 }), 'desk');
   assert.match(html, /<option value="160x80" selected>160 × 80 cm<\/option>/);
-  assert.match(html, /id="layoutPreset"/);
-  assert.doesNotMatch(
-    deskPanelHTML(viewOf({ cockpitEnabled: false }), 'desk'),
-    /id="layoutPreset"/,
+});
+
+test('the desk panel places the desk and its items, and nothing else in the room', () => {
+  const html = deskPanelHTML(viewOf(), 'desk');
+  assert.deepEqual(
+    [...html.matchAll(/<option value="([a-z]+)"[^>]*>/g)]
+      .map((match) => match[1])
+      .filter((value) => ['desk', 'cockpit'].includes(value)),
+    ['desk'],
   );
+  assert.doesNotMatch(html, /id="layoutPreset"/);
+});
+
+test('an empty cockpit design explains how designs start', () => {
+  assert.match(emptyDesignHTML(), /id="emptyDesign"/);
 });
 
 const panelWith = (state, selectedPose = '') =>
@@ -126,7 +65,8 @@ test('the monitor position lists the saved poses first, then the automatic posit
     optionOf(html, 'pose:pose-2'),
     '<option value="pose:pose-2" selected>Desk 2</option>',
   );
-  for (const mode of ['cockpit', 'desk', 'vr']) assert.ok(optionOf(html, `auto:${mode}`), mode);
+  for (const mode of ['desk', 'vr']) assert.ok(optionOf(html, `auto:${mode}`), mode);
+  assert.equal(optionOf(html, 'auto:cockpit'), undefined);
   assert.equal(optionOf(html, 'custom'), undefined);
   assert.match(html, /<button[^>]*id="updateArmPose"[^>]*disabled/);
   assert.match(html, /<button[^>]*id="deleteArmPose"/);
@@ -164,13 +104,8 @@ test('an automatic position is chosen when the arm follows it', () => {
 test('without saved poses the monitor position offers the automatic positions and a hint', () => {
   const html = panelWith(defaults);
   assert.doesNotMatch(html, /Your poses/);
-  assert.ok(optionOf(html, 'auto:cockpit'));
+  assert.ok(optionOf(html, 'auto:desk'));
   assert.match(html, /id="armPoseHint"/);
-});
-
-test('the cockpit position is unavailable without a cockpit', () => {
-  const html = panelWith({ ...defaults, cockpitEnabled: false, monitorMode: 'desk' });
-  assert.match(optionOf(html, 'auto:cockpit'), /disabled/);
 });
 
 test('a pose saved with the arm mounted elsewhere says so in text', () => {
@@ -180,8 +115,4 @@ test('a pose saved with the arm mounted elsewhere says so in text', () => {
     html,
     /<small data-mount-moved="pose-1">Saved with the arm mounted elsewhere<\/small>/,
   );
-});
-
-test('the posture panel lets the driver wear a VR headset or not', () => {
-  assert.match(posturePanelHTML(viewOf()), /type="checkbox" id="vrHeadset"/);
 });

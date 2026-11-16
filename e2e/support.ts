@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { projectConfig, readProject } from '../src/project.ts';
 
-export const STORAGE_KEY = 'cockpit-lab-v4';
+export const STORAGE_KEY = 'cockpit-lab-v5';
 
 export const fixturePath = (name: string): string =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
@@ -48,4 +48,4 @@ export const getSavedProject = (page: Page) =>
   page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), STORAGE_KEY);
 
 /** The configuration of the active layout in a saved or exported project file. */
-export const activeLayoutConfig = (file: unknown) => projectConfig(readProject(file));
+export const activeLayoutConfig = (file: unknown) => projectConfig(readProject(file).project);

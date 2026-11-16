@@ -118,8 +118,8 @@ export function addRoomItem(
 }
 
 /**
- * Sets a value of the selected item, or of the desk or cockpit placement. X and Z are given
- * from the room's walls.
+ * Sets a value of the selected item, or of the desk placement. X and Z are given from the room's
+ * walls.
  */
 export function updateRoomItem(
   state: CockpitConfig,
@@ -138,11 +138,11 @@ export function updateRoomItem(
       ? withItems(state, replace(state.roomFeatures), state.roomFurniture)
       : withItems(state, state.roomFeatures, replace(state.roomFurniture));
   }
-  if (target === 'desk' || target === 'cockpit') {
+  if (target === 'desk') {
     const placed = { ...state };
-    if (key === 'x') placed[`${target}X`] = fromWalls(state.roomX);
-    else if (key === 'z') placed[`${target}Z`] = fromWalls(state.roomZ);
-    else if (key === 'angle') placed[`${target}Angle`] = value as number;
+    if (key === 'x') placed.deskX = fromWalls(state.roomX);
+    else if (key === 'z') placed.deskZ = fromWalls(state.roomZ);
+    else if (key === 'angle') placed.deskAngle = value as number;
     return normalizeRoom(placed);
   }
   return normalizeRoom(state);
@@ -176,7 +176,7 @@ export function placeChairAtDesk(state: CockpitConfig, target: string): CockpitC
   );
 }
 
-/** Moves the desk and the cockpit together so the whole setup is centred in the room. */
+/** Moves the desk, with everything on it, so the whole setup is centred in the room. */
 export function centerInRoom(state: CockpitConfig, evaluation: CockpitEvaluation): CockpitConfig {
   const dx = state.roomX + state.roomW / 2 - (evaluation.allLeft + evaluation.allRight) / 2;
   const dz = state.roomZ + state.roomD / 2 - (evaluation.allBack + evaluation.allFront) / 2;
@@ -184,7 +184,5 @@ export function centerInRoom(state: CockpitConfig, evaluation: CockpitEvaluation
     ...state,
     deskX: round(state.deskX + dx),
     deskZ: round(state.deskZ + dz),
-    cockpitX: round(state.cockpitX + dx),
-    cockpitZ: round(state.cockpitZ + dz),
   });
 }

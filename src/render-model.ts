@@ -5,18 +5,13 @@ import { degToRad } from './geometry.ts';
 import {
   drawDeskDimensions,
   drawLayoutSelection,
-  drawRigDimensions,
-  drawSetupLabels,
   type LayoutSelection,
 } from './render-annotations.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
-import { drawRig } from './render-rig.ts';
 import { drawRoom } from './render-room.ts';
 
 export interface RenderOptions extends LayoutSelection {
-  /** Draws the seated person in the cockpit. */
-  person: boolean;
   /** The room floor follows the interface theme. */
   roomFloor: string;
 }
@@ -34,15 +29,7 @@ export function renderModel(
 ): RenderModel {
   const { view } = options;
   const r = createRenderList();
-  const hasRig = s.cockpitEnabled !== false;
-  const rig = r.group(
-    ROOT,
-    hasRig
-      ? { position: [s.cockpitX, 0, s.cockpitZ], rotation: [0, degToRad(s.cockpitAngle), 0] }
-      : {},
-  );
   const dimensions = r.group(ROOT, {}, { role: 'dimensions' });
-  drawRig(r, rig, s, e, { person: options.person });
   const desk = r.group(ROOT, {
     position: [s.deskX, 0, s.deskZ],
     rotation: [0, degToRad(s.deskAngle), 0],
@@ -55,9 +42,7 @@ export function renderModel(
       (view === 'top' || view === 'desk'),
   });
   drawArmReach(r, dimensions, s, e, { visible: view === 'top' });
-  drawRigDimensions(r, dimensions, s, e, view);
   drawDeskDimensions(r, dimensions, s, e);
-  drawSetupLabels(r, s, e);
   const room = r.group(ROOT, {}, { visible: s.roomEnabled !== false });
   drawRoom(r, room, dimensions, s, e, options.roomFloor);
   drawLayoutSelection(r, ROOT, s, e, options);

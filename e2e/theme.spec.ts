@@ -17,7 +17,7 @@ test.describe('with a dark system', () => {
   }) => {
     await openApp(page);
     const colors = await page
-      .locator('#preset option')
+      .locator('#layoutSelect option')
       .first()
       .evaluate((option) => {
         const swatch = document.createElement('div');

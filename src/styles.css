@@ -202,11 +202,6 @@ h1 > span,
   width: 16px;
   height: 16px;
 }
-.preset-area > label {
-  font-weight: 500;
-  display: block;
-  margin-bottom: 8px;
-}
 .select-wrap {
   display: flex;
   align-items: center;
@@ -225,9 +220,6 @@ h1 > span,
   border: 0;
   font-weight: 600;
   cursor: pointer;
-}
-.preset-area p {
-  margin: 8px 0 0;
 }
 .config-tabs {
   display: flex;
@@ -563,12 +555,6 @@ h1 > span,
   width: 6px;
   height: 6px;
   border-radius: 2px;
-}
-.legend-frame {
-  background: var(--legend-frame);
-}
-.legend-orange {
-  background: var(--accent-fill);
 }
 .legend-desk {
   background: var(--legend-desk);
@@ -1075,7 +1061,7 @@ h1 > span,
   .panel-heading {
     padding: 21px 18px 18px;
   }
-  .preset-area {
+  .cockpit-area {
     padding-left: 18px;
     padding-right: 18px;
   }
@@ -1172,11 +1158,8 @@ h1 > span,
   .panel-heading {
     padding: 20px 20px 17px;
   }
-  .preset-area {
+  .cockpit-area {
     padding: 0 20px 13px;
-  }
-  .preset-area p {
-    min-height: 0;
   }
   .config-tabs {
     padding: 0 20px;

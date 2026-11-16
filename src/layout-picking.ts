@@ -5,7 +5,7 @@ import { clamp, inversePoint, round, type PlanPoint } from './geometry.ts';
 
 /** An item being dragged: where the pointer started and where the item was. */
 export interface LayoutGrab {
-  /** `cockpit`, `desk`, a desktop item id, `furniture:<id>` or `feature:<id>`. */
+  /** `desk`, a desktop item id, `furniture:<id>` or `feature:<id>`. */
   target: string;
   start: PlanPoint;
   x: number;
@@ -17,7 +17,7 @@ export interface LayoutGrab {
 export interface PickOptions {
   /** The current selection, preferred where items overlap. */
   layoutTarget: string;
-  /** Room editing picks furniture and openings, then the desk and the cockpit. */
+  /** Room editing picks furniture and openings, then the desk. */
   roomEditing: boolean;
 }
 
@@ -89,7 +89,7 @@ function pickRoomItem(floor: PlanPoint, e: CockpitEvaluation, selected: string):
   return null;
 }
 
-/** Desktop objects first, tallest first, then the desk and the cockpit. */
+/** Desktop objects first, tallest first, then the desk. */
 function pickSetupItem(
   floor: PlanPoint,
   top: PlanPoint,
@@ -103,20 +103,9 @@ function pickSetupItem(
   const byHeight = [...desktop]
     .sort((a, b) => b.height - a.height || preferSelected(a.id, b.id))
     .map((item) => item.id);
-  const order: string[] = [
-    ...new Set([
-      ...byHeight,
-      ...(layoutTarget === 'cockpit' ? ['cockpit'] : []),
-      'desk',
-      'cockpit',
-    ]),
-  ];
+  const order: string[] = [...byHeight, 'desk'];
   for (const id of order) {
-    if (
-      (id === 'desk' && s.deskEnabled === false) ||
-      (id === 'cockpit' && s.cockpitEnabled === false) ||
-      (id === 'arm' && s.monitorEnabled === false)
-    )
+    if ((id === 'desk' && s.deskEnabled === false) || (id === 'arm' && s.monitorEnabled === false))
       continue;
     const item = desktop.find((i) => i.id === id);
     if (item) {
@@ -140,21 +129,6 @@ function pickSetupItem(
           start: { x: floor.x, z: floor.z },
           x: s.deskX,
           z: s.deskZ,
-          desktop: false,
-        };
-    } else if (id === 'cockpit') {
-      const local = inversePoint(floor, e.rigPose);
-      if (
-        local.x >= e.rigLeft &&
-        local.x <= e.rigRight &&
-        local.z >= e.lowerZ &&
-        local.z <= e.upperZ
-      )
-        return {
-          target: id,
-          start: { x: floor.x, z: floor.z },
-          x: s.cockpitX,
-          z: s.cockpitZ,
           desktop: false,
         };
     }

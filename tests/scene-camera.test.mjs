@@ -40,13 +40,12 @@ test('the top view shows the whole drawn area with a margin on both axes', () =>
   assert.ok(tall * 0.5 >= right - left + 60, 'the width still fits a portrait screen');
 });
 
-test('the desk view frames the tabletop and the side view the rig height', () => {
+test('the desk view frames the tabletop', () => {
   const framing = framingOf(defaults);
   assert.equal(
     viewHeight('desk', 1, framing),
     Math.max(defaults.deskDepth + 30, defaults.deskWidth + 40),
   );
-  assert.ok(viewHeight('side', 1, framing) >= 205);
 });
 
 test('before the first update the view uses fallback sizes', () => {
@@ -66,18 +65,10 @@ test('the top view looks straight down with the back of the room at the top', ()
 
 test('only the 3D view can be orbited', () => {
   const framing = framingOf(defaults);
-  for (const view of ['top', 'desk', 'side']) assert.equal(cameraPose(view, framing).rotate, false);
+  for (const view of ['top', 'desk']) assert.equal(cameraPose(view, framing).rotate, false);
   const iso = cameraPose('iso', framing);
   assert.equal(iso.rotate, true);
   assert.deepEqual(iso.polar, [0.05, Math.PI / 2 - 0.02]);
-});
-
-test('the side view looks at the rig across its length, following its rotation', () => {
-  const state = { ...defaults, cockpitAngle: 90 };
-  const pose = cameraPose('side', framingOf(state));
-  assert.equal(pose.target.y, 62);
-  assert.ok(Math.abs(pose.position.x - pose.target.x) < 1e-9);
-  assert.ok(Math.abs(pose.position.z - pose.target.z - 650) < 1e-9);
 });
 
 test('the desk view is centred on the desk and turns with it', () => {

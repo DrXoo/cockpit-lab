@@ -41,8 +41,6 @@ test('the guided setup builds a room, an opening and a desk, and no cockpit', as
   expect(saved.setup).toMatchObject({ step: 'complete', deferred: ['furniture'] });
   expect(saved.cockpit).toBeNull();
   expect(activeLayoutConfig(saved)).toEqual(await getState(page));
-  await page.locator('#tab-cockpit').click();
-  await expect(page.locator('#editCockpitDesign')).toBeVisible();
 });
 
 test('a half-finished setup resumes at the same step after a reload', async ({ page }) => {

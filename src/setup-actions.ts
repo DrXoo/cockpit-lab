@@ -5,7 +5,7 @@ import { resizeDesk } from './desk.ts';
 import { normalizeRoom } from './room.ts';
 import { roomItems } from './room-editor.ts';
 
-export type SettingsSection = 'room' | 'desk' | 'cockpit';
+export type SettingsSection = 'room' | 'desk';
 
 /** The settings section a guided step opens; the room tab once the setup is complete. */
 export const sectionOfStep = (step: SetupStep): SettingsSection =>
