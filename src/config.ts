@@ -62,7 +62,7 @@ export type ClampMount = 'clamp' | 'grommet';
 export type ClampSide = 'xmin' | 'xmax' | 'zmin' | 'zmax';
 
 /** The settings of a room and its layouts, as saved in project files (lengths in cm). */
-export interface CockpitConfig extends Record<NumericField, number> {
+export interface RoomConfig extends Record<NumericField, number> {
   deskEnabled: boolean;
   monitorEnabled: boolean;
   keyboardEnabled: boolean;
@@ -81,7 +81,7 @@ export interface CockpitConfig extends Record<NumericField, number> {
   roomFurniture: FurnitureItem[];
 }
 
-export const defaults: CockpitConfig = {
+export const defaults: RoomConfig = {
   deskEnabled: true,
   monitorEnabled: true,
   keyboardEnabled: true,
@@ -158,7 +158,7 @@ const CHOICE_SETTINGS = {
   armBend: ['positive', 'negative'],
   clampMount: ['clamp', 'grommet'],
   clampSide: ['xmin', 'xmax', 'zmin', 'zmax'],
-} satisfies { [K in keyof CockpitConfig]?: readonly CockpitConfig[K][] };
+} satisfies { [K in keyof RoomConfig]?: readonly RoomConfig[K][] };
 
 type ChoiceSetting = keyof typeof CHOICE_SETTINGS;
 
@@ -178,11 +178,11 @@ export const choiceOptions = (key: string): readonly string[] | undefined =>
  * Validates a saved configuration. Missing settings take their defaults, numbers are clamped
  * to their range, and a value of the wrong type is rejected.
  */
-export function sanitize(input: unknown): CockpitConfig {
+export function sanitize(input: unknown): RoomConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Invalid configuration');
   const raw = input as Record<string, unknown>;
-  const s: CockpitConfig = { ...defaults };
+  const s: RoomConfig = { ...defaults };
   // Earlier configurations put the desk beside the chassis of the retired parametric cockpit.
   if (!('deskX' in raw)) {
     const { min, max, defaultCm } = EARLIEST_CHASSIS_WIDTH_CM;

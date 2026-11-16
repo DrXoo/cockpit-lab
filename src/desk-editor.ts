@@ -1,5 +1,5 @@
 // Desk tab: placing the desk and the items on the tabletop, and the monitor position.
-import type { CockpitConfig, NumericField } from './config.ts';
+import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { clampEdge, desktopTargets } from './desk.ts';
 import { groupHTML as group, type ControlTemplates } from './controls-view.ts';
@@ -23,7 +23,7 @@ const AUTOMATIC_POSITION_LABELS: Record<(typeof AUTOMATIC_MONITOR_MODES)[number]
 const optionHTML = (value: string, label: string, selected: boolean): string =>
   `<option value="${escapeHTML(value)}"${selected ? ' selected' : ''}>${escapeHTML(label)}</option>`;
 
-function poseOptionsHTML(s: CockpitConfig, position: MonitorPosition): string {
+function poseOptionsHTML(s: RoomConfig, position: MonitorPosition): string {
   if (!s.armPoses.length) return '';
   const options = s.armPoses.map((pose) => {
     const value = `pose:${pose.id}`;
@@ -43,7 +43,7 @@ function automaticOptionsHTML(position: MonitorPosition): string {
 }
 
 /** Update and delete for the chosen pose, and a note when its mount has moved. */
-function chosenPoseHTML(s: CockpitConfig, position: MonitorPosition): string {
+function chosenPoseHTML(s: RoomConfig, position: MonitorPosition): string {
   const pose = s.armPoses.find((candidate) => position.choice === `pose:${candidate.id}`);
   if (!pose) return '';
   const moved = armPoseMountMoved(s, pose)
@@ -57,7 +57,7 @@ function chosenPoseHTML(s: CockpitConfig, position: MonitorPosition): string {
  * the arm or its mount moves, so it is redrawn on its own, apart from the field to save a pose.
  * `selectedPoseId` is the pose last chosen, saved or updated.
  */
-export function monitorPositionHTML(s: CockpitConfig, selectedPoseId: string): string {
+export function monitorPositionHTML(s: RoomConfig, selectedPoseId: string): string {
   const position = monitorPositionOf(s, selectedPoseId);
   const custom =
     position.choice === 'custom' ? optionHTML('custom', 'Custom (not saved)', true) : '';
@@ -68,13 +68,13 @@ export function monitorPositionHTML(s: CockpitConfig, selectedPoseId: string): s
 }
 
 /** The monitor position, and the field to save the current arm as a new pose. */
-export function armPosesHTML(s: CockpitConfig, selectedPoseId: string): string {
+export function armPosesHTML(s: RoomConfig, selectedPoseId: string): string {
   return `<div class="arm-pose-area" id="armPoseArea"><div id="monitorPositionArea">${monitorPositionHTML(s, selectedPoseId)}</div><div class="arm-pose-save"><input type="text" id="armPoseName" maxlength="${MAX_ARM_POSE_NAME_LENGTH}" placeholder="Pose name" aria-label="Pose name" autocomplete="off"><button id="saveArmPose">Save as new pose</button></div></div>`;
 }
 
 // Shared by step 4 and the complete editor; positions remain local to the desk.
 export function deskElementControls(
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   target: string,
   { range, select }: Pick<ControlTemplates, 'range' | 'select'>,

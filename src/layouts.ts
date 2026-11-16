@@ -3,7 +3,7 @@
 // and the monitor arm's hardware. Each layout stores only where things are, and which pieces of
 // furniture it leaves out. The cockpit design is not part of the room: the project holds it,
 // and until the mini CAD is complete no room includes it (docs/adr/0004).
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import { resizeDesk } from './desk.ts';
 import {
   normalizeRoom,
@@ -43,9 +43,9 @@ const LAYOUT_SETTING_KEYS = [
   'monitorYaw',
   'monitorH',
   'armPoses',
-] as const satisfies readonly (keyof CockpitConfig)[];
+] as const satisfies readonly (keyof RoomConfig)[];
 
-export type LayoutSettings = Pick<CockpitConfig, (typeof LAYOUT_SETTING_KEYS)[number]>;
+export type LayoutSettings = Pick<RoomConfig, (typeof LAYOUT_SETTING_KEYS)[number]>;
 
 const LAYOUT_SETTING_NAMES: ReadonlySet<string> = new Set(LAYOUT_SETTING_KEYS);
 
@@ -77,7 +77,7 @@ export type FurnitureSpec =
   | Omit<FloorFurniture, 'x' | 'z' | 'angle'>;
 
 /** Every room setting that is not a layout setting, with the furniture as specs. */
-export type SharedSettings = Omit<CockpitConfig, keyof LayoutSettings | 'roomFurniture'> & {
+export type SharedSettings = Omit<RoomConfig, keyof LayoutSettings | 'roomFurniture'> & {
   roomFurniture: FurnitureSpec[];
 };
 
@@ -122,7 +122,7 @@ function placementOf(item: FurnitureItem): FurniturePlacement {
   return { x, z, angle, mountWall, offset, elevation };
 }
 
-function splitSettings(config: CockpitConfig): {
+function splitSettings(config: RoomConfig): {
   shared: SharedSettings;
   settings: LayoutSettings;
 } {
@@ -196,7 +196,7 @@ const cleanLayoutName = (name: unknown, fallback: string): string =>
 export interface LayoutEntry {
   id: string;
   name: unknown;
-  config: CockpitConfig;
+  config: RoomConfig;
   hiddenFurniture: readonly string[];
 }
 
@@ -213,7 +213,7 @@ function layoutOf(entry: LayoutEntry, fallbackName: string): Layout {
 }
 
 /** A library with a single layout, "Base", that reproduces `config`. */
-export function createLayoutLibrary(config: CockpitConfig): LayoutLibrary {
+export function createLayoutLibrary(config: RoomConfig): LayoutLibrary {
   return libraryFromLayouts(
     [{ id: 'layout-1', name: FIRST_LAYOUT_NAME, config, hiddenFurniture: [] }],
     'layout-1',
@@ -251,7 +251,7 @@ export const activeLayout = (library: LayoutLibrary): Layout =>
 export function layoutConfig(
   library: LayoutLibrary,
   layoutId: string = library.activeLayoutId,
-): CockpitConfig {
+): RoomConfig {
   const layout = layoutById(library, layoutId);
   const hidden = new Set(layout.hiddenFurniture);
   const roomFurniture = library.shared.roomFurniture
@@ -266,7 +266,7 @@ export function layoutConfig(
  * everything else is shared: furniture added here appears in every layout where it was created,
  * and furniture deleted here is deleted from every layout.
  */
-export function recordLayout(library: LayoutLibrary, config: CockpitConfig): LayoutLibrary {
+export function recordLayout(library: LayoutLibrary, config: RoomConfig): LayoutLibrary {
   const active = activeLayout(library);
   const { shared, settings } = splitSettings(config);
   const shown = new Map(config.roomFurniture.map((item) => [item.id, item]));

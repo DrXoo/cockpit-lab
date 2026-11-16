@@ -39,7 +39,7 @@ import {
 } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import type { SceneView } from './scene-camera.ts';
-import type { CockpitConfig, NumericField } from './config.ts';
+import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { Project, SetupProgress, StepId } from './project.ts';
 import {
@@ -260,7 +260,7 @@ const newProject = createProject();
 // design and every layout as last recorded. Saving and exporting record `state` into them first.
 let library: LayoutLibrary = newProject.library,
   cockpit: CockpitDesign | null = newProject.cockpit,
-  state: CockpitConfig = layoutConfig(library),
+  state: RoomConfig = layoutConfig(library),
   setup: SetupProgress = newProject.setup,
   section: Section = 'room',
   /** The tab each editor shows when it opens again. */
@@ -300,7 +300,7 @@ const editor = (): Editor => editorOfSection(section);
 /** Whether the project has a cockpit design. */
 const hasDesign = (): boolean => cockpit !== null;
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
-const shownConfig = (): CockpitConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
+const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
 let evaluation = evaluate(shownConfig());
 let pendingSave: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -371,7 +371,7 @@ const toggle: ControlTemplates['toggle'] = (key, label) => toggleHTML(controlVie
 const select: ControlTemplates['select'] = (key, label, options) =>
   selectHTML(controlView(), key, label, options);
 /** Applies a change to the monitor arm or its saved poses, and redraws the arm controls. */
-function changeArm(next: CockpitConfig) {
+function changeArm(next: RoomConfig) {
   state = next;
   queueSave();
   renderControls();
@@ -1428,7 +1428,7 @@ try {
 applyTheme();
 declare global {
   interface Window {
-    cockpitLab: { getState(): CockpitConfig; getEvaluation(): CockpitEvaluation };
+    cockpitLab: { getState(): RoomConfig; getEvaluation(): CockpitEvaluation };
   }
 }
 // Read-only view of the current state and calculations, for checking a configuration.

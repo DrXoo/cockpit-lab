@@ -1,16 +1,12 @@
 import { clamp, degToRad, transformPoint, type PlanPoint } from './geometry.ts';
-import type { CockpitConfig, MonitorMode, ArmBend } from './config.ts';
+import type { RoomConfig, MonitorMode, ArmBend } from './config.ts';
 import { deskPose } from './layout.ts';
 
 // Planar two-link monitor arm. Angles follow the desk's Y rotation convention.
 /** Wraps an angle in degrees to [-180, 180). */
 export const wrapAngle = (angle: number): number => ((((angle + 180) % 360) + 360) % 360) - 180;
 
-export function armKinematics(
-  s: CockpitConfig,
-  anchor: PlanPoint,
-  target: PlanPoint | null = null,
-) {
+export function armKinematics(s: RoomConfig, anchor: PlanPoint, target: PlanPoint | null = null) {
   const first = (s.armReach * (s.armSplit ?? 50)) / 100,
     second = s.armReach - first,
     minReach = Math.abs(first - second),
@@ -47,7 +43,7 @@ export function armKinematics(
     end = { x: elbow.x + second * Math.cos(b), y, z: elbow.z - second * Math.sin(b) };
   return { base, elbow, end, first, second, minReach, maxReach, baseAngle, elbowAngle, reachable };
 }
-export function monitorGeometry(s: CockpitConfig) {
+export function monitorGeometry(s: RoomConfig) {
   const anchor = transformPoint({ x: s.clampX, z: s.clampZ, y: s.deskH }, deskPose(s));
   const manual = s.monitorMode === 'manual';
   const target = manual ? null : transformPoint({ x: -10, z: 0, y: s.monitorH }, deskPose(s));
@@ -56,7 +52,7 @@ export function monitorGeometry(s: CockpitConfig) {
     angle = manual ? s.deskAngle + s.monitorYaw : s.deskAngle + 90;
   return { anchor, arm, point, angle };
 }
-export function setMonitorMode(s: CockpitConfig, mode: MonitorMode): CockpitConfig {
+export function setMonitorMode(s: RoomConfig, mode: MonitorMode): RoomConfig {
   if (mode !== 'manual' || s.monitorMode === 'manual') return { ...s, monitorMode: mode };
   const g = monitorGeometry(s);
   return {
@@ -68,7 +64,7 @@ export function setMonitorMode(s: CockpitConfig, mode: MonitorMode): CockpitConf
   };
 }
 /** Edits one arm setting. Changing an angle by hand switches the monitor to manual mode. */
-export function editArm(s: CockpitConfig, key: string, value: unknown): CockpitConfig {
+export function editArm(s: RoomConfig, key: string, value: unknown): RoomConfig {
   if (key === 'monitorMode') return setMonitorMode(s, value as MonitorMode);
   if (key === 'armBend') {
     const next = { ...s, armBend: value as ArmBend };
@@ -84,11 +80,11 @@ export function editArm(s: CockpitConfig, key: string, value: unknown): CockpitC
   return next;
 }
 export function moveArmJoint(
-  s: CockpitConfig,
+  s: RoomConfig,
   joint: 'elbow' | 'end',
   x: number,
   z: number,
-): CockpitConfig {
+): RoomConfig {
   const next = setMonitorMode(s, 'manual'),
     g = monitorGeometry(next);
   if (joint === 'elbow') {

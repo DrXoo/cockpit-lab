@@ -1,6 +1,6 @@
 // Guided setup: what each step does to the project and when the user can move on.
 import { advanceSetup, type SetupProgress, type SetupStep } from './project.ts';
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import { resizeDesk } from './desk.ts';
 import { normalizeRoom } from './room.ts';
 import { roomItems } from './room-editor.ts';
@@ -13,20 +13,20 @@ export const sectionOfStep = (step: SetupStep): SettingsSection =>
 
 /** Step 1: the interior size of the room, in cm. */
 export const withRoomSize = (
-  state: CockpitConfig,
+  state: RoomConfig,
   width: number,
   depth: number,
   height: number,
-): CockpitConfig =>
+): RoomConfig =>
   normalizeRoom({ ...state, roomEnabled: true, roomW: width, roomD: depth, roomH: height });
 
 /** Step 4: the desk, placed in the middle of the room with the monitor on it. */
 export const withDesk = (
-  state: CockpitConfig,
+  state: RoomConfig,
   width: number,
   depth: number,
   height: number,
-): CockpitConfig =>
+): RoomConfig =>
   resizeDesk(
     {
       ...state,
@@ -48,7 +48,7 @@ export interface SetupButtons {
   skipLabel: string;
 }
 
-export function setupButtons(setup: SetupProgress, state: CockpitConfig): SetupButtons {
+export function setupButtons(setup: SetupProgress, state: RoomConfig): SetupButtons {
   const { step } = setup;
   const canDefer =
     step === 'openings' || step === 'furniture' || (step === 'desk' && !state.deskEnabled);
@@ -71,7 +71,7 @@ export type ContinueResult =
  */
 export function nextSetupStep(
   setup: SetupProgress,
-  state: CockpitConfig,
+  state: RoomConfig,
   { defer = false } = {},
 ): ContinueResult {
   const { step } = setup;

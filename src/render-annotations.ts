@@ -1,6 +1,6 @@
 // Measurements and labels drawn over the setup, and the outline of the selected item.
 // Labels are positioned in world coordinates, whatever group their lines belong to.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, transformPoint, type Placement, type PlanPoint } from './geometry.ts';
 import type { ParentRef, RenderList, SceneLabel } from './render-list.ts';
@@ -28,7 +28,7 @@ function placeLabels(labels: SceneLabel[], first: number, placement: Placement) 
 export function drawDeskDimensions(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
 ): void {
   const enabled = s.deskEnabled !== false;
@@ -61,7 +61,7 @@ export function drawDeskDimensions(
 export function drawLayoutSelection(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   { view, layoutEditing, layoutTarget }: LayoutSelection,
 ): void {

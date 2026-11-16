@@ -1,7 +1,7 @@
 // Changes to the room's openings and furniture, as pure state transitions. Lengths in cm.
 import { round } from './geometry.ts';
 import { furnitureNames, normalizeRoom, officeChairPlacement, type FurnitureType } from './room.ts';
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { isFeature, roomItem } from './room-editor.ts';
 
@@ -15,14 +15,14 @@ const isOpening = (type: RoomItemType) =>
 
 /** Openings and furniture are validated together, as when a project is opened. */
 const withItems = (
-  state: CockpitConfig,
+  state: RoomConfig,
   roomFeatures: unknown[],
   roomFurniture: unknown[],
-): CockpitConfig => normalizeRoom(state, { roomFeatures, roomFurniture });
+): RoomConfig => normalizeRoom(state, { roomFeatures, roomFurniture });
 
 /** `hiddenFurniture` counts the furniture that the active layout leaves out of `state`. */
 export const canAddRoomItem = (
-  state: CockpitConfig,
+  state: RoomConfig,
   type: RoomItemType,
   { hiddenFurniture = 0 } = {},
 ): boolean =>
@@ -35,7 +35,7 @@ export const stepOfRoomItem = (type: RoomItemType): 'openings' | 'furniture' =>
   type === 'door' || type === 'window' ? 'openings' : 'furniture';
 
 /** The new item before validation; normalizeRoom fills in the remaining defaults. */
-function draftItem(state: CockpitConfig, type: RoomItemType, id: string) {
+function draftItem(state: RoomConfig, type: RoomItemType, id: string) {
   const roomCenter = { x: state.roomX + state.roomW / 2, z: state.roomZ + state.roomD / 2 };
   if (type === 'wardrobeAccess')
     return {
@@ -105,10 +105,10 @@ function draftItem(state: CockpitConfig, type: RoomItemType, id: string) {
 
 /** Adds an item, shows the room, and returns the new item's selection target. */
 export function addRoomItem(
-  state: CockpitConfig,
+  state: RoomConfig,
   type: RoomItemType,
   id: string,
-): { state: CockpitConfig; target: string } {
+): { state: RoomConfig; target: string } {
   const draft = draftItem(state, type, id);
   const shown = { ...state, roomEnabled: true };
   const next = isOpening(type)
@@ -122,11 +122,11 @@ export function addRoomItem(
  * walls.
  */
 export function updateRoomItem(
-  state: CockpitConfig,
+  state: RoomConfig,
   target: string,
   key: string,
   value: number | string,
-): CockpitConfig {
+): RoomConfig {
   const item = roomItem(state, target);
   const fromWalls = (offset: number) => (value as number) + offset;
   if (item) {
@@ -148,7 +148,7 @@ export function updateRoomItem(
   return normalizeRoom(state);
 }
 
-export function deleteRoomItem(state: CockpitConfig, target: string): CockpitConfig {
+export function deleteRoomItem(state: RoomConfig, target: string): RoomConfig {
   const item = roomItem(state, target);
   if (!item) return state;
   return isFeature(item)
@@ -164,7 +164,7 @@ export function deleteRoomItem(state: CockpitConfig, target: string): CockpitCon
       );
 }
 
-export function placeChairAtDesk(state: CockpitConfig, target: string): CockpitConfig {
+export function placeChairAtDesk(state: RoomConfig, target: string): RoomConfig {
   const item = roomItem(state, target);
   if (item?.type !== 'chair') return state;
   return withItems(
@@ -177,7 +177,7 @@ export function placeChairAtDesk(state: CockpitConfig, target: string): CockpitC
 }
 
 /** Moves the desk, with everything on it, so the whole setup is centred in the room. */
-export function centerInRoom(state: CockpitConfig, evaluation: CockpitEvaluation): CockpitConfig {
+export function centerInRoom(state: RoomConfig, evaluation: CockpitEvaluation): RoomConfig {
   const dx = state.roomX + state.roomW / 2 - (evaluation.allLeft + evaluation.allRight) / 2;
   const dz = state.roomZ + state.roomD / 2 - (evaluation.allBack + evaluation.allFront) / 2;
   return normalizeRoom({

@@ -5,7 +5,7 @@ import {
   fields,
   type ClampMount,
   type ClampSide,
-  type CockpitConfig,
+  type RoomConfig,
   type MonitorMode,
 } from './config.ts';
 import { monitorGeometry, setMonitorMode, wrapAngle } from './monitor-arm.ts';
@@ -31,7 +31,7 @@ export interface ArmMount {
 const JOINT_KEYS = ['armBaseAngle', 'armElbowAngle', 'monitorYaw', 'monitorH'] as const;
 const MOUNT_POSITION_KEYS = ['clampX', 'clampZ'] as const;
 
-type ArmJoints = Pick<CockpitConfig, (typeof JOINT_KEYS)[number]>;
+type ArmJoints = Pick<RoomConfig, (typeof JOINT_KEYS)[number]>;
 
 export interface ArmPose extends ArmJoints {
   id: string;
@@ -39,7 +39,7 @@ export interface ArmPose extends ArmJoints {
   mount: ArmMount;
 }
 
-const mountOf = (s: CockpitConfig): ArmMount => ({
+const mountOf = (s: RoomConfig): ArmMount => ({
   clampMount: s.clampMount,
   clampSide: s.clampSide,
   clampX: s.clampX,
@@ -47,7 +47,7 @@ const mountOf = (s: CockpitConfig): ArmMount => ({
 });
 
 /** The joints as the arm stands now, whichever mode placed it. */
-function currentJoints(s: CockpitConfig): ArmJoints {
+function currentJoints(s: RoomConfig): ArmJoints {
   const g = monitorGeometry(s);
   return {
     armBaseAngle: g.arm.baseAngle,
@@ -58,7 +58,7 @@ function currentJoints(s: CockpitConfig): ArmJoints {
 }
 
 /** What a pose stores about the arm as it stands now. */
-const recordedArm = (s: CockpitConfig): ArmJoints & { mount: ArmMount } => ({
+const recordedArm = (s: RoomConfig): ArmJoints & { mount: ArmMount } => ({
   ...currentJoints(s),
   mount: mountOf(s),
 });
@@ -74,7 +74,7 @@ function nextPoseId(poses: readonly ArmPose[]): string {
  * Records the arm as it stands under `name`, and holds the arm in that pose. A pose with the same
  * name, ignoring case, is recorded again in its place; otherwise the pose is added at the end.
  */
-export function saveArmPose(s: CockpitConfig, name: unknown): CockpitConfig {
+export function saveArmPose(s: RoomConfig, name: unknown): RoomConfig {
   const poses = s.armPoses;
   const cleanName = cleanUserText(name, `Pose ${poses.length + 1}`, MAX_ARM_POSE_NAME_LENGTH);
   const existing = poses.find((pose) => sameName(pose.name, cleanName));
@@ -85,14 +85,14 @@ export function saveArmPose(s: CockpitConfig, name: unknown): CockpitConfig {
   return applyArmPose(saved, id);
 }
 
-function armPoseById(s: CockpitConfig, id: string): ArmPose {
+function armPoseById(s: RoomConfig, id: string): ArmPose {
   const pose = s.armPoses.find((candidate) => candidate.id === id);
   if (!pose) throw new Error(`Unknown arm pose: ${id}`);
   return pose;
 }
 
 /** Puts the arm in the pose's joints, in manual mode. The mount stays where it is. */
-export function applyArmPose(s: CockpitConfig, id: string): CockpitConfig {
+export function applyArmPose(s: RoomConfig, id: string): RoomConfig {
   const pose = armPoseById(s, id);
   return {
     ...s,
@@ -106,7 +106,7 @@ export function applyArmPose(s: CockpitConfig, id: string): CockpitConfig {
 }
 
 /** Records the arm as it stands into an existing pose, keeping its name and place, and holds the arm in it. */
-export function updateArmPose(s: CockpitConfig, id: string): CockpitConfig {
+export function updateArmPose(s: RoomConfig, id: string): RoomConfig {
   const target = armPoseById(s, id);
   const recorded = recordedArm(s);
   const updated = {
@@ -116,13 +116,13 @@ export function updateArmPose(s: CockpitConfig, id: string): CockpitConfig {
   return applyArmPose(updated, id);
 }
 
-export function deleteArmPose(s: CockpitConfig, id: string): CockpitConfig {
+export function deleteArmPose(s: RoomConfig, id: string): RoomConfig {
   armPoseById(s, id);
   return { ...s, armPoses: s.armPoses.filter((pose) => pose.id !== id) };
 }
 
 /** The saved pose the arm is in now, if any. */
-export function activeArmPose(s: CockpitConfig): ArmPose | undefined {
+export function activeArmPose(s: RoomConfig): ArmPose | undefined {
   if (s.monitorMode !== 'manual') return undefined;
   return s.armPoses.find((pose) =>
     JOINT_KEYS.every((key) => Math.abs(pose[key] - s[key]) < SAME_POSE_TOLERANCE),
@@ -130,7 +130,7 @@ export function activeArmPose(s: CockpitConfig): ArmPose | undefined {
 }
 
 /** True when the arm is fixed elsewhere on the desktop than when the pose was saved. */
-export function armPoseMountMoved(s: CockpitConfig, pose: ArmPose): boolean {
+export function armPoseMountMoved(s: RoomConfig, pose: ArmPose): boolean {
   const now = mountOf(s);
   return (
     now.clampMount !== pose.mount.clampMount ||
@@ -213,7 +213,7 @@ export interface MonitorPosition {
  * What the monitor position shows. `selectedPoseId` is the pose last chosen, saved or updated:
  * once the arm moves away from it, it is still shown, as changed, so it can be updated.
  */
-export function monitorPositionOf(s: CockpitConfig, selectedPoseId: string): MonitorPosition {
+export function monitorPositionOf(s: RoomConfig, selectedPoseId: string): MonitorPosition {
   const automatic = AUTOMATIC_MONITOR_MODES.find((mode) => mode === s.monitorMode);
   if (automatic) return { choice: `auto:${automatic}`, changed: false };
   const active = activeArmPose(s);
@@ -224,7 +224,7 @@ export function monitorPositionOf(s: CockpitConfig, selectedPoseId: string): Mon
 }
 
 /** Applies a choice of the monitor position. */
-export function chooseMonitorPosition(s: CockpitConfig, choice: string): CockpitConfig {
+export function chooseMonitorPosition(s: RoomConfig, choice: string): RoomConfig {
   if (choice === 'custom') return setMonitorMode(s, 'manual');
   if (choice.startsWith('pose:')) return applyArmPose(s, choice.slice('pose:'.length));
   const automatic = AUTOMATIC_MONITOR_MODES.find((mode) => `auto:${mode}` === choice);

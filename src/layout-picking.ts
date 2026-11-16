@@ -1,5 +1,5 @@
 // What the pointer grabs in the plan views, and where the dragged item goes.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { clamp, inversePoint, round, type PlanPoint } from './geometry.ts';
 
@@ -45,7 +45,7 @@ function distanceToSegment(p: PlanPoint, a: PlanPoint, b: PlanPoint): number {
 export function pickLayoutItem(
   floor: PlanPoint,
   top: PlanPoint,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   options: PickOptions,
 ): LayoutGrab | null {
@@ -93,7 +93,7 @@ function pickRoomItem(floor: PlanPoint, e: CockpitEvaluation, selected: string):
 function pickSetupItem(
   floor: PlanPoint,
   top: PlanPoint,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   { layoutTarget, roomEditing }: PickOptions,
 ): LayoutGrab | null {

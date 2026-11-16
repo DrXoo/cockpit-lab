@@ -1,6 +1,6 @@
 // What the room needs to buy for its desk: the accessories the desk setup uses. The parts of a
 // cockpit design come from its parts model (src/cad/parts-to-buy.ts).
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 
 export interface Accessory {
   name: string;
@@ -8,7 +8,7 @@ export interface Accessory {
   note: string;
 }
 
-export function deskAccessories(s: CockpitConfig): Accessory[] {
+export function deskAccessories(s: RoomConfig): Accessory[] {
   if (s.deskEnabled === false) return [];
   const items: Accessory[] = [];
   if (s.matEnabled !== false)

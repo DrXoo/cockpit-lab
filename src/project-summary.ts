@@ -3,7 +3,7 @@
 import { escapeHTML as esc } from './html.ts';
 import { checkLineHTML } from './check-view.ts';
 import { steps, type SetupProgress } from './project.ts';
-import type { CockpitConfig, MonitorMode } from './config.ts';
+import type { RoomConfig, MonitorMode } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { wallFrame } from './room.ts';
 import { round } from './geometry.ts';
@@ -37,7 +37,7 @@ function progressHTML(setup: SetupProgress): string {
   return html;
 }
 
-function deskHTML(s: CockpitConfig, e: CockpitEvaluation): string {
+function deskHTML(s: RoomConfig, e: CockpitEvaluation): string {
   let html =
     title('Desk') +
     dims([
@@ -75,7 +75,7 @@ function deskHTML(s: CockpitConfig, e: CockpitEvaluation): string {
   return html;
 }
 
-export function summaryHTML(s: CockpitConfig, e: CockpitEvaluation, setup: SetupProgress): string {
+export function summaryHTML(s: RoomConfig, e: CockpitEvaluation, setup: SetupProgress): string {
   let html = '<div class="summary-inner">' + progressHTML(setup);
   html += title('Your space');
   html += s.roomEnabled
@@ -103,7 +103,7 @@ export function summaryHTML(s: CockpitConfig, e: CockpitEvaluation, setup: Setup
   return html;
 }
 
-export function roomSummaryHTML(s: CockpitConfig): string {
+export function roomSummaryHTML(s: RoomConfig): string {
   if (s.roomEnabled === false) return '';
   const a = esc;
   return `<h3 class="summary-title">Room and obstacles<span>Dimensions in cm</span></h3><table class="summary-table"><thead><tr><th>Item</th><th>Location</th><th>Size / swing</th></tr></thead><tbody>${s.roomFeatures.map((v) => `<tr><td>${a(v.name)}</td><td>Wall ${wallFrame(s, v.wall).corner} · start ${v.offset}</td><td>${v.type === 'wardrobeAccess' ? `Sliding doors · width ${v.width} · height ${v.height} · clear access in front ${v.clearance}` : `${v.width} × ${v.height} · ${v.type === 'door' ? v.openAngle + '° ' + (v.swing === 'in' ? 'inwards' : 'outwards') : 'sill ' + v.sill + ' · clearance ' + v.clearance}`}</td></tr>`).join('')}${s.roomFurniture.map((v) => `<tr><td>${a(v.name)}</td><td>${v.type === 'wallShelf' ? `Wall ${wallFrame(s, v.mountWall).corner} · start ${v.offset} · bottom ${v.elevation} cm` : `X ${round(v.x - s.roomX)} / Z ${round(v.z - s.roomZ)} · ${v.angle}°`}</td><td>${v.width} × ${v.depth} × ${v.height}${v.type === 'chair' ? ` · seat ${v.seatHeight} · pull-back ${v.pullback}` : ''}</td></tr>`).join('')}</tbody></table>`;

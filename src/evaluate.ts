@@ -13,7 +13,7 @@ import {
 import { evaluateRoom, type Obstacle, type RoomEvaluation } from './room.ts';
 import type { NamedSolid } from './interference.ts';
 import type { Check, CheckLevel } from './checks.ts';
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import { deskBounds, getDesktopItems } from './desk.ts';
 import { deskPose as deskPoseOf } from './layout.ts';
 import { monitorGeometry } from './monitor-arm.ts';
@@ -64,7 +64,7 @@ const check = (
   detail: string,
 ): Check => ({ id, label, value, level, detail });
 
-function presenceOf(s: CockpitConfig): Presence {
+function presenceOf(s: RoomConfig): Presence {
   const hasDesk = s.deskEnabled !== false;
   return { hasDesk, hasMonitor: hasDesk && s.monitorEnabled !== false };
 }
@@ -78,7 +78,7 @@ function monitorSize(inches: number) {
 }
 
 /** Bounding box of every point of the setup and its clearance to each room wall. */
-function setupExtent(s: CockpitConfig, setupPoints: PlanPoint[]) {
+function setupExtent(s: RoomConfig, setupPoints: PlanPoint[]) {
   const points = setupPoints.length ? setupPoints : [{ x: s.roomX, z: s.roomZ }];
   const allLeft = Math.min(...points.map((p) => p.x));
   const allRight = Math.max(...points.map((p) => p.x));
@@ -115,7 +115,7 @@ function setupExtent(s: CockpitConfig, setupPoints: PlanPoint[]) {
 
 /** Tabletop, two columns and two feet. */
 function deskVolumes(
-  s: CockpitConfig,
+  s: RoomConfig,
   bounds: ReturnType<typeof deskBounds>,
   deskPose: Placement,
 ): NamedSolid[] {
@@ -142,7 +142,7 @@ function deskVolumes(
 
 /** The monitor arm's reach and height, and the monitor parked for VR. */
 function spaceChecks(
-  s: CockpitConfig,
+  s: RoomConfig,
   presence: Presence,
   layout: {
     armPose: ReturnType<typeof monitorGeometry>['arm'];
@@ -197,7 +197,7 @@ function desktopLayout(desktopItems: DesktopItem[]) {
 }
 
 function desktopChecks(
-  s: CockpitConfig,
+  s: RoomConfig,
   presence: Presence,
   desktopItems: DesktopItem[],
   layout: ReturnType<typeof desktopLayout>,
@@ -272,7 +272,7 @@ function segmentVolume(a: PlanPoint, b: PlanPoint, radius: number, y: number): S
 
 /** Everything of the setup that can block furniture, openings and clearance zones. */
 function setupObstacles(
-  s: CockpitConfig,
+  s: RoomConfig,
   presence: Presence,
   parts: {
     deskSolids: NamedSolid[];
@@ -313,7 +313,7 @@ function setupObstacles(
 
 /** The first side of the setup with an aisle free of furniture and door sweeps. */
 function findFreeBand(
-  s: CockpitConfig,
+  s: RoomConfig,
   extent: ReturnType<typeof setupExtent>,
   hasSetup: boolean,
   room: RoomEvaluation,
@@ -343,7 +343,7 @@ function findFreeBand(
 
 /** Whether the setup fits in the room with a free aisle beside it. */
 function roomFitChecks(
-  s: CockpitConfig,
+  s: RoomConfig,
   room: { hasSetup: boolean; roomFits: boolean; aisleFits: boolean },
 ): Check[] {
   if (!room.hasSetup || s.roomEnabled === false) return [];
@@ -366,7 +366,7 @@ function roomFitChecks(
   ];
 }
 
-export function evaluate(s: CockpitConfig) {
+export function evaluate(s: RoomConfig) {
   const presence = presenceOf(s);
   const { hasDesk, hasMonitor } = presence;
   const deskPose = deskPoseOf(s);

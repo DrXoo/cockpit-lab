@@ -1,6 +1,6 @@
 // The room as drawn: floor, walls with their openings, furniture and the free band.
 // Everything is in world coordinates; the room's measurements go to the dimensions group.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, type PlanPoint } from './geometry.ts';
 import type { MaterialRef, ParentRef, RenderList, Vec3 } from './render-list.ts';
@@ -57,7 +57,7 @@ export function drawRoom(
   r: RenderList,
   parent: ParentRef,
   dimensions: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   floorColor: string,
 ): void {
@@ -96,7 +96,7 @@ export function drawRoom(
 function drawWall(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   wall: WallId,
   wallHeight: number,
@@ -147,7 +147,7 @@ function drawRoomMeasurements(
   r: RenderList,
   parent: ParentRef,
   dimensions: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
 ) {
   const corners: [number, number, string][] = [
     [s.roomX, s.roomZ, 'A'],
@@ -192,7 +192,7 @@ function drawRoomMeasurements(
 function drawDoor(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   item: DoorGeometry,
   material: MaterialRef,

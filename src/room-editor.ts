@@ -7,7 +7,7 @@ import {
   type FurnitureItem,
   type RoomFeature,
 } from './room.ts';
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { ControlTemplates } from './controls-view.ts';
 import { escapeHTML } from './html.ts';
@@ -15,7 +15,7 @@ import { escapeHTML } from './html.ts';
 export { escapeHTML };
 
 export type RoomItem = RoomFeature | FurnitureItem;
-type RoomLists = Pick<CockpitConfig, 'roomFeatures' | 'roomFurniture'>;
+type RoomLists = Pick<RoomConfig, 'roomFeatures' | 'roomFurniture'>;
 
 /** Openings sit on a wall; furniture stands in the room. */
 export const isFeature = (item: RoomItem): item is RoomFeature => 'wall' in item;
@@ -39,11 +39,7 @@ export function roomItems(s: RoomLists, mode: string): RoomItem[] {
       : [...s.roomFeatures, ...s.roomFurniture];
 }
 /** A value of the selected item; x and z are measured from the room's walls. */
-export function roomValue(
-  s: CockpitConfig,
-  target: string,
-  key: string,
-): string | number | undefined {
+export function roomValue(s: RoomConfig, target: string, key: string): string | number | undefined {
   const item = roomItem(s, target);
   if (!item) {
     // Without an item, the target is the desk.
@@ -75,7 +71,7 @@ function hiddenFurnitureHTML(hidden: readonly { id: string; name: string }[]): s
 }
 
 export function roomControls(
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   target: string,
   range: ControlTemplates['range'],

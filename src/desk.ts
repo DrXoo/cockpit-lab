@@ -1,6 +1,6 @@
 // The desk: tabletop bounds, the arm anchor and the items placed on it. Lengths in cm.
 import { clamp, degToRad, rectangle, round, transformPoint } from './geometry.ts';
-import { defaults, type ClampSide, type CockpitConfig, type NumericField } from './config.ts';
+import { defaults, type ClampSide, type RoomConfig, type NumericField } from './config.ts';
 import { deskPose } from './layout.ts';
 
 export type DesktopItemId = 'arm' | 'keyboard' | 'pc' | 'mouse' | 'mat';
@@ -20,7 +20,7 @@ export const desktopTargets: DesktopTarget[] = [
   { id: 'mouse', label: 'Mouse', prefix: 'mouse' },
   { id: 'mat', label: 'XL desk mat', prefix: 'mat' },
 ];
-export function deskBounds(s: Partial<Pick<CockpitConfig, 'deskWidth' | 'deskDepth'>>) {
+export function deskBounds(s: Partial<Pick<RoomConfig, 'deskWidth' | 'deskDepth'>>) {
   const width = s.deskWidth ?? defaults.deskWidth,
     depth = s.deskDepth ?? defaults.deskDepth,
     halfX = depth / 2,
@@ -41,7 +41,7 @@ export function deskBounds(s: Partial<Pick<CockpitConfig, 'deskWidth' | 'deskDep
 }
 
 /** The desk edge closest to the arm's anchor, keeping the current side on ties. */
-export function clampEdge(s: CockpitConfig): ClampSide {
+export function clampEdge(s: RoomConfig): ClampSide {
   const b = deskBounds(s),
     candidates: [ClampSide, number][] = [
       ['xmin', Math.abs(s.clampX + b.anchorX)],
@@ -61,10 +61,10 @@ export function clampEdge(s: CockpitConfig): ClampSide {
 }
 const enabledKey = (id: DesktopItemId) =>
   id === 'arm' ? 'monitorEnabled' : (`${id}Enabled` as const);
-const angleOf = (s: CockpitConfig, prefix: DesktopPrefix): number =>
+const angleOf = (s: RoomConfig, prefix: DesktopPrefix): number =>
   prefix === 'clamp' ? 0 : (s[`${prefix}Angle`] ?? 0);
 
-export function getDesktopItems(s: CockpitConfig, { includeInactive = false } = {}) {
+export function getDesktopItems(s: RoomConfig, { includeInactive = false } = {}) {
   const bounds = deskBounds(s),
     sizes: Record<DesktopItemId, [sizeX: number, sizeZ: number, height: number]> = {
       arm: [8, 8, 3],
@@ -94,12 +94,7 @@ export function getDesktopItems(s: CockpitConfig, { includeInactive = false } = 
       return { ...target, sizeX, sizeZ, height, local, localPolygon, world, polygon, outside };
     });
 }
-export function placeDeskItem(
-  s: CockpitConfig,
-  id: DesktopItemId,
-  x: number,
-  z: number,
-): CockpitConfig {
+export function placeDeskItem(s: RoomConfig, id: DesktopItemId, x: number, z: number): RoomConfig {
   const target = desktopTargets.find((t) => t.id === id);
   if (!target) return s;
   const result = { ...s },
@@ -130,7 +125,7 @@ export function placeDeskItem(
   result[`${target.prefix}Z`] = round(clamp(z, -limitZ, limitZ));
   return result;
 }
-export function resizeDesk(s: CockpitConfig, width: number, depth: number): CockpitConfig {
+export function resizeDesk(s: RoomConfig, width: number, depth: number): RoomConfig {
   const side = clampEdge(s);
   let next = { ...s, deskWidth: clamp(width, 120, 200), deskDepth: clamp(depth, 60, 80) };
   const b = deskBounds(next);
@@ -147,14 +142,14 @@ export function resizeDesk(s: CockpitConfig, width: number, depth: number): Cock
     next = placeDeskItem(next, item.id, next[`${item.prefix}X`], next[`${item.prefix}Z`]);
   return next;
 }
-export function updateDeskItem(s: CockpitConfig, key: NumericField, value: number): CockpitConfig {
+export function updateDeskItem(s: RoomConfig, key: NumericField, value: number): RoomConfig {
   if (key === 'deskWidth' || key === 'deskDepth')
     return resizeDesk(
       s,
       key === 'deskWidth' ? value : s.deskWidth,
       key === 'deskDepth' ? value : s.deskDepth,
     );
-  const next: CockpitConfig = { ...s, [key]: value },
+  const next: RoomConfig = { ...s, [key]: value },
     target = desktopTargets.find((t) => key.startsWith(t.prefix));
   return target
     ? placeDeskItem(next, target.id, next[`${target.prefix}X`], next[`${target.prefix}Z`])

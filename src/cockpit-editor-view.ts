@@ -1,10 +1,10 @@
 // The cockpit editor while a design has no parts: the panel that explains how a design starts,
 // and the empty workspace the design is shown in, without any room. Cockpit files are imported
 // from the actions above the panel.
-import { defaults, type CockpitConfig } from './config.ts';
+import { defaults, type RoomConfig } from './config.ts';
 
 /** What surrounds a design in its own workspace: nothing. */
-export const NOTHING_AROUND: CockpitConfig = {
+export const NOTHING_AROUND: RoomConfig = {
   ...defaults,
   roomEnabled: false,
   deskEnabled: false,

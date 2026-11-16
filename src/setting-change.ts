@@ -1,5 +1,5 @@
 // One change to a setting, as the settings panel makes it: a number, a toggle or a choice.
-import { choiceOptions, type CockpitConfig, type NumericField } from './config.ts';
+import { choiceOptions, type RoomConfig, type NumericField } from './config.ts';
 import type { BooleanSetting, ChoiceSetting } from './controls-view.ts';
 import { desktopTargets, placeDeskItem, updateDeskItem } from './desk.ts';
 import { editArm } from './monitor-arm.ts';
@@ -13,12 +13,12 @@ export type SettingChange =
  * Applies a change with the rules that depend on it: the monitor arm follows its mode, and
  * desktop objects stay on the desk.
  */
-export function applySetting(s: CockpitConfig, change: SettingChange): CockpitConfig {
+export function applySetting(s: RoomConfig, change: SettingChange): RoomConfig {
   if (change.kind === 'number')
     return updateDeskItem(editArm(s, change.key, change.value), change.key, change.value);
   if (change.kind === 'choice' && !choiceOptions(change.key)?.includes(change.value))
     throw new Error(`Invalid value for ${change.key}: ${change.value}`);
-  const next: CockpitConfig = {
+  const next: RoomConfig = {
     ...editArm(s, change.key, change.value),
     [change.key]: change.value,
   };

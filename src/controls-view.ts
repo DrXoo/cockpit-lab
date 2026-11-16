@@ -1,22 +1,22 @@
 // Templates of the setting controls. They read the state and evaluation they are given, so the
 // same markup can be produced and tested outside the browser.
 import { round } from './geometry.ts';
-import type { CockpitConfig, NumericField } from './config.ts';
+import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { fieldSpec } from './field-spec.ts';
 import { wrapAngle } from './monitor-arm.ts';
 
 export interface ControlView {
-  state: CockpitConfig;
+  state: RoomConfig;
   evaluation: CockpitEvaluation;
 }
 
 export type BooleanSetting = {
-  [K in keyof CockpitConfig]: CockpitConfig[K] extends boolean ? K : never;
-}[keyof CockpitConfig];
+  [K in keyof RoomConfig]: RoomConfig[K] extends boolean ? K : never;
+}[keyof RoomConfig];
 export type ChoiceSetting = {
-  [K in keyof CockpitConfig]: CockpitConfig[K] extends string ? K : never;
-}[keyof CockpitConfig];
+  [K in keyof RoomConfig]: RoomConfig[K] extends string ? K : never;
+}[keyof RoomConfig];
 
 /** The control templates bound to a state, as the editors receive them. */
 export interface ControlTemplates {

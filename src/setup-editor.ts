@@ -1,7 +1,7 @@
 // Guided setup: the form of each step and the progress bar.
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 import { steps, type SetupProgress } from './project.ts';
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { BooleanSetting, ControlTemplates } from './controls-view.ts';
 import { roomControls } from './room-editor.ts';
@@ -30,7 +30,7 @@ export function accessoryControls(toggle: ControlTemplates['toggle']): string {
   ).join('')}</div>`;
 }
 export function creationControls(
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   setup: SetupProgress,
   target: string,

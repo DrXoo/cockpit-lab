@@ -1,5 +1,5 @@
 // The validation banner and the headline metrics of the checks panel.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 
 const EMPTY_PROJECT =
@@ -16,7 +16,7 @@ export interface Banner {
 
 /** The overall result. Each level shows a symbol as well as its colour. */
 export function validationBanner(
-  state: CockpitConfig,
+  state: RoomConfig,
   { errors, warnings }: Pick<CockpitEvaluation, 'errors' | 'warnings'>,
 ): Banner {
   if (!state.roomEnabled && !state.deskEnabled)
@@ -38,7 +38,7 @@ export interface Metrics {
 }
 
 /** The room's inside dimensions, and the footprint of everything set up in it. */
-export function metricsView(state: CockpitConfig, e: CockpitEvaluation): Metrics {
+export function metricsView(state: RoomConfig, e: CockpitEvaluation): Metrics {
   return {
     footprintHTML: `${state.roomW} × ${state.roomD} cm`,
     spaceHTML: `${Math.ceil(e.spaceW)} <small>×</small> ${Math.ceil(e.spaceD)} <small>cm</small>`,

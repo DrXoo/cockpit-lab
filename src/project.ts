@@ -3,7 +3,7 @@
 // history (docs/adr/0005). v1 to v4 files open with their room only: the parametric cockpit
 // they may hold is retired without conversion (docs/adr/0004). v3 and v4 files store the room as
 // v5 does; v1 and v2 files hold a single configuration and open as one layout.
-import { defaults, sanitize, type CockpitConfig } from './config.ts';
+import { defaults, sanitize, type RoomConfig } from './config.ts';
 import {
   FURNITURE_PLACEMENT_KEYS,
   MAX_LAYOUTS,
@@ -181,11 +181,11 @@ function readDrafts(input: unknown = {}): SetupDrafts {
 }
 
 /** The configuration of a layout of the project, the active one by default. */
-export const projectConfig = (project: Project, layoutId?: string): CockpitConfig =>
+export const projectConfig = (project: Project, layoutId?: string): RoomConfig =>
   layoutConfig(project.library, layoutId);
 
 /** Stores an edited configuration of the active layout. */
-export const recordProject = (project: Project, config: CockpitConfig): Project => ({
+export const recordProject = (project: Project, config: RoomConfig): Project => ({
   ...project,
   library: recordLayout(project.library, config),
 });
@@ -197,7 +197,7 @@ export const replaceCockpitDesign = (project: Project, cockpit: CockpitDesign): 
 });
 
 /** A project without a cockpit design from a single configuration, as v1 and v2 files have. */
-export const projectFromConfig = (config: CockpitConfig, setup: SetupProgress): Project => ({
+export const projectFromConfig = (config: RoomConfig, setup: SetupProgress): Project => ({
   cockpit: null,
   library: createLayoutLibrary(config),
   setup,
@@ -253,7 +253,7 @@ function withoutCockpitStep(input: RawRecord): RawRecord {
   };
 }
 
-function readSetup(rawInput: unknown, config: CockpitConfig): SetupProgress {
+function readSetup(rawInput: unknown, config: RoomConfig): SetupProgress {
   const input = isRecord(rawInput) ? withoutCockpitStep(rawInput) : rawInput;
   if (
     !isRecord(input) ||

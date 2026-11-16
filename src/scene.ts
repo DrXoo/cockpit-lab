@@ -3,7 +3,7 @@
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { inversePoint } from './geometry.ts';
 import { draggedPosition, pickLayoutItem, type LayoutGrab } from './layout-picking.ts';
@@ -223,7 +223,7 @@ export class CockpitScene {
   declare layoutTarget: string;
   declare roomEditing: boolean;
   /** The configuration last drawn, with its evaluation and extent. */
-  declare s: CockpitConfig | null;
+  declare s: RoomConfig | null;
   declare e: CockpitEvaluation | null;
   declare sceneBounds: SceneBounds | null;
   declare root: T.Group | null;
@@ -340,7 +340,7 @@ export class CockpitScene {
     });
   }
 
-  update(s: CockpitConfig, e: CockpitEvaluation) {
+  update(s: RoomConfig, e: CockpitEvaluation) {
     this.revision++;
     this.s = s;
     this.e = e;

@@ -1,6 +1,6 @@
 // The desk as drawn: tabletop, columns, desktop objects, the monitor and its arm.
 // The desk and its objects are drawn in the desk frame; the monitor and arm in world coordinates.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, overlapDepth, type PlanPoint, type Point3 } from './geometry.ts';
 import { clampEdge } from './desk.ts';
@@ -34,7 +34,7 @@ const REACH_GAP_LINE = { kind: 'dashed', color: 0xc26a46, dashSize: 2, gapSize: 
 export function drawDesk(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
 ): void {
   if (s.deskEnabled === false) return;
@@ -78,12 +78,7 @@ export function drawDesk(
 }
 
 /** The mat goes first so that the objects on it are drawn over it. */
-function drawDesktopObjects(
-  r: RenderList,
-  parent: ParentRef,
-  s: CockpitConfig,
-  e: CockpitEvaluation,
-) {
+function drawDesktopObjects(r: RenderList, parent: ParentRef, s: RoomConfig, e: CockpitEvaluation) {
   const mat = e.desktopItems.find((item) => item.id === 'mat');
   const matFirst = [...e.desktopItems].sort(
     (a, b) => (a.id === 'mat' ? -1 : 0) - (b.id === 'mat' ? -1 : 0),
@@ -177,7 +172,7 @@ function drawPc(r: RenderList, parent: ParentRef, { sizeX: X, sizeZ: Z }: Deskto
 export function drawMonitor(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   { showHandles }: { showHandles: boolean },
 ): ArmHandle[] {
@@ -233,7 +228,7 @@ export function drawMonitor(
   return handles;
 }
 
-function drawArmAnchor(r: RenderList, parent: ParentRef, s: CockpitConfig, p: PlanPoint) {
+function drawArmAnchor(r: RenderList, parent: ParentRef, s: RoomConfig, p: PlanPoint) {
   const anchor = r.group(parent, {
     position: [p.x, s.deskH, p.z],
     rotation: [0, degToRad(s.deskAngle + CLAMP_EDGE_ANGLE_DEG[clampEdge(s)]), 0],
@@ -253,7 +248,7 @@ function drawArmAnchor(r: RenderList, parent: ParentRef, s: CockpitConfig, p: Pl
 export function drawArmReach(
   r: RenderList,
   parent: ParentRef,
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   { visible }: { visible: boolean },
 ): void {

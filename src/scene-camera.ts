@@ -1,5 +1,5 @@
 // Camera framing: what each view looks at and how much of the plan it shows.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, type PlanPoint, type Point3 } from './geometry.ts';
 
@@ -15,7 +15,7 @@ export interface SceneBounds {
 
 /** What the camera frames once the scene has been built. */
 export interface Framing {
-  state: CockpitConfig;
+  state: RoomConfig;
   evaluation: CockpitEvaluation;
   bounds: SceneBounds;
 }
@@ -49,7 +49,7 @@ const ISO_OFFSET_CM = { x: -320, y: 245, z: 320 };
 const ISO_POLAR_RAD: [number, number] = [0.05, Math.PI / 2 - 0.02];
 const PLAN_POLAR_RAD: [number, number] = [0, Math.PI];
 
-export function sceneBounds(s: CockpitConfig, e: CockpitEvaluation): SceneBounds {
+export function sceneBounds(s: RoomConfig, e: CockpitEvaluation): SceneBounds {
   const roomPoints: PlanPoint[] =
     s.roomEnabled !== false
       ? [

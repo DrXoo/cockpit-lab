@@ -1,5 +1,5 @@
 // The whole scene as drawn for one configuration and view, ready for the Three.js adapter.
-import type { CockpitConfig } from './config.ts';
+import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad } from './geometry.ts';
 import {
@@ -23,7 +23,7 @@ export interface RenderModel {
 }
 
 export function renderModel(
-  s: CockpitConfig,
+  s: RoomConfig,
   e: CockpitEvaluation,
   options: RenderOptions,
 ): RenderModel {
