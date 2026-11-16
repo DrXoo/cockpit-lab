@@ -21,6 +21,7 @@ import {
   partChange,
   partField,
   partInspectorHTML,
+  type TouchingPart,
 } from './cockpit-editor-view.ts';
 import {
   addAnchoredProfile,
@@ -135,7 +136,9 @@ import { partsToBuy } from './cad/parts-to-buy.ts';
 import {
   fastenWithBrackets,
   jointsOfPart,
+  joinParts,
   setConnector,
+  touchingParts,
   type JointOfPart,
 } from './cad/fastening.ts';
 import { partsToBuyHTML } from './cockpit-parts-view.ts';
@@ -500,6 +503,16 @@ function editSelectedPart(changes: Partial<ProfileValues>) {
   if (!operation || !makesAProfile(operation)) return;
   changeHistory((history) => editProfile(history, operation.partId, changes));
 }
+/** The parts that touch the selected one at the marker without a joint, to join it to. */
+function touchingSelected(): TouchingPart[] {
+  const partId = selectedPartId();
+  if (partId === null) return [];
+  const history = designHistory();
+  return touchingParts(history, partId, markerIndex()).map((id) => ({
+    partId: id,
+    name: operationMaking(history, id)?.name ?? id,
+  }));
+}
 /** The joints of the selected part at the marker, with their connectors. */
 function jointsOfSelected(): JointOfPart[] {
   const partId = selectedPartId();
@@ -702,7 +715,10 @@ function renderCockpitChecks() {
       .map(checkRowHTML)
       .join(''),
   );
-  showCockpitList($('#partsToBuy'), partsToBuyHTML(partsToBuy(design.resolved, design.connectors)));
+  showCockpitList(
+    $('#partsToBuy'),
+    partsToBuyHTML(partsToBuy(design.resolved, design.connectors, design.joints)),
+  );
 }
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
@@ -713,7 +729,7 @@ function renderPartInspector({ force = false } = {}) {
   const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
   const html = growing
     ? growPanelHTML(history, growing)
-    : partInspectorHTML(history, operation, failure, jointsOfSelected());
+    : partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected());
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
@@ -751,6 +767,13 @@ function renderPartInspector({ force = false } = {}) {
       const side = faceOf(dataOf(button, 'side'));
       const on = button.getAttribute('aria-pressed') !== 'true';
       changeJoints((history, at) => setConnector(history, dataOf(button, 'joint'), side, on, at));
+    }),
+  );
+  body.querySelectorAll<HTMLElement>('[data-join]').forEach((button) =>
+    button.addEventListener('click', () => {
+      const partId = selectedPartId();
+      if (partId === null) return;
+      changeJoints((history, at) => joinParts(history, partId, dataOf(button, 'join'), at));
     }),
   );
   body

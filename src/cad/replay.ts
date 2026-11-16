@@ -18,12 +18,20 @@ import {
   operationMaking,
   partMadeBy,
   type FastenJoint,
+  type JoinParts,
   type MakingOperation,
   type Operation,
   type RemovePart,
 } from './operations.ts';
 import { placedConnector, type PlacedConnector } from './connectors.ts';
-import { jointIdOf, jointsOf, type Joint } from './joints.ts';
+import {
+  jointIdOf,
+  jointOfTouching,
+  joinedTogether,
+  jointsOf,
+  touchingFace,
+  type Joint,
+} from './joints.ts';
 
 export interface ReplayedDesign {
   /** The parts the replayed steps leave, in the order they were made. */
@@ -69,13 +77,18 @@ function replaySteps(
   lateFailures: ReadonlyMap<string, string>,
 ): ReplayedDesign {
   let parts: Part[] = [];
+  const joins: JoinParts[] = [];
   const failures = new Map(lateFailures);
   steps.forEach((operation, index) => {
     if (failures.has(operation.id)) return;
-    const context: StepContext = { history, index, parts, failures };
-    if (operation.kind === 'fasten-joint') {
-      const missing = missingJoint(operation, context);
-      if (missing) failures.set(operation.id, missing);
+    const context: StepContext = { history, index, parts, joins, failures };
+    if (operation.kind === 'fasten-joint' || operation.kind === 'join-parts') {
+      const reason =
+        operation.kind === 'fasten-joint'
+          ? missingJoint(operation, context)
+          : misfitJoin(operation, context);
+      if (reason) failures.set(operation.id, reason);
+      else if (operation.kind === 'join-parts') joins.push(operation);
       return;
     }
     const result =
@@ -84,7 +97,41 @@ function replaySteps(
     else parts = result;
   });
   const resolved = resolveAssembly(parts);
-  return { parts, resolved, failures, joints: jointsOf(resolved), connectors: [] };
+  return { parts, resolved, failures, joints: jointsAt(resolved, joins), connectors: [] };
+}
+
+/**
+ * The joints of the parts: one per attachment and span end, and one per join of two parts that
+ * are both still there.
+ */
+function jointsAt(
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  joins: readonly JoinParts[],
+): Joint[] {
+  const joined = joins.flatMap((join) => {
+    const part = resolved.get(join.partId);
+    const other = resolved.get(join.toPartId);
+    const joint = part && other ? jointOfTouching(part, other) : null;
+    return joint ? [joint] : [];
+  });
+  return [...jointsOf(resolved), ...joined];
+}
+
+/** Why two parts cannot be joined at this step, or null when they can. */
+function misfitJoin(operation: JoinParts, context: StepContext): string | null {
+  const missing =
+    missingPart(operation.partId, context, 'It joins') ??
+    missingPart(operation.toPartId, context, 'It joins a part to');
+  if (missing) return missing;
+  const resolved = resolveAssembly(context.parts);
+  const part = resolved.get(operation.partId);
+  const other = resolved.get(operation.toPartId);
+  if (!part || !other) return null;
+  const names = { part: part.part.name, other: other.part.name };
+  if (joinedTogether(jointsAt(resolved, context.joins), operation.partId, operation.toPartId))
+    return `${names.part} and ${names.other} are joined already.`;
+  if (touchingFace(part, other) === null) return `${names.part} no longer touches ${names.other}.`;
+  return null;
 }
 
 /** Why the joint a fastening puts connectors on is not in the design at its step, or null. */
@@ -93,7 +140,7 @@ function missingJoint(operation: FastenJoint, context: StepContext): string | nu
     missingPart(operation.partId, context, 'It fastens') ??
     missingPart(operation.toPartId, context, 'It fastens a part to');
   if (missing) return missing;
-  const joints = jointsOf(resolveAssembly(context.parts));
+  const joints = jointsAt(resolveAssembly(context.parts), context.joins);
   if (joints.some((joint) => joint.id === jointIdOf(operation))) return null;
   const nameOf = (id: string) => context.parts.find((part) => part.id === id)?.name ?? id;
   return `${nameOf(operation.partId)} is not joined to ${nameOf(operation.toPartId)} at this step.`;
@@ -135,6 +182,8 @@ interface StepContext {
   index: number;
   /** The parts the earlier steps left. */
   parts: readonly Part[];
+  /** The joins of the earlier steps that apply. */
+  joins: readonly JoinParts[];
   failures: ReadonlyMap<string, string>;
 }
 

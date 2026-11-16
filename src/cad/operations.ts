@@ -110,6 +110,17 @@ export interface FastenJoint {
   connectors: ConnectorChoice[];
 }
 
+/**
+ * Joins two parts that only touch, so that they make a joint as an attachment does. The part
+ * that meets the other end on comes first, when one does.
+ */
+export interface JoinParts {
+  kind: 'join-parts';
+  id: string;
+  partId: string;
+  toPartId: string;
+}
+
 /** An operation that makes a profile. */
 export type ProfileOperation = AddAnchoredProfile | GrowProfile;
 
@@ -117,10 +128,12 @@ export type ProfileOperation = AddAnchoredProfile | GrowProfile;
 export type MakingOperation = ProfileOperation | AddFoot;
 
 /** One step of a design history. Every kind is part of the file format. */
-export type Operation = MakingOperation | RemovePart | FastenJoint;
+export type Operation = MakingOperation | RemovePart | FastenJoint | JoinParts;
 
 export const makesAPart = (operation: Operation): operation is MakingOperation =>
-  operation.kind !== 'remove-part' && operation.kind !== 'fasten-joint';
+  operation.kind === 'add-anchored-profile' ||
+  operation.kind === 'grow-profile' ||
+  operation.kind === 'add-foot';
 
 export const makesAProfile = (operation: Operation): operation is ProfileOperation =>
   operation.kind === 'add-anchored-profile' || operation.kind === 'grow-profile';
@@ -245,6 +258,10 @@ export function checkedOperation<T extends Operation>(operation: T): T {
     checkFastening(operation);
     return operation;
   }
+  if (operation.kind === 'join-parts') {
+    if (operation.partId === operation.toPartId) throw new Error('A part cannot join itself.');
+    return operation;
+  }
   const system = profileSystem(operation.systemId);
   if (!system.sections.some((section) => section.id === operation.sectionId))
     throw new Error(`Profile section ${operation.sectionId} is not in ${system.id}.`);
@@ -322,5 +339,7 @@ export function stepTitle(history: readonly Operation[], operation: Operation): 
   if (operation.kind === 'remove-part') return `Removes ${nameOf(operation.removedId)}`;
   if (operation.kind === 'fasten-joint')
     return `Fastens ${nameOf(operation.partId)} to ${nameOf(operation.toPartId)}`;
+  if (operation.kind === 'join-parts')
+    return `Joins ${nameOf(operation.partId)} to ${nameOf(operation.toPartId)}`;
   return operation.name;
 }

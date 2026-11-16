@@ -4,15 +4,18 @@
 // they have connectors yet; the parts to buy list the unresolved ones as pending.
 // A geometric check only: it says nothing about loads or stiffness.
 import type { ResolvedPart } from './assembly.ts';
-import { jointsOf } from './joints.ts';
+import { jointsOf, type Joint } from './joints.ts';
 
 /** The ids of the parts that are not supported, in the order they appear in the design. */
-export function unsupportedParts(resolved: ReadonlyMap<string, ResolvedPart>): string[] {
+export function unsupportedParts(
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  joints: readonly Joint[] = jointsOf(resolved),
+): string[] {
   const neighbors = new Map<string, string[]>();
   const link = (a: string, b: string) => {
     neighbors.set(a, [...(neighbors.get(a) ?? []), b]);
   };
-  for (const joint of jointsOf(resolved)) {
+  for (const joint of joints) {
     link(joint.partId, joint.toPartId);
     link(joint.toPartId, joint.partId);
   }

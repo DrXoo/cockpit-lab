@@ -340,3 +340,26 @@ test('a fastened joint says how many brackets it has, and a fastening is a step'
   assert.match(inspector, /Puts 2 × 40 corner bracket on the joint of <strong>B<\/strong>/);
   assert.match(inspector, /id="deleteStep"/);
 });
+
+test('parts that touch without a joint can be joined from the inspector', () => {
+  const history = historyWith(2);
+  const html = partInspectorHTML(
+    history,
+    history[0],
+    undefined,
+    [],
+    [{ partId: 'part-2', name: '<D>' }],
+  );
+  assert.match(html, /id="touchingParts"/);
+  assert.match(html, /data-join="part-2"[^>]*>.*Join to &lt;D&gt;/);
+});
+
+test('a join is a step that names its two parts', () => {
+  const base = historyWith(2);
+  const history = [
+    ...base,
+    { kind: 'join-parts', id: 'op-3', partId: 'part-2', toPartId: 'part-1' },
+  ];
+  assert.match(panel({ history }), /Joins 40 × 40 profile 2 to 40 × 40 profile 1/);
+  assert.match(partInspectorHTML(history, history[2]), /id="deleteStep"/);
+});

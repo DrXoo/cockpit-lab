@@ -381,3 +381,26 @@ test('a joint is fastened with corner brackets from the inspector of either part
     /warning/,
   );
 });
+
+test('two parts that only touch are joined, and the joint takes brackets', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('#part-axis').selectOption('y');
+  for (const [field, value] of [
+    ['startX', '0'],
+    ['startY', '40'],
+    ['startZ', '250'],
+  ]) {
+    await page.locator(`#part-${field}`).fill(value);
+    await page.locator(`#part-${field}`).press('Enter');
+  }
+  await page.locator('[data-join="part-1"]').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'join-parts', partId: 'part-2', toPartId: 'part-1' });
+  await expect(page.locator('#touchingParts')).toHaveCount(0);
+  await page.locator('[data-joint-brackets="part-2@part-1"]').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[3])
+    .toMatchObject({ kind: 'fasten-joint', partId: 'part-2', toPartId: 'part-1' });
+});

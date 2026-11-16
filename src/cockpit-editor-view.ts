@@ -166,6 +166,7 @@ function stepDetail(history: readonly Operation[], operation: Operation): string
   if (operation.kind === 'add-foot')
     return `Under ${escapeHTML(nameOf(history, operation.parentId))} · ${escapeHTML(footType(operation.footTypeId).name)}`;
   if (operation.kind === 'fasten-joint') return escapeHTML(connectorCountText(operation));
+  if (operation.kind === 'join-parts') return 'They touch: a joint to fasten';
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
   const made =
     operation.kind === 'add-anchored-profile'
@@ -227,6 +228,7 @@ export function partInspectorHTML(
   operation: Operation | undefined,
   failure?: string,
   joints: readonly JointOfPart[] = [],
+  touching: readonly TouchingPart[] = [],
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
@@ -239,25 +241,42 @@ export function partInspectorHTML(
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
   if (operation.kind === 'fasten-joint')
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+  if (operation.kind === 'join-parts')
+    return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
   const removePart = `<button class="button button-light" id="removePart" title="Remove it from the design from the marker on"><i data-icon="close"></i>Remove this part</button>`;
   if (operation.kind === 'add-foot') {
     const actions = failure === undefined ? removePart : '';
-    return `<div class="part-inspector" id="partInspectorFields">${failed}${footFieldsHTML(history, operation)}${jointsHTML(joints)}<div class="part-actions">${actions}${deleteStep}</div></div>`;
+    return `<div class="part-inspector" id="partInspectorFields">${failed}${footFieldsHTML(history, operation)}${jointsHTML(joints, touching)}<div class="part-actions">${actions}${deleteStep}</div></div>`;
   }
   const partActions =
     failure === undefined
       ? `<button class="button button-light" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button><button class="button button-light" id="addFoot" title="Under the end that has fewer feet"><i data-icon="plus"></i>Add a foot under it</button>${removePart}`
       : '';
-  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}${jointsHTML(joints)}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
+  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}${jointsHTML(joints, touching)}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
 }
 
 /**
  * The joints of the selected part, with their connectors: a corner bracket can be put on or
  * taken off each side of the joined part where it fits, or two at once along the part it meets.
  */
-function jointsHTML(joints: readonly JointOfPart[]): string {
-  if (joints.length === 0) return '';
-  return `<div class="part-joints" id="partJoints"><h4 class="buy-group">Joints</h4>${joints.map(jointHTML).join('')}</div>`;
+function jointsHTML(joints: readonly JointOfPart[], touching: readonly TouchingPart[]): string {
+  if (joints.length === 0 && touching.length === 0) return '';
+  const joins = touching
+    .map(
+      ({ partId, name }) =>
+        `<button class="text-button" data-join="${escapeHTML(partId)}" title="Make a joint where they touch"><i data-icon="plus"></i>Join to ${escapeHTML(name)}</button>`,
+    )
+    .join('');
+  const touchingHTML = touching.length
+    ? `<div class="joint-row" id="touchingParts"><p class="joint-name"><strong>Touching, without a joint</strong><small>Join them to fasten them and count them as support.</small></p><div class="joint-sides">${joins}</div></div>`
+    : '';
+  return `<div class="part-joints" id="partJoints"><h4 class="buy-group">Joints</h4>${joints.map(jointHTML).join('')}${touchingHTML}</div>`;
+}
+
+/** A part that touches the selected one without a joint, to join it to. */
+export interface TouchingPart {
+  partId: string;
+  name: string;
 }
 
 function jointHTML(joint: JointOfPart): string {

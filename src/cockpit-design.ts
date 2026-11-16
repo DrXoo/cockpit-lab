@@ -61,6 +61,7 @@ function readOperation(data: unknown): Operation {
   if (data.kind === 'remove-part') return checkedOperation(readRemoval(data));
   if (data.kind === 'add-foot') return checkedOperation(readFoot(data));
   if (data.kind === 'fasten-joint') return checkedOperation(readFastening(data));
+  if (data.kind === 'join-parts') return checkedOperation(readJoin(data));
   throw new Error('Unknown operation in the design history');
 }
 
@@ -102,6 +103,16 @@ function readAnchored(data: Record<string, unknown>): Operation {
 function readRemoval(data: Record<string, unknown>): Operation {
   onlyKeys(data, ['kind', 'id', 'removedId']);
   return { kind: 'remove-part', id: identifier(data.id), removedId: identifier(data.removedId) };
+}
+
+function readJoin(data: Record<string, unknown>): Operation {
+  onlyKeys(data, ['kind', 'id', 'partId', 'toPartId']);
+  return {
+    kind: 'join-parts',
+    id: identifier(data.id),
+    partId: identifier(data.partId),
+    toPartId: identifier(data.toPartId),
+  };
 }
 
 function readFastening(data: Record<string, unknown>): Operation {

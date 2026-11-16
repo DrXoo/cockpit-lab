@@ -3,7 +3,7 @@
 import type { ResolvedPart } from './assembly.ts';
 import { connectorType, fastenersOf, footType, type FastenerCount } from './catalog.ts';
 import { cutList, type Cut } from './cuts.ts';
-import { jointsOf, type Connector } from './joints.ts';
+import { jointsOf, type Connector, type Joint } from './joints.ts';
 
 export interface CatalogCount {
   typeId: string;
@@ -28,8 +28,8 @@ export interface PartsToBuy {
 export function partsToBuy(
   resolved: ReadonlyMap<string, ResolvedPart>,
   connectors: readonly Connector[],
+  joints: readonly Joint[] = jointsOf(resolved),
 ): PartsToBuy {
-  const joints = jointsOf(resolved);
   const jointIds = new Set(joints.map((joint) => joint.id));
   for (const connector of connectors)
     if (!jointIds.has(connector.jointId))

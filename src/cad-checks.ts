@@ -7,7 +7,7 @@ import { round } from './geometry.ts';
 import type { Axis, ResolvedPart } from './cad/assembly.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import { cockpitInterferences } from './cad/interference.ts';
-import { jointsOf } from './cad/joints.ts';
+import { jointsOf, type Joint } from './cad/joints.ts';
 import { stepTitle, type Operation } from './cad/operations.ts';
 import { unsupportedParts } from './cad/support.ts';
 
@@ -18,6 +18,8 @@ export interface DesignToCheck {
   failures: ReadonlyMap<string, string>;
   /** The connectors on its joints; none when left out. */
   connectors?: readonly PlacedConnector[];
+  /** Its joints; when left out, those its attachments and spans make. */
+  joints?: readonly Joint[];
 }
 
 /** The shortest way out, in the frame of the part it was measured on. */
@@ -49,8 +51,12 @@ function listCheck(
 export function cadChecks(design: DesignToCheck): Check[] {
   return [
     interferenceCheck(design.resolved, design.connectors ?? []),
-    supportCheck(design.resolved),
-    pendingJointsCheck(design.resolved, design.connectors ?? []),
+    supportCheck(design.resolved, design.joints ?? jointsOf(design.resolved)),
+    pendingJointsCheck(
+      design.resolved,
+      design.joints ?? jointsOf(design.resolved),
+      design.connectors ?? [],
+    ),
     failedStepsCheck(design),
   ];
 }
@@ -69,8 +75,11 @@ function interferenceCheck(
   });
 }
 
-function supportCheck(resolved: ReadonlyMap<string, ResolvedPart>): Check {
-  const items = unsupportedParts(resolved).map((id) => resolved.get(id)?.part.name ?? id);
+function supportCheck(
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  joints: readonly Joint[],
+): Check {
+  const items = unsupportedParts(resolved, joints).map((id) => resolved.get(id)?.part.name ?? id);
   const hasFeet = [...resolved.values()].some(({ part }) => part.kind === 'foot');
   return listCheck('cad-support', 'Unsupported parts', items, {
     found: hasFeet
@@ -82,11 +91,12 @@ function supportCheck(resolved: ReadonlyMap<string, ResolvedPart>): Check {
 
 function pendingJointsCheck(
   resolved: ReadonlyMap<string, ResolvedPart>,
+  joints: readonly Joint[],
   connectors: readonly PlacedConnector[],
 ): Check {
   const nameOf = (id: string) => resolved.get(id)?.part.name ?? id;
   const fastened = new Set(connectors.map((connector) => connector.jointId));
-  const items = jointsOf(resolved)
+  const items = joints
     .filter((joint) => !fastened.has(joint.id))
     .map((joint) => `${nameOf(joint.partId)} to ${nameOf(joint.toPartId)}`);
   return listCheck('cad-pending-joints', 'Joints without connectors', items, {

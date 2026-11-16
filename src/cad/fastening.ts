@@ -13,9 +13,10 @@ import {
   replayDesign,
   type ConnectorChoice,
   type FastenJoint,
+  type JoinParts,
   type Operation,
 } from './history.ts';
-import { jointIdOf, type Joint } from './joints.ts';
+import { jointIdOf, joinedTogether, meetsEndOn, touchingFace, type Joint } from './joints.ts';
 
 /** The only connector in the catalog so far. */
 const CORNER_BRACKET_ID = 'corner-bracket-40';
@@ -98,6 +99,59 @@ export function jointsOfPart(
         alongSides: alongSides(jointAt(history, joint.id, at), fitting),
       };
     });
+}
+
+/**
+ * The profiles at step `at` that touch a part without a joint between them, which can be
+ * joined to it.
+ */
+export function touchingParts(
+  history: readonly Operation[],
+  partId: string,
+  at: number = history.length,
+): string[] {
+  const design = replayDesign(history, at);
+  const part = design.resolved.get(partId);
+  if (!part || part.part.kind !== 'profile') return [];
+  return [...design.resolved.values()]
+    .filter(
+      (other) =>
+        other.part.kind === 'profile' &&
+        other.part.id !== partId &&
+        touchingFace(part, other) !== null &&
+        !joinedTogether(design.joints, partId, other.part.id),
+    )
+    .map((other) => other.part.id);
+}
+
+/**
+ * Joins two parts that touch, as a step at `at`, the history marker. The part that meets the
+ * other end on goes first, so the joint is the one a corner bracket fits.
+ */
+export function joinParts(
+  history: readonly Operation[],
+  partId: string,
+  otherId: string,
+  at: number = history.length,
+): Operation[] {
+  const design = replayDesign(history, at);
+  const part = design.resolved.get(partId);
+  const other = design.resolved.get(otherId);
+  if (!part || !other) throw new Error('Both parts must be in the design at this step.');
+  if (joinedTogether(design.joints, partId, otherId))
+    throw new Error(`${part.part.name} and ${other.part.name} are already joined.`);
+  if (!touchingParts(history, partId, at).includes(otherId))
+    throw new Error(
+      `${part.part.name} does not touch ${other.part.name}, so they cannot be joined.`,
+    );
+  const swapped = !meetsEndOn(part, other) && meetsEndOn(other, part);
+  const join: JoinParts = {
+    kind: 'join-parts',
+    id: nextIdentifiers(history).id,
+    partId: swapped ? otherId : partId,
+    toPartId: swapped ? partId : otherId,
+  };
+  return addOperation(history, join, at);
 }
 
 /** The step that fastens a joint, if it has one. */
