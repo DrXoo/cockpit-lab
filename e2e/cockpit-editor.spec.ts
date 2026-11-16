@@ -235,3 +235,31 @@ test('a profile can lie along a face instead of growing out of it', async ({ pag
   await page.locator('#part-face').selectOption('+x');
   await expect(page.locator('#part-way')).toHaveValue('+z');
 });
+
+test('B grows out of A and reaches C; moving C changes B, and B lets go keeping its length', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#growProfile').click();
+  await page.locator('#grow-face').selectOption('+x');
+  await page.locator('#confirmGrowth').click();
+  await page.locator('#part-reachesId').selectOption('part-2');
+  await expect(page.locator('#part-lengthMm')).toBeDisabled();
+  await expect(page.locator('#part-lengthMm')).toHaveValue('60');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ reachesId: 'part-2', lengthMm: 60 });
+
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#part-startX').fill('300');
+  await page.locator('#part-startX').press('Enter');
+  await expect.poll(async () => (await savedHistory(page))?.[2].lengthMm).toBe(260);
+
+  await page.locator('[data-part="part-3"]').click();
+  await page.locator('#part-reachesId').selectOption('');
+  await expect(page.locator('#part-lengthMm')).toBeEnabled();
+  await expect(page.locator('#part-lengthMm')).toHaveValue('260');
+  await expect.poll(async () => (await savedHistory(page))?.[2].reachesId).toBeUndefined();
+});

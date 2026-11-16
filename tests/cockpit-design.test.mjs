@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { designData, emptyDesign, readDesign } from '../src/cockpit-design.ts';
-import { addAnchoredProfile, addOperation, draftGrowth, editProfile } from '../src/cad/history.ts';
+import {
+  addAnchoredProfile,
+  addOperation,
+  draftGrowth,
+  editDraft,
+  editProfile,
+} from '../src/cad/history.ts';
 
 const designWith = (count) => {
   let history = [];
@@ -105,4 +111,21 @@ test('a profile lying on a face reads back, and one lying towards its face is re
   const lying = { ...data, history: [rail, { ...growth, way: '+x' }] };
   assert.equal(readDesign(lying).history[1].way, '+x');
   assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, way: '-y' }] }), /way/);
+});
+
+test('a span reads back with the part it reaches, which must be in the design', () => {
+  let { history } = designWith(2);
+  history = editProfile(history, 'part-2', { startMm: { x: 500, y: 20, z: 0 } });
+  history = addOperation(
+    history,
+    editDraft(history, draftGrowth(history, 'part-1'), { face: '+x', alongMm: 250 }),
+  );
+  history = editProfile(history, 'part-3', { reachesId: 'part-2' });
+  const data = stored({ history });
+  assert.deepEqual(readDesign(data), { history });
+  const lost = { ...data.history[2], reachesId: 'part-8' };
+  assert.throws(
+    () => readDesign({ ...data, history: [data.history[0], data.history[1], lost] }),
+    /part-8/,
+  );
 });

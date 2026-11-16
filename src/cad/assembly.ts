@@ -380,7 +380,7 @@ function alongAxisOf(part: Part): Axis {
  * The distance from a point on a face, outwards, to the facing face of `target`, or null
  * when the line out of the face misses it or the target is behind.
  */
-function gapTo(target: BoxMm, from: Vec3Mm, face: Face): number | null {
+export function gapTo(target: BoxMm, from: Vec3Mm, face: Face): number | null {
   const normal = faceAxis(face);
   for (const axis of AXES) {
     if (axis === normal) continue;

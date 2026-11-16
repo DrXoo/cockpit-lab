@@ -1355,3 +1355,6 @@ select option {
   display: flex;
   gap: 8px;
 }
+.part-warning {
+  color: var(--warning);
+}

@@ -5,6 +5,7 @@ import { cleanUserText } from '../user-text.ts';
 import {
   cornersMm,
   faceAxis,
+  gapTo,
   resolveAssembly,
   type Axis,
   type Face,
@@ -60,6 +61,11 @@ export interface GrowProfile extends ProfileShape {
    * profile on it, running that way.
    */
   way: GrowthWay;
+  /**
+   * For a span, the part whose facing face its free end meets: its length is then the gap to it,
+   * and `lengthMm` the length it last took, kept when the faces stop facing each other.
+   */
+  reachesId?: string;
 }
 
 export type GrowthWay = 'out' | Face;
@@ -80,6 +86,8 @@ export interface ProfileValues {
   alongMm: number;
   acrossMm: number;
   way: GrowthWay;
+  /** The part a span reaches, or null to let its end go, keeping its length. */
+  reachesId: string | null;
 }
 
 /** Shorter pieces are spacers rather than profiles. */
@@ -102,6 +110,7 @@ const GROWN_ONLY: readonly (keyof ProfileValues)[] = [
   'alongMm',
   'acrossMm',
   'way',
+  'reachesId',
 ];
 
 /** A new profile is a 40 × 40, half a metre long. */
@@ -139,15 +148,23 @@ function partMadeBy(operation: Operation): ProfilePart {
   };
   if (operation.kind === 'add-anchored-profile')
     return { ...profile, placement: { kind: 'anchor', startMm: { ...operation.startMm } } };
+  const attachment = {
+    parentId: operation.parentId,
+    face: operation.face,
+    alongMm: operation.alongMm,
+    fromEnd: operation.fromEnd,
+    acrossMm: operation.acrossMm,
+  };
+  if (operation.reachesId !== undefined)
+    return {
+      ...profile,
+      placement: { kind: 'span', ...attachment, reachesId: operation.reachesId },
+    };
   return {
     ...profile,
     placement: {
       kind: 'attachment',
-      parentId: operation.parentId,
-      face: operation.face,
-      alongMm: operation.alongMm,
-      fromEnd: operation.fromEnd,
-      acrossMm: operation.acrossMm,
+      ...attachment,
       ...(operation.way === 'out' ? {} : { lying: operation.way }),
     },
   };
@@ -313,9 +330,25 @@ function editedGrowth(
     throw new Error(
       `${operation.name} takes its position from ${nameOf(history, operation.parentId)}: change where it grows from instead.`,
     );
+  const reachesId =
+    changes.reachesId === undefined ? operation.reachesId : (changes.reachesId ?? undefined);
+  if (
+    operation.reachesId !== undefined &&
+    reachesId !== undefined &&
+    changes.lengthMm !== undefined &&
+    changes.lengthMm !== operation.lengthMm
+  )
+    throw new Error(
+      `${operation.name} takes its length from the gap to ${nameOf(history, operation.reachesId)}: let its end go to give it a length.`,
+    );
+  if (typeof changes.reachesId === 'string' && changes.reachesId !== operation.reachesId)
+    checkReach(history, operation, changes.reachesId);
   const face = changes.face ?? operation.face;
-  return onItsFace(history, {
-    ...operation,
+  const edited = onItsFace(history, {
+    kind: operation.kind,
+    id: operation.id,
+    partId: operation.partId,
+    parentId: operation.parentId,
     ...shapeChanges(operation, changes),
     face,
     fromEnd: changes.fromEnd ?? operation.fromEnd,
@@ -323,6 +356,72 @@ function editedGrowth(
     acrossMm: changes.acrossMm ?? operation.acrossMm,
     way: changes.way ?? keptLying(history, operation, face),
   });
+  return reachesId === undefined ? edited : { ...edited, reachesId };
+}
+
+/** A span can only reach a part in front of its free end that does not hang from it. */
+function checkReach(history: readonly Operation[], span: GrowProfile, targetId: string) {
+  const target = operationMaking(history, targetId);
+  if (!target)
+    throw new Error(`${span.name} cannot reach ${targetId}, which is not in the design.`);
+  if (dependentsOf(history, span.partId).has(targetId))
+    throw new Error(`${span.name} cannot reach ${target.name}, which hangs from it.`);
+  if (!facingParts(history, span.partId).includes(targetId))
+    throw new Error(
+      `${span.name} cannot reach ${target.name}: no face of it is in front of its free end.`,
+    );
+}
+
+/**
+ * The parts the free end of a profile grown out of a face can reach, nearest first: their
+ * facing face is in front of its end, on its center line, far enough for a profile and at its
+ * tilt. Parts that hang from it, directly or through others, are left out.
+ */
+export function facingParts(history: readonly Operation[], partId: string): string[] {
+  const operation = operationMaking(history, partId);
+  if (!operation || operation.kind !== 'grow-profile' || operation.way !== 'out') return [];
+  const resolved = resolvedParts(history);
+  const profile = resolved.get(partId);
+  if (!profile) return [];
+  const normal = faceAxis(operation.face);
+  const { min, max } = profile.box;
+  const outwards = operation.face[0] === '+';
+  const end: Vec3Mm = {
+    x: (min.x + max.x) / 2,
+    y: (min.y + max.y) / 2,
+    z: (min.z + max.z) / 2,
+  };
+  end[normal] = outwards ? min[normal] : max[normal];
+  const dependents = dependentsOf(history, partId);
+  return [...resolved.values()]
+    .filter(({ part, tiltDeg }) => !dependents.has(part.id) && tiltDeg === profile.tiltDeg)
+    .map(({ part, box }) => ({ id: part.id, gapMm: gapTo(box, end, operation.face) }))
+    .filter(
+      (candidate): candidate is { id: string; gapMm: number } =>
+        candidate.gapMm !== null &&
+        candidate.gapMm >= MIN_PROFILE_LENGTH_MM &&
+        candidate.gapMm <= MAX_PROFILE_LENGTH_MM,
+    )
+    .sort((a, b) => a.gapMm - b.gapMm)
+    .map(({ id }) => id);
+}
+
+/** The part and every part that hangs from it or reaches it, directly or through others. */
+function dependentsOf(history: readonly Operation[], partId: string): Set<string> {
+  const dependents = new Set([partId]);
+  let grown = true;
+  while (grown) {
+    grown = false;
+    for (const operation of history) {
+      if (operation.kind !== 'grow-profile' || dependents.has(operation.partId)) continue;
+      const reached = operation.reachesId !== undefined && dependents.has(operation.reachesId);
+      if (dependents.has(operation.parentId) || reached) {
+        dependents.add(operation.partId);
+        grown = true;
+      }
+    }
+  }
+  return dependents;
 }
 
 /**
@@ -417,6 +516,8 @@ function checkGrowth(operation: GrowProfile) {
     throw new Error(
       'A profile lying on a face runs along it: choose a way across the face, or out of it.',
     );
+  if (operation.reachesId !== undefined && way !== 'out')
+    throw new Error('A profile lying on a face cannot reach another part: it lies along the face.');
   if (!Number.isFinite(operation.alongMm) || operation.alongMm < 0)
     throw new Error('A distance along a part must be 0 mm or more.');
   if (!Number.isFinite(operation.acrossMm))
@@ -434,10 +535,57 @@ export function checkedHistory(history: readonly Operation[]): Operation[] {
       throw new Error(`${operation.name} grows from ${operation.parentId}, made no earlier.`);
     made.add(operation.partId);
   }
+  for (const operation of history) checkSpanTarget(history, operation);
   const resolved = resolvedParts(history);
   for (const operation of history)
-    if (operation.kind === 'grow-profile') checkOnItsFace(operation, resolved);
-  return [...history];
+    if (operation.kind === 'grow-profile') {
+      checkOnItsFace(operation, resolved);
+      checkSpanLength(history, operation, resolved);
+    }
+  return withSpanLengths(history, resolved);
+}
+
+function checkSpanTarget(history: readonly Operation[], operation: Operation) {
+  if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) return;
+  const target = operationMaking(history, operation.reachesId);
+  if (!target)
+    throw new Error(
+      `${operation.name} cannot reach ${operation.reachesId}, which is not in the design.`,
+    );
+  if (dependentsOf(history, operation.partId).has(operation.reachesId))
+    throw new Error(`${operation.name} cannot reach ${target.name}, which hangs from it.`);
+}
+
+/** A span that meets its part must be as long as a profile can be. */
+function checkSpanLength(
+  history: readonly Operation[],
+  operation: GrowProfile,
+  resolved: ReadonlyMap<string, ResolvedPart>,
+) {
+  const span = resolved.get(operation.partId);
+  if (operation.reachesId === undefined || !span || span.openEnd) return;
+  const target = nameOf(history, operation.reachesId);
+  if (span.lengthMm < MIN_PROFILE_LENGTH_MM)
+    throw new Error(
+      `${target} would be too close to ${operation.name} for it to reach: a profile is at least ${MIN_PROFILE_LENGTH_MM} mm long.`,
+    );
+  if (span.lengthMm > MAX_PROFILE_LENGTH_MM)
+    throw new Error(
+      `${operation.name} would be longer than ${MAX_PROFILE_LENGTH_MM} mm to reach ${target}.`,
+    );
+}
+
+/** Each span that meets its part records the length it takes, to keep if the faces part. */
+function withSpanLengths(
+  history: readonly Operation[],
+  resolved: ReadonlyMap<string, ResolvedPart>,
+): Operation[] {
+  return history.map((operation) => {
+    if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) return operation;
+    const span = resolved.get(operation.partId);
+    if (!span || span.openEnd || span.lengthMm === operation.lengthMm) return operation;
+    return { ...operation, lengthMm: span.lengthMm };
+  });
 }
 
 function checkOnItsFace(operation: GrowProfile, resolved: ReadonlyMap<string, ResolvedPart>) {

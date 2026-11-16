@@ -93,7 +93,16 @@ function readAnchored(data: Record<string, unknown>): Operation {
 }
 
 function readGrowth(data: Record<string, unknown>): Operation {
-  onlyKeys(data, [...SHAPE_KEYS, 'parentId', 'face', 'fromEnd', 'alongMm', 'acrossMm', 'way']);
+  onlyKeys(data, [
+    ...SHAPE_KEYS,
+    'parentId',
+    'face',
+    'fromEnd',
+    'alongMm',
+    'acrossMm',
+    'way',
+    'reachesId',
+  ]);
   return {
     kind: 'grow-profile',
     ...readShape(data),
@@ -103,6 +112,7 @@ function readGrowth(data: Record<string, unknown>): Operation {
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
     way: data.way === 'out' ? 'out' : wayAlongAFace(data.way),
+    ...(data.reachesId === undefined ? {} : { reachesId: identifier(data.reachesId) }),
   };
 }
 

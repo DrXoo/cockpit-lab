@@ -179,3 +179,47 @@ test('a growth grows out of its face or lies along it, the ways the face allows'
   const lying = editProfile(history, 'part-2', { way: '+x' });
   assert.match(panel({ history: lying }), /Laid on Rail/);
 });
+
+/** Rail A, rail C 500 mm to its left, and B grown out of A towards C. */
+const towardsC = () => {
+  let history = historyWith(2);
+  history = editProfile(history, 'part-1', { name: 'A', lengthMm: 1000 });
+  history = editProfile(history, 'part-2', { name: 'C', startMm: { x: 500, y: 20, z: 0 } });
+  const draft = editDraft(history, draftGrowth(history, 'part-1'), {
+    name: 'B',
+    face: '+x',
+    alongMm: 250,
+  });
+  return addOperation(history, draft);
+};
+const reachChoices = (html) =>
+  [
+    .../data-part-field="reachesId"[^>]*>([\s\S]*?)<\/select>/
+      .exec(html)[1]
+      .matchAll(/value="([^"]*)"( selected)?>([^<]*)</g),
+  ].map(([, value, selected, text]) => [value, Boolean(selected), text]);
+
+test('the end of a grown profile can reach the parts in front of it', () => {
+  const history = towardsC();
+  const html = partInspectorHTML(history, history[2]);
+  assert.deepEqual(reachChoices(html), [
+    ['', true, 'Free, at its own length'],
+    ['part-2', false, 'Reaches C'],
+  ]);
+  assert.deepEqual(partChange(history[2], 'reachesId', 'part-2'), { reachesId: 'part-2' });
+  assert.deepEqual(partChange(history[2], 'reachesId', ''), { reachesId: null });
+  assert.doesNotMatch(growPanelHTML(history, draftGrowth(history, 'part-1')), /reachesId/);
+});
+
+test('a span shows its length as the gap, and says when its end no longer meets its part', () => {
+  const spanned = editProfile(towardsC(), 'part-3', { reachesId: 'part-2' });
+  const html = partInspectorHTML(spanned, spanned[2]);
+  assert.match(html, /id="part-lengthMm"[^>]*value="460"[^>]*disabled/);
+  assert.match(html, /length is the gap to C/);
+  assert.match(panel({ history: spanned }), /Grown out of A, reaching C/);
+  const away = editProfile(spanned, 'part-2', { startMm: { x: 500, y: 20, z: 600 } });
+  const open = partInspectorHTML(away, away[2]);
+  assert.match(open, /⚠ Its end no longer meets C/);
+  assert.deepEqual(reachChoices(open)[1], ['part-2', true, 'Reaches C (not meeting it)']);
+  assert.match(panel({ history: away }), /⚠ not meeting C/);
+});

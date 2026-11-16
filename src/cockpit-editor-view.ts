@@ -1,16 +1,18 @@
 // The cockpit editor's panels: the design history on the left, with the tools that add to it,
 // and the inspector of the selected part on the right. The design is shown on its own, in an
 // empty workspace without any room. Cockpit files are imported from the actions above the panel.
-import { faceAxis, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
+import { faceAxis, resolveAssembly, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
 import { profileSection, profileSystem } from './cad/catalog.ts';
 import {
   FACES,
+  facingParts,
   lengthAxisOf,
   MAX_PART_NAME_LENGTH,
   MAX_POSITION_MM,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
+  replayHistory,
   type AddAnchoredProfile,
   type GrowProfile,
   type Operation,
@@ -57,7 +59,8 @@ export type PartField =
   | 'fromEnd'
   | 'alongMm'
   | 'acrossMm'
-  | 'way';
+  | 'way'
+  | 'reachesId';
 
 const AXIS_NAMES: Record<Axis, string> = {
   x: 'Across (X)',
@@ -126,13 +129,35 @@ function historyStepHTML(
   const made =
     operation.kind === 'add-anchored-profile'
       ? 'Anchored profile'
-      : `${operation.way === 'out' ? 'Grown out of' : 'Laid on'} ${escapeHTML(parentName(history, operation))}`;
+      : `${operation.way === 'out' ? 'Grown out of' : 'Laid on'} ${escapeHTML(parentName(history, operation))}${reachText(history, operation)}`;
   const detail = `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
   return `<li><button class="history-step" data-part="${escapeHTML(operation.partId)}" aria-pressed="${selected}"><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(operation.name)}</strong><small>${detail}</small></span></button></li>`;
 }
 
 const parentName = (history: readonly Operation[], growth: GrowProfile): string =>
   operationMaking(history, growth.parentId)?.name ?? growth.parentId;
+
+/** What a span reaches, and whether its end still meets it. */
+interface Reach {
+  targetName: string;
+  meets: boolean;
+}
+
+function reachOf(history: readonly Operation[], operation: Operation): Reach | null {
+  if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) return null;
+  const resolved = resolveAssembly(replayHistory(history)).get(operation.partId);
+  return {
+    targetName: operationMaking(history, operation.reachesId)?.name ?? operation.reachesId,
+    meets: resolved !== undefined && !resolved.openEnd,
+  };
+}
+
+function reachText(history: readonly Operation[], growth: GrowProfile): string {
+  const reach = reachOf(history, growth);
+  if (!reach) return '';
+  const target = escapeHTML(reach.targetName);
+  return reach.meets ? `, reaching ${target}` : ` · ⚠ not meeting ${target}`;
+}
 
 /** The inspector of the selected part: the values of the operation that made it. */
 export function partInspectorHTML(
@@ -141,16 +166,24 @@ export function partInspectorHTML(
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
-  return `<div class="part-inspector" id="partInspectorFields">${profileFieldsHTML('part', history, operation)}<button class="button button-light history-add" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button></div>`;
+  return `<div class="part-inspector" id="partInspectorFields">${profileFieldsHTML('part', history, operation, { reach: true })}<button class="button button-light history-add" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button></div>`;
 }
 
 /** The panel of a profile about to grow out of another, shown in the view as a preview. */
 export function growPanelHTML(history: readonly Operation[], draft: GrowProfile): string {
-  return `<div class="part-inspector" id="growPanel"><p class="layout-hint">A new profile growing out of <strong>${escapeHTML(parentName(history, draft))}</strong>. Click a face of it in the view, or choose one here.</p>${profileFieldsHTML('grow', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmGrowth">Add the profile</button><button class="button button-light" id="cancelGrowth">Cancel</button></div></div>`;
+  return `<div class="part-inspector" id="growPanel"><p class="layout-hint">A new profile growing out of <strong>${escapeHTML(parentName(history, draft))}</strong>. Click a face of it in the view, or choose one here.</p>${profileFieldsHTML('grow', history, draft, { reach: false })}<div class="grow-actions"><button class="button button-dark" id="confirmGrowth">Add the profile</button><button class="button button-light" id="cancelGrowth">Cancel</button></div></div>`;
 }
 
-/** The fields of a profile's operation; `prefix` keeps the ids of two panels apart. */
-function profileFieldsHTML(prefix: string, history: readonly Operation[], operation: Operation) {
+/**
+ * The fields of a profile's operation; `prefix` keeps the ids of two panels apart. The end of a
+ * profile already in the design can reach a part in front of it.
+ */
+function profileFieldsHTML(
+  prefix: string,
+  history: readonly Operation[],
+  operation: Operation,
+  { reach }: { reach: boolean },
+) {
   const fields = new FieldTemplates(prefix);
   const system = profileSystem(operation.systemId);
   const section = profileSection(system, operation.sectionId);
@@ -173,18 +206,29 @@ function profileFieldsHTML(prefix: string, history: readonly Operation[], operat
           heightAxes,
           operation.heightAxis,
         );
-  const length = fields.number(
-    'lengthMm',
-    'Length',
-    operation.lengthMm,
-    MIN_PROFILE_LENGTH_MM,
-    MAX_PROFILE_LENGTH_MM,
-  );
+  const span = reachOf(history, operation);
+  const length =
+    fields.number(
+      'lengthMm',
+      'Length',
+      operation.lengthMm,
+      MIN_PROFILE_LENGTH_MM,
+      MAX_PROFILE_LENGTH_MM,
+      { disabled: span !== null },
+    ) + spanHintHTML(span);
   const placement =
     operation.kind === 'add-anchored-profile'
       ? anchoredPlacementHTML(fields, operation)
-      : grownPlacementHTML(fields, history, operation);
+      : grownPlacementHTML(fields, history, operation, reach);
   return `${name}${fields.select('sectionId', 'Section', sections, operation.sectionId)}${placement.before}${longSide}${length}${placement.after}`;
+}
+
+function spanHintHTML(span: Reach | null): string {
+  if (!span) return '';
+  const target = escapeHTML(span.targetName);
+  return span.meets
+    ? `<p class="layout-hint">Its length is the gap to ${target}; it changes when either part moves.</p>`
+    : `<p class="layout-hint part-warning">⚠ Its end no longer meets ${target}: it keeps its last length. Move a part back, or let its end go.</p>`;
 }
 
 interface PlacementHTML {
@@ -217,6 +261,7 @@ function grownPlacementHTML(
   fields: FieldTemplates,
   history: readonly Operation[],
   growth: GrowProfile,
+  reach: boolean,
 ): PlacementHTML {
   const parent = operationMaking(history, growth.parentId);
   const parentAxis = parent ? lengthAxisOf(parent) : 'z';
@@ -241,8 +286,26 @@ function grownPlacementHTML(
   ];
   return {
     before: `${parentLine}${fields.select('face', 'Face', faces, growth.face)}${fields.select('way', 'Grows', ways, growth.way)}${onTheSide}`,
-    after: '',
+    after: reach && growth.way === 'out' ? reachSelectHTML(fields, history, growth) : '',
   };
+}
+
+/** The end of a profile grown out of a face: free, or reaching a part in front of it. */
+function reachSelectHTML(
+  fields: FieldTemplates,
+  history: readonly Operation[],
+  growth: GrowProfile,
+): string {
+  const name = (partId: string) => escapeHTML(operationMaking(history, partId)?.name ?? partId);
+  const facing = facingParts(history, growth.partId);
+  const choices: [string, string][] = [
+    ['', 'Free, at its own length'],
+    ...facing.map((partId): [string, string] => [partId, `Reaches ${name(partId)}`]),
+  ];
+  const current = growth.reachesId;
+  if (current !== undefined && !facing.includes(current))
+    choices.push([current, `Reaches ${name(current)} (not meeting it)`]);
+  return fields.select('reachesId', 'Its end', choices, current ?? '');
 }
 
 /** Labelled controls whose ids start with one prefix. */
@@ -268,8 +331,15 @@ class FieldTemplates {
     return `<div class="select-control"><label for="${this.prefix}-${field}">${label}</label><select id="${this.prefix}-${field}" data-part-field="${field}">${choices}</select></div>`;
   }
 
-  number(field: PartField, label: string, valueMm: number, min: number, max: number): string {
-    return `<div class="control"><div class="control-top"><label for="${this.prefix}-${field}">${label}</label><div class="number-wrap"><input id="${this.prefix}-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"><span>mm</span></div></div></div>`;
+  number(
+    field: PartField,
+    label: string,
+    valueMm: number,
+    min: number,
+    max: number,
+    { disabled = false } = {},
+  ): string {
+    return `<div class="control"><div class="control-top"><label for="${this.prefix}-${field}">${label}</label><div class="number-wrap"><input id="${this.prefix}-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"${disabled ? ' disabled' : ''}><span>mm</span></div></div></div>`;
   }
 }
 
@@ -287,6 +357,7 @@ const PART_FIELDS: readonly PartField[] = [
   'alongMm',
   'acrossMm',
   'way',
+  'reachesId',
 ];
 
 /** The inspector field a `data-part-field` names. The markup is the app's, so others are bugs. */
@@ -343,6 +414,8 @@ export function partChange(
       return { acrossMm: typedNumber(value) };
     case 'way':
       return { way: value === 'out' ? 'out' : faceOf(value) };
+    case 'reachesId':
+      return { reachesId: value === '' ? null : value };
     case 'startX':
     case 'startY':
     case 'startZ':
