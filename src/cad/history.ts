@@ -7,32 +7,35 @@ import {
   cornersMm,
   faceAxis,
   gapTo,
-  resolveAssembly,
   type Axis,
   type Face,
   type ResolvedPart,
   type Vec3Mm,
 } from './assembly.ts';
 import { MOTEDIS_SERIES_40_SLOT_8, profileSection } from './catalog.ts';
+import { replayDesign } from './replay.ts';
 import {
   AXES,
   checkedOperation,
+  makesAPart,
   lengthAxisOf,
   MAX_PART_NAME_LENGTH,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
-  replayHistory,
   type AddAnchoredProfile,
   type GrowProfile,
   type GrowthWay,
+  type MakingOperation,
   type Operation,
   type ParentEnd,
   type ProfileShape,
   type ProfileValues,
+  type RemovePart,
 } from './operations.ts';
 
 export * from './operations.ts';
+export { replayDesign, replayHistory, type ReplayedDesign } from './replay.ts';
 
 /** Values only an anchored profile has, and only a grown one has. */
 const ANCHORED_ONLY: readonly (keyof ProfileValues)[] = ['axis', 'startMm'];
@@ -56,8 +59,14 @@ const NEW_ANCHORED = { axis: 'z', heightAxis: 'y' } as const;
 /** The gap left between a new profile and the parts beside it, so they don't touch. */
 const NEW_PROFILE_GAP_MM = 60;
 
-/** Adds an anchored profile at the end of the history, beside the parts the design has. */
-export function addAnchoredProfile(history: readonly Operation[]): {
+/**
+ * Adds an anchored profile at step `at`, the history marker, beside the parts the design has
+ * there. The marker is at the end unless it was moved back.
+ */
+export function addAnchoredProfile(
+  history: readonly Operation[],
+  at: number = history.length,
+): {
   history: Operation[];
   partId: string;
 } {
@@ -66,32 +75,39 @@ export function addAnchoredProfile(history: readonly Operation[]): {
   const operation: AddAnchoredProfile = {
     kind: 'add-anchored-profile',
     ...nextIdentifiers(history),
-    name: newProfileName(history, section.widthMm, section.heightMm),
+    name: newProfileName(at, section.widthMm, section.heightMm),
     systemId: system.id,
     sectionId,
     ...NEW_ANCHORED,
     lengthMm,
-    startMm: { x: besideTheDesignMm(history, section.widthMm), y: section.heightMm / 2, z: 0 },
+    startMm: {
+      x: besideTheDesignMm(history, at, section.widthMm),
+      y: section.heightMm / 2,
+      z: 0,
+    },
   };
-  return { history: [...history, operation], partId: operation.partId };
+  return { history: addOperation(history, operation, at), partId: operation.partId };
 }
 
 /**
  * A profile ready to grow out of a part, not yet in the history: from the middle of the part's
  * top, or of its front when the top is an end.
  */
-export function draftGrowth(history: readonly Operation[], parentId: string): GrowProfile {
+export function draftGrowth(
+  history: readonly Operation[],
+  parentId: string,
+  at: number = history.length,
+): GrowProfile {
   const parent = operationMaking(history, parentId);
-  if (!parent) throw new Error(`Part ${parentId} is not in the design history.`);
-  const resolved = resolvedParts(history).get(parentId);
-  if (!resolved) throw new Error(`Part ${parentId} is not in the design history.`);
+  const resolved = replayDesign(history, at).resolved.get(parentId);
+  if (!parent || !resolved) throw new Error(`Part ${parentId} is not in the design at this step.`);
   const { system, sectionId, lengthMm } = NEW_PROFILE;
   const section = profileSection(system, sectionId);
   const face: Face = lengthAxisOf(parent) === 'y' ? '+z' : '+y';
   return {
     kind: 'grow-profile',
     ...nextIdentifiers(history),
-    name: newProfileName(history, section.widthMm, section.heightMm),
+    name: newProfileName(at, section.widthMm, section.heightMm),
     systemId: system.id,
     sectionId,
     heightAxis: lengthAxisOf(parent),
@@ -115,8 +131,9 @@ export function growthAt(
   draft: GrowProfile,
   face: Face,
   pointMm: Vec3Mm,
+  at: number = history.length,
 ): GrowProfile {
-  const parent = resolvedParts(history).get(draft.parentId);
+  const parent = replayDesign(history, at).resolved.get(draft.parentId);
   if (!parent || parent.part.kind !== 'profile')
     throw new Error(`${draft.name} has no profile to grow from.`);
   const axis = parent.part.axis;
@@ -132,9 +149,52 @@ export function growthAt(
   });
 }
 
-/** Adds an operation at the end of the history, once it fits there. */
-export function addOperation(history: readonly Operation[], operation: Operation): Operation[] {
-  return checkedHistory([...history, onItsFace(history, checkedOperation(operation))]);
+/** Adds an operation at step `at`, the history marker, once it applies there. */
+export function addOperation(
+  history: readonly Operation[],
+  operation: Operation,
+  at: number = history.length,
+): Operation[] {
+  const checked = checkedOperation(operation);
+  const added = makesAPart(checked) ? onItsFace(history, checked) : checked;
+  const inserted = [...history.slice(0, at), added, ...history.slice(at)];
+  return refusedIfItFails(checkedHistory(inserted), added.id);
+}
+
+/**
+ * Removes a part from step `at` on, as an operation: the parts that hang from it are anchored
+ * where they are, and spans that reached it keep their length with an open end.
+ */
+export function removePart(
+  history: readonly Operation[],
+  partId: string,
+  at: number = history.length,
+): Operation[] {
+  if (!replayDesign(history, at).resolved.has(partId))
+    throw new Error(`Part ${partId} is not in the design at this step.`);
+  const removal: RemovePart = {
+    kind: 'remove-part',
+    id: nextIdentifiers(history).id,
+    removedId: partId,
+  };
+  return addOperation(history, removal, at);
+}
+
+/**
+ * Takes an operation and what it made out of the whole history. The operations that relied on
+ * it fail; the others still apply.
+ */
+export function deleteOperation(history: readonly Operation[], operationId: string): Operation[] {
+  if (!history.some((operation) => operation.id === operationId))
+    throw new Error(`Operation ${operationId} is not in the design history.`);
+  return checkedHistory(history.filter((operation) => operation.id !== operationId));
+}
+
+/** The history, unless the operation would fail in it: then the reason it would fail. */
+function refusedIfItFails(history: Operation[], operationId: string): Operation[] {
+  const failure = replayDesign(history).failures.get(operationId);
+  if (failure !== undefined) throw new Error(failure);
+  return history;
 }
 
 /**
@@ -150,7 +210,12 @@ export function editProfile(
   const operation = operationMaking(history, partId);
   if (!operation) throw new Error(`Part ${partId} is not in the design history.`);
   const edited = editedOperation(history, operation, changes);
-  return checkedHistory(history.map((existing) => (existing === operation ? edited : existing)));
+  const changed = checkedHistory(
+    history.map((existing) => (existing === operation ? edited : existing)),
+  );
+  // An edit can't make its operation fail, but a failed one can still be edited to fix it.
+  const failedBefore = replayDesign(history).failures.has(operation.id);
+  return failedBefore ? changed : refusedIfItFails(changed, operation.id);
 }
 
 /** A growth not yet in the history, with the changes made to it as an edit would make them. */
@@ -165,11 +230,11 @@ export function editDraft(
 
 function editedOperation(
   history: readonly Operation[],
-  operation: Operation,
+  operation: MakingOperation,
   changes: Partial<ProfileValues>,
-): Operation {
+): MakingOperation {
   const named = withCleanName(operation, changes);
-  const edited: Operation =
+  const edited: MakingOperation =
     operation.kind === 'add-anchored-profile'
       ? editedAnchored(operation, named)
       : editedGrowth(history, operation, named);
@@ -178,7 +243,7 @@ function editedOperation(
 
 /** A typed name is cleaned; one left empty keeps the name the part had. */
 const withCleanName = (
-  operation: Operation,
+  operation: MakingOperation,
   changes: Partial<ProfileValues>,
 ): Partial<ProfileValues> => ({
   ...changes,
@@ -258,7 +323,7 @@ function checkReach(history: readonly Operation[], span: GrowProfile, targetId: 
 export function facingParts(history: readonly Operation[], partId: string): string[] {
   const operation = operationMaking(history, partId);
   if (!operation || operation.kind !== 'grow-profile' || operation.way !== 'out') return [];
-  const resolved = resolvedParts(history);
+  const resolved = replayDesign(history).resolved;
   const profile = resolved.get(partId);
   if (!profile) return [];
   const normal = faceAxis(operation.face);
@@ -290,7 +355,7 @@ function dependentsOf(history: readonly Operation[], partId: string): Set<string
   let grown = true;
   while (grown) {
     grown = false;
-    for (const operation of history) {
+    for (const operation of history.filter(makesAPart)) {
       if (operation.kind !== 'grow-profile' || dependents.has(operation.partId)) continue;
       const reached = operation.reachesId !== undefined && dependents.has(operation.reachesId);
       if (dependents.has(operation.parentId) || reached) {
@@ -319,7 +384,7 @@ function keptLying(history: readonly Operation[], operation: GrowProfile, face: 
 }
 
 /** The shape of a profile with the changes given, keeping the values not given. */
-function shapeChanges(operation: Operation, changes: Partial<ProfileValues>): ProfileShape {
+function shapeChanges(operation: MakingOperation, changes: Partial<ProfileValues>): ProfileShape {
   return {
     name: changes.name ?? operation.name,
     systemId: operation.systemId,
@@ -330,8 +395,8 @@ function shapeChanges(operation: Operation, changes: Partial<ProfileValues>): Pr
 }
 
 /** A section whose height would run along the new length turns a quarter, onto the old one. */
-function turnedSection<T extends Operation>(
-  before: Operation,
+function turnedSection<T extends MakingOperation>(
+  before: MakingOperation,
   after: T,
   heightAxisAsked: Axis | undefined,
 ): T {
@@ -345,7 +410,7 @@ function turnedSection<T extends Operation>(
 }
 
 /** An end face has a single place to grow from, its center. */
-function onItsFace<T extends Operation>(history: readonly Operation[], operation: T): T {
+function onItsFace<T extends MakingOperation>(history: readonly Operation[], operation: T): T {
   if (operation.kind !== 'grow-profile') return operation;
   const parent = operationMaking(history, operation.parentId);
   if (!parent || lengthAxisOf(parent) !== faceAxis(operation.face)) return operation;
@@ -353,53 +418,21 @@ function onItsFace<T extends Operation>(history: readonly Operation[], operation
 }
 
 /**
- * The history as given, once every operation refers to parts made before it and every grown
- * profile stays on the face it grows from. The error names the parts that don't fit.
+ * The history as given, once no span reaches a part that depends on it, with the length each
+ * span takes recorded. Operations that refer to parts gone at their step, or no longer fit, are
+ * kept: replaying the history marks them as failed.
  */
 export function checkedHistory(history: readonly Operation[]): Operation[] {
-  const made = new Set<string>();
-  for (const operation of history) {
-    if (operation.kind === 'grow-profile' && !made.has(operation.parentId))
-      throw new Error(`${operation.name} grows from ${operation.parentId}, made no earlier.`);
-    made.add(operation.partId);
-  }
   for (const operation of history) checkSpanTarget(history, operation);
-  const resolved = resolvedParts(history);
-  for (const operation of history)
-    if (operation.kind === 'grow-profile') {
-      checkOnItsFace(operation, resolved);
-      checkSpanLength(history, operation, resolved);
-    }
-  return withSpanLengths(history, resolved);
+  return withSpanLengths(history, replayDesign(history).resolved);
 }
 
+/** A span cannot reach a part that hangs from it: their places would depend on each other. */
 function checkSpanTarget(history: readonly Operation[], operation: Operation) {
   if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) return;
-  const target = operationMaking(history, operation.reachesId);
-  if (!target)
-    throw new Error(
-      `${operation.name} cannot reach ${operation.reachesId}, which is not in the design.`,
-    );
   if (dependentsOf(history, operation.partId).has(operation.reachesId))
-    throw new Error(`${operation.name} cannot reach ${target.name}, which hangs from it.`);
-}
-
-/** A span that meets its part must be as long as a profile can be. */
-function checkSpanLength(
-  history: readonly Operation[],
-  operation: GrowProfile,
-  resolved: ReadonlyMap<string, ResolvedPart>,
-) {
-  const span = resolved.get(operation.partId);
-  if (operation.reachesId === undefined || !span || span.openEnd) return;
-  const target = nameOf(history, operation.reachesId);
-  if (span.lengthMm < MIN_PROFILE_LENGTH_MM)
     throw new Error(
-      `${target} would be too close to ${operation.name} for it to reach: a profile is at least ${MIN_PROFILE_LENGTH_MM} mm long.`,
-    );
-  if (span.lengthMm > MAX_PROFILE_LENGTH_MM)
-    throw new Error(
-      `${operation.name} would be longer than ${MAX_PROFILE_LENGTH_MM} mm to reach ${target}.`,
+      `${operation.name} cannot reach ${nameOf(history, operation.reachesId)}, which hangs from it.`,
     );
 }
 
@@ -416,47 +449,37 @@ function withSpanLengths(
   });
 }
 
-function checkOnItsFace(operation: GrowProfile, resolved: ReadonlyMap<string, ResolvedPart>) {
-  const parent = resolved.get(operation.parentId);
-  const parentPart = parent?.part;
-  if (!parent || parentPart?.kind !== 'profile') return;
-  const normal = faceAxis(operation.face);
-  if (normal === parentPart.axis) return;
-  const across = AXES.find((axis) => axis !== normal && axis !== parentPart.axis) ?? 'y';
-  const faceWidthMm = parent.box.max[across] - parent.box.min[across];
-  const lengthMm = Math.round(parent.lengthMm);
-  if (operation.alongMm > parent.lengthMm)
-    throw new Error(
-      `${operation.name} would hang off ${parentPart.name}: ${operation.alongMm} mm along it is more than its ${lengthMm} mm length.`,
-    );
-  if (Math.abs(operation.acrossMm) > faceWidthMm / 2)
-    throw new Error(
-      `${operation.name} would hang off the side of ${parentPart.name}: an offset of ${Math.abs(operation.acrossMm)} mm is more than half its ${faceWidthMm} mm face.`,
-    );
-}
-
-const resolvedParts = (history: readonly Operation[]) => resolveAssembly(replayHistory(history));
-
 function nameOf(history: readonly Operation[], partId: string): string {
   return operationMaking(history, partId)?.name ?? partId;
 }
 
+/**
+ * The next free identifiers. A part identifier that an operation still refers to stays taken
+ * after the operation that made it is deleted, so a new part never answers for it.
+ */
 function nextIdentifiers(history: readonly Operation[]): { id: string; partId: string } {
   return {
     id: `op-${nextNumber(
       'op',
       history.map((operation) => operation.id),
     )}`,
-    partId: `part-${nextNumber(
-      'part',
-      history.map((operation) => operation.partId),
-    )}`,
+    partId: `part-${nextNumber('part', history.flatMap(partIdsNamed))}`,
   };
 }
 
+function partIdsNamed(operation: Operation): string[] {
+  if (operation.kind === 'remove-part') return [operation.removedId];
+  if (operation.kind === 'add-anchored-profile') return [operation.partId];
+  return [
+    operation.partId,
+    operation.parentId,
+    ...(operation.reachesId ? [operation.reachesId] : []),
+  ];
+}
+
 /** Named after the section and the step that makes it, such as "40 × 40 profile 3". */
-const newProfileName = (history: readonly Operation[], widthMm: number, heightMm: number) =>
-  `${widthMm} × ${heightMm} profile ${history.length + 1}`;
+const newProfileName = (at: number, widthMm: number, heightMm: number) =>
+  `${widthMm} × ${heightMm} profile ${at + 1}`;
 
 /** One more than the highest number of the identifiers made with `prefix`. */
 function nextNumber(prefix: string, ids: readonly string[]): number {
@@ -468,9 +491,10 @@ function nextNumber(prefix: string, ids: readonly string[]): number {
   return Math.max(0, ...numbers) + 1;
 }
 
-/** The X of a new profile's center, beside every part of the design on its +X side. */
-function besideTheDesignMm(history: readonly Operation[], widthMm: number): number {
-  if (history.length === 0) return 0;
-  const corners = [...resolvedParts(history).values()].flatMap(cornersMm);
+/** The X of a new profile's center, beside every part of the design at step `at` on its +X side. */
+function besideTheDesignMm(history: readonly Operation[], at: number, widthMm: number): number {
+  const parts = [...replayDesign(history, at).resolved.values()];
+  if (parts.length === 0) return 0;
+  const corners = parts.flatMap(cornersMm);
   return Math.max(...corners.map((corner) => corner.x)) + NEW_PROFILE_GAP_MM + widthMm / 2;
 }

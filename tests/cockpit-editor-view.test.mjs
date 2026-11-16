@@ -13,6 +13,8 @@ import {
   draftGrowth,
   editDraft,
   editProfile,
+  removePart,
+  replayDesign,
 } from '../src/cad/history.ts';
 
 const historyWith = (count) => {
@@ -20,14 +22,18 @@ const historyWith = (count) => {
   for (let i = 0; i < count; i++) history = addAnchoredProfile(history).history;
   return history;
 };
-const panel = (changes) =>
-  designPanelHTML({
-    history: [],
-    selectedPartId: null,
+const panel = (changes) => {
+  const history = changes?.history ?? [];
+  return designPanelHTML({
+    history,
+    marker: history.length,
+    selectedOperationId: null,
+    failures: replayDesign(history).failures,
     canUndo: false,
     canRedo: false,
     ...changes,
   });
+};
 
 test('an empty design explains how it starts and offers the first profile', () => {
   const html = panel();
@@ -38,7 +44,7 @@ test('an empty design explains how it starts and offers the first profile', () =
 
 test('the history lists its operations in order, with the selected one pressed', () => {
   const history = editProfile(historyWith(2), 'part-2', { name: 'Rail <left>' });
-  const html = panel({ history, selectedPartId: 'part-2' });
+  const html = panel({ history, selectedOperationId: 'op-2' });
   assert.doesNotMatch(html, /id="emptyDesign"/);
   const steps = [...html.matchAll(/data-part="([^"]+)" aria-pressed="(true|false)"/g)];
   assert.deepEqual(
@@ -222,4 +228,50 @@ test('a span shows its length as the gap, and says when its end no longer meets 
   assert.match(open, /⚠ Its end no longer meets C/);
   assert.deepEqual(reachChoices(open)[1], ['part-2', true, 'Reaches C (not meeting it)']);
   assert.match(panel({ history: away }), /⚠ not meeting C/);
+});
+
+const stepOf = (html, operationId) =>
+  new RegExp(`<li[^>]*><button[^>]*data-operation="${operationId}"[\\s\\S]*?</li>`).exec(html)[0];
+
+test('the history marker sits after the steps the view shows; later steps wait below it', () => {
+  const history = historyWith(3);
+  const html = panel({ history, marker: 1 });
+  const marker = html.indexOf('id="historyMarker"');
+  assert.ok(html.indexOf('data-operation="op-1"') < marker);
+  assert.ok(html.indexOf('data-operation="op-2"') > marker);
+  assert.match(stepOf(html, 'op-2'), /disabled/);
+  assert.doesNotMatch(stepOf(html, 'op-1'), /disabled/);
+  assert.doesNotMatch(html, /id="markerBack"[^>]*disabled/);
+  assert.match(panel({ history }), /id="markerForward"[^>]*disabled/);
+  assert.match(panel({ history, marker: 0 }), /id="markerBack"[^>]*disabled/);
+  assert.match(html, /New steps go in at the marker/);
+});
+
+test('a failed step says why, with a symbol as well as its look', () => {
+  let history = editProfile(historyWith(1), 'part-1', { name: 'Rail', lengthMm: 1000 });
+  history = addOperation(history, draftGrowth(history, 'part-1'));
+  history = editProfile(history, 'part-1', { lengthMm: 100 });
+  const step = stepOf(panel({ history }), 'op-2');
+  assert.match(step, /class="history-step failed"/);
+  assert.match(step, /⚠ Failed: 40 × 40 profile 2 would hang off Rail/);
+});
+
+test('a removal step names the part it removes, and its inspector can only delete it', () => {
+  const history = removePart(editProfile(historyWith(1), 'part-1', { name: 'Rail' }), 'part-1');
+  assert.match(stepOf(panel({ history }), 'op-2'), /Removes Rail/);
+  const html = partInspectorHTML(history, history[1]);
+  assert.match(html, /Removes <strong>Rail<\/strong>/);
+  assert.match(html, /id="deleteStep"/);
+  assert.doesNotMatch(html, /data-part-field|id="removePart"|id="growProfile"/);
+});
+
+test('the inspector of a part can remove it or delete its step; a failed one says why', () => {
+  const history = historyWith(1);
+  const html = partInspectorHTML(history, history[0]);
+  assert.match(html, /id="removePart"/);
+  assert.match(html, /id="deleteStep"/);
+  const failed = partInspectorHTML(history, history[0], 'It grows out of a part that was deleted.');
+  assert.match(failed, /⚠ Failed: It grows out of a part that was deleted\./);
+  assert.doesNotMatch(failed, /id="removePart"|id="growProfile"/);
+  assert.match(failed, /data-part-field="name"/, 'its values can still be fixed');
 });

@@ -153,7 +153,11 @@ export function resolveAssembly(parts: readonly Part[]): Map<string, ResolvedPar
     if (!part) throw new Error(`Part ${neededBy} depends on ${id}, which is not in the design.`);
     if (resolving.has(id)) throw new Error(`Part ${id} depends on itself.`);
     resolving.add(id);
-    const result = resolvePart(part, (dependency) => resolve(dependency, id));
+    const result = resolvePart(
+      part,
+      (dependency) => resolve(dependency, id),
+      (other) => byId.has(other),
+    );
     resolving.delete(id);
     resolved.set(id, result);
     return result;
@@ -163,10 +167,17 @@ export function resolveAssembly(parts: readonly Part[]): Map<string, ResolvedPar
   return resolved;
 }
 
-function resolvePart(part: Part, dependency: (id: string) => ResolvedPart): ResolvedPart {
+/** Finds a part a placement depends on, resolving it first; it fails when the part is missing. */
+type Dependency = (id: string) => ResolvedPart;
+
+function resolvePart(
+  part: Part,
+  dependency: Dependency,
+  inDesign: (id: string) => boolean,
+): ResolvedPart {
   switch (part.kind) {
     case 'profile':
-      return resolveProfile(part, dependency);
+      return resolveProfile(part, dependency, inDesign);
     case 'foot':
       return resolveFoot(part, dependency);
     case 'plate':
@@ -199,7 +210,7 @@ const boxOn = (originMm: Vec3Mm, size: Size): BoxMm => ({
 /** A plate or peripheral, anchored or sitting on top of a face. */
 function resolveStanding(
   part: PlatePart | PeripheralPart,
-  dependency: (id: string) => ResolvedPart,
+  dependency: Dependency,
   size: Size,
 ): ResolvedPart {
   const placement = part.placement;
@@ -220,7 +231,7 @@ function resolveStanding(
   return resolvedAs(parent.tiltDeg, attachmentPoint(parent, placement));
 }
 
-function resolveFoot(foot: FootPart, dependency: (id: string) => ResolvedPart): ResolvedPart {
+function resolveFoot(foot: FootPart, dependency: Dependency): ResolvedPart {
   if (foot.placement.face !== '-y')
     throw new Error(
       `Foot ${foot.id} must hang from an underside, not face ${foot.placement.face}.`,
@@ -235,7 +246,11 @@ function resolveFoot(foot: FootPart, dependency: (id: string) => ResolvedPart): 
   return { part: foot, tiltDeg: parent.tiltDeg, box, lengthMm: type.heightMm, openEnd: false };
 }
 
-function resolveProfile(part: ProfilePart, dependency: (id: string) => ResolvedPart): ResolvedPart {
+function resolveProfile(
+  part: ProfilePart,
+  dependency: Dependency,
+  inDesign: (id: string) => boolean,
+): ResolvedPart {
   const placement = part.placement;
   if (placement.kind === 'anchor') {
     const tiltDeg = placement.tiltDeg ?? 0;
@@ -251,7 +266,9 @@ function resolveProfile(part: ProfilePart, dependency: (id: string) => ResolvedP
     throw new Error(`Part ${part.id} must run perpendicular to face ${placement.face}.`);
   let lengthMm = part.lengthMm;
   let openEnd = false;
-  if (placement.kind === 'span') {
+  // A span whose part is gone keeps its last length, as one whose faces stopped facing does.
+  if (placement.kind === 'span' && !inDesign(placement.reachesId)) openEnd = true;
+  else if (placement.kind === 'span') {
     const reached = dependency(placement.reachesId);
     if (reached.tiltDeg !== parent.tiltDeg)
       throw new Error(`Span ${part.id} cannot reach ${reached.part.id}, which is at another tilt.`);
@@ -283,6 +300,19 @@ function resolveLying(
   if (faceSign(way) < 0) start[part.axis] -= part.lengthMm;
   const box = profileBox(part, start, part.lengthMm);
   return { part, tiltDeg: parent.tiltDeg, box, lengthMm: part.lengthMm, openEnd: false };
+}
+
+/**
+ * The anchor that keeps a resolved profile where it is, at the tilt of its frame: how a part
+ * that hung from a removed one stays in place.
+ */
+export function anchorWhereItIs(resolved: ResolvedPart): Anchor {
+  const { part, box, tiltDeg } = resolved;
+  if (part.kind !== 'profile') throw new Error(`Only a profile can be anchored where it is.`);
+  const startInFrame = center(box);
+  startInFrame[part.axis] = box.min[part.axis];
+  const startMm = outOfTiltedFrame(startInFrame, tiltDeg);
+  return tiltDeg === 0 ? { kind: 'anchor', startMm } : { kind: 'anchor', startMm, tiltDeg };
 }
 
 /** The eight corners of a resolved part in cockpit coordinates. */

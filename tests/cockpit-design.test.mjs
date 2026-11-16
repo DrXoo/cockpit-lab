@@ -7,6 +7,7 @@ import {
   draftGrowth,
   editDraft,
   editProfile,
+  replayDesign,
 } from '../src/cad/history.ts';
 
 const designWith = (count) => {
@@ -89,14 +90,18 @@ test('a profile grown out of another reads back with its place on the face', () 
   assert.deepEqual(readDesign(stored(design)), design);
 });
 
-test('a growth must come after the part it grows from and stay on its face', () => {
+test('a stored growth that no longer applies reads back as a failed operation', () => {
   const data = stored(withGrowth());
   const [rail, growth] = data.history;
-  assert.throws(() => readDesign({ ...data, history: [growth, rail] }), /part-1/);
-  assert.throws(
-    () => readDesign({ ...data, history: [rail, { ...growth, alongMm: 600 }] }),
-    /hang off/,
-  );
+  const reordered = readDesign({ ...data, history: [growth, rail] });
+  assert.match(replayDesign(reordered.history).failures.get('op-2'), /later step/);
+  const off = readDesign({ ...data, history: [rail, { ...growth, alongMm: 600 }] });
+  assert.match(replayDesign(off.history).failures.get('op-2'), /hang off/);
+});
+
+test('a stored growth holds the values of its kind, and nothing else', () => {
+  const data = stored(withGrowth());
+  const [rail, growth] = data.history;
   assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, face: 'up' }] }), /face/);
   assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, way: 'in' }] }), /way/);
   assert.throws(
@@ -113,7 +118,7 @@ test('a profile lying on a face reads back, and one lying towards its face is re
   assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, way: '-y' }] }), /way/);
 });
 
-test('a span reads back with the part it reaches, which must be in the design', () => {
+test('a span reads back with the part it reaches, or with an open end once it is gone', () => {
   let { history } = designWith(2);
   history = editProfile(history, 'part-2', { startMm: { x: 500, y: 20, z: 0 } });
   history = addOperation(
@@ -124,8 +129,21 @@ test('a span reads back with the part it reaches, which must be in the design', 
   const data = stored({ history });
   assert.deepEqual(readDesign(data), { history });
   const lost = { ...data.history[2], reachesId: 'part-8' };
+  const read = readDesign({ ...data, history: [data.history[0], data.history[1], lost] });
+  assert.equal(replayDesign(read.history).resolved.get('part-3').openEnd, true);
+});
+
+test('a removal reads back, and must name the part it removes', () => {
+  const { history } = designWith(1);
+  const removal = { kind: 'remove-part', id: 'op-2', removedId: 'part-1' };
+  assert.deepEqual(readDesign(stored({ history: [...history, removal] })).history[1], removal);
+  const data = stored({ history: [...history, removal] });
   assert.throws(
-    () => readDesign({ ...data, history: [data.history[0], data.history[1], lost] }),
-    /part-8/,
+    () => readDesign({ ...data, history: [data.history[0], { ...removal, removedId: 7 }] }),
+    /identifier/,
+  );
+  assert.throws(
+    () => readDesign({ ...data, history: [data.history[0], { ...removal, extra: 1 }] }),
+    /extra/,
   );
 });

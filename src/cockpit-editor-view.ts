@@ -1,20 +1,22 @@
 // The cockpit editor's panels: the design history on the left, with the tools that add to it,
 // and the inspector of the selected part on the right. The design is shown on its own, in an
 // empty workspace without any room. Cockpit files are imported from the actions above the panel.
-import { faceAxis, resolveAssembly, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
+import { faceAxis, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
 import { profileSection, profileSystem } from './cad/catalog.ts';
 import {
   FACES,
   facingParts,
   lengthAxisOf,
+  makesAPart,
   MAX_PART_NAME_LENGTH,
   MAX_POSITION_MM,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
-  replayHistory,
+  replayDesign,
   type AddAnchoredProfile,
   type GrowProfile,
+  type MakingOperation,
   type Operation,
   type ParentEnd,
   type ProfileValues,
@@ -40,7 +42,11 @@ export const NOTHING_AROUND: RoomConfig = {
 
 export interface DesignPanel {
   history: readonly Operation[];
-  selectedPartId: string | null;
+  /** The history marker: how many steps the view shows. */
+  marker: number;
+  selectedOperationId: string | null;
+  /** Why each failed operation no longer applies, by operation id. */
+  failures: ReadonlyMap<string, string>;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -112,27 +118,54 @@ export function designPanelHTML(panel: DesignPanel): string {
   const addProfile = `<button class="button button-dark history-add" id="addProfile"><i data-icon="plus"></i>Add a profile</button>`;
   if (panel.history.length === 0)
     return `<div class="control-group" id="emptyDesign"><h3 class="group-title">A design built from parts</h3>${editTools}<p class="layout-hint">A cockpit design is the list of steps that builds it from aluminium profiles, plates and peripherals. New designs start empty: add a profile to start.</p><p class="layout-hint">Cockpits of the earlier configurator are not converted: design them again from parts.</p>${addProfile}</div>`;
-  const steps = panel.history
-    .map((operation, index) => historyStepHTML(panel.history, index, panel.selectedPartId))
-    .join('');
-  return `<div class="control-group" id="designHistory"><h3 class="group-title">Design history<span>${panel.history.length} ${panel.history.length === 1 ? 'step' : 'steps'}</span></h3>${editTools}<ol class="history-list">${steps}</ol>${addProfile}<p class="layout-hint">Select a part here or in the view to edit it in the inspector. Grow new profiles out of its faces from there.</p></div>`;
+  const { history, marker } = panel;
+  const steps = history.map((_, index) => historyStepHTML(panel, index));
+  steps.splice(marker, 0, historyMarkerHTML(marker, history.length));
+  const atTheMarker =
+    marker < history.length ? ' New steps go in at the marker, and the steps below it wait.' : '';
+  return `<div class="control-group" id="designHistory"><h3 class="group-title">Design history<span>${history.length} ${history.length === 1 ? 'step' : 'steps'}</span></h3>${editTools}<ol class="history-list">${steps.join('')}</ol>${addProfile}<p class="layout-hint">Select a part here or in the view to edit it in the inspector. Grow new profiles out of its faces from there.${atTheMarker}</p></div>`;
 }
 
-function historyStepHTML(
-  history: readonly Operation[],
-  index: number,
-  selectedPartId: string | null,
-) {
+/** The history marker: the view shows the design up to it. */
+function historyMarkerHTML(marker: number, steps: number): string {
+  const back = marker === 0 ? ' disabled' : '';
+  const forward = marker === steps ? ' disabled' : '';
+  return `<li class="history-marker" id="historyMarker"><span>▶ The view shows the design up to here</span><span class="marker-actions"><button class="text-button" id="markerBack" title="Show the design one step earlier"${back}>Step back</button><button class="text-button" id="markerForward" title="Show the next step"${forward}>Step forward</button><button class="text-button" id="markerEnd" title="Show every step"${forward}>To the end</button></span></li>`;
+}
+
+function historyStepHTML(panel: DesignPanel, index: number) {
+  const { history } = panel;
   const operation = history[index];
-  const selected = operation.partId === selectedPartId;
+  const selected = operation.id === panel.selectedOperationId;
+  const failure = panel.failures.get(operation.id);
+  const waiting = index >= panel.marker;
+  const classes = `history-step${failure !== undefined ? ' failed' : ''}${waiting ? ' after-marker' : ''}`;
+  const part = makesAPart(operation) ? ` data-part="${escapeHTML(operation.partId)}"` : '';
+  const failed =
+    failure === undefined
+      ? ''
+      : `<small class="history-failure">⚠ Failed: ${escapeHTML(failure)}</small>`;
+  return `<li><button class="${classes}" data-operation="${escapeHTML(operation.id)}"${part} aria-pressed="${selected}"${waiting ? ' disabled' : ''}><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(stepTitle(history, operation))}</strong><small>${stepDetail(history, operation)}</small>${failed}</span></button></li>`;
+}
+
+function stepTitle(history: readonly Operation[], operation: Operation): string {
+  return operation.kind === 'remove-part'
+    ? `Removes ${nameOf(history, operation.removedId)}`
+    : operation.name;
+}
+
+function stepDetail(history: readonly Operation[], operation: Operation): string {
+  if (operation.kind === 'remove-part') return 'What hangs from it stays where it is, anchored';
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
   const made =
     operation.kind === 'add-anchored-profile'
       ? 'Anchored profile'
       : `${operation.way === 'out' ? 'Grown out of' : 'Laid on'} ${escapeHTML(parentName(history, operation))}${reachText(history, operation)}`;
-  const detail = `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
-  return `<li><button class="history-step" data-part="${escapeHTML(operation.partId)}" aria-pressed="${selected}"><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(operation.name)}</strong><small>${detail}</small></span></button></li>`;
+  return `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
 }
+
+const nameOf = (history: readonly Operation[], partId: string): string =>
+  operationMaking(history, partId)?.name ?? 'a deleted part';
 
 const parentName = (history: readonly Operation[], growth: GrowProfile): string =>
   operationMaking(history, growth.parentId)?.name ?? growth.parentId;
@@ -143,9 +176,9 @@ interface Reach {
   meets: boolean;
 }
 
-function reachOf(history: readonly Operation[], operation: Operation): Reach | null {
+function reachOf(history: readonly Operation[], operation: MakingOperation): Reach | null {
   if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) return null;
-  const resolved = resolveAssembly(replayHistory(history)).get(operation.partId);
+  const resolved = replayDesign(history).resolved.get(operation.partId);
   return {
     targetName: operationMaking(history, operation.reachesId)?.name ?? operation.reachesId,
     meets: resolved !== undefined && !resolved.openEnd,
@@ -159,14 +192,30 @@ function reachText(history: readonly Operation[], growth: GrowProfile): string {
   return reach.meets ? `, reaching ${target}` : ` · ⚠ not meeting ${target}`;
 }
 
-/** The inspector of the selected part: the values of the operation that made it. */
+/**
+ * The inspector of the selected step: the values of the operation that made a part, with what
+ * can be done with that part, or the part a removal takes away. A failed step says why, and its
+ * values can still be changed to fix it.
+ */
 export function partInspectorHTML(
   history: readonly Operation[],
   operation: Operation | undefined,
+  failure?: string,
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
-  return `<div class="part-inspector" id="partInspectorFields">${profileFieldsHTML('part', history, operation, { reach: true })}<button class="button button-light history-add" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button></div>`;
+  const deleteStep = `<button class="button button-light" id="deleteStep" title="Take this step out of the whole history"><i data-icon="trash"></i>Delete this step</button>`;
+  const failed =
+    failure === undefined
+      ? ''
+      : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
+  if (operation.kind === 'remove-part')
+    return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+  const partActions =
+    failure === undefined
+      ? `<button class="button button-light" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button><button class="button button-light" id="removePart" title="Remove it from the design from the marker on"><i data-icon="close"></i>Remove this part</button>`
+      : '';
+  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
 }
 
 /** The panel of a profile about to grow out of another, shown in the view as a preview. */
@@ -181,7 +230,7 @@ export function growPanelHTML(history: readonly Operation[], draft: GrowProfile)
 function profileFieldsHTML(
   prefix: string,
   history: readonly Operation[],
-  operation: Operation,
+  operation: MakingOperation,
   { reach }: { reach: boolean },
 ) {
   const fields = new FieldTemplates(prefix);
@@ -389,7 +438,7 @@ const typedNumber = (value: string): number => (value.trim() === '' ? Number.NaN
 
 /** The change one field of the inspector makes to the values of the part's operation. */
 export function partChange(
-  operation: Operation,
+  operation: MakingOperation,
   field: PartField,
   value: string,
 ): Partial<ProfileValues> {
@@ -423,7 +472,7 @@ export function partChange(
   }
 }
 
-function changedStart(operation: Operation, field: PartField, valueMm: number): Vec3Mm {
+function changedStart(operation: MakingOperation, field: PartField, valueMm: number): Vec3Mm {
   if (operation.kind !== 'add-anchored-profile')
     throw new Error(`${operation.name} has no start of its own`);
   const axis = AXES.find((candidate) => START_FIELDS[candidate] === field) ?? 'x';

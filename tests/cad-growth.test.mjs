@@ -7,6 +7,7 @@ import {
   editDraft,
   editProfile,
   growthAt,
+  replayDesign,
   replayHistory,
 } from '../src/cad/history.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
@@ -126,15 +127,13 @@ test('moving a growth to another face turns its section when it has to', () => {
   assert.equal(onEnd[1].acrossMm, 0);
 });
 
-test('a growth must stay on its parent face, and its parent cannot leave it hanging', () => {
+test('a growth must stay on its parent face, and fails when its parent leaves it hanging', () => {
   const history = grow(railHistory(), 'part-1', { fromEnd: 'start', alongMm: 900 });
   assert.throws(() => editProfile(history, 'part-2', { alongMm: 1001 }), /Rail/);
   assert.throws(() => editProfile(history, 'part-2', { acrossMm: 21 }), /Rail/);
   assert.throws(() => editProfile(history, 'part-2', { alongMm: -1 }), /distance/);
-  assert.throws(
-    () => editProfile(history, 'part-1', { lengthMm: 800 }),
-    /40 × 40 profile 2.*Rail|Rail.*40 × 40 profile 2/,
-  );
+  const shorter = editProfile(history, 'part-1', { lengthMm: 800 });
+  assert.match(replayDesign(shorter).failures.get('op-2'), /40 × 40 profile 2 would hang off Rail/);
   assert.throws(() => editProfile(history, 'part-2', { face: '+w' }), /face/);
   assert.throws(() => grow(railHistory(), 'part-7'), /part-7/);
 });

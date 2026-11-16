@@ -1358,3 +1358,45 @@ select option {
 .part-warning {
   color: var(--warning);
 }
+.history-marker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border-top: 2px solid var(--accent-fill);
+  padding: 4px 2px 0;
+  font-size: 11px;
+  color: var(--accent-text);
+}
+.marker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.marker-actions .text-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.history-step.failed {
+  border-left-color: var(--warning);
+  border-style: dashed;
+}
+.history-failure {
+  font-size: 11px;
+  color: var(--warning);
+}
+.history-step.after-marker {
+  opacity: 0.55;
+  cursor: default;
+}
+.part-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.part-actions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

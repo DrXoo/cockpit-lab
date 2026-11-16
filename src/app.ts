@@ -20,16 +20,18 @@ import {
   partField,
   partInspectorHTML,
 } from './cockpit-editor-view.ts';
-import { resolveAssembly } from './cad/assembly.ts';
 import {
   addAnchoredProfile,
   addOperation,
+  deleteOperation,
   draftGrowth,
   editDraft,
   editProfile,
   growthAt,
+  makesAPart,
   operationMaking,
-  replayHistory,
+  removePart,
+  replayDesign,
   type GrowProfile,
   type Operation,
   type ProfileValues,
@@ -301,8 +303,10 @@ let library: LayoutLibrary = newProject.library,
    * arm is in, so moving the arm afterwards shows that pose as changed.
    */
   selectedArmPose = '',
-  /** The part selected in the cockpit editor, or null. */
-  selectedPartId: string | null = null,
+  /** The step selected in the cockpit editor's history, or null. */
+  selectedOperationId: string | null = null,
+  /** The history marker: how many steps the view shows, or null to follow the last step. */
+  marker: number | null = null,
   /** The edits made to the cockpit design since the project was opened, to undo and redo. */
   designEdits: Edits<CockpitDesign | null> = noEdits(),
   /** A profile about to grow out of the selected one, shown as a preview until it is added. */
@@ -337,11 +341,12 @@ const designHasParts = (): boolean => (cockpit?.history.length ?? 0) > 0;
 /** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
 function cockpitDrawing(): CockpitDrawing | null {
   if (editor() !== 'cockpit' || !designHasParts()) return null;
-  const history = cockpit?.history ?? [];
-  const shown = growth ? [...history, growth] : history;
+  const history = designHistory();
+  const at = markerIndex();
+  const shown = growth ? [...history.slice(0, at), growth, ...history.slice(at)] : history;
   return {
-    resolved: resolveAssembly(replayHistory(shown)),
-    selectedPartId,
+    resolved: replayDesign(shown, growth ? at + 1 : at).resolved,
+    selectedPartId: selectedPartId(),
     previewPartId: growth?.partId ?? null,
   };
 }
@@ -364,7 +369,8 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
 function openProject(project: Project) {
   library = project.library;
   cockpit = project.cockpit;
-  selectedPartId = null;
+  selectedOperationId = null;
+  marker = null;
   designEdits = noEdits();
   growth = null;
   state = layoutConfig(library);
@@ -413,6 +419,25 @@ function update(change: SettingChange) {
   queueSave();
   refresh();
 }
+/** The design history, empty without a design. */
+const designHistory = (): readonly Operation[] => cockpit?.history ?? [];
+/** How many steps the view shows: all of them unless the history marker was moved back. */
+const markerIndex = (): number =>
+  Math.min(marker ?? designHistory().length, designHistory().length);
+/** The selected step, if it is still in the history. */
+const selectedOperation = (): Operation | undefined =>
+  designHistory().find((operation) => operation.id === selectedOperationId);
+/** The part the selected step made, when the view shows it. */
+function selectedPartId(): string | null {
+  const operation = selectedOperation();
+  if (!operation || !makesAPart(operation)) return null;
+  const shown = replayDesign(designHistory(), markerIndex()).resolved.has(operation.partId);
+  return shown ? operation.partId : null;
+}
+/** Steps added at the marker push it on, so it stays after them. */
+function stepAddedAtMarker() {
+  if (marker !== null) marker += 1;
+}
 /** Makes `next` the cockpit design, as an edit that can be undone, and shows it. */
 function changeDesign(next: CockpitDesign) {
   const hadParts = designHasParts();
@@ -423,34 +448,75 @@ function changeDesign(next: CockpitDesign) {
 /** Shows the design after it changed, framing it when its first part appears. */
 function showChangedDesign(hadParts: boolean) {
   growth = null;
-  if (selectedPartId !== null && !operationMaking(cockpit?.history ?? [], selectedPartId))
-    selectedPartId = null;
+  if (!selectedOperation()) selectedOperationId = null;
+  if (marker !== null && marker >= designHistory().length) marker = null;
   queueSave();
   renderControls();
   refresh();
   if (!hadParts && designHasParts()) setActiveView(view);
 }
 function addProfile() {
-  const added = addAnchoredProfile(cockpit?.history ?? []);
-  selectedPartId = added.partId;
+  const added = addAnchoredProfile(designHistory(), markerIndex());
+  selectedOperationId = operationMaking(added.history, added.partId)?.id ?? null;
+  stepAddedAtMarker();
   changeDesign({ history: added.history });
 }
-/** Changes the operation that made the selected part; values it cannot have are explained. */
-function editSelectedPart(changes: Partial<ProfileValues>) {
-  if (cockpit === null || selectedPartId === null) return;
+/** Applies a change to the history; one it refuses is explained and nothing changes. */
+function changeHistory(change: (history: readonly Operation[]) => Operation[]): boolean {
   let history: Operation[];
   try {
-    history = editProfile(cockpit.history, selectedPartId, changes);
+    history = change(designHistory());
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
     renderPartInspector({ force: true });
-    return;
+    return false;
   }
-  if (JSON.stringify(history) === JSON.stringify(cockpit.history)) {
+  if (JSON.stringify(history) === JSON.stringify(designHistory())) {
     renderPartInspector({ force: true });
-    return;
+    return false;
   }
   changeDesign({ history });
+  return true;
+}
+/** Changes the operation of the selected step; values it cannot have are explained. */
+function editSelectedPart(changes: Partial<ProfileValues>) {
+  const operation = selectedOperation();
+  if (!operation || !makesAPart(operation)) return;
+  changeHistory((history) => editProfile(history, operation.partId, changes));
+}
+/** Removes the selected part from the marker on, as a step of its own. */
+function removeSelectedPart() {
+  const partId = selectedPartId();
+  if (partId === null) return;
+  const at = markerIndex();
+  const removed = changeHistory((history) => removePart(history, partId, at));
+  if (!removed) return;
+  stepAddedAtMarker();
+  selectedOperationId = null;
+  renderControls();
+  refresh();
+  toast('Part removed from this step on. Delete the step to bring it back.');
+}
+/** Takes the selected step out of the whole history; what relied on it fails. */
+function deleteSelectedStep() {
+  const operation = selectedOperation();
+  if (!operation) return;
+  const index = designHistory().indexOf(operation);
+  const at = markerIndex();
+  if (!changeHistory((history) => deleteOperation(history, operation.id))) return;
+  if (marker !== null && index < at) marker -= 1;
+  selectedOperationId = null;
+  renderControls();
+  refresh();
+}
+/** Moves the history marker, to show the design at another step. */
+function moveMarker(to: number | null) {
+  growth = null;
+  marker = to === null || to >= designHistory().length ? null : Math.max(0, to);
+  const selected = selectedOperation();
+  if (selected && designHistory().indexOf(selected) >= markerIndex()) selectedOperationId = null;
+  renderControls();
+  refresh();
 }
 function undoDesignEdit() {
   if (growth !== null) {
@@ -472,21 +538,25 @@ function redoDesignEdit() {
   cockpit = step.value;
   showChangedDesign(hadParts);
 }
-function selectPart(partId: string | null) {
-  selectedPartId = partId;
+function selectOperation(operationId: string | null) {
+  selectedOperationId = operationId;
   growth = null;
   renderControls();
   refresh();
 }
-/** A click in the view selects a part, or, while a profile grows, picks the face it grows from. */
+/**
+ * A click in the view selects the step that made a part, or, while a profile grows, picks the
+ * face it grows from.
+ */
 function pickInView(hit: PartHit | null) {
   if (growth === null) {
-    selectPart(hit?.partId ?? null);
+    const maker = hit === null ? undefined : operationMaking(designHistory(), hit.partId);
+    selectOperation(maker?.id ?? null);
     return;
   }
   if (hit === null || hit.partId !== growth.parentId) return;
-  const history = cockpit?.history ?? [];
-  changeGrowth(() => growthAt(history, growthOrFail(), hit.face, hit.pointMm));
+  const at = markerIndex();
+  changeGrowth((history) => growthAt(history, growthOrFail(), hit.face, hit.pointMm, at));
 }
 const growthOrFail = (): GrowProfile => {
   if (growth === null) throw new Error('No profile is growing');
@@ -494,16 +564,17 @@ const growthOrFail = (): GrowProfile => {
 };
 /** Starts a profile growing out of the selected part, shown as a preview until it is added. */
 function startGrowth() {
-  if (cockpit === null || selectedPartId === null) return;
-  growth = draftGrowth(cockpit.history, selectedPartId);
+  const partId = selectedPartId();
+  if (partId === null) return;
+  growth = draftGrowth(designHistory(), partId, markerIndex());
   refresh();
 }
 /** Changes the growing profile; values it cannot have, or a place off its face, are explained. */
-function changeGrowth(next: () => GrowProfile) {
-  const history = cockpit?.history ?? [];
+function changeGrowth(next: (history: readonly Operation[]) => GrowProfile) {
+  const history = designHistory();
   try {
-    const changed = next();
-    addOperation(history, changed);
+    const changed = next(history);
+    addOperation(history, changed, markerIndex());
     growth = changed;
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
@@ -512,10 +583,12 @@ function changeGrowth(next: () => GrowProfile) {
   refresh();
 }
 function confirmGrowth() {
-  if (cockpit === null || growth === null) return;
+  if (growth === null) return;
   const added = growth;
-  selectedPartId = added.partId;
-  changeDesign({ history: addOperation(cockpit.history, added) });
+  const at = markerIndex();
+  selectedOperationId = added.id;
+  stepAddedAtMarker();
+  changeDesign({ history: addOperation(designHistory(), added, at) });
 }
 function cancelGrowth() {
   growth = null;
@@ -523,14 +596,15 @@ function cancelGrowth() {
 }
 /**
  * Replaces what `container` shows and gives the focus back to the element that had it, found
- * by its id or by the part it stands for.
+ * by its id or by the step it stands for.
  */
 function replaceKeepingFocus(container: HTMLElement, html: string) {
   const active = document.activeElement;
   let selector = '';
   if (active instanceof HTMLElement && container.contains(active)) {
     if (active.id) selector = `#${CSS.escape(active.id)}`;
-    else if (active.dataset.part) selector = `[data-part="${CSS.escape(active.dataset.part)}"]`;
+    else if (active.dataset.operation)
+      selector = `[data-operation="${CSS.escape(active.dataset.operation)}"]`;
   }
   container.innerHTML = html;
   icons(container);
@@ -540,19 +614,25 @@ function bindDesignPanel() {
   $optional('#addProfile')?.addEventListener('click', addProfile);
   $optional('#undoEdit')?.addEventListener('click', undoDesignEdit);
   $optional('#redoEdit')?.addEventListener('click', redoDesignEdit);
-  controlsAll('[data-part]').forEach((step) =>
-    step.addEventListener('click', () => selectPart(dataOf(step, 'part'))),
+  $optional('#markerBack')?.addEventListener('click', () => moveMarker(markerIndex() - 1));
+  $optional('#markerForward')?.addEventListener('click', () => moveMarker(markerIndex() + 1));
+  $optional('#markerEnd')?.addEventListener('click', () => moveMarker(null));
+  controlsAll('[data-operation]').forEach((step) =>
+    step.addEventListener('click', () => selectOperation(dataOf(step, 'operation'))),
   );
 }
 /** The inspector HTML last shown, so it is only rebuilt when it changes. */
 let shownPartInspector = '';
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
-  const history = cockpit?.history ?? [];
-  const operation = selectedPartId === null ? undefined : operationMaking(history, selectedPartId);
+  const history = designHistory();
+  const operation = selectedOperation();
   const growing = growth;
-  $('#partInspectorTitle').textContent = growing ? 'New profile' : 'Selected part';
-  const html = growing ? growPanelHTML(history, growing) : partInspectorHTML(history, operation);
+  $('#partInspectorTitle').textContent = growing ? 'New profile' : 'Selected step';
+  const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
+  const html = growing
+    ? growPanelHTML(history, growing)
+    : partInspectorHTML(history, operation, failure);
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
@@ -561,7 +641,9 @@ function renderPartInspector({ force = false } = {}) {
     fields.forEach((el) => {
       const field = partField(el.dataset.partField);
       el.addEventListener('change', () =>
-        changeGrowth(() => editDraft(history, growing, partChange(growing, field, el.value))),
+        changeGrowth((current) =>
+          editDraft(current, growing, partChange(growing, field, el.value)),
+        ),
       );
     });
     $('#confirmGrowth').addEventListener('click', confirmGrowth);
@@ -569,11 +651,14 @@ function renderPartInspector({ force = false } = {}) {
     return;
   }
   if (!operation) return;
+  $('#deleteStep').addEventListener('click', deleteSelectedStep);
+  if (!makesAPart(operation)) return;
   fields.forEach((el) => {
     const field = partField(el.dataset.partField);
     el.addEventListener('change', () => editSelectedPart(partChange(operation, field, el.value)));
   });
-  $('#growProfile').addEventListener('click', startGrowth);
+  $optional('#growProfile')?.addEventListener('click', startGrowth);
+  $optional('#removePart')?.addEventListener('click', removeSelectedPart);
 }
 /**
  * Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo the design's edits in the cockpit editor.
@@ -971,8 +1056,10 @@ function renderControls() {
   let html = '';
   if (editor() === 'cockpit') {
     html = designPanelHTML({
-      history: cockpit?.history ?? [],
-      selectedPartId,
+      history: designHistory(),
+      marker: markerIndex(),
+      selectedOperationId,
+      failures: replayDesign(designHistory()).failures,
       canUndo: canUndo(designEdits),
       canRedo: canRedo(designEdits),
     });

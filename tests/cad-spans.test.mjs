@@ -7,6 +7,7 @@ import {
   editDraft,
   editProfile,
   facingParts,
+  replayDesign,
   replayHistory,
 } from '../src/cad/history.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
@@ -83,10 +84,8 @@ test('a span cannot reach a part that is not in front of it or that hangs from i
   assert.throws(() => editProfile(history, 'part-3', { reachesId: 'part-4' }), /D/);
 });
 
-test('a part cannot move so close that a span reaching it would be shorter than a profile', () => {
+test('a part moved so close that a span reaching it would be too short fails the span', () => {
   const spanned = editProfile(abc(), 'part-3', { reachesId: 'part-2' });
-  assert.throws(
-    () => editProfile(spanned, 'part-2', { startMm: { x: 45, y: 20, z: 0 } }),
-    /B.*C|C.*B/,
-  );
+  const close = editProfile(spanned, 'part-2', { startMm: { x: 45, y: 20, z: 0 } });
+  assert.match(replayDesign(close).failures.get('op-3'), /C would be too close to B/);
 });

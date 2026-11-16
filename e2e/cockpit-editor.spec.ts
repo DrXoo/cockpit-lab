@@ -213,15 +213,19 @@ test('clicking a face of the parent grows the profile from there', async ({ page
   await expect(page.locator('#growPanel')).toBeVisible();
 });
 
-test('a part cannot change so that what grows out of it would hang off', async ({ page }) => {
+test('a part changed so that what grows out of it would hang off fails that step', async ({
+  page,
+}) => {
   await startDesign(page);
   await page.locator('#growProfile').click();
   await page.locator('#confirmGrowth').click();
   await page.locator('[data-part="part-1"]').click();
   await page.locator('#part-lengthMm').fill('100');
   await page.locator('#part-lengthMm').press('Enter');
-  await expect(page.locator('#toast')).toHaveClass(/visible/);
-  await expect(page.locator('#part-lengthMm')).toHaveValue('500');
+  await expect(page.locator('[data-operation="op-2"]')).toHaveClass(/failed/);
+  await expect(page.locator('[data-operation="op-2"] .history-failure')).toBeVisible();
+  await page.locator('#undoEdit').click();
+  await expect(page.locator('[data-operation="op-2"]')).not.toHaveClass(/failed/);
 });
 
 test('a profile can lie along a face instead of growing out of it', async ({ page }) => {
@@ -262,4 +266,53 @@ test('B grows out of A and reaches C; moving C changes B, and B lets go keeping 
   await expect(page.locator('#part-lengthMm')).toBeEnabled();
   await expect(page.locator('#part-lengthMm')).toHaveValue('260');
   await expect.poll(async () => (await savedHistory(page))?.[2].reachesId).toBeUndefined();
+});
+
+test('removing a part is a step, and deleting that step brings the part back', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#removePart').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toEqual({ kind: 'remove-part', id: 'op-3', removedId: 'part-1' });
+  await page.locator('[data-part="part-2"]').click();
+  await expect(page.locator('#removePart')).toBeVisible();
+  await expect(page.locator('#partInspectorBody .part-warning')).toHaveCount(0);
+
+  await page.locator('[data-operation="op-3"]').click();
+  await page.locator('#deleteStep').click();
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(2);
+});
+
+test('deleting a step fails the steps that relied on it, and keeps the others', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  await page.locator('#addProfile').click();
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#deleteStep').click();
+  await expect(page.locator('[data-operation="op-2"]')).toHaveClass(/failed/);
+  await expect(page.locator('[data-operation="op-3"]')).not.toHaveClass(/failed/);
+  await page.locator('[data-operation="op-2"]').click();
+  await expect(page.locator('#partInspectorBody .part-warning')).toBeVisible();
+  await expect(page.locator('#removePart')).toHaveCount(0);
+});
+
+test('the history marker shows an earlier step, and new steps go in there', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('#markerBack').click();
+  await expect(page.locator('[data-operation="op-2"]')).toBeDisabled();
+  await page.locator('#addProfile').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.map((operation: { id: string }) => operation.id))
+    .toEqual(['op-1', 'op-3', 'op-2']);
+  await expect(page.locator('[data-operation="op-2"]')).toBeDisabled();
+  await page.locator('#markerEnd').click();
+  await expect(page.locator('[data-operation="op-2"]')).toBeEnabled();
+  await expect(page.locator('#markerForward')).toBeDisabled();
 });

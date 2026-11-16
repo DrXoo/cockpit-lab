@@ -1,14 +1,7 @@
 // The operations of a design history, as the file format stores them, and the part each one
 // makes when it is replayed (docs/adr/0005). Every kind of operation, and every value it holds,
 // is part of the file format. Lengths are in mm.
-import {
-  faceAxis,
-  type Axis,
-  type Face,
-  type Part,
-  type ProfilePart,
-  type Vec3Mm,
-} from './assembly.ts';
+import { faceAxis, type Axis, type Face, type ProfilePart, type Vec3Mm } from './assembly.ts';
 import { profileSystem } from './catalog.ts';
 
 /** What every profile is made with, wherever it is placed. */
@@ -65,8 +58,24 @@ export interface GrowProfile extends ProfileShape {
 
 export type GrowthWay = 'out' | Face;
 
+/**
+ * Removes a part from that step on: the parts that hang from it are anchored where they are, and
+ * a span that reached it keeps its length with an open end. Earlier steps still have the part.
+ */
+export interface RemovePart {
+  kind: 'remove-part';
+  id: string;
+  removedId: string;
+}
+
+/** An operation that makes a part. */
+export type MakingOperation = AddAnchoredProfile | GrowProfile;
+
 /** One step of a design history. Every kind is part of the file format. */
-export type Operation = AddAnchoredProfile | GrowProfile;
+export type Operation = MakingOperation | RemovePart;
+
+export const makesAPart = (operation: Operation): operation is MakingOperation =>
+  operation.kind !== 'remove-part';
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
 export interface ProfileValues {
@@ -98,17 +107,13 @@ export const AXES: readonly Axis[] = ['x', 'y', 'z'];
 export const FACES: readonly Face[] = ['+y', '-y', '+x', '-x', '+z', '-z'];
 
 /** The axis a profile's length runs along. */
-export const lengthAxisOf = (operation: Operation): Axis =>
+export const lengthAxisOf = (operation: MakingOperation): Axis =>
   operation.kind === 'add-anchored-profile'
     ? operation.axis
     : faceAxis(operation.way === 'out' ? operation.face : operation.way);
 
-/** Replays the history into the parts it makes, in order. */
-export function replayHistory(history: readonly Operation[]): Part[] {
-  return history.map(partMadeBy);
-}
-
-function partMadeBy(operation: Operation): ProfilePart {
+/** The part an operation makes, placed as its values say. */
+export function partMadeBy(operation: MakingOperation): ProfilePart {
   const profile = {
     kind: 'profile' as const,
     id: operation.partId,
@@ -147,12 +152,17 @@ function partMadeBy(operation: Operation): ProfilePart {
 export function operationMaking(
   history: readonly Operation[],
   partId: string,
-): Operation | undefined {
-  return history.find((operation) => operation.partId === partId);
+): MakingOperation | undefined {
+  return history.filter(makesAPart).find((operation) => operation.partId === partId);
 }
 
 /** The operation as given, or an error naming the first value it cannot have. */
 export function checkedOperation<T extends Operation>(operation: T): T {
+  if (operation.kind === 'remove-part') {
+    if (typeof operation.removedId !== 'string' || operation.removedId === '')
+      throw new Error('A removal needs the part it removes');
+    return operation;
+  }
   const system = profileSystem(operation.systemId);
   if (!system.sections.some((section) => section.id === operation.sectionId))
     throw new Error(`Profile section ${operation.sectionId} is not in ${system.id}.`);

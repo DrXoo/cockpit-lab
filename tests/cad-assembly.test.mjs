@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { contactPointsMm, cornersMm, partPointMm, resolveAssembly } from '../src/cad/assembly.ts';
+import {
+  contactPointsMm,
+  cornersMm,
+  partPointMm,
+  resolveAssembly,
+  anchorWhereItIs,
+} from '../src/cad/assembly.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 
@@ -364,4 +370,27 @@ test('a point of a standing part is measured from its mounting origin, turned wi
     () => partPointMm(resolveAssembly(frame()).get('left-rail'), { x: 0, y: 0, z: 0 }),
     /profile/,
   );
+});
+
+test('a span whose part is not in the design keeps its last length and reports the open end', () => {
+  const rear = { ...crossmember('rear', 100), lengthMm: 520 };
+  const resolved = resolveAssembly([rail('left-rail', -280), rear]).get('rear');
+  assert.equal(resolved.openEnd, true);
+  assert.equal(resolved.lengthMm, 520);
+});
+
+test('a part can be anchored where it is, at the tilt of its frame', () => {
+  const resolved = resolveAssembly(frame(crossmember('rear', 100)));
+  const rear = resolved.get('rear');
+  const anchored = { ...rear.part, lengthMm: 520, placement: anchorWhereItIs(rear) };
+  assert.deepEqual(resolveAssembly([anchored]).get('rear').box, rear.box);
+  const deck = {
+    ...rail('deck', 0, 400),
+    placement: { kind: 'anchor', startMm: { x: 0, y: 200, z: 300 }, tiltDeg: 12 },
+  };
+  const tilted = resolveAssembly([deck]).get('deck');
+  const again = resolveAssembly([{ ...deck, placement: anchorWhereItIs(tilted) }]).get('deck');
+  for (const side of ['min', 'max'])
+    for (const axis of ['x', 'y', 'z'])
+      assert.ok(Math.abs(again.box[side][axis] - tilted.box[side][axis]) < 1e-9);
 });

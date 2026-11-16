@@ -6,6 +6,7 @@ import {
   checkedHistory,
   checkedOperation,
   FACES,
+  makesAPart,
   MAX_PART_NAME_LENGTH,
   type Operation,
   type ParentEnd,
@@ -46,7 +47,7 @@ export function readDesign(data: unknown): CockpitDesign {
   if (!Array.isArray(history)) throw new Error('Invalid design history');
   const operations = history.map(readOperation);
   rejectRepeated(operations.map((operation) => operation.id));
-  rejectRepeated(operations.map((operation) => operation.partId));
+  rejectRepeated(operations.filter(makesAPart).map((operation) => operation.partId));
   return { history: checkedHistory(operations) };
 }
 
@@ -54,6 +55,7 @@ function readOperation(data: unknown): Operation {
   if (!isPlainRecord(data)) throw new Error('Unknown operation in the design history');
   if (data.kind === 'add-anchored-profile') return checkedOperation(readAnchored(data));
   if (data.kind === 'grow-profile') return checkedOperation(readGrowth(data));
+  if (data.kind === 'remove-part') return checkedOperation(readRemoval(data));
   throw new Error('Unknown operation in the design history');
 }
 
@@ -90,6 +92,11 @@ function readAnchored(data: Record<string, unknown>): Operation {
     axis: axis(data.axis),
     startMm: pointMm(data.startMm),
   };
+}
+
+function readRemoval(data: Record<string, unknown>): Operation {
+  onlyKeys(data, ['kind', 'id', 'removedId']);
+  return { kind: 'remove-part', id: identifier(data.id), removedId: identifier(data.removedId) };
 }
 
 function readGrowth(data: Record<string, unknown>): Operation {
