@@ -56,16 +56,34 @@ const ANCHORED_MARGIN_PX = 8;
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(value, Math.max(min, max)));
 
-/** A handle of the selected part, shown as a ball on top of the view. */
+/**
+ * A handle of the selected part, shown on top of the view: a ball, or an arrow from `position`
+ * that points to where `toward` is on screen.
+ */
 interface HandleItem {
   el: HTMLElement;
   position: T.Vector3;
+  toward?: T.Vector3;
 }
+
+/** How far along a move handle's axis the point is that sets its arrow's direction on screen. */
+const ARROW_DIRECTION_CM = 10;
+/** An arrow shorter than this on screen points at the camera: it cannot be dragged. */
+const ARROW_HIDDEN_BELOW_PX = 1;
+/** Arrows start this far out of the part's center, so a click on the center still picks it. */
+const ARROW_START_PX = 10;
+
+const HANDLE_TITLES: Record<Handle['kind'], string> = {
+  end: 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre',
+  move: 'Drag to move along this axis · Alt: to the millimetre',
+};
 
 /** An element of the page kept beside a point of the scene, such as the box of a change. */
 interface AnchoredItem {
   el: HTMLElement;
   position: T.Vector3;
+  /** A point the element keeps clear of, such as the tip of the arrow being dragged. */
+  clearOf: T.Vector3 | null;
 }
 
 /** How a handle is being dragged: Shift moves both ends, Alt drops the steps. */
@@ -431,25 +449,55 @@ export class CockpitScene {
   }
 
   /** Frees what the previous drawing created; the palette is shared and kept. */
-  /** A ball over the view for each handle, which a press grabs. */
+  /**
+   * An element over the view for each handle, which a press grabs: a ball for an end, an arrow
+   * out of a dot at the part's center for each axis it moves along.
+   */
   private addHandles(handles: readonly Handle[]) {
+    const center = handles.find((handle) => handle.kind === 'move');
+    if (center) {
+      const dot = document.createElement('span');
+      dot.className = 'move-center';
+      this.labels.append(dot);
+      this.handleItems.push({ el: dot, position: this.handleBall(center) });
+    }
     for (const handle of handles) {
       const el = document.createElement('span');
-      el.className = 'part-handle';
+      el.className = handle.kind === 'move' ? 'move-arrow' : 'part-handle';
       el.dataset.handle = handle.id;
-      el.title = 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre';
+      el.dataset.handleKind = handle.kind;
+      el.title = HANDLE_TITLES[handle.kind];
       el.addEventListener('pointerdown', (event) => this.grabHandle(event, handle));
       this.labels.append(el);
-      const ball = handleBallMm(handle);
-      const position = new T.Vector3(ball.x / MM_PER_CM, ball.y / MM_PER_CM, ball.z / MM_PER_CM);
-      this.handleItems.push({ el, position });
+      const position = this.handleBall(handle);
+      if (handle.kind !== 'move') {
+        this.handleItems.push({ el, position });
+        continue;
+      }
+      el.dataset.axis = handle.axis;
+      const { outwardMm } = handle;
+      const toward = new T.Vector3(outwardMm.x, outwardMm.y, outwardMm.z)
+        .multiplyScalar(ARROW_DIRECTION_CM)
+        .add(position);
+      this.handleItems.push({ el, position, toward });
     }
   }
 
+  /** Where a handle is drawn, in the scene's cm. */
+  private handleBall(handle: Handle): T.Vector3 {
+    const ball = handleBallMm(handle);
+    return new T.Vector3(ball.x / MM_PER_CM, ball.y / MM_PER_CM, ball.z / MM_PER_CM);
+  }
+
   /** Keeps an element of the page beside a point of the scene, in cm, or lets it go (null). */
-  anchorElement(el: HTMLElement, pointCm: { x: number; y: number; z: number } | null) {
+  anchorElement(
+    el: HTMLElement,
+    pointCm: { x: number; y: number; z: number } | null,
+    clearOfCm: { x: number; y: number; z: number } | null = null,
+  ) {
+    const vector = (cm: { x: number; y: number; z: number }) => new T.Vector3(cm.x, cm.y, cm.z);
     this.anchored = pointCm
-      ? { el, position: new T.Vector3(pointCm.x, pointCm.y, pointCm.z) }
+      ? { el, position: vector(pointCm), clearOf: clearOfCm ? vector(clearOfCm) : null }
       : null;
     this.revision++;
   }
@@ -827,11 +875,21 @@ export class CockpitScene {
 
   /** Puts the handles, and the element kept beside a point, where the camera shows them. */
   private placeOverlays(w: number, h: number) {
+    const onScreen = (point: T.Vector3) => {
+      const p = point.clone().project(this.camera);
+      return { x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h, inView: p.z >= -1 && p.z <= 1 };
+    };
     for (const item of this.handleItems) {
-      const p = item.position.clone().project(this.camera);
-      item.el.hidden = p.z < -1 || p.z > 1;
-      item.el.style.left = `${(p.x * 0.5 + 0.5) * w}px`;
-      item.el.style.top = `${(-p.y * 0.5 + 0.5) * h}px`;
+      const at = onScreen(item.position);
+      item.el.hidden = !at.inView;
+      item.el.style.left = `${at.x}px`;
+      item.el.style.top = `${at.y}px`;
+      if (!item.toward) continue;
+      const tip = onScreen(item.toward);
+      const lengthPx = Math.hypot(tip.x - at.x, tip.y - at.y);
+      item.el.hidden ||= lengthPx < ARROW_HIDDEN_BELOW_PX;
+      const angleRad = Math.atan2(tip.y - at.y, tip.x - at.x);
+      item.el.style.transform = `rotate(${angleRad}rad) translateX(${ARROW_START_PX}px)`;
     }
     if (this.anchored) this.placeAnchored(this.anchored, w, h);
   }
@@ -840,14 +898,19 @@ export class CockpitScene {
    * Puts an element beside its point, to the right of it unless it would leave the view, and
    * always whole within the view, so it never has to be scrolled to.
    */
-  private placeAnchored({ el, position }: AnchoredItem, w: number, h: number) {
+  private placeAnchored({ el, position, clearOf }: AnchoredItem, w: number, h: number) {
     const p = position.clone().project(this.camera);
     const x = (p.x * 0.5 + 0.5) * w;
     const y = (-p.y * 0.5 + 0.5) * h;
     const width = el.offsetWidth;
     const height = el.offsetHeight;
     const right = x + ANCHORED_GAP_PX;
-    const left = right + width <= w - ANCHORED_MARGIN_PX ? right : x - ANCHORED_GAP_PX - width;
+    const leftOf = x - ANCHORED_GAP_PX - width;
+    // A point to keep clear of on the right sends the element to the left, if it fits there.
+    const clearOfX = clearOf ? (clearOf.clone().project(this.camera).x * 0.5 + 0.5) * w : x;
+    const rightIsTaken = clearOfX > x + ANCHORED_GAP_PX / 2 && leftOf >= ANCHORED_MARGIN_PX;
+    const rightFits = right + width <= w - ANCHORED_MARGIN_PX;
+    const left = rightFits && !rightIsTaken ? right : leftOf;
     el.style.left = `${clamp(left, ANCHORED_MARGIN_PX, w - width - ANCHORED_MARGIN_PX)}px`;
     el.style.top = `${clamp(y - height / 2, ANCHORED_MARGIN_PX, h - height - ANCHORED_MARGIN_PX)}px`;
   }

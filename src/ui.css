@@ -650,6 +650,67 @@ select option {
   height: 18px;
 }
 
+/* The center of the selected part, where its move arrows start. */
+.move-center {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--surface);
+  pointer-events: none;
+}
+
+/*
+ * An arrow out of the center of the selected part, dragged to move it along one axis. The scene
+ * turns it to point along its axis on screen; X, Y and Z take the usual red, green and blue.
+ */
+.move-arrow {
+  --arrow-color: #2f7fd0;
+  position: absolute;
+  width: 48px;
+  height: 18px;
+  margin-top: -9px;
+  transform-origin: 0 50%;
+  filter: drop-shadow(0 0 1px var(--surface));
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.move-arrow[data-axis='x'] {
+  --arrow-color: #d0453a;
+}
+
+.move-arrow[data-axis='y'] {
+  --arrow-color: #3a9a3f;
+}
+
+.move-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 12px;
+  top: 7px;
+  height: 4px;
+  background: var(--arrow-color);
+}
+
+.move-arrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 2px;
+  border-left: 15px solid var(--arrow-color);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+}
+
+.move-arrow:hover {
+  filter: drop-shadow(0 0 2px var(--arrow-color));
+}
+
 /* The value of a change made in the view, to type exactly, confirm or cancel. */
 .change-box {
   position: absolute;

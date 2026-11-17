@@ -598,7 +598,7 @@ test('dragging an end of a profile previews its new length, typed and confirmed 
 }) => {
   await startDesign(page);
   await page.locator('[data-view="top"]').click();
-  await expect(page.locator('[data-handle]')).toHaveCount(2);
+  await expect(page.locator('[data-handle-kind="end"]')).toHaveCount(2);
   // In the top view, the front (+Z) end of a rail is towards the bottom of the screen.
   await dragHandle(page, 'part-1:end', 0, 60);
   await expect(page.locator('#changeBox')).toBeVisible();
@@ -641,4 +641,26 @@ test('Escape or undo leaves a dragged profile as it was; Shift drags both ends',
   await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBeGreaterThan(500);
   const [rail] = (await savedHistory(page)) ?? [];
   expect(rail.startMm.z).toBe(-(rail.lengthMm - 500) / 2);
+});
+
+test('dragging an arrow of a profile moves it, by a distance typed and confirmed in a box', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  // The top view looks down Y: the rail moves along X and Z there, not up.
+  await expect(page.locator('[data-handle-kind="move"]')).toHaveCount(2);
+  await expect(page.locator('[data-handle="part-1:move:y"]')).toHaveCount(0);
+  await dragHandle(page, 'part-1:move:x', 60, 0);
+  await expect(page.locator('#changeBox')).toHaveAttribute('data-kind', 'move');
+  const moved = Number(await page.locator('#changeValue').inputValue());
+  expect(moved).not.toBe(0);
+  expect(moved % 10).toBe(0);
+  await expect(page.locator('[data-handle]')).toHaveCount(1);
+
+  await page.locator('#changeValue').fill('-75');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#changeBox')).toBeHidden();
+  await expect.poll(async () => (await savedHistory(page))?.[0].startMm.x).toBe(-75);
+  await expect(page.locator('#part-startX')).toHaveValue('-75');
 });

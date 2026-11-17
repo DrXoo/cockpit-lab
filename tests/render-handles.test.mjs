@@ -30,3 +30,18 @@ test('a thin stem joins each handle to the end it changes', () => {
     [['box', [0.3, 0.3, 4], [0, 2, 102], 'hover']],
   );
 });
+
+test('a move handle sits at the center of its part, with no stem', () => {
+  const move = {
+    kind: 'move',
+    id: 'part-1:move:x',
+    partId: 'part-1',
+    axis: 'x',
+    pointMm: { x: 0, y: 20, z: 500 },
+    outwardMm: { x: 1, y: 0, z: 0 },
+  };
+  assert.deepEqual(handleBallMm(move), { x: 0, y: 20, z: 500 });
+  const r = createRenderList();
+  drawHandleStems(r, ROOT, [move]);
+  assert.equal(r.primitives.length, 0);
+});

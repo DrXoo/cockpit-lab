@@ -482,10 +482,13 @@ function cancelChange() {
 function settleChange() {
   if (pendingChange) confirmChange();
 }
+/** Far enough along a move arrow to tell which side of the screen it points to. */
+const ARROW_CLEARANCE_MM = 100;
 /** What the box of a waiting change calls its value. */
 const READOUT_LABELS: Record<DragReadout['kind'], string> = {
   change: 'Change',
   length: 'Length',
+  move: 'Move',
 };
 /** The box of a waiting change, beside the handle that made it, with its value. */
 function renderChangeBox() {
@@ -503,11 +506,19 @@ function renderChangeBox() {
   const input = $<HTMLInputElement>('#changeValue');
   if (document.activeElement !== input) input.value = String(readout.valueMm);
   const ball = handleBallMm(handle);
-  scene?.anchorElement(box, {
-    x: ball.x / MM_PER_CM,
-    y: ball.y / MM_PER_CM,
-    z: ball.z / MM_PER_CM,
+  const inCm = (pointMm: { x: number; y: number; z: number }) => ({
+    x: pointMm.x / MM_PER_CM,
+    y: pointMm.y / MM_PER_CM,
+    z: pointMm.z / MM_PER_CM,
   });
+  // The box keeps clear of the arrow being dragged, which starts where it is anchored.
+  const { outwardMm } = handle;
+  const arrowTip = {
+    x: ball.x + outwardMm.x * ARROW_CLEARANCE_MM,
+    y: ball.y + outwardMm.y * ARROW_CLEARANCE_MM,
+    z: ball.z + outwardMm.z * ARROW_CLEARANCE_MM,
+  };
+  scene?.anchorElement(box, inCm(ball), handle.kind === 'move' ? inCm(arrowTip) : null);
   box.hidden = false;
 }
 /** The measurement being taken, in the design the view shows at the history marker. */

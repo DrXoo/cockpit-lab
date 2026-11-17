@@ -109,5 +109,5 @@ test('the handles of the selected part are drawn with the design, as stems to th
       (p) => p.kind === 'box' && p.material === 'hover',
     );
   assert.equal(stems(cockpit).length, 0);
-  assert.equal(stems({ ...cockpit, handles }).length, 2);
+  assert.equal(stems({ ...cockpit, handles }).length, 2, 'the two ends; a move handle has none');
 });
