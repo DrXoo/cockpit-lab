@@ -120,6 +120,8 @@ Planned in November 2026, before the peripherals, which need the same handles to
 4. **Snapping to parts.** Flush with the faces and ends of other parts, centered on the parent, and reaching the facing face of another part, which makes the profile a span; with a guide.
 5. **Joints in the view.** ⚠, ✓ and + markers, and a card with the quick actions of each joint.
 
+Slice 0 was done in November 2026. Delete does what the selected step's inspector offers: **Remove this part** for a part, or **Delete this step** for a failed step or one that makes no part; it does nothing in a text field or while a part is about to be added.
+
 In the top and side views, the move handle shows only the arrows in the plane of the view. On a tilted part, its handles follow the axes of its tilt.
 
 ### 5. Peripherals and adjustments

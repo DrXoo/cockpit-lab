@@ -13,6 +13,7 @@ import {
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
 import {
+  deleteKeyAction,
   designPanelHTML,
   growPanelHTML,
   NOTHING_AROUND,
@@ -901,8 +902,22 @@ function renderPartInspector({ force = false } = {}) {
   $optional('#removePart')?.addEventListener('click', removeSelectedPart);
 }
 /**
- * Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo the design's edits in the cockpit editor.
- * In a text field they keep undoing its typing.
+ * Delete removes the selected part, or deletes a selected step that makes none, as the buttons
+ * of its inspector do. A part about to be added is left alone: Escape cancels it.
+ */
+function deleteWithKey(event: KeyboardEvent) {
+  if (draftPart !== null) return;
+  const operation = selectedOperation();
+  const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
+  const action = deleteKeyAction(operation, failure);
+  if (action === null) return;
+  event.preventDefault();
+  if (action === 'remove-part') removeSelectedPart();
+  else deleteSelectedStep();
+}
+/**
+ * Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo the design's edits in the cockpit editor,
+ * and Delete removes the selected part. In a text field they keep editing its text.
  */
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && measurePicks !== null && !document.querySelector('dialog[open]')) {
@@ -913,10 +928,18 @@ document.addEventListener('keydown', (event) => {
     cancelDraft();
     return;
   }
-  if (editor() !== 'cockpit' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
-  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+  if (editor() !== 'cockpit' || document.querySelector('dialog[open]')) return;
+  if (
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement ||
+    event.target instanceof HTMLSelectElement
+  )
     return;
-  if (document.querySelector('dialog[open]')) return;
+  if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    deleteWithKey(event);
+    return;
+  }
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
   if (key === 'z' && !event.shiftKey) {
     event.preventDefault();

@@ -20,6 +20,7 @@ test('the cockpit editor starts empty, without layouts or room checks', async ({
   await expect(page.locator('#cockpitChecksSection')).toBeHidden();
   await expect(page.locator('#importCockpit')).toBeVisible();
   await expect(page.locator('#exportCockpit')).toBeHidden();
+  await expect(page.locator('#undoEdit')).toHaveCount(0);
 
   await page.locator('#roomEditor').click();
   await expect(page.locator('#layoutArea')).toBeVisible();
@@ -538,4 +539,20 @@ test('a plate is joined to the profiles it touches and bolted into their slots',
   await page.locator('[data-joint-bolts="part-3@part-2"]').fill('0');
   await page.locator('[data-joint-bolts="part-3@part-2"]').press('Enter');
   await expect.poll(async () => (await savedHistory(page))?.length).toBe(5);
+});
+
+test('Delete removes the selected part, and deletes a selected removal', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#viewport canvas').focus();
+  await page.keyboard.press('Delete');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'remove-part', removedId: 'part-1' });
+  await page.locator('[data-operation="op-2"]').click();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  await page.locator('[data-operation="op-1"]').click();
+  await page.locator('#part-name').focus();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
 });

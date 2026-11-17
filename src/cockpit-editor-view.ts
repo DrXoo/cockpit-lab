@@ -141,8 +141,11 @@ const sectionName = (widthMm: number, heightMm: number) => `${widthMm} × ${heig
 export function designPanelHTML(panel: DesignPanel): string {
   const editTools = `<div class="history-tools"><button class="text-button" id="undoEdit" title="Undo (Ctrl+Z)" ${panel.canUndo ? '' : 'disabled'}><i data-icon="undo"></i>Undo</button><button class="text-button" id="redoEdit" title="Redo (Ctrl+Y)" ${panel.canRedo ? '' : 'disabled'}><i data-icon="redo"></i>Redo</button></div>`;
   const addProfile = `<button class="button button-dark history-add" id="addProfile"><i data-icon="plus"></i>Add a profile</button>`;
-  if (panel.history.length === 0)
-    return `<div class="control-group" id="emptyDesign"><h3 class="group-title">A design built from parts</h3>${editTools}<p class="layout-hint">A cockpit design is the list of steps that builds it from aluminium profiles, plates and peripherals. New designs start empty: add a profile to start.</p><p class="layout-hint">Cockpits of the earlier configurator are not converted: design them again from parts.</p>${addProfile}</div>`;
+  if (panel.history.length === 0) {
+    // Nothing to undo in a new design; after undoing back to empty, redo brings the parts back.
+    const tools = panel.canUndo || panel.canRedo ? editTools : '';
+    return `<div class="control-group" id="emptyDesign"><h3 class="group-title">A design built from parts</h3>${tools}<p class="layout-hint">A cockpit design is the list of steps that builds it from aluminium profiles, plates and peripherals. New designs start empty: add a profile to start.</p><p class="layout-hint">Cockpits of the earlier configurator are not converted: design them again from parts.</p>${addProfile}</div>`;
+  }
   const { history, marker } = panel;
   const steps = history.map((_, index) => historyStepHTML(panel, index));
   steps.splice(marker, 0, historyMarkerHTML(marker, history.length));
@@ -718,4 +721,16 @@ function changedStart(operation: ProfileOperation, field: PartField, valueMm: nu
     throw new Error(`${operation.name} has no start of its own`);
   const axis = AXES.find((candidate) => START_FIELDS[candidate] === field) ?? 'x';
   return { ...operation.startMm, [axis]: valueMm };
+}
+
+/**
+ * What the Delete key does to the selected step, as its inspector offers it: remove the part it
+ * made from the history marker on, or, for a failed step or one that makes no part, delete it.
+ */
+export function deleteKeyAction(
+  operation: Operation | undefined,
+  failure?: string,
+): 'remove-part' | 'delete-step' | null {
+  if (!operation) return null;
+  return makesAPart(operation) && failure === undefined ? 'remove-part' : 'delete-step';
 }

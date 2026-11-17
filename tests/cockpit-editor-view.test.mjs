@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  deleteKeyAction,
   designPanelHTML,
   footChange,
   growPanelHTML,
@@ -64,10 +65,30 @@ test('the history lists its operations in order, with the selected one pressed',
 });
 
 test('undo and redo are offered only when there is something to undo or redo', () => {
-  assert.match(panel(), /id="undoEdit"[^>]*disabled/);
-  assert.match(panel(), /id="redoEdit"[^>]*disabled/);
-  assert.doesNotMatch(panel({ canUndo: true }), /id="undoEdit"[^>]*disabled/);
-  assert.doesNotMatch(panel({ canRedo: true }), /id="redoEdit"[^>]*disabled/);
+  const history = historyWith(1);
+  assert.match(panel({ history }), /id="undoEdit"[^>]*disabled/);
+  assert.match(panel({ history }), /id="redoEdit"[^>]*disabled/);
+  assert.doesNotMatch(panel({ history, canUndo: true }), /id="undoEdit"[^>]*disabled/);
+  assert.doesNotMatch(panel({ history, canRedo: true }), /id="redoEdit"[^>]*disabled/);
+});
+
+test('an empty design shows undo and redo only when one of them can be used', () => {
+  assert.doesNotMatch(panel(), /id="undoEdit"|id="redoEdit"/);
+  const undone = panel({ canRedo: true });
+  assert.match(undone, /id="undoEdit"[^>]*disabled/);
+  assert.doesNotMatch(undone, /id="redoEdit"[^>]*disabled/);
+});
+
+test('the Delete key removes the selected part, or deletes a step that makes none', () => {
+  const history = railAndGrowth();
+  assert.equal(deleteKeyAction(history[1]), 'remove-part');
+  assert.equal(
+    deleteKeyAction(history[1], 'It grows out of a part that was deleted.'),
+    'delete-step',
+  );
+  const removal = { kind: 'remove-part', id: 'op-3', removedId: 'part-2' };
+  assert.equal(deleteKeyAction(removal), 'delete-step');
+  assert.equal(deleteKeyAction(undefined), null);
 });
 
 test('without a selected part the inspector says how to select one', () => {
