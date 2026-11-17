@@ -109,6 +109,22 @@ test('the inspector changes the operation that made the part', async ({ page }) 
   await expect(page.locator('#part-startX')).toBeFocused();
 });
 
+test('the selected part shows its length in the view while dimensions are shown', async ({
+  page,
+}) => {
+  await startDesign(page);
+  const length = page.locator('#sceneLabels [data-measures="part-length"]');
+  await expect(length).toHaveText('500 mm');
+  await page.locator('#part-lengthMm').fill('1200');
+  await page.locator('#part-lengthMm').press('Enter');
+  await expect(length).toHaveText('1200 mm');
+  await page.locator('#dimensionBtn').click();
+  await expect(length).toBeHidden();
+  await page.locator('#dimensionBtn').click();
+  await clickViewport(page, 0.05, 0.95);
+  await expect(length).toHaveCount(0);
+});
+
 test('a value a profile cannot have is explained and not applied', async ({ page }) => {
   await startDesign(page);
   await page.locator('#part-lengthMm').fill('5');

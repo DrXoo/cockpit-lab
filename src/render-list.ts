@@ -146,6 +146,8 @@ export interface SceneLabel {
   object: boolean;
   /** Extra CSS class. */
   className?: string;
+  /** What the label measures, as the page names it in `data-measures`. */
+  measures?: string;
   topOnly?: boolean;
   /** Marks a draggable monitor arm joint. */
   armHandle?: boolean;

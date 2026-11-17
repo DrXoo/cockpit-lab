@@ -71,3 +71,17 @@ test('a cockpit design shown on its own is drawn at the origin, with its selecte
   );
   assert.deepEqual(bars[0].position, [0, 2, 25]);
 });
+
+test('the selected part shows its length with the other dimensions, which can be hidden', () => {
+  const history = addAnchoredProfile([]).history;
+  const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-1' };
+  const { model } = render(NOTHING_AROUND, { cockpit });
+  const dimensions = model.primitives.find((p) => p.kind === 'group' && p.role === 'dimensions');
+  const measured = model.primitives.filter((p) => p.kind === 'line' && p.material === 'dim');
+  assert.ok(measured.length > 0);
+  assert.ok(measured.every((line) => line.parent === dimensions.id));
+  assert.deepEqual(
+    model.labels.map((label) => label.text),
+    ['500 mm'],
+  );
+});

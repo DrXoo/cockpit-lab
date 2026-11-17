@@ -352,6 +352,7 @@ export class CockpitScene {
       const el = document.createElement('div');
       el.className = 'dim-label' + (label.object ? ' object-label' : '');
       if (label.className) el.classList.add(label.className);
+      if (label.measures) el.dataset.measures = label.measures;
       el.textContent = label.text;
       this.labels.append(el);
       const { x, y, z } = label.position;
