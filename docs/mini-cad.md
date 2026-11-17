@@ -96,19 +96,28 @@ Acceptance: replaying a saved history gives the same parts, identifiers and dime
 
 Plates, the seat and the driver, the wheel, the pedals and the other peripherals come in the following stages. When the mini CAD is complete, the room can include the cockpit design again.
 
-### 3. Plates and holes
+### 3. Plates on profiles
 
-Edit the outline, holes, arrays and slots in a 2D view, with the holes and slots that mounted peripherals put there. Validate features outside the outline, overlaps and minimum distances to the edge configured for the fabrication process. DXF/SVG files must rebuild the same dimensions when reopened, without duplicate cuts. The thickness and fabrication notes go with the drawing; a 2D DXF does not encode them by itself.
+Planned in November 2026: a plate is a plain rectangle that rests on profiles and is bolted to them; its holes, slots and drawings wait for stage 5. Built in slices, each usable in the browser when it lands:
+
+1. **A plate on a profile.** The `add-plate` operation rests a rectangular plate on a face of a profile: its name, width, depth, sheet, the face, the end its distance is measured from, the distance and the offset across the face, both to the plate's center, and which side runs along the profile, in quarter turns about the face's normal. Its thickness stands out of the face, so the plate is on top of, under or beside the profile. The center may lie beyond the face, as a pedal plate's does between two rails, but the plate must rest on part of the face, or the operation fails. Sheets come from the catalog: aluminium at 3, 4, 5, 6, 8 and 10 mm, estimated until a supplier is verified; a new plate is 300 × 300 × 8 mm, 50 to 1500 mm a side. A plate hangs only from a profile, nothing hangs from it until peripherals come, and no span reaches it. **Put a plate on it**, in the inspector of a profile, shows it as a preview with a panel of its values, on the profile's top, or its front for an upright, centered on its length; a click on a face of the profile moves it there, measured from the nearer end. The inspector of a plate has no growing or feet. Plates are drawn, picked and measured like profiles, take part in interference (resting on a profile is contact) and in support, and the parts to buy list them grouped by size and sheet, as cuts are.
+2. **Bolting a plate.** **Join** works between a plate and the profiles it touches. A new connector, a bolt with a T-nut of the profile system's slot, fastens a plate's joints: the user chooses how many bolts each slot the plate covers takes, and they are spaced evenly along where the plate touches the profile, on the slot's center line. A quick action puts two in each slot. The bolt's length follows the plate's thickness, rounded up to a stocked length, estimated like the bracket's fasteners. Bolt heads are drawn on the plate, and bolts and T-nuts count in the parts to buy. Their positions are where the plate's holes will come from in stage 5.
+
+A plate is not drawn in 2D, has no holes, slots or rounded corners, and is not exported until stage 5.
 
 ### 4. Peripherals and adjustments
 
-Mount, swap and remove peripherals; edit their mounting patterns, contact points and the travel of adjustments, and check that the travel fits its slots or rails.
+Mount, swap and remove peripherals; edit their mounting patterns, contact points and the travel of adjustments, and check that the travel fits its rails.
 
-### 5. Switching between racing and flight
+### 5. Plate drawings and holes
+
+Edit the outline, holes, arrays and slots in a 2D view, with the holes the plate's bolts need and the holes and slots that mounted peripherals put there; check that a slot covers its adjustment's travel. Validate features outside the outline, overlaps and minimum distances to the edge configured for the fabrication process. DXF/SVG files must rebuild the same dimensions when reopened, without duplicate cuts. The thickness and fabrication notes go with the drawing; a 2D DXF does not encode them by itself. Outlines other than a rectangle, drawn as straight segments with their lengths and turning angles, come when a design needs one.
+
+### 6. Switching between racing and flight
 
 Model interchangeable plates, wheel, side or center stick, throttle and shifter/handbrake. Save positions for use and storage and check their travel. An item hidden in one mode still exists in the project's physical inventory.
 
-### 6. Verified catalogs
+### 7. Verified catalogs
 
 Add verified device data sheets and other profile systems, and, where appropriate, import visual representations or CAD geometry from manufacturers. Tell measured references apart from approximations.
 

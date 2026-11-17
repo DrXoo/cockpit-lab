@@ -105,7 +105,7 @@ Where two parts of a cockpit design are fastened together; it is unresolved unti
 _Avoid_: connection, link, node
 
 **Connector**:
-A catalog piece that fastens the two parts of a **Joint**, such as a corner bracket, on one side of the joint's corner.
+A catalog piece that fastens the two parts of a **Joint**, such as a corner bracket on one side of the joint's corner, or a bolt through a plate into a T-nut in a profile's slot.
 _Avoid_: acople, coupling, fitting
 
 **Fastener**:
@@ -174,11 +174,12 @@ _Avoid_: wizard, onboarding
 - Every **Part** has a name, which is the user's data like a furniture name and may repeat; interference and warnings name the part by it. The parts to buy group **Profiles** by **Cut** and list the names under each.
 - Every **Attachment** and each end of a **Span** that meets its part make a **Joint**, except a **Foot**'s, which its own adapter fastens, and a **Peripheral**'s, bolted through its **Mounting pattern**; a peripheral is supported by the part it is mounted on. Parts that only touch make none until the user adds one. The parts to buy come from the resolved joints, and the unresolved ones are listed as pending.
 - Every **Profile** belongs to one **Profile system**, and a **Connector** fits the profile systems its data sheet names. Catalog dimensions say whether they come from a data sheet or were measured.
+- A **Plate** rests on a face of a **Profile**; the other profiles it rests on are joined to it like any parts that touch. Each of its **Joints** is fastened with bolts into T-nuts in the profile's slots that the plate covers, spaced evenly along where they touch.
 - A **Joint** starts without **Connectors**, pending until the user fastens it, and can have several; a connector belongs to exactly one joint and goes when the joint goes. Connectors take part in interference and in the parts to buy, with the **Fasteners** their type needs.
 - A **Part** is supported when **Joints** connect it, through other parts, to one standing on **Feet**; an unsupported part is reported, not moved.
 - Removing a **Part** is an **Operation**: from that step on, the parts that hang from it are anchored where they are, a **Span** that reached it keeps its length and reports the open end, and the removed part's **Feet**, **Joints** and their **Connectors** go with it. Earlier in the history the part is still there.
 - Deleting an **Operation** takes what it made out of the whole history. Later operations that relied on it become **Failed operations**; the others still apply. A failed operation adds nothing to the design.
-- An **Attachment** stays on its parent's face: its distance from the end is never more than the parent's length.
+- An **Attachment** stays on its parent's face: its distance from the end is never more than the parent's length. A **Plate** is measured from its center, which may lie beyond the face, but the plate always rests on part of it.
 - Moving or lengthening a **Part** carries along every part attached to it, directly or through others. A part that only touches another, without hanging from it, does not move with it.
 - The **Room setup** does not design a cockpit. After it, the room has no cockpit until the user adds the project's design to it, designing one first if there is none.
 - A new **Project** starts from the cockpit or from the room, as the user chooses; the other can be added later.
