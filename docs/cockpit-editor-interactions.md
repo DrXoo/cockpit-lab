@@ -21,7 +21,7 @@ How the mouse and keyboard edit a cockpit design in the view of the cockpit edit
 | --- | --- | --- | --- |
 | Move | An arrow out of the center of the part for each axis it can move along, red for X, green for Y and blue for Z | An anchored part: the three axes. A part that hangs from another: along and across the face it hangs from, never out of it; a foot only along its profile | How far it moved |
 | End | A ball at each free end of a profile, with one arrow along its length | Along the profile's length; with Shift, both ends move symmetrically | The change in length (+120 mm); with Shift, the total length |
-| Edge | A ball at each edge of a plate | Across that edge, changing the plate's width or depth | The change in that side |
+| Edge | A ball at the middle of each edge of a plate | Across that edge, changing the plate's width or depth while the far edge stays; with Shift, both edges move symmetrically | The change in that side; with Shift, the whole width or depth |
 
 A profile grown out of a face has an end handle only at its free end: the other end stays on its parent. A span has no end handles, as its length is the gap to the part it reaches. A profile's section and a plate's thickness come from the catalog, so no handle changes them. Dragging outside the handles orbits or pans, as with nothing selected.
 
@@ -40,7 +40,7 @@ Releasing a handle leaves the part as a preview at its new size or place, with a
 | Undo, or another step chosen in the design history | Leaves the part as it was, as for a profile about to grow |
 | Any other edit from the inspector | Confirms the change first, then makes the edit on top of it |
 
-While a change waits, only the handle that made it shows, and the box keeps clear of it. The handles are drawn over the view, so they keep their size however near the view is; the arrows start a little out of the part's center, so a click there still selects what is under it. A move that would take a part off its parent stops where it last fitted.
+While a change waits, only the handle that made it shows, and the box keeps clear of it. The handles are drawn over the view, so they keep their size however near the view is; the arrows start a little out of the part's center, so a click there still selects what is under it, and stop short of a ball ahead of them, so neither covers the other. A move that would take a part off its parent stops where it last fitted.
 
 ## Snapping
 

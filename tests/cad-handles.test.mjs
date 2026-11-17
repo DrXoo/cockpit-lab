@@ -258,3 +258,77 @@ test('the box shows how far a part moved, and a typed value moves it that far', 
     symmetric: false,
   });
 });
+
+const edges = (history, partId) =>
+  partHandles(history, partId)
+    .filter(({ kind }) => kind === 'edge')
+    .map(({ id, pointMm, outwardMm }) => [id, pointMm, outwardMm]);
+
+test('a plate has a handle at the middle of each edge, pointing out across it', () => {
+  // 300 × 300 × 8 mm on top of the rail, centered 500 mm along it.
+  assert.deepEqual(edges(withPlate(), 'part-2'), [
+    ['part-2:edge:-x', { x: -150, y: 44, z: 500 }, { x: -1, y: 0, z: 0 }],
+    ['part-2:edge:+x', { x: 150, y: 44, z: 500 }, { x: 1, y: 0, z: 0 }],
+    ['part-2:edge:-z', { x: 0, y: 44, z: 350 }, { x: 0, y: 0, z: -1 }],
+    ['part-2:edge:+z', { x: 0, y: 44, z: 650 }, { x: 0, y: 0, z: 1 }],
+  ]);
+  assert.deepEqual(edges(railHistory(), 'part-1'), [], 'a profile has ends, not edges');
+});
+
+test('dragging an edge of a plate changes that side, keeping the far edge where it was', () => {
+  const plate = withPlate();
+  const sides = ({ widthMm, depthMm, alongMm, acrossMm }) => ({
+    widthMm,
+    depthMm,
+    alongMm,
+    acrossMm,
+  });
+  assert.deepEqual(sides(dragged(plate, 'part-2:edge:+x', 50)), {
+    widthMm: 350,
+    depthMm: 300,
+    alongMm: 500,
+    acrossMm: 25,
+  });
+  assert.deepEqual(sides(dragged(plate, 'part-2:edge:-z', 40)), {
+    widthMm: 300,
+    depthMm: 340,
+    alongMm: 480,
+    acrossMm: 0,
+  });
+  assert.deepEqual(sides(dragged(plate, 'part-2:edge:+z', 20, true)), {
+    widthMm: 300,
+    depthMm: 340,
+    alongMm: 500,
+    acrossMm: 0,
+  });
+  const fromEnd = withPlate({ fromEnd: 'end' });
+  assert.equal(dragged(fromEnd, 'part-2:edge:+z', 40).alongMm, 480, 'measured from the far end');
+});
+
+test('an edge lands on sides in steps of 10 mm, within the sides a plate can have', () => {
+  const plate = withPlate();
+  const snapped = (id, changeMm, symmetric = false) =>
+    snappedDrag(plate, handleOf(plate, id), { changeMm, symmetric }, false).changeMm;
+  assert.equal(snapped('part-2:edge:+x', 23), 20);
+  assert.equal(snapped('part-2:edge:+x', 7, true), 5, 'symmetric: the whole side lands on a step');
+  assert.equal(snapped('part-2:edge:-x', -400), -250, 'down to 50 mm');
+});
+
+test('the box shows the change of one edge, or the whole width or depth of a symmetric one', () => {
+  const plate = withPlate();
+  const across = handleOf(plate, 'part-2:edge:+x');
+  const along = handleOf(plate, 'part-2:edge:-z');
+  assert.deepEqual(dragReadout(plate, across, { changeMm: 20, symmetric: false }), {
+    kind: 'change',
+    valueMm: 20,
+  });
+  assert.deepEqual(dragReadout(plate, across, { changeMm: 20, symmetric: true }), {
+    kind: 'width',
+    valueMm: 340,
+  });
+  assert.deepEqual(dragReadout(plate, along, { changeMm: -50, symmetric: true }), {
+    kind: 'depth',
+    valueMm: 200,
+  });
+  assert.equal(dragFromTyped(plate, along, { changeMm: 0, symmetric: true }, 400).changeMm, 50);
+});

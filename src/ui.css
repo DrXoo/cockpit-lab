@@ -631,8 +631,10 @@ select option {
   cursor: crosshair;
 }
 /* A handle of the selected part, dragged to change it; it keeps its size however near the view. */
+/* Balls stay over the move arrows, which can still be grabbed along their length. */
 .part-handle {
   position: absolute;
+  z-index: 1;
   width: 14px;
   height: 14px;
   transform: translate(-50%, -50%);

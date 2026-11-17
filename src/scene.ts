@@ -61,6 +61,7 @@ const clamp = (value: number, min: number, max: number) =>
  * that points to where `toward` is on screen.
  */
 interface HandleItem {
+  kind: 'ball' | 'center' | 'arrow';
   el: HTMLElement;
   position: T.Vector3;
   toward?: T.Vector3;
@@ -72,11 +73,40 @@ const ARROW_DIRECTION_CM = 10;
 const ARROW_HIDDEN_BELOW_PX = 1;
 /** Arrows start this far out of the part's center, so a click on the center still picks it. */
 const ARROW_START_PX = 10;
+/** The length of a move arrow, unless a ball lies ahead of it. */
+const ARROW_LENGTH_PX = 48;
+/** Short of this, an arrow would be little more than its head. */
+const ARROW_MIN_LENGTH_PX = 24;
+/** How far short of a ball ahead of it an arrow stops: the ball's radius and a gap. */
+const BALL_CLEARANCE_PX = 12;
+/** A ball this close to the line of an arrow lies ahead of it. */
+const AHEAD_WITHIN_PX = 12;
 
 const HANDLE_TITLES: Record<Handle['kind'], string> = {
   end: 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre',
+  edge: 'Drag to widen or narrow · Shift: both edges · Alt: to the millimetre',
   move: 'Drag to move along this axis · Alt: to the millimetre',
 };
+
+/**
+ * How long an arrow out of `from` in `direction` on screen is drawn: short of the nearest ball
+ * ahead of it, so the two never cover each other, but never shorter than an arrow can be.
+ */
+function arrowLengthPx(
+  from: { x: number; y: number },
+  direction: { x: number; y: number },
+  balls: readonly { x: number; y: number }[],
+): number {
+  let lengthPx = ARROW_LENGTH_PX;
+  for (const ball of balls) {
+    const offset = { x: ball.x - from.x, y: ball.y - from.y };
+    const aheadPx = offset.x * direction.x + offset.y * direction.y;
+    const asidePx = Math.abs(offset.x * direction.y - offset.y * direction.x);
+    if (aheadPx <= 0 || asidePx > AHEAD_WITHIN_PX) continue;
+    lengthPx = Math.min(lengthPx, aheadPx - BALL_CLEARANCE_PX - ARROW_START_PX);
+  }
+  return Math.max(lengthPx, ARROW_MIN_LENGTH_PX);
+}
 
 /** An element of the page kept beside a point of the scene, such as the box of a change. */
 interface AnchoredItem {
@@ -459,7 +489,7 @@ export class CockpitScene {
       const dot = document.createElement('span');
       dot.className = 'move-center';
       this.labels.append(dot);
-      this.handleItems.push({ el: dot, position: this.handleBall(center) });
+      this.handleItems.push({ kind: 'center', el: dot, position: this.handleBall(center) });
     }
     for (const handle of handles) {
       const el = document.createElement('span');
@@ -471,7 +501,7 @@ export class CockpitScene {
       this.labels.append(el);
       const position = this.handleBall(handle);
       if (handle.kind !== 'move') {
-        this.handleItems.push({ el, position });
+        this.handleItems.push({ kind: 'ball', el, position });
         continue;
       }
       el.dataset.axis = handle.axis;
@@ -479,7 +509,7 @@ export class CockpitScene {
       const toward = new T.Vector3(outwardMm.x, outwardMm.y, outwardMm.z)
         .multiplyScalar(ARROW_DIRECTION_CM)
         .add(position);
-      this.handleItems.push({ el, position, toward });
+      this.handleItems.push({ kind: 'arrow', el, position, toward });
     }
   }
 
@@ -879,8 +909,9 @@ export class CockpitScene {
       const p = point.clone().project(this.camera);
       return { x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h, inView: p.z >= -1 && p.z <= 1 };
     };
-    for (const item of this.handleItems) {
-      const at = onScreen(item.position);
+    const placed = this.handleItems.map((item) => ({ item, at: onScreen(item.position) }));
+    const balls = placed.filter(({ item }) => item.kind === 'ball').map(({ at }) => at);
+    for (const { item, at } of placed) {
       item.el.hidden = !at.inView;
       item.el.style.left = `${at.x}px`;
       item.el.style.top = `${at.y}px`;
@@ -888,7 +919,9 @@ export class CockpitScene {
       const tip = onScreen(item.toward);
       const lengthPx = Math.hypot(tip.x - at.x, tip.y - at.y);
       item.el.hidden ||= lengthPx < ARROW_HIDDEN_BELOW_PX;
-      const angleRad = Math.atan2(tip.y - at.y, tip.x - at.x);
+      const direction = { x: (tip.x - at.x) / lengthPx, y: (tip.y - at.y) / lengthPx };
+      item.el.style.width = `${arrowLengthPx(at, direction, balls)}px`;
+      const angleRad = Math.atan2(direction.y, direction.x);
       item.el.style.transform = `rotate(${angleRad}rad) translateX(${ARROW_START_PX}px)`;
     }
     if (this.anchored) this.placeAnchored(this.anchored, w, h);

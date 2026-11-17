@@ -664,3 +664,19 @@ test('dragging an arrow of a profile moves it, by a distance typed and confirmed
   await expect.poll(async () => (await savedHistory(page))?.[0].startMm.x).toBe(-75);
   await expect(page.locator('#part-startX')).toHaveValue('-75');
 });
+
+test('dragging an edge of a plate with Shift widens it on both sides', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#putPlate').click();
+  await page.locator('#confirmPlate').click();
+  await page.locator('[data-view="top"]').click();
+  await expect(page.locator('[data-handle-kind="edge"]')).toHaveCount(4);
+  await dragHandle(page, 'part-2:edge:+x', 40, 0, 'Shift');
+  await expect(page.locator('#changeBox')).toHaveAttribute('data-kind', 'width');
+  await page.locator('#changeValue').fill('400');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#changeBox')).toBeHidden();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'add-plate', widthMm: 400, depthMm: 300, acrossMm: 0 });
+});

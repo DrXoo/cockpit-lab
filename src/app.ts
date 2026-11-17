@@ -488,6 +488,8 @@ const ARROW_CLEARANCE_MM = 100;
 const READOUT_LABELS: Record<DragReadout['kind'], string> = {
   change: 'Change',
   length: 'Length',
+  width: 'Width',
+  depth: 'Depth',
   move: 'Move',
 };
 /** The box of a waiting change, beside the handle that made it, with its value. */

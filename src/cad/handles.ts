@@ -7,6 +7,7 @@ import {
   tiltedFromPivot,
   type Axis,
   type BoxMm,
+  type Face,
   type ResolvedPart,
   type Vec3Mm,
 } from './assembly.ts';
@@ -16,10 +17,13 @@ import {
   editProfile,
   lengthAxisOf,
   makesAProfile,
+  MAX_PLATE_SIDE_MM,
   MAX_PROFILE_LENGTH_MM,
+  MIN_PLATE_SIDE_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   replayDesign,
+  type AddPlate,
   type FootValues,
   type MakingOperation,
   type Operation,
@@ -57,8 +61,21 @@ export interface MoveHandle {
   outwardMm: Vec3Mm;
 }
 
+/** A handle at the middle of an edge of a plate, dragged across it to change that side. */
+export interface EdgeHandle {
+  kind: 'edge';
+  /** The part and the side of the plate the edge is on, as `part-2:edge:+x`. */
+  id: string;
+  partId: string;
+  side: Face;
+  /** The middle of the edge, halfway through the plate's thickness. */
+  pointMm: Vec3Mm;
+  /** One mm out of the edge, across it. */
+  outwardMm: Vec3Mm;
+}
+
 /** A control on the selected part, dragged along `outwardMm` from `pointMm`. */
-export type Handle = EndHandle | MoveHandle;
+export type Handle = EndHandle | MoveHandle | EdgeHandle;
 
 /** How far a handle was dragged out along its direction, and whether Shift made it symmetric. */
 export interface Drag {
@@ -67,12 +84,22 @@ export interface Drag {
 }
 
 /**
- * What the box beside a dragged handle shows: the change of one end, the whole length, or how
- * far the part moved.
+ * What the box beside a dragged handle shows: the change of one end or edge, the whole length,
+ * width or depth of a symmetric resize, or how far the part moved.
  */
 export interface DragReadout {
-  kind: 'change' | 'length' | 'move';
+  kind: 'change' | 'length' | 'width' | 'depth' | 'move';
   valueMm: number;
+}
+
+/** A size an end or edge handle changes, and the sizes it can take. */
+interface Sizing {
+  kind: 'length' | 'width' | 'depth';
+  sizeMm: number;
+  minMm: number;
+  maxMm: number;
+  /** Whether both ends can move at once, keeping the middle where it is. */
+  symmetric: boolean;
 }
 
 /** A drag lands on values that are a whole number of these, unless it is free. */
@@ -81,7 +108,7 @@ const DRAG_STEP_MM = 10;
 const FREE_STEP_MM = 1;
 const ORIGIN: Vec3Mm = { x: 0, y: 0, z: 0 };
 
-/** The handles of a part at step `at`: its end handles, then its move handles. */
+/** The handles of a part at step `at`: its end or edge handles, then its move handles. */
 export function partHandles(
   history: readonly Operation[],
   partId: string,
@@ -90,7 +117,11 @@ export function partHandles(
   const operation = operationMaking(history, partId);
   const resolved = replayDesign(history, at).resolved.get(partId);
   if (!operation || !resolved) return [];
-  return [...endHandles(operation, resolved), ...moveHandles(history, operation, resolved)];
+  return [
+    ...endHandles(operation, resolved),
+    ...edgeHandles(operation, resolved),
+    ...moveHandles(history, operation, resolved),
+  ];
 }
 
 /**
@@ -107,13 +138,18 @@ export function draggedHistory(
     const operation = makingOperation(history, handle);
     return editPart(history, operation, movedValues(history, operation, handle, drag.changeMm));
   }
+  const sized = asItCan(sizingOf(history, handle), drag);
+  if (handle.kind === 'edge') {
+    const plate = plateMaking(history, handle);
+    return editPlate(history, handle.partId, resizedPlateValues(history, plate, handle, sized));
+  }
   const operation = profileMaking(history, handle);
-  return editProfile(history, handle.partId, resizedValues(operation, handle, drag));
+  return editProfile(history, handle.partId, resizedValues(operation, handle, sized));
 }
 
 /**
- * The drag a pointer lands on: a value in steps of 10 mm, or of 1 mm when free; a length within
- * those a profile can have.
+ * The drag a pointer lands on: a value in steps of 10 mm, or of 1 mm when free; a size within
+ * those the part can have.
  */
 export function snappedDrag(
   history: readonly Operation[],
@@ -128,20 +164,20 @@ export function snappedDrag(
     const movedMm = Math.round((valueMm + sign * requested.changeMm) / step) * step;
     return { changeMm: (movedMm - valueMm) * sign, symmetric: false };
   }
-  const operation = profileMaking(history, handle);
-  const drag = asItCan(operation, requested);
+  const sizing = sizingOf(history, handle);
+  const drag = asItCan(sizing, requested);
   const ends = endsMoved(drag);
-  const draggedLengthMm = operation.lengthMm + ends * drag.changeMm;
-  const lengthMm = Math.min(
-    Math.max(Math.round(draggedLengthMm / step) * step, MIN_PROFILE_LENGTH_MM),
-    MAX_PROFILE_LENGTH_MM,
+  const draggedMm = sizing.sizeMm + ends * drag.changeMm;
+  const sizeMm = Math.min(
+    Math.max(Math.round(draggedMm / step) * step, sizing.minMm),
+    sizing.maxMm,
   );
-  return { ...drag, changeMm: (lengthMm - operation.lengthMm) / ends };
+  return { ...drag, changeMm: (sizeMm - sizing.sizeMm) / ends };
 }
 
 /**
- * What the box shows for a drag: how far the part moved, the change of the dragged end, or the
- * whole length of a symmetric resize.
+ * What the box shows for a drag: how far the part moved, the change of the dragged end or edge,
+ * or the whole size of a symmetric resize.
  */
 export function dragReadout(
   history: readonly Operation[],
@@ -149,10 +185,10 @@ export function dragReadout(
   requested: Drag,
 ): DragReadout {
   if (handle.kind === 'move') return { kind: 'move', valueMm: requested.changeMm };
-  const operation = profileMaking(history, handle);
-  const drag = asItCan(operation, requested);
+  const sizing = sizingOf(history, handle);
+  const drag = asItCan(sizing, requested);
   return drag.symmetric
-    ? { kind: 'length', valueMm: operation.lengthMm + 2 * drag.changeMm }
+    ? { kind: sizing.kind, valueMm: sizing.sizeMm + 2 * drag.changeMm }
     : { kind: 'change', valueMm: drag.changeMm };
 }
 
@@ -167,11 +203,32 @@ export function dragFromTyped(
     const changeMm = Math.round(valueMm / FREE_STEP_MM) * FREE_STEP_MM;
     return { changeMm, symmetric: false };
   }
-  const operation = profileMaking(history, handle);
-  const drag = asItCan(operation, requested);
-  const changeMm = drag.symmetric ? (valueMm - operation.lengthMm) / 2 : valueMm;
+  const sizing = sizingOf(history, handle);
+  const drag = asItCan(sizing, requested);
+  const changeMm = drag.symmetric ? (valueMm - sizing.sizeMm) / 2 : valueMm;
   return snappedDrag(history, handle, { ...drag, changeMm }, true);
 }
+
+/** The size an end or edge handle changes. */
+function sizingOf(history: readonly Operation[], handle: EndHandle | EdgeHandle): Sizing {
+  if (handle.kind === 'edge') return plateSizing(plateMaking(history, handle), handle);
+  const operation = profileMaking(history, handle);
+  return {
+    kind: 'length',
+    sizeMm: operation.lengthMm,
+    minMm: MIN_PROFILE_LENGTH_MM,
+    maxMm: MAX_PROFILE_LENGTH_MM,
+    // A profile grown out of a face holds one end on it.
+    symmetric: operation.kind === 'add-anchored-profile',
+  };
+}
+
+/** A drag as the size allows it: symmetric only where both ends can move. */
+const asItCan = (sizing: Sizing, drag: Drag): Drag => ({
+  ...drag,
+  symmetric: drag.symmetric && sizing.symmetric,
+});
+const endsMoved = (drag: Drag) => (drag.symmetric ? 2 : 1);
 
 /** The operation that made the part a handle changes. */
 function makingOperation(history: readonly Operation[], handle: Handle): MakingOperation {
@@ -185,6 +242,14 @@ function profileMaking(history: readonly Operation[], handle: Handle): ProfileOp
   const operation = makingOperation(history, handle);
   if (!makesAProfile(operation))
     throw new Error(`${operation.name} is not a profile: no handle resizes it.`);
+  return operation;
+}
+
+/** The operation that made the plate a handle resizes. */
+function plateMaking(history: readonly Operation[], handle: Handle): AddPlate {
+  const operation = makingOperation(history, handle);
+  if (operation.kind !== 'add-plate')
+    throw new Error(`${operation.name} is not a plate: it has no edges.`);
   return operation;
 }
 
@@ -251,20 +316,15 @@ function freeEnds(operation: ProfileOperation): ParentEnd[] {
   return [toward[0] === '+' ? 'end' : 'start'];
 }
 
-/** Only an anchored profile resizes symmetrically: the other holds one end on its parent. */
-const asItCan = (operation: ProfileOperation, drag: Drag): Drag => ({
-  ...drag,
-  symmetric: drag.symmetric && operation.kind === 'add-anchored-profile',
-});
-const endsMoved = (drag: Drag) => (drag.symmetric ? 2 : 1);
-
-/** The values of the profile's operation once resized: its length, and its start if it moved. */
+/**
+ * The values of the profile's operation once resized, by a drag its sizing allows: its length,
+ * and its start if it moved.
+ */
 function resizedValues(
   operation: ProfileOperation,
   handle: EndHandle,
-  requested: Drag,
+  drag: Drag,
 ): Partial<ProfileValues> {
-  const drag = asItCan(operation, requested);
   const lengthMm = operation.lengthMm + endsMoved(drag) * drag.changeMm;
   const startMoves = drag.symmetric || handle.end === 'start';
   if (operation.kind !== 'add-anchored-profile' || !startMoves) return { lengthMm };
@@ -350,6 +410,67 @@ function movedValues(
   return handle.axis === parentLengthAxis(history, operation)
     ? { alongMm: movedMm }
     : { acrossMm: movedMm };
+}
+
+// Edge handles: resizing a plate.
+
+/**
+ * The edge handles of a plate, one at the middle of each edge, across the axes of the face it
+ * rests on; none for another part.
+ */
+function edgeHandles(operation: MakingOperation, resolved: ResolvedPart): EdgeHandle[] {
+  if (operation.kind !== 'add-plate') return [];
+  const { box, tiltDeg } = resolved;
+  const normal = faceAxis(operation.face);
+  return AXES.filter((axis) => axis !== normal).flatMap((axis) =>
+    ([-1, 1] as const).map((sign): EdgeHandle => {
+      const side: Face = `${sign < 0 ? '-' : '+'}${axis}`;
+      const edgeInFrame = centerOf(box);
+      edgeInFrame[axis] = sign < 0 ? box.min[axis] : box.max[axis];
+      return {
+        kind: 'edge',
+        id: `${operation.partId}:edge:${side}`,
+        partId: operation.partId,
+        side,
+        pointMm: outOfFrame(edgeInFrame, tiltDeg),
+        outwardMm: outOfFrame(unitAlong(axis, sign), tiltDeg),
+      };
+    }),
+  );
+}
+
+/** The side of a plate an edge handle changes: its depth, or its width. */
+function plateSizing(plate: AddPlate, handle: EdgeHandle): Sizing {
+  const alongDepth = faceAxis(handle.side) === plate.depthAxis;
+  return {
+    kind: alongDepth ? 'depth' : 'width',
+    sizeMm: alongDepth ? plate.depthMm : plate.widthMm,
+    minMm: MIN_PLATE_SIDE_MM,
+    maxMm: MAX_PLATE_SIDE_MM,
+    symmetric: true,
+  };
+}
+
+/**
+ * The values of a plate's operation once an edge is dragged: the side across it, and its center,
+ * which moves half as far so that the far edge stays; a symmetric drag keeps the center.
+ */
+function resizedPlateValues(
+  history: readonly Operation[],
+  plate: AddPlate,
+  handle: EdgeHandle,
+  drag: Drag,
+): Partial<PlateValues> {
+  const sizing = plateSizing(plate, handle);
+  const sideMm = sizing.sizeMm + endsMoved(drag) * drag.changeMm;
+  const side = sizing.kind === 'depth' ? { depthMm: sideMm } : { widthMm: sideMm };
+  if (drag.symmetric) return side;
+  const axis = faceAxis(handle.side);
+  const shiftMm = ((handle.side[0] === '+' ? 1 : -1) * drag.changeMm) / 2;
+  if (axis !== parentLengthAxis(history, plate))
+    return { ...side, acrossMm: plate.acrossMm + shiftMm };
+  const alongShiftMm = plate.fromEnd === 'start' ? shiftMm : -shiftMm;
+  return { ...side, alongMm: plate.alongMm + alongShiftMm };
 }
 
 // Dragging with the pointer.
