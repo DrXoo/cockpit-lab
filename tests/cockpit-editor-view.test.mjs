@@ -419,3 +419,35 @@ test('the fields of a plate change the values of its operation', () => {
   assert.throws(() => plateChange('lengthMm', '300'), /lengthMm/);
   assert.equal(partField('depthAxis'), 'depthAxis');
 });
+
+const plateJoint = (bolts) => ({
+  jointId: 'part-2@part-1',
+  partName: 'Plate 2',
+  toPartName: 'Rail',
+  sides: [],
+  fittingSides: [],
+  alongSides: [],
+  bolts,
+});
+
+test('the joint of a plate takes bolts in each slot it covers, two at once with the quick action', () => {
+  const history = railAndPlate();
+  const inspect = (bolts) => partInspectorHTML(history, history[1], undefined, [plateJoint(bolts)]);
+  const none = inspect({ perSlot: 0, slots: 1 });
+  assert.match(none, /⚠ No bolts yet/);
+  assert.match(none, /data-joint-bolts="part-2@part-1"[^>]*value="0"/);
+  assert.match(none, /data-joint-two-bolts="part-2@part-1"/);
+  assert.doesNotMatch(none, /No connector in the catalog fits/);
+  const four = inspect({ perSlot: 2, slots: 2 });
+  assert.match(four, /✓ 4 bolts, 2 in each of 2 slots/);
+  assert.doesNotMatch(four, /data-joint-two-bolts/, 'it has two in each slot already');
+  const uncovered = inspect({ perSlot: 0, slots: 0 });
+  assert.match(uncovered, /covers no slot of Rail/);
+  assert.doesNotMatch(uncovered, /data-joint-bolts/);
+});
+
+test('a fastening with bolts says how many go in each slot', async () => {
+  const { fastenWithBolts } = await import('../src/cad/fastening.ts');
+  const history = fastenWithBolts(railAndPlate(), 'part-2@part-1', 2);
+  assert.match(panel({ history }), /Fastens Plate 2 to Rail.*2 bolts in each slot/s);
+});

@@ -509,3 +509,33 @@ test('a plate is selected in the view and edited, but never moved off its face',
     .poll(async () => (await savedHistory(page))?.[1])
     .toMatchObject({ kind: 'add-plate', sheetId: 'aluminium-4', acrossMm: 0 });
 });
+
+test('a plate is joined to the profiles it touches and bolted into their slots', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('[data-operation="op-1"]').click();
+  await page.locator('#putPlate').click();
+  await page.locator('#plate-acrossMm').fill('50');
+  await page.locator('#plate-acrossMm').press('Enter');
+  await expect(page.locator('#plate-acrossMm')).toHaveValue('50');
+  await page.locator('#confirmPlate').click();
+  await page.locator('[data-join="part-2"]').click();
+  await expect(page.locator('[data-joint-row="part-3@part-2"]')).toBeVisible();
+  await page.locator('[data-joint-two-bolts="part-3@part-1"]').click();
+  await page.locator('[data-joint-bolts="part-3@part-2"]').fill('3');
+  await page.locator('[data-joint-bolts="part-3@part-2"]').press('Enter');
+  await expect
+    .poll(async () => (await savedHistory(page))?.slice(4))
+    .toMatchObject([
+      { kind: 'fasten-joint', partId: 'part-3', toPartId: 'part-1', connectors: [{ perSlot: 2 }] },
+      { kind: 'fasten-joint', partId: 'part-3', toPartId: 'part-2', connectors: [{ perSlot: 3 }] },
+    ]);
+  await expect(page.locator('#cockpitChecks [data-check="cad-pending-joints"]')).toHaveClass(/ok/);
+  await expect(page.locator('#partsPending')).toHaveCount(0);
+  await expect(page.locator('#partsToBuy [data-buy="fastener"]')).toHaveCount(2);
+  await page.locator('[data-joint-bolts="part-3@part-2"]').fill('0');
+  await page.locator('[data-joint-bolts="part-3@part-2"]').press('Enter');
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(5);
+});

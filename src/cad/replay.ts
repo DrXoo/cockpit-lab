@@ -16,6 +16,7 @@ import {
 import { CAD_CONTACT_MM } from './interference.ts';
 import {
   AXES,
+  isBolts,
   makesAPart,
   makesAProfile,
   MAX_PROFILE_LENGTH_MM,
@@ -29,7 +30,7 @@ import {
   type Operation,
   type RemovePart,
 } from './operations.ts';
-import { placedConnector, type PlacedConnector } from './connectors.ts';
+import { placedBolts, placedConnector, type PlacedConnector } from './connectors.ts';
 import {
   jointIdOf,
   jointOfTouching,
@@ -170,13 +171,16 @@ function placedConnectors(
     const met = design.resolved.get(operation.toPartId);
     if (!joint || !joined || !met) continue;
     for (const choice of operation.connectors) {
-      const connector = placedConnector(joint, joined, met, {
-        id: `${operation.id}:${choice.side}`,
-        jointId: joint.id,
-        ...choice,
-      });
-      if (typeof connector === 'string') misfits.set(operation.id, connector);
-      else placed.push(connector);
+      const connectors = isBolts(choice)
+        ? placedBolts(joint, joined, met, { id: `${operation.id}:bolt`, ...choice })
+        : placedConnector(joint, joined, met, {
+            id: `${operation.id}:${choice.side}`,
+            jointId: joint.id,
+            ...choice,
+          });
+      if (typeof connectors === 'string') misfits.set(operation.id, connectors);
+      else if (Array.isArray(connectors)) placed.push(...connectors);
+      else placed.push(connectors);
     }
   }
   return { placed, misfits };

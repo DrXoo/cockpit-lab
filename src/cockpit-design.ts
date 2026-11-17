@@ -128,11 +128,16 @@ function readFastening(data: Record<string, unknown>): Operation {
   };
 }
 
+/** Corner brackets name the side they sit on; a plate's bolts, how many go in each slot. */
 function readConnector(data: unknown): ConnectorChoice {
   if (!isPlainRecord(data)) throw new Error('Invalid connector');
-  const unknown = Object.keys(data).find((key) => key !== 'typeId' && key !== 'side');
+  const keys = 'perSlot' in data ? ['typeId', 'perSlot'] : ['typeId', 'side'];
+  const unknown = Object.keys(data).find((key) => !keys.includes(key));
   if (unknown) throw new Error(`A connector has no ${unknown}`);
-  return { typeId: text(data.typeId, 'connector type'), side: face(data.side) };
+  const typeId = text(data.typeId, 'connector type');
+  if (!('perSlot' in data)) return { typeId, side: face(data.side) };
+  if (typeof data.perSlot !== 'number') throw new Error('The bolts in each slot must be a number');
+  return { typeId, perSlot: data.perSlot };
 }
 
 /** Each joint has one fastening step, which holds all its connectors. */

@@ -85,3 +85,15 @@ test('plates are listed by size and sheet, with their parts, and the sheet is es
   );
   assert.equal(html.match(/data-buy="plate"/g)?.length, 1);
 });
+
+test('the bolts of plates say their length is estimated', () => {
+  const html = partsToBuyHTML({
+    ...nothing,
+    fasteners: [
+      { id: 'bolt-m8x16', quantity: 4 },
+      { id: 't-nut-slot-8-m8', quantity: 4 },
+    ],
+  });
+  assert.match(textOf(html), /4 × M8 × 16 bolt Estimated: check the data sheet/);
+  assert.doesNotMatch(textOf(html), /T-nut, slot 8, M8 (Estimated|Counted)/);
+});

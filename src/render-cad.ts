@@ -4,7 +4,7 @@
 import { degToRad } from './geometry.ts';
 import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
 import { faceAxis, type Axis, type BoxMm, type ResolvedPart } from './cad/assembly.ts';
-import { connectorType, profileSystem } from './cad/catalog.ts';
+import { connectorType, isPlateBolt, profileSystem } from './cad/catalog.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
 import { MM_PER_CM } from './units.ts';
@@ -83,8 +83,9 @@ const centerOf = (box: BoxMm): Vec3 => [
 const cm = (mm: number) => mm / MM_PER_CM;
 
 /**
- * Each connector as an L of two plates: one against the side of the joined part, the other on
- * the face of the part it meets, both filling the connector's box from the joint's corner.
+ * Each corner bracket as an L of two plates: one against the side of the joined part, the other
+ * on the face of the part it meets, both filling the connector's box from the joint's corner.
+ * A plate bolt shows only its head, which fills its box on the plate.
  */
 export function drawConnectors(
   r: RenderList,
@@ -94,6 +95,10 @@ export function drawConnectors(
   const frameOf = tiltFrames(r, parent);
   for (const connector of connectors) {
     const { box } = connector;
+    if (isPlateBolt(connector.typeId)) {
+      r.box(...sizeOf(box), ...centerOf(box), 'dark', frameOf(connector.tiltDeg));
+      continue;
+    }
     const thicknessMm = connectorType(connector.typeId).thicknessMm;
     const againstPart = plateOf(
       box,

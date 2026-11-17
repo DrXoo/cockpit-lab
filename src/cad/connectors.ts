@@ -1,9 +1,16 @@
 // Where a connector sits on its joint, and whether it fits there. A corner bracket fastens a
 // part that meets a face end on: one leg lies against a side of the joined part, the other on
 // the face it meets, both from the joint's corner. It fits when both legs rest on their parts.
-// A geometric check of the approximate model only.
+// Bolts fasten a plate to a profile: through the plate into T-nuts in the slots it covers, their
+// heads on the plate. A geometric check of the approximate model only.
 import { faceAxis, type Axis, type BoxMm, type Face, type ResolvedPart } from './assembly.ts';
-import { connectorFits, connectorType, profileSystem } from './catalog.ts';
+import {
+  connectorFits,
+  connectorType,
+  plateBoltType,
+  profileSystem,
+  type PlateBoltType,
+} from './catalog.ts';
 import type { Connector, Joint } from './joints.ts';
 
 /** A connector where the design puts it, with what interference and drawings need. */
@@ -89,4 +96,106 @@ function within(box: BoxMm, part: BoxMm, axes: readonly Axis[]): boolean {
       box.min[axis] >= part.min[axis] - REST_TOLERANCE_MM &&
       box.max[axis] <= part.max[axis] + REST_TOLERANCE_MM,
   );
+}
+
+/** Bolts of `typeId`, as many in each slot as `perSlot`, on a plate's joint to a profile. */
+export interface BoltsOnAJoint {
+  /** What the ids of its bolts start with. */
+  id: string;
+  typeId: string;
+  perSlot: number;
+}
+
+/**
+ * The bolts that fasten a plate to the profile of its joint, or why they cannot: in every slot
+ * the plate covers, spaced evenly along where the two touch, their heads on the plate.
+ */
+export function placedBolts(
+  joint: Joint,
+  joined: ResolvedPart,
+  met: ResolvedPart,
+  bolts: BoltsOnAJoint,
+): PlacedConnector[] | string {
+  const type = plateBoltType(bolts.typeId);
+  const slots = coveredSlots(joint, joined, met, type);
+  if (typeof slots === 'string') return slots;
+  const { along, across, centersMm } = slots;
+  const normal = faceAxis(joint.toFace);
+  const fromMm = Math.max(joined.box.min[along], met.box.min[along]);
+  const toMm = Math.min(joined.box.max[along], met.box.max[along]);
+  const plateFace = sign(joint.toFace) > 0 ? joined.box.max[normal] : joined.box.min[normal];
+  const headTop = plateFace + sign(joint.toFace) * type.headHeightMm;
+  const placed: PlacedConnector[] = [];
+  centersMm.forEach((acrossMm, slot) => {
+    for (let index = 0; index < bolts.perSlot; index++) {
+      const alongMm = fromMm + ((index + 0.5) * (toMm - fromMm)) / bolts.perSlot;
+      const min = { x: 0, y: 0, z: 0 };
+      const max = { x: 0, y: 0, z: 0 };
+      min[across] = acrossMm - type.headWidthMm / 2;
+      max[across] = acrossMm + type.headWidthMm / 2;
+      min[along] = alongMm - type.headWidthMm / 2;
+      max[along] = alongMm + type.headWidthMm / 2;
+      min[normal] = Math.min(plateFace, headTop);
+      max[normal] = Math.max(plateFace, headTop);
+      placed.push({
+        id: `${bolts.id}:${slot + 1}:${index + 1}`,
+        jointId: joint.id,
+        typeId: type.id,
+        side: joint.toFace,
+        name: `${type.name} of ${joined.part.name}`,
+        toFace: joint.toFace,
+        box: { min, max },
+        tiltDeg: joined.tiltDeg,
+      });
+    }
+  });
+  return placed;
+}
+
+/** The slots of a profile's face a plate covers, where bolts go, and the axes they lie along. */
+interface CoveredSlots {
+  /** The profile's length, along which the bolts of a slot are spaced. */
+  along: Axis;
+  /** Across the face, where each slot's center line is. */
+  across: Axis;
+  centersMm: number[];
+}
+
+/**
+ * The slots of the met profile's face that a plate covers, with room for a bolt head on the
+ * plate either side of the slot's center line; or why bolts cannot fasten the joint.
+ */
+export function coveredSlots(
+  joint: Joint,
+  joined: ResolvedPart,
+  met: ResolvedPart,
+  type: PlateBoltType,
+): CoveredSlots | string {
+  const plate = joined.part;
+  const profile = met.part;
+  if (plate.kind !== 'plate' || profile.kind !== 'profile')
+    return `Bolts fasten a plate to a profile, not ${plate.name} to ${profile.name}.`;
+  const system = profileSystem(profile.systemId);
+  if (!type.fitsSystems.includes(system.id))
+    return `A ${type.name} does not fit the slots of ${profile.name}.`;
+  const normal = faceAxis(joint.toFace);
+  const along = profile.axis;
+  if (along === normal) return `${plate.name} meets the end of ${profile.name}, which has no slot.`;
+  const across = AXES.find((axis) => axis !== normal && axis !== along) ?? 'x';
+  const faceMin = met.box.min[across];
+  const faceWidthMm = met.box.max[across] - faceMin;
+  // The slots of a series sit one module apart, centered on the face, as they are drawn.
+  const count = Math.max(1, Math.round(faceWidthMm / system.series));
+  const halfHead = type.headWidthMm / 2;
+  const centersMm = Array.from(
+    { length: count },
+    (_, slot) => faceMin + ((slot + 0.5) * faceWidthMm) / count,
+  ).filter(
+    (centerMm) =>
+      centerMm - halfHead >= joined.box.min[across] - REST_TOLERANCE_MM &&
+      centerMm + halfHead <= joined.box.max[across] + REST_TOLERANCE_MM,
+  );
+  if (centersMm.length === 0)
+    return `${plate.name} covers no slot of ${profile.name}: move it over one to bolt it.`;
+  return { along, across, centersMm };
 }

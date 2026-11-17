@@ -190,3 +190,29 @@ test('a corner bracket is drawn as an L: a plate against the part, one on the fa
     ],
   );
 });
+
+test('a plate bolt is drawn as its head, standing on the plate', () => {
+  const r = createRenderList();
+  drawConnectors(r, ROOT, [
+    {
+      id: 'op-4:bolt:1:1',
+      jointId: 'part-3@part-1',
+      typeId: 'plate-bolt-m8',
+      side: '+y',
+      name: 'M8 bolt into a T-nut of Plate',
+      toFace: '+y',
+      box: { min: { x: -106.5, y: 48, z: 418.5 }, max: { x: -93.5, y: 56, z: 431.5 } },
+      tiltDeg: 0,
+    },
+  ]);
+  const rounded = (values) => values.map((value) => Math.round(value * 1000) / 1000);
+  assert.deepEqual(
+    r.primitives.map((head) => [
+      head.kind,
+      rounded(head.size),
+      rounded(head.position),
+      head.material,
+    ]),
+    [['box', [1.3, 0.8, 1.3], [-10, 5.2, 42.5], 'dark']],
+  );
+});

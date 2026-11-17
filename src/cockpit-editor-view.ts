@@ -15,9 +15,11 @@ import type { JointOfPart } from './cad/fastening.ts';
 import {
   FACES,
   facingParts,
+  isBolts,
   lengthAxisOf,
   makesAPart,
   makesAProfile,
+  MAX_BOLTS_PER_SLOT,
   MAX_PART_NAME_LENGTH,
   MAX_PLATE_SIDE_MM,
   MAX_POSITION_MM,
@@ -187,8 +189,13 @@ function stepDetail(history: readonly Operation[], operation: Operation): string
   return `${made} · ${sectionName(section.widthMm, section.heightMm)} · ${round(operation.lengthMm, 1)} mm`;
 }
 
-/** How many connectors of each type a fastening puts on its joint, such as "2 × 40 corner bracket". */
+/**
+ * How many connectors of each type a fastening puts on its joint, such as "2 × 40 corner
+ * bracket", or how many bolts go in each slot of a plate's.
+ */
 function connectorCountText(fastening: FastenJoint): string {
+  const bolts = fastening.connectors.find(isBolts);
+  if (bolts) return `${boltCount(bolts.perSlot)} in each slot`;
   const counts = new Map<string, number>();
   for (const { typeId } of fastening.connectors) counts.set(typeId, (counts.get(typeId) ?? 0) + 1);
   return [...counts]
@@ -289,13 +296,40 @@ function jointsHTML(joints: readonly JointOfPart[], touching: readonly TouchingP
   return `<div class="part-joints" id="partJoints"><h4 class="buy-group">Joints</h4>${joints.map(jointHTML).join('')}${touchingHTML}</div>`;
 }
 
+/** How many bolts the plate's joint takes in each slot it covers, two at once by default. */
+export const QUICK_BOLTS_PER_SLOT = 2;
+
+/** A plate's joint to a profile: the bolts in each slot it covers, or why it takes none. */
+function boltedJointHTML(joint: JointOfPart, bolts: { perSlot: number; slots: number }): string {
+  const id = escapeHTML(joint.jointId);
+  const toPart = escapeHTML(joint.toPartName);
+  const total = bolts.perSlot * bolts.slots;
+  const slots = `${bolts.slots} ${bolts.slots === 1 ? 'slot' : 'slots'}`;
+  const status =
+    bolts.perSlot === 0
+      ? '⚠ No bolts yet'
+      : `✓ ${boltCount(total)}, ${bolts.perSlot} in each of ${slots}`;
+  const name = `<p class="joint-name"><strong>${escapeHTML(joint.partName)} to ${toPart}</strong><small>${status}</small></p>`;
+  if (bolts.slots === 0)
+    return `<div class="joint-row" data-joint-row="${id}">${name}<p class="layout-hint">It covers no slot of ${toPart}: move it over one to bolt it.</p></div>`;
+  const field = `<div class="control"><div class="control-top"><label for="bolts-${id}">Bolts in each slot</label><div class="number-wrap"><input id="bolts-${id}" type="number" data-joint-bolts="${id}" min="0" max="${MAX_BOLTS_PER_SLOT}" step="1" value="${bolts.perSlot}"><span>of ${slots}</span></div></div></div>`;
+  const quick =
+    bolts.perSlot === QUICK_BOLTS_PER_SLOT
+      ? ''
+      : `<button class="button button-light" data-joint-two-bolts="${id}" title="Spaced evenly along ${toPart}"><i data-icon="plus"></i>Two in each slot</button>`;
+  return `<div class="joint-row" data-joint-row="${id}">${name}${field}${quick}</div>`;
+}
+
 /** A part that touches the selected one without a joint, to join it to. */
 export interface TouchingPart {
   partId: string;
   name: string;
 }
 
+const boltCount = (count: number) => `${count} ${count === 1 ? 'bolt' : 'bolts'}`;
+
 function jointHTML(joint: JointOfPart): string {
+  if (joint.bolts !== null) return boltedJointHTML(joint, joint.bolts);
   const id = escapeHTML(joint.jointId);
   const count = joint.sides.length;
   const status =

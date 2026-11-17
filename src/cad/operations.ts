@@ -9,7 +9,7 @@ import {
   type ProfilePart,
   type Vec3Mm,
 } from './assembly.ts';
-import { connectorType, footType, profileSystem, sheetType } from './catalog.ts';
+import { connectorType, footType, plateBoltType, profileSystem, sheetType } from './catalog.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {
@@ -115,12 +115,30 @@ export interface AddPlate {
   acrossMm: number;
 }
 
-/** A connector a fastening puts on its joint, on one side of the joined part. */
-export interface ConnectorChoice {
+/** A corner bracket a fastening puts on its joint, on one side of the joined part. */
+export interface BracketChoice {
   typeId: string;
   /** The face of the joined part the connector sits against. */
   side: Face;
 }
+
+/**
+ * Bolts that fasten a plate to a profile, as many in each slot of the profile the plate covers,
+ * spaced evenly along where they touch.
+ */
+export interface BoltsChoice {
+  typeId: string;
+  perSlot: number;
+}
+
+/** The connectors a fastening puts on its joint: corner brackets, or bolts through a plate. */
+export type ConnectorChoice = BracketChoice | BoltsChoice;
+
+export const isBolts = (choice: ConnectorChoice): choice is BoltsChoice => 'perSlot' in choice;
+export const isBracket = (choice: ConnectorChoice): choice is BracketChoice => 'side' in choice;
+
+/** More bolts than this in one slot are a mistyped number. */
+export const MAX_BOLTS_PER_SLOT = 10;
 
 /**
  * Puts connectors on the joint where a part meets another: the part that hangs from or reaches
@@ -358,16 +376,30 @@ function checkStart(startMm: Vec3Mm) {
 }
 
 function checkFastening(operation: FastenJoint) {
-  if (operation.connectors.length === 0)
-    throw new Error('A fastening needs at least one connector.');
+  const { connectors } = operation;
+  if (connectors.length === 0) throw new Error('A fastening needs at least one connector.');
+  const bolts = connectors.filter(isBolts);
+  if (bolts.length > 0) {
+    if (connectors.length > 1)
+      throw new Error('A plate is fastened by its bolts alone, with one number for each slot.');
+    checkBolts(bolts[0]);
+    return;
+  }
   const sides = new Set<Face>();
-  for (const { typeId, side } of operation.connectors) {
+  for (const { typeId, side } of connectors.filter(isBracket)) {
     connectorType(typeId);
     if (!FACES.includes(side)) throw new Error(`Unknown face: ${side}`);
     if (sides.has(side))
       throw new Error(`A joint has one connector on each side, not two on ${side}.`);
     sides.add(side);
   }
+}
+
+function checkBolts({ typeId, perSlot }: BoltsChoice) {
+  plateBoltType(typeId);
+  if (!Number.isInteger(perSlot)) throw new Error('The bolts in each slot must be a whole number.');
+  if (perSlot < 1 || perSlot > MAX_BOLTS_PER_SLOT)
+    throw new Error(`Each slot takes between 1 and ${MAX_BOLTS_PER_SLOT} bolts.`);
 }
 
 function checkFoot(operation: AddFoot) {

@@ -8,6 +8,9 @@ import {
   footType,
   profileSection,
   profileSystem,
+  boltLengthFor,
+  fastenerType,
+  plateBoltType,
   sheetType,
   sheetTypes,
 } from '../src/cad/catalog.ts';
@@ -74,4 +77,22 @@ test('plates are cut from aluminium sheet of the stocked thicknesses, estimated 
   assert.equal(sheet.name, 'Aluminium sheet, 8 mm');
   assert.equal(sheet.source.kind, 'estimated');
   assert.throws(() => sheetType('steel-8'), /not in the catalog/);
+});
+
+test('a plate is bolted into T-nuts of the slot, with an estimated M8 bolt', () => {
+  const bolt = plateBoltType('plate-bolt-m8');
+  assert.deepEqual(bolt.fitsSystems, [MOTEDIS_SERIES_40_SLOT_8.id]);
+  assert.equal(bolt.tNutId, 't-nut-slot-8-m8');
+  assert.equal(bolt.source.kind, 'estimated');
+  assert.throws(() => plateBoltType('rivet'), /not in the catalog/);
+});
+
+test('a plate bolt is the shortest stocked length through the plate and into its T-nut', () => {
+  const bolt = plateBoltType('plate-bolt-m8');
+  assert.deepEqual(
+    [3, 4, 5, 6, 8, 10].map((thicknessMm) => boltLengthFor(bolt, thicknessMm)),
+    [12, 12, 16, 16, 16, 20],
+  );
+  assert.equal(fastenerType('bolt-m8x16').name, 'M8 × 16 bolt');
+  assert.equal(fastenerType('bolt-m8x16').source?.kind, 'estimated');
 });

@@ -46,9 +46,7 @@ export function partsToBuyHTML(parts: PartsToBuy): string {
         kind: 'fastener',
         quantity,
         name: fastenerType(id).name,
-        note: connectorsEstimated
-          ? 'Counted from the connectors: check their data sheet'
-          : undefined,
+        note: fastenerNote(id, connectorsEstimated),
       })),
     ],
     [
@@ -69,6 +67,13 @@ export function partsToBuyHTML(parts: PartsToBuy): string {
     )
     .join('');
   return `<div class="parts-to-buy" id="partsToBuyList">${pendingHTML(parts.pendingJoints.length)}${lists}</div>`;
+}
+
+/** Why a fastener is to be checked: its own size is estimated, or the connectors that count it. */
+function fastenerNote(id: string, connectorsEstimated: boolean): string | undefined {
+  const source = fastenerType(id).source;
+  if (source !== undefined) return estimated(source) ? ESTIMATED_NOTE : undefined;
+  return connectorsEstimated ? 'Counted from the connectors: check their data sheet' : undefined;
 }
 
 function cutLine(cut: PartsToBuy['cuts'][number]): BuyLine {

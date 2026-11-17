@@ -223,3 +223,23 @@ test('a fastening reads back with its connectors, once per joint', async () => {
   const twice = { ...data, history: [...data.history, { ...fastening, id: 'op-4' }] };
   assert.throws(() => readDesign(twice), /twice/);
 });
+
+test('a plate fastened with bolts reads back with the bolts in each slot', async () => {
+  const { fastenWithBolts } = await import('../src/cad/fastening.ts');
+  const { draftPlate } = await import('../src/cad/plates.ts');
+  const base = editProfile(addAnchoredProfile([]).history, 'part-1', { lengthMm: 1000 });
+  const plated = addOperation(base, draftPlate(base, 'part-1'));
+  const history = fastenWithBolts(plated, 'part-2@part-1', 2);
+  const data = stored({ history });
+  assert.deepEqual(readDesign(data).history, history);
+  const withBolts = (bolts) => ({
+    ...data,
+    history: [data.history[0], data.history[1], { ...data.history[2], connectors: [bolts] }],
+  });
+  assert.throws(() => readDesign(withBolts({ typeId: 'plate-bolt-m8', perSlot: '2' })), /number/);
+  assert.throws(() => readDesign(withBolts({ typeId: 'plate-bolt-m8', perSlot: 0 })), /between/);
+  assert.throws(
+    () => readDesign(withBolts({ typeId: 'plate-bolt-m8', perSlot: 2, side: '+y' })),
+    /side/,
+  );
+});

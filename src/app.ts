@@ -23,6 +23,7 @@ import {
   partInspectorHTML,
   plateChange,
   platePanelHTML,
+  QUICK_BOLTS_PER_SLOT,
   type PartField,
   type TouchingPart,
 } from './cockpit-editor-view.ts';
@@ -143,6 +144,7 @@ import { checkRowHTML } from './check-view.ts';
 import { cadChecks } from './cad-checks.ts';
 import { partsToBuy } from './cad/parts-to-buy.ts';
 import {
+  fastenWithBolts,
   fastenWithBrackets,
   jointsOfPart,
   joinParts,
@@ -876,6 +878,23 @@ function renderPartInspector({ force = false } = {}) {
       button.addEventListener('click', () =>
         changeJoints((history, at) =>
           fastenWithBrackets(history, dataOf(button, 'jointBrackets'), at),
+        ),
+      ),
+    );
+  body.querySelectorAll<HTMLInputElement>('[data-joint-bolts]').forEach((input) =>
+    input.addEventListener('change', () => {
+      const perSlot = input.value.trim() === '' ? Number.NaN : Number(input.value);
+      changeJoints((history, at) =>
+        fastenWithBolts(history, dataOf(input, 'jointBolts'), perSlot, at),
+      );
+    }),
+  );
+  body
+    .querySelectorAll<HTMLElement>('[data-joint-two-bolts]')
+    .forEach((button) =>
+      button.addEventListener('click', () =>
+        changeJoints((history, at) =>
+          fastenWithBolts(history, dataOf(button, 'jointTwoBolts'), QUICK_BOLTS_PER_SLOT, at),
         ),
       ),
     );

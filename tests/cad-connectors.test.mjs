@@ -121,6 +121,7 @@ test('the joints of a part list their connectors and the sides that fit', () => 
     sides: ['-z'],
     fittingSides: ['+z', '-z'],
     alongSides: ['+z', '-z'],
+    bolts: null,
   });
 });
 
