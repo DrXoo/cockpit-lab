@@ -98,30 +98,43 @@ Plates, the seat and the driver, the wheel, the pedals and the other peripherals
 
 ### 3. Plates on profiles
 
-Planned in November 2026: a plate is a plain rectangle that rests on profiles and is bolted to them; its holes, slots and drawings wait for stage 5. Built in slices, each usable in the browser when it lands:
+Planned in November 2026: a plate is a plain rectangle that rests on profiles and is bolted to them; its holes, slots and drawings wait for stage 6. Built in slices, each usable in the browser when it lands:
 
 1. **A plate on a profile.** The `add-plate` operation rests a rectangular plate on a face of a profile: its name, width, depth, sheet, the face, the end its distance is measured from, the distance and the offset across the face, both to the plate's center, and which way its depth runs: along the profile or across the face. Its thickness stands out of the face, so the plate is on top of, under or beside the profile. The center may lie beyond the face, as a pedal plate's does between two rails, but the plate must rest on part of the face, or the operation fails. Sheets come from the catalog: aluminium at 3, 4, 5, 6, 8 and 10 mm, estimated until a supplier is verified; a new plate is 300 × 300 × 8 mm, 50 to 1500 mm a side. A plate hangs only from a profile, nothing hangs from it until peripherals come, and no span reaches it. **Put a plate on it**, in the inspector of a profile, shows it as a preview with a panel of its values, on the profile's top, or its front for an upright, centered on its length; a click on a face of the profile moves it there, measured from the nearer end. The inspector of a plate has no growing or feet. Plates are drawn, picked and measured like profiles, take part in interference (resting on a profile is contact) and in support, and the parts to buy list them grouped by size and sheet, as cuts are.
-2. **Bolting a plate.** **Join** works between a plate and the profiles it touches. A new connector, a bolt with a T-nut of the profile system's slot, fastens a plate's joints: the user chooses how many bolts each slot the plate covers takes, and they are spaced evenly along where the plate touches the profile, on the slot's center line. A quick action puts two in each slot. The bolt's length follows the plate's thickness, rounded up to a stocked length, estimated like the bracket's fasteners. Bolt heads are drawn on the plate, and bolts and T-nuts count in the parts to buy. Their positions are where the plate's holes will come from in stage 5.
+2. **Bolting a plate.** **Join** works between a plate and the profiles it touches. A new connector, a bolt with a T-nut of the profile system's slot, fastens a plate's joints: the user chooses how many bolts each slot the plate covers takes, and they are spaced evenly along where the plate touches the profile, on the slot's center line. A quick action puts two in each slot. The bolt's length follows the plate's thickness, rounded up to a stocked length, estimated like the bracket's fasteners. Bolt heads are drawn on the plate, and bolts and T-nuts count in the parts to buy. Their positions are where the plate's holes will come from in stage 6.
 
 Slice 1 was done in November 2026 (`src/cad/plates.ts`). A plate rests only on a side face of a profile: it fails when its profile turns so that the face becomes an end, or when it no longer rests on any of its face, and so do a plate on anything but a profile, a growth out of a plate and a span that reaches one. Removing its profile leaves it anchored where it is, facing the same way. Its joint to the profile stays pending, as no corner bracket fits it, until slice 2 brings the bolts that fasten it. The parts to buy group plates by sheet and size, longer side first, whichever way they lie.
 
 Slice 2 was done in November 2026. A fastening holds either corner brackets, each on a side, or a plate's bolts, stored as `{ "typeId": "plate-bolt-m8", "perSlot": 2 }`: as many in each slot of the profile's face as the plate covers with room for a bolt head either side of the slot's center line, spaced evenly along where the two touch. The slots of a face sit one series module apart, as they are drawn. A plate that covers no slot takes no bolts, and its fastening fails when it is moved off them. **Join** lists the profiles a plate touches and the plates a profile touches, and puts the plate first. The inspector of either part sets the bolts in each slot of a plate's joint, with **Two in each slot**; none takes the fastening away. Each bolt is a connector, its box the head on the plate, so it takes part in interference and counts the joint as fastened. The parts to buy count an M8 bolt at the shortest stocked length that goes through the plate and 8 mm into its T-nut, and the T-nut; the head size, that reach and the stocked lengths (12, 16, 20, 25 and 30 mm) are estimated.
 
-A plate is not drawn in 2D, has no holes, slots or rounded corners, and is not exported until stage 5.
+A plate is not drawn in 2D, has no holes, slots or rounded corners, and is not exported until stage 6.
 
-### 4. Peripherals and adjustments
+### 4. Editing in the view
+
+Planned in November 2026, before the peripherals, which need the same handles to slide a seat on its rails or place a wheel. Handles on the selected part change the values of its operation by dragging, with snapping to the parts around it, and the joints show their state in the view; [cockpit-editor-interactions.md](cockpit-editor-interactions.md) describes every gesture. Built in slices, each usable in the browser when it lands:
+
+0. **Quick fixes.** Undo and redo show on an empty design only when there is something to undo or redo; Delete removes the selected part, or deletes a selected step that makes no part.
+1. **Hovering.** The part under the pointer is outlined, or its face while a part is about to be added, with a label of its name and size.
+2. **End handles.** Lengthen or shorten a profile from either free end, or symmetrically with Shift; the change waits as a preview with a box to type its value, ✓ and ✗; steps of 10 mm, which Alt turns off.
+3. **Move handle.** Move an anchored part along the three axes, and a part that hangs from another along and across the face it hangs from, plates and feet included; edge handles change a plate's width and depth.
+4. **Snapping to parts.** Flush with the faces and ends of other parts, centered on the parent, and reaching the facing face of another part, which makes the profile a span; with a guide.
+5. **Joints in the view.** ⚠, ✓ and + markers, and a card with the quick actions of each joint.
+
+In the top and side views, the move handle shows only the arrows in the plane of the view. On a tilted part, its handles follow the axes of its tilt.
+
+### 5. Peripherals and adjustments
 
 Mount, swap and remove peripherals; edit their mounting patterns, contact points and the travel of adjustments, and check that the travel fits its rails.
 
-### 5. Plate drawings and holes
+### 6. Plate drawings and holes
 
 Edit the outline, holes, arrays and slots in a 2D view, with the holes the plate's bolts need and the holes and slots that mounted peripherals put there; check that a slot covers its adjustment's travel. Validate features outside the outline, overlaps and minimum distances to the edge configured for the fabrication process. DXF/SVG files must rebuild the same dimensions when reopened, without duplicate cuts. The thickness and fabrication notes go with the drawing; a 2D DXF does not encode them by itself. Outlines other than a rectangle, drawn as straight segments with their lengths and turning angles, come when a design needs one.
 
-### 6. Switching between racing and flight
+### 7. Switching between racing and flight
 
 Model interchangeable plates, wheel, side or center stick, throttle and shifter/handbrake. Save positions for use and storage and check their travel. An item hidden in one mode still exists in the project's physical inventory.
 
-### 7. Verified catalogs
+### 8. Verified catalogs
 
 Add verified device data sheets and other profile systems, and, where appropriate, import visual representations or CAD geometry from manufacturers. Tell measured references apart from approximations.
 

@@ -121,6 +121,7 @@ Browser storage is tied to the origin (host and port), so a design saved on one 
 - [Layouts](docs/layouts.md): what each layout stores, what is shared and the file format.
 - [Development](docs/development.md): starting point and workflow.
 - [Mini CAD](docs/mini-cad.md): goals, data model and stages.
+- [Cockpit editor interactions](docs/cockpit-editor-interactions.md): what each gesture and key does in the view.
 - [Decision records](docs/adr/): architectural decisions and why they were made.
 
 ## License
