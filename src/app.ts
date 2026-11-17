@@ -330,8 +330,8 @@ let library: LayoutLibrary = newProject.library,
   marker: number | null = null,
   /** The edits made to the cockpit design since the project was opened, to undo and redo. */
   designEdits: Edits<CockpitDesign | null> = noEdits(),
-  /** A profile about to grow out of the selected one, shown as a preview until it is added. */
-  growth: GrowProfile | null = null,
+  /** A part about to be added to the selected one, shown as a preview until it is added. */
+  draftPart: GrowProfile | null = null,
   /**
    * The points clicked so far with the measure tool, or null when it is off. Measurements belong
    * to the session and are never saved.
@@ -369,13 +369,13 @@ function cockpitDrawing(): CockpitDrawing | null {
   if (editor() !== 'cockpit' || !designHasParts()) return null;
   const history = designHistory();
   const at = markerIndex();
-  const shown = growth ? [...history.slice(0, at), growth, ...history.slice(at)] : history;
-  const design = replayDesign(shown, growth ? at + 1 : at);
+  const shown = draftPart ? [...history.slice(0, at), draftPart, ...history.slice(at)] : history;
+  const design = replayDesign(shown, draftPart ? at + 1 : at);
   return {
     resolved: design.resolved,
     connectors: design.connectors,
     selectedPartId: selectedPartId(),
-    previewPartId: growth?.partId ?? null,
+    previewPartId: draftPart?.partId ?? null,
     measure: measureDrawing(),
   };
 }
@@ -392,7 +392,7 @@ function measureDrawing(): MeasureDrawing | null {
 /** Turns the measure tool on, with no points yet, or off. */
 function setMeasuring(on: boolean) {
   measurePicks = on ? [] : null;
-  if (on) growth = null;
+  if (on) draftPart = null;
   renderControls();
   refresh();
 }
@@ -432,7 +432,7 @@ function openProject(project: Project) {
   marker = null;
   designEdits = noEdits();
   measurePicks = null;
-  growth = null;
+  draftPart = null;
   state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
@@ -507,7 +507,7 @@ function changeDesign(next: CockpitDesign) {
 }
 /** Shows the design after it changed, framing it when its first part appears. */
 function showChangedDesign(hadParts: boolean) {
-  growth = null;
+  draftPart = null;
   // The parts measured may have moved or gone.
   if (measurePicks !== null) measurePicks = designHasParts() ? [] : null;
   if (!selectedOperation()) selectedOperationId = null;
@@ -623,7 +623,7 @@ function deleteSelectedStep() {
 }
 /** Moves the history marker, to show the design at another step. */
 function moveMarker(to: number | null) {
-  growth = null;
+  draftPart = null;
   if (measurePicks !== null) measurePicks = [];
   marker = to === null || to >= designHistory().length ? null : Math.max(0, to);
   const selected = selectedOperation();
@@ -632,8 +632,8 @@ function moveMarker(to: number | null) {
   refresh();
 }
 function undoDesignEdit() {
-  if (growth !== null) {
-    cancelGrowth();
+  if (draftPart !== null) {
+    cancelDraft();
     return;
   }
   const hadParts = designHasParts();
@@ -653,7 +653,7 @@ function redoDesignEdit() {
 }
 function selectOperation(operationId: string | null) {
   selectedOperationId = operationId;
-  growth = null;
+  draftPart = null;
   renderControls();
   refresh();
 }
@@ -667,50 +667,50 @@ function pickInView(hit: PartHit | null) {
     refresh();
     return;
   }
-  if (growth === null) {
+  if (draftPart === null) {
     const maker = hit === null ? undefined : operationMaking(designHistory(), hit.partId);
     selectOperation(maker?.id ?? null);
     return;
   }
-  if (hit === null || hit.partId !== growth.parentId) return;
+  if (hit === null || hit.partId !== draftPart.parentId) return;
   const at = markerIndex();
-  changeGrowth((history) => growthAt(history, growthOrFail(), hit.face, hit.pointMm, at));
+  changeDraft((history) => growthAt(history, draftOrFail(), hit.face, hit.pointMm, at));
 }
-const growthOrFail = (): GrowProfile => {
-  if (growth === null) throw new Error('No profile is growing');
-  return growth;
+const draftOrFail = (): GrowProfile => {
+  if (draftPart === null) throw new Error('No part is being added');
+  return draftPart;
 };
 /** Starts a profile growing out of the selected part, shown as a preview until it is added. */
 function startGrowth() {
   const partId = selectedPartId();
   if (partId === null) return;
   measurePicks = null;
-  growth = draftGrowth(designHistory(), partId, markerIndex());
+  draftPart = draftGrowth(designHistory(), partId, markerIndex());
   refresh();
 }
-/** Changes the growing profile; values it cannot have, or a place off its face, are explained. */
-function changeGrowth(next: (history: readonly Operation[]) => GrowProfile) {
+/** Changes the part about to be added; values it cannot have, or a place off its face, are explained. */
+function changeDraft(next: (history: readonly Operation[]) => GrowProfile) {
   const history = designHistory();
   try {
     const changed = next(history);
     addOperation(history, changed, markerIndex());
-    growth = changed;
+    draftPart = changed;
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
   renderPartInspector({ force: true });
   refresh();
 }
-function confirmGrowth() {
-  if (growth === null) return;
-  const added = growth;
+function confirmDraft() {
+  if (draftPart === null) return;
+  const added = draftPart;
   const at = markerIndex();
   selectedOperationId = added.id;
   stepAddedAtMarker();
   changeDesign({ history: addOperation(designHistory(), added, at) });
 }
-function cancelGrowth() {
-  growth = null;
+function cancelDraft() {
+  draftPart = null;
   refresh();
 }
 /**
@@ -774,7 +774,7 @@ function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
   const history = designHistory();
   const operation = selectedOperation();
-  const growing = growth;
+  const growing = draftPart;
   $('#partInspectorTitle').textContent = growing ? 'New profile' : 'Selected step';
   const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
   const html = growing
@@ -788,13 +788,11 @@ function renderPartInspector({ force = false } = {}) {
     fields.forEach((el) => {
       const field = partField(el.dataset.partField);
       el.addEventListener('change', () =>
-        changeGrowth((current) =>
-          editDraft(current, growing, partChange(growing, field, el.value)),
-        ),
+        changeDraft((current) => editDraft(current, growing, partChange(growing, field, el.value))),
       );
     });
-    $('#confirmGrowth').addEventListener('click', confirmGrowth);
-    $('#cancelGrowth').addEventListener('click', cancelGrowth);
+    $('#confirmGrowth').addEventListener('click', confirmDraft);
+    $('#cancelGrowth').addEventListener('click', cancelDraft);
     return;
   }
   if (!operation) return;
@@ -846,8 +844,8 @@ document.addEventListener('keydown', (event) => {
     setMeasuring(false);
     return;
   }
-  if (event.key === 'Escape' && growth !== null && !document.querySelector('dialog[open]')) {
-    cancelGrowth();
+  if (event.key === 'Escape' && draftPart !== null && !document.querySelector('dialog[open]')) {
+    cancelDraft();
     return;
   }
   if (editor() !== 'cockpit' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
