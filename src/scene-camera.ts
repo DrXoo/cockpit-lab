@@ -8,6 +8,14 @@ import { MM_PER_CM } from './units.ts';
 /** The side view only shows a cockpit design on its own. */
 export type SceneView = 'iso' | 'top' | 'desk' | 'side';
 
+/** The cockpit axis a flat view looks along, or null for the 3D view. */
+export const SIGHT_AXIS: Readonly<Record<SceneView, 'x' | 'y' | 'z' | null>> = {
+  iso: null,
+  top: 'y',
+  desk: 'y',
+  side: 'x',
+};
+
 /** Plan extent of everything drawn, in world cm. */
 export interface SceneBounds {
   left: number;

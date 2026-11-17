@@ -577,3 +577,68 @@ test('the part under the pointer is named beside it once the pointer rests there
   await hoverViewport(page, 0.05, 0.05);
   await expect(page.locator('#hoverLabel')).toBeHidden();
 });
+
+/** Drags a handle of the selected part by a number of pixels on screen. */
+async function dragHandle(page: Page, handle: string, dx: number, dy: number, modifier?: string) {
+  const ball = await page.locator(`[data-handle="${handle}"]`).boundingBox();
+  if (!ball) throw new Error(`No handle ${handle}`);
+  const x = ball.x + ball.width / 2;
+  const y = ball.y + ball.height / 2;
+  if (modifier) await page.keyboard.down(modifier);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx / 2, y + dy / 2);
+  await page.mouse.move(x + dx, y + dy);
+  await page.mouse.up();
+  if (modifier) await page.keyboard.up(modifier);
+}
+
+test('dragging an end of a profile previews its new length, typed and confirmed in a box', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  await expect(page.locator('[data-handle]')).toHaveCount(2);
+  // In the top view, the front (+Z) end of a rail is towards the bottom of the screen.
+  await dragHandle(page, 'part-1:end', 0, 60);
+  await expect(page.locator('#changeBox')).toBeVisible();
+  await expect(page.locator('#changeBox')).toHaveAttribute('data-kind', 'change');
+  const dragged = Number(await page.locator('#changeValue').inputValue());
+  expect(dragged).toBeGreaterThan(0);
+  expect(dragged % 10).toBe(0);
+  await expect(page.locator('[data-handle]')).toHaveCount(1);
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBe(500);
+
+  await clickViewport(page, 0.05, 0.05);
+  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('#changeValue').fill('120');
+  await page.locator('#changeValue').press('Enter');
+  await expect(page.locator('#changeBox')).toBeHidden();
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBe(620);
+  await expect(page.locator('#part-lengthMm')).toHaveValue('620');
+});
+
+test('Escape or undo leaves a dragged profile as it was; Shift drags both ends', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  await dragHandle(page, 'part-1:start', 0, -60);
+  await expect(page.locator('#changeBox')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#changeBox')).toBeHidden();
+  await dragHandle(page, 'part-1:start', 0, -60);
+  await page.locator('#viewport canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('#changeBox')).toBeHidden();
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBe(500);
+
+  await dragHandle(page, 'part-1:end', 0, 60, 'Shift');
+  await expect(page.locator('#changeBox')).toHaveAttribute('data-kind', 'length');
+  await page.locator('#confirmChange').click();
+  await expect.poll(async () => (await savedHistory(page))?.[0].lengthMm).toBeGreaterThan(500);
+  const [rail] = (await savedHistory(page)) ?? [];
+  expect(rail.startMm.z).toBe(-(rail.lengthMm - 500) / 2);
+});

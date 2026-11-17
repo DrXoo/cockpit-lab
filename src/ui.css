@@ -630,6 +630,53 @@ select option {
 .viewport.measuring > svg:first-child {
   cursor: crosshair;
 }
+/* A handle of the selected part, dragged to change it; it keeps its size however near the view. */
+.part-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #2f7fd0;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.part-handle:hover {
+  width: 18px;
+  height: 18px;
+}
+
+/* The value of a change made in the view, to type exactly, confirm or cancel. */
+.change-box {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.change-box[hidden] {
+  display: none;
+}
+
+.change-box input {
+  width: 72px;
+  padding: 2px 4px;
+  font: inherit;
+  text-align: right;
+}
+
 /* Names the part under the pointer in the cockpit editor, beside the pointer. */
 .hover-label {
   position: absolute;

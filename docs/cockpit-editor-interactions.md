@@ -38,6 +38,9 @@ Releasing a handle leaves the part as a preview at its new size or place, with a
 | Click elsewhere in the view | Nothing: it neither selects another part nor clears the selection |
 | Drag outside the handles | Orbits or pans, to look at the change from another side |
 | Undo, or another step chosen in the design history | Leaves the part as it was, as for a profile about to grow |
+| Any other edit from the inspector | Confirms the change first, then makes the edit on top of it |
+
+While a change waits, only the handle that made it shows. The handles are balls drawn over the view, so they keep their size however near the view is.
 
 ## Snapping
 

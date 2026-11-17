@@ -7,6 +7,7 @@ import { faceAxis, type Axis, type BoxMm, type ResolvedPart } from './cad/assemb
 import { connectorType, isPlateBolt, profileSystem } from './cad/catalog.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
+import type { EndHandle } from './cad/handles.ts';
 import { MM_PER_CM } from './units.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */
@@ -19,6 +20,8 @@ export interface CockpitDrawing {
   previewPartId?: string | null;
   /** The part whose face a click chooses, while a part is about to be added to it. */
   choosingFaceOf?: string | null;
+  /** The handles of the selected part, to drag in the view. */
+  handles?: readonly EndHandle[];
   /** A measurement being taken in the view. */
   measure?: MeasureDrawing | null;
 }

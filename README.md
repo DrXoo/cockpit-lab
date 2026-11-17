@@ -75,6 +75,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/undo.ts` | The cockpit design as its design history and how files store it, the cockpit editor's history panel and inspector, and undo and redo of its edits |
 | `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
 | `src/render-hover.ts`, `src/hover-view.ts` | What marks the part or face under the pointer in the cockpit editor, and the label that names it |
+| `src/cad/handles.ts`, `src/render-handles.ts` | The handles that resize the selected profile by dragging in the view, and their stems |
 | `src/render-cad-dimensions.ts`, `src/render-measurement.ts`, `src/measure-view.ts` | The length of the selected part, and the measure tool's drawing and readout |
 | `src/project-summary.ts`, `src/inspector-view.ts`, `src/check-view.ts`, `src/html.ts` | Summary, validation banner, metrics and checks |
 | `src/model.ts` | Public entry point of the room model |

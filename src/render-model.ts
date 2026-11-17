@@ -10,6 +10,7 @@ import {
 import { drawCadProfiles, drawConnectors, type CockpitDrawing } from './render-cad.ts';
 import { drawPartLength } from './render-cad-dimensions.ts';
 import { drawMeasurement } from './render-measurement.ts';
+import { drawHandleStems } from './render-handles.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
 import { drawRoom } from './render-room.ts';
@@ -62,6 +63,7 @@ export function renderModel(
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
     drawPartLength(r, dimensions, options.cockpit.resolved, options.cockpit.selectedPartId, view);
     if (options.cockpit.measure) drawMeasurement(r, ROOT, options.cockpit.measure);
+    drawHandleStems(r, ROOT, options.cockpit.handles ?? []);
   }
   return { primitives: r.primitives, labels: r.labels, armHandles };
 }

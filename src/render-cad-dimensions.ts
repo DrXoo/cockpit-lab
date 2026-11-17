@@ -4,7 +4,7 @@
 import { tiltedFromPivot, type Axis, type ResolvedPart, type Vec3Mm } from './cad/assembly.ts';
 import { round } from './geometry.ts';
 import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
-import type { SceneView } from './scene-camera.ts';
+import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
 import { MM_PER_CM } from './units.ts';
 
 /** How far a dimension stands off the face of the part it measures. */
@@ -17,8 +17,6 @@ const LENGTH_DECIMALS = 1;
 const ORIGIN: Vec3Mm = { x: 0, y: 0, z: 0 };
 /** The axes a dimension may stand off along, best first: above, then in front, then beside. */
 const OFFSET_PREFERENCE: readonly Axis[] = ['y', 'z', 'x'];
-/** The axis a view looks along, which a dimension must not stand off along to be seen. */
-const SIGHT_AXIS: Record<SceneView, Axis | null> = { iso: null, top: 'y', desk: 'y', side: 'x' };
 
 /** The length of the selected profile, as a dimension beside it that the view can show. */
 export function drawPartLength(

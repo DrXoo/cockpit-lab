@@ -246,6 +246,27 @@
           <div class="scene-labels" id="sceneLabels"></div>
           <p class="measure-readout" id="measureReadout" role="status" hidden></p>
           <p class="hover-label" id="hoverLabel" hidden></p>
+          <div class="change-box" id="changeBox" hidden>
+            <label for="changeValue" id="changeKind">Change</label>
+            <input id="changeValue" type="number" step="1" />
+            <span>mm</span>
+            <button
+              class="text-button"
+              id="confirmChange"
+              title="Confirm (Enter)"
+              aria-label="Confirm the change"
+            >
+              ✓
+            </button>
+            <button
+              class="text-button"
+              id="cancelChange"
+              title="Cancel (Escape)"
+              aria-label="Cancel the change"
+            >
+              ✗
+            </button>
+          </div>
           <div class="viewport-note" hidden>
             <i data-icon="rotate"></i><span>Drag to orbit · scroll to zoom</span>
           </div>

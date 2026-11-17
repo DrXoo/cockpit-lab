@@ -19,6 +19,8 @@ import type { CockpitDrawing } from './render-cad.ts';
 import type { ArmHandle } from './render-desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
 import { drawHover } from './render-hover.ts';
+import { distanceAlongAxis, type EndHandle } from './cad/handles.ts';
+import { handleBallMm } from './render-handles.ts';
 import { renderModel } from './render-model.ts';
 import {
   cameraPose,
@@ -42,8 +44,35 @@ interface LabelItem extends SceneLabel {
   position: T.Vector3;
 }
 
-/** A monitor arm joint, or a layout item, being dragged. */
-type Drag = { kind: 'arm'; joint: ArmJoint } | { kind: 'layout'; grab: LayoutGrab };
+/** A monitor arm joint, a layout item or a handle of a part, being dragged. */
+type Drag =
+  | { kind: 'arm'; joint: ArmJoint }
+  | { kind: 'layout'; grab: LayoutGrab }
+  | { kind: 'handle'; handle: EndHandle; grabbedAtMm: number };
+
+/** How far an element kept beside a point stands from it, and from the edges of the view. */
+const ANCHORED_GAP_PX = 16;
+const ANCHORED_MARGIN_PX = 8;
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(value, Math.max(min, max)));
+
+/** A handle of the selected part, shown as a ball on top of the view. */
+interface HandleItem {
+  el: HTMLElement;
+  position: T.Vector3;
+}
+
+/** An element of the page kept beside a point of the scene, such as the box of a change. */
+interface AnchoredItem {
+  el: HTMLElement;
+  position: T.Vector3;
+}
+
+/** How a handle is being dragged: Shift moves both ends, Alt drops the steps. */
+export interface HandleModifiers {
+  symmetric: boolean;
+  free: boolean;
+}
 
 /** The parts of the surroundings whose colors follow the theme. */
 interface Environment {
@@ -287,6 +316,15 @@ export class CockpitScene {
   declare hoverRoot: T.Group | null;
   /** The part and face marked under the pointer, to redraw only when they change. */
   declare hoverKey: string;
+  declare handleItems: HandleItem[];
+  declare anchored: AnchoredItem | null;
+  /** A handle of the selected part was grabbed. */
+  declare onHandleGrab: ((handle: EndHandle) => void) | undefined;
+  /** A grabbed handle moved this far along its axis, out of the end, since it was grabbed. */
+  declare onHandleDrag:
+    ((handle: EndHandle, movedMm: number, modifiers: HandleModifiers) => void) | undefined;
+  /** A grabbed handle was let go. */
+  declare onHandleRelease: ((handle: EndHandle) => void) | undefined;
 
   constructor(container: HTMLElement, labels: HTMLElement) {
     this.container = container;
@@ -315,6 +353,11 @@ export class CockpitScene {
     this.onPartHover = undefined;
     this.hoverRoot = null;
     this.hoverKey = '';
+    this.handleItems = [];
+    this.anchored = null;
+    this.onHandleGrab = undefined;
+    this.onHandleDrag = undefined;
+    this.onHandleRelease = undefined;
     this.theme = themeOfPage();
     this.scene = new T.Scene();
     this.scene.background = new T.Color(this.theme.background);
@@ -388,6 +431,53 @@ export class CockpitScene {
   }
 
   /** Frees what the previous drawing created; the palette is shared and kept. */
+  /** A ball over the view for each handle, which a press grabs. */
+  private addHandles(handles: readonly EndHandle[]) {
+    for (const handle of handles) {
+      const el = document.createElement('span');
+      el.className = 'part-handle';
+      el.dataset.handle = handle.id;
+      el.title = 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre';
+      el.addEventListener('pointerdown', (event) => this.grabHandle(event, handle));
+      this.labels.append(el);
+      const ball = handleBallMm(handle);
+      const position = new T.Vector3(ball.x / MM_PER_CM, ball.y / MM_PER_CM, ball.z / MM_PER_CM);
+      this.handleItems.push({ el, position });
+    }
+  }
+
+  /** Keeps an element of the page beside a point of the scene, in cm, or lets it go (null). */
+  anchorElement(el: HTMLElement, pointCm: { x: number; y: number; z: number } | null) {
+    this.anchored = pointCm
+      ? { el, position: new T.Vector3(pointCm.x, pointCm.y, pointCm.z) }
+      : null;
+    this.revision++;
+  }
+
+  private grabHandle(event: PointerEvent, handle: EndHandle) {
+    if (event.button !== PRIMARY_BUTTON) return;
+    const grabbedAtMm = this.alongHandle(event, handle);
+    if (grabbedAtMm === null) return;
+    // A press on a handle drags it: it neither orbits nor picks the part under it.
+    this.press = null;
+    this.clearHover();
+    this.startDrag(event, { kind: 'handle', handle, grabbedAtMm });
+    this.onHandleGrab?.(handle);
+  }
+
+  /** Where the pointer is along the axis of a handle, from the end it changes. */
+  private alongHandle(event: PointerEvent, handle: EndHandle): number | null {
+    const { origin, direction } = this.rayAt(event);
+    return distanceAlongAxis(
+      {
+        originMm: { x: origin.x * MM_PER_CM, y: origin.y * MM_PER_CM, z: origin.z * MM_PER_CM },
+        directionMm: { x: direction.x, y: direction.y, z: direction.z },
+      },
+      handle.pointMm,
+      handle.outwardMm,
+    );
+  }
+
   private disposeDrawing(root: T.Object3D) {
     const shared = new Set<T.Material>(Object.values(this.mat));
     root.traverse((object) => {
@@ -412,6 +502,7 @@ export class CockpitScene {
     }
     this.labels.innerHTML = '';
     this.labelItems = [];
+    this.handleItems = [];
     const root = new T.Group();
     this.root = root;
     this.scene.add(root);
@@ -425,8 +516,12 @@ export class CockpitScene {
     this.dims = addPrimitives(model.primitives, root, this.mat).dimensions;
     if (this.dims) this.dims.visible = this.dimensions;
     this.addLabels(model.labels);
+    this.addHandles(cockpit?.handles ?? []);
     this.armHandles = model.armHandles;
     this.setFrustum();
+    // Handles are placed at once, so a ball is never grabbed where it was before it is drawn.
+    this.camera.updateMatrixWorld();
+    this.placeOverlays(this.container.clientWidth, this.container.clientHeight);
     // The parts may have changed: the next move of the pointer marks them again.
     this.clearHover();
   }
@@ -651,6 +746,17 @@ export class CockpitScene {
       this.hoverAt(event);
       return;
     }
+    if (drag.kind === 'handle') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const alongMm = this.alongHandle(event, drag.handle);
+      if (alongMm !== null)
+        this.onHandleDrag?.(drag.handle, alongMm - drag.grabbedAtMm, {
+          symmetric: event.shiftKey,
+          free: event.altKey,
+        });
+      return;
+    }
     if (!s || !e) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -676,13 +782,15 @@ export class CockpitScene {
   }
 
   private onPointerEnd(event: PointerEvent) {
-    if (!this.drag) return;
+    const drag = this.drag;
+    if (!drag) return;
     event.stopImmediatePropagation();
     const element = this.renderer.domElement;
     if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
     this.drag = null;
     this.controls.enabled = true;
     element.style.cursor = 'grab';
+    if (drag.kind === 'handle') this.onHandleRelease?.(drag.handle);
   }
 
   /** Capture-phase listeners, so a drag stops the orbit controls from panning. */
@@ -717,7 +825,35 @@ export class CockpitScene {
     this.placeLabels(w, h);
   }
 
+  /** Puts the handles, and the element kept beside a point, where the camera shows them. */
+  private placeOverlays(w: number, h: number) {
+    for (const item of this.handleItems) {
+      const p = item.position.clone().project(this.camera);
+      item.el.hidden = p.z < -1 || p.z > 1;
+      item.el.style.left = `${(p.x * 0.5 + 0.5) * w}px`;
+      item.el.style.top = `${(-p.y * 0.5 + 0.5) * h}px`;
+    }
+    if (this.anchored) this.placeAnchored(this.anchored, w, h);
+  }
+
+  /**
+   * Puts an element beside its point, to the right of it unless it would leave the view, and
+   * always whole within the view, so it never has to be scrolled to.
+   */
+  private placeAnchored({ el, position }: AnchoredItem, w: number, h: number) {
+    const p = position.clone().project(this.camera);
+    const x = (p.x * 0.5 + 0.5) * w;
+    const y = (-p.y * 0.5 + 0.5) * h;
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
+    const right = x + ANCHORED_GAP_PX;
+    const left = right + width <= w - ANCHORED_MARGIN_PX ? right : x - ANCHORED_GAP_PX - width;
+    el.style.left = `${clamp(left, ANCHORED_MARGIN_PX, w - width - ANCHORED_MARGIN_PX)}px`;
+    el.style.top = `${clamp(y - height / 2, ANCHORED_MARGIN_PX, h - height - ANCHORED_MARGIN_PX)}px`;
+  }
+
   private placeLabels(w: number, h: number) {
+    this.placeOverlays(w, h);
     for (const item of this.labelItems) {
       if (!this.dimensions && !item.armHandle && !item.alwaysShown) {
         item.el.hidden = true;
