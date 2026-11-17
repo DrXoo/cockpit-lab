@@ -140,6 +140,17 @@ const AXES: readonly Axis[] = ['x', 'y', 'z'];
 export const faceAxis = (face: Face): Axis => (face[1] === 'x' ? 'x' : face[1] === 'y' ? 'y' : 'z');
 const faceSign = (face: Face): 1 | -1 => (face[0] === '+' ? 1 : -1);
 
+const OPPOSITE_FACES: Record<Face, Face> = {
+  '+x': '-x',
+  '-x': '+x',
+  '+y': '-y',
+  '-y': '+y',
+  '+z': '-z',
+  '-z': '+z',
+};
+/** The face on the other side of a box, looking the other way. */
+export const oppositeFace = (face: Face): Face => OPPOSITE_FACES[face];
+
 /** Resolves every part's box, parents first. Fails on missing parts and dependency loops. */
 export function resolveAssembly(parts: readonly Part[]): Map<string, ResolvedPart> {
   const byId = new Map(parts.map((part) => [part.id, part]));

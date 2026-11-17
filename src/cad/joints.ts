@@ -1,7 +1,7 @@
 // Joints: where two parts are fastened together. Every attachment and each end of a span that
 // meets its part make one, automatically. A foot comes with its own adapter and a peripheral is
 // bolted through its mounting pattern, so neither makes one.
-import { faceAxis, type Axis, type Face, type ResolvedPart } from './assembly.ts';
+import { faceAxis, oppositeFace, type Axis, type Face, type ResolvedPart } from './assembly.ts';
 import { CAD_CONTACT_MM } from './interference.ts';
 
 export interface Joint {
@@ -12,8 +12,6 @@ export interface Joint {
   /** The face of `toPartId` that the part meets. */
   toFace: Face;
 }
-
-const opposite = (face: Face): Face => `${face[0] === '+' ? '-' : '+'}${face[1]}` as Face;
 
 /** A joint is known by its two parts: the joined part, then the part it meets. */
 export const jointIdOf = ({ partId, toPartId }: { partId: string; toPartId: string }): string =>
@@ -34,7 +32,7 @@ export function jointsOf(resolved: ReadonlyMap<string, ResolvedPart>): Joint[] {
     if (placement.kind === 'anchor') continue;
     joints.push(jointBetween(part.id, placement.parentId, placement.face));
     if (placement.kind === 'span' && !openEnd)
-      joints.push(jointBetween(part.id, placement.reachesId, opposite(placement.face)));
+      joints.push(jointBetween(part.id, placement.reachesId, oppositeFace(placement.face)));
   }
   return joints;
 }
