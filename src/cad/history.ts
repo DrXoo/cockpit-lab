@@ -105,7 +105,8 @@ export function draftGrowth(
   const parent = operationMaking(history, parentId);
   const resolved = replayDesign(history, at).resolved.get(parentId);
   if (!parent || !resolved) throw new Error(`Part ${parentId} is not in the design at this step.`);
-  if (!makesAProfile(parent)) throw new Error(`Nothing grows out of ${parent.name}: it is a foot.`);
+  if (!makesAProfile(parent))
+    throw new Error(`Nothing grows out of ${parent.name}: a profile only grows out of a profile.`);
   const { system, sectionId, lengthMm } = NEW_PROFILE;
   const section = profileSection(system, sectionId);
   const face: Face = lengthAxisOf(parent) === 'y' ? '+z' : '+y';
@@ -297,7 +298,7 @@ export function editProfile(
   const operation = operationMaking(history, partId);
   if (!operation) throw new Error(`Part ${partId} is not in the design history.`);
   if (!makesAProfile(operation))
-    throw new Error(`${operation.name} is a foot: it has no profile values to change.`);
+    throw new Error(`${operation.name} is not a profile: it has no profile values to change.`);
   const edited = editedOperation(history, operation, changes);
   const changed = checkedHistory(
     history.map((existing) => (existing === operation ? edited : existing)),
@@ -569,7 +570,8 @@ export function nextIdentifiers(history: readonly Operation[]): { id: string; pa
 function partIdsNamed(operation: Operation): string[] {
   if (operation.kind === 'remove-part') return [operation.removedId];
   if (operation.kind === 'add-anchored-profile') return [operation.partId];
-  if (operation.kind === 'add-foot') return [operation.partId, operation.parentId];
+  if (operation.kind === 'add-foot' || operation.kind === 'add-plate')
+    return [operation.partId, operation.parentId];
   if (operation.kind === 'fasten-joint' || operation.kind === 'join-parts')
     return [operation.partId, operation.toPartId];
   return [

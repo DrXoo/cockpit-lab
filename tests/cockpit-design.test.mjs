@@ -168,6 +168,36 @@ test('a foot reads back with its type and its place under the profile', () => {
   assert.throws(() => readDesign(withFoot({ face: '-y' })), /face/);
 });
 
+test('a plate reads back with its sheet, its size and its place on the profile', () => {
+  const { history } = designWith(1);
+  const plate = {
+    kind: 'add-plate',
+    id: 'op-2',
+    partId: 'part-2',
+    name: 'Wheel plate',
+    sheetId: 'aluminium-8',
+    widthMm: 300,
+    depthMm: 250,
+    depthAxis: 'z',
+    parentId: 'part-1',
+    face: '+y',
+    fromEnd: 'end',
+    alongMm: 120,
+    acrossMm: 15,
+  };
+  const data = stored({ history: [...history, plate] });
+  assert.deepEqual(readDesign(data).history[1], plate);
+  const withPlate = (changes) => ({
+    ...data,
+    history: [data.history[0], { ...plate, ...changes }],
+  });
+  assert.throws(() => readDesign(withPlate({ sheetId: 'steel-2' })), /steel-2/);
+  assert.throws(() => readDesign(withPlate({ widthMm: '300' })), /number/);
+  assert.throws(() => readDesign(withPlate({ depthMm: 20 })), /between 50 and 1500/);
+  assert.throws(() => readDesign(withPlate({ depthAxis: 'y' })), /depth/);
+  assert.throws(() => readDesign(withPlate({ lengthMm: 300 })), /lengthMm/);
+});
+
 test('a fastening reads back with its connectors, once per joint', async () => {
   const { fastenWithBrackets } = await import('../src/cad/fastening.ts');
   const base = editProfile(addAnchoredProfile([]).history, 'part-1', { lengthMm: 1000 });

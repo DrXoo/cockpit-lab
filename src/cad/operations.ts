@@ -9,7 +9,7 @@ import {
   type ProfilePart,
   type Vec3Mm,
 } from './assembly.ts';
-import { connectorType, footType, profileSystem } from './catalog.ts';
+import { connectorType, footType, profileSystem, sheetType } from './catalog.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {
@@ -91,6 +91,30 @@ export interface AddFoot {
   alongMm: number;
 }
 
+/**
+ * Rests a rectangular plate on a side face of a profile, which it hangs from. Its thickness
+ * stands out of the face, and its center may lie beyond the face as long as the plate rests on
+ * part of it.
+ */
+export interface AddPlate {
+  kind: 'add-plate';
+  id: string;
+  partId: string;
+  name: string;
+  sheetId: string;
+  widthMm: number;
+  depthMm: number;
+  /** The axis its depth runs along: along the profile or across the face; its width the other. */
+  depthAxis: Axis;
+  parentId: string;
+  face: Face;
+  fromEnd: ParentEnd;
+  /** From `fromEnd` along the profile to the plate's center. */
+  alongMm: number;
+  /** From the center of the face, towards + on the axis across it, to the plate's center. */
+  acrossMm: number;
+}
+
 /** A connector a fastening puts on its joint, on one side of the joined part. */
 export interface ConnectorChoice {
   typeId: string;
@@ -125,7 +149,7 @@ export interface JoinParts {
 export type ProfileOperation = AddAnchoredProfile | GrowProfile;
 
 /** An operation that makes a part. */
-export type MakingOperation = ProfileOperation | AddFoot;
+export type MakingOperation = ProfileOperation | AddFoot | AddPlate;
 
 /** One step of a design history. Every kind is part of the file format. */
 export type Operation = MakingOperation | RemovePart | FastenJoint | JoinParts;
@@ -133,7 +157,8 @@ export type Operation = MakingOperation | RemovePart | FastenJoint | JoinParts;
 export const makesAPart = (operation: Operation): operation is MakingOperation =>
   operation.kind === 'add-anchored-profile' ||
   operation.kind === 'grow-profile' ||
-  operation.kind === 'add-foot';
+  operation.kind === 'add-foot' ||
+  operation.kind === 'add-plate';
 
 export const makesAProfile = (operation: Operation): operation is ProfileOperation =>
   operation.kind === 'add-anchored-profile' || operation.kind === 'grow-profile';
@@ -144,6 +169,19 @@ export interface FootValues {
   footTypeId: string;
   fromEnd: ParentEnd;
   alongMm: number;
+}
+
+/** The values the inspector edits on a plate. */
+export interface PlateValues {
+  name: string;
+  sheetId: string;
+  widthMm: number;
+  depthMm: number;
+  depthAxis: Axis;
+  face: Face;
+  fromEnd: ParentEnd;
+  alongMm: number;
+  acrossMm: number;
 }
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
@@ -169,6 +207,9 @@ export const MIN_PROFILE_LENGTH_MM = 10;
 export const MAX_PROFILE_LENGTH_MM = 3000;
 /** How far from the cockpit origin a part can start; it keeps mistyped positions out. */
 export const MAX_POSITION_MM = 3000;
+/** Narrower plates are brackets; wider ones than a compact cockpit needs are mistyped. */
+export const MIN_PLATE_SIDE_MM = 50;
+export const MAX_PLATE_SIDE_MM = 1500;
 /** Part names, like furniture names, are short labels. */
 export const MAX_PART_NAME_LENGTH = 45;
 
@@ -195,6 +236,26 @@ export function partMadeBy(operation: MakingOperation): Part {
         face: '-y',
         alongMm: operation.alongMm,
         fromEnd: operation.fromEnd,
+      },
+    };
+  if (operation.kind === 'add-plate')
+    return {
+      kind: 'plate',
+      id: operation.partId,
+      name: operation.name,
+      widthMm: operation.widthMm,
+      depthMm: operation.depthMm,
+      sheetId: operation.sheetId,
+      normal: operation.face,
+      depthAxis: operation.depthAxis,
+      ownHoles: [],
+      placement: {
+        kind: 'attachment',
+        parentId: operation.parentId,
+        face: operation.face,
+        alongMm: operation.alongMm,
+        fromEnd: operation.fromEnd,
+        acrossMm: operation.acrossMm,
       },
     };
   return profileMadeBy(operation);
@@ -254,6 +315,10 @@ export function checkedOperation<T extends Operation>(operation: T): T {
     checkFoot(operation);
     return operation;
   }
+  if (operation.kind === 'add-plate') {
+    checkPlate(operation);
+    return operation;
+  }
   if (operation.kind === 'fasten-joint') {
     checkFastening(operation);
     return operation;
@@ -308,6 +373,21 @@ function checkFastening(operation: FastenJoint) {
 function checkFoot(operation: AddFoot) {
   footType(operation.footTypeId);
   checkPlaceAlong(operation);
+}
+
+function checkPlate(operation: AddPlate) {
+  sheetType(operation.sheetId);
+  for (const sideMm of [operation.widthMm, operation.depthMm])
+    if (!Number.isFinite(sideMm) || sideMm < MIN_PLATE_SIDE_MM || sideMm > MAX_PLATE_SIDE_MM)
+      throw new Error(
+        `A plate side must be between ${MIN_PLATE_SIDE_MM} and ${MAX_PLATE_SIDE_MM} mm.`,
+      );
+  if (!FACES.includes(operation.face)) throw new Error(`Unknown face: ${operation.face}`);
+  if (!AXES.includes(operation.depthAxis) || operation.depthAxis === faceAxis(operation.face))
+    throw new Error('The depth of a plate runs along the face it rests on, not out of it.');
+  checkPlaceAlong(operation);
+  if (!Number.isFinite(operation.acrossMm))
+    throw new Error('An offset across a face must be a number of mm.');
 }
 
 /** A place along a parent: from one of its ends, never before it. */

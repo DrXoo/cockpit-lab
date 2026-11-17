@@ -126,6 +126,17 @@ test.describe('cockpit design', () => {
     );
   });
 
+  test('a plate on a profile', async ({ page }) => {
+    await page.locator('[data-operation="op-3"]').click();
+    await page.locator('#putPlate').click();
+    await page.locator('#confirmPlate').click();
+    await expect(page.locator('[data-part="part-6"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#viewport')).toHaveScreenshot(
+      'cockpit-design-plate.png',
+      SCREENSHOT,
+    );
+  });
+
   test('history and inspector', async ({ page }) => {
     expect(await page.locator('#controls').innerText()).toMatchSnapshot(
       'cockpit-design-history.txt',

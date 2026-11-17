@@ -7,7 +7,10 @@ import {
   partChange,
   partField,
   partInspectorHTML,
+  plateChange,
+  platePanelHTML,
 } from '../src/cockpit-editor-view.ts';
+import { draftPlate } from '../src/cad/plates.ts';
 import {
   addAnchoredProfile,
   addFoot,
@@ -362,4 +365,57 @@ test('a join is a step that names its two parts', () => {
   ];
   assert.match(panel({ history }), /Joins 40 × 40 profile 2 to 40 × 40 profile 1/);
   assert.match(partInspectorHTML(history, history[2]), /id="deleteStep"/);
+});
+
+const railAndPlate = () => {
+  const history = editProfile(historyWith(1), 'part-1', { name: 'Rail', lengthMm: 1000 });
+  return addOperation(history, draftPlate(history, 'part-1'));
+};
+
+test('a plate is a step on its profile, and its inspector sets its sheet, size and place', () => {
+  const history = railAndPlate();
+  assert.match(panel({ history }), /Plate 2.*On Rail · 300 × 300 mm · Aluminium sheet, 8 mm/s);
+  const html = partInspectorHTML(history, history[1]);
+  assert.match(html, /Rests on <strong>Rail<\/strong>/);
+  assert.match(html, /id="part-sheetId"[^>]*><option value="aluminium-3">/);
+  assert.match(html, /<option value="aluminium-8" selected>Aluminium sheet, 8 mm/);
+  assert.match(html, /estimated/);
+  assert.match(html, /id="part-widthMm"[^>]*value="300"/);
+  assert.match(html, /id="part-depthMm"[^>]*value="300"/);
+  assert.match(html, /<option value="z" selected>Front to back \(Z\)<\/option>/);
+  assert.doesNotMatch(html, /id="part-depthAxis"[^]*<option value="y"/);
+  assert.match(html, /<option value="\+y" selected>Top \(\+Y\)<\/option>/);
+  assert.doesNotMatch(html, /Front end \(\+Z\)/, 'a plate rests on a side, never on an end');
+  assert.match(html, /id="part-alongMm"[^>]*value="500"/);
+  assert.match(html, /id="part-acrossMm"[^>]*value="0"/);
+  assert.match(html, /id="removePart"/);
+  assert.doesNotMatch(html, /id="growProfile"|id="addFoot"|id="putPlate"|id="part-lengthMm"/);
+});
+
+test('a profile offers a plate on it', () => {
+  const history = historyWith(1);
+  assert.match(partInspectorHTML(history, history[0]), /id="putPlate"/);
+});
+
+test('the plate panel edits the new plate before it is added', () => {
+  const history = editProfile(historyWith(1), 'part-1', { name: 'Rail' });
+  const html = platePanelHTML(history, draftPlate(history, 'part-1'));
+  assert.match(html, /on <strong>Rail<\/strong>/);
+  assert.match(html, /id="plate-widthMm"[^>]*value="300"/);
+  assert.match(html, /id="confirmPlate"/);
+  assert.match(html, /id="cancelPlate"/);
+});
+
+test('the fields of a plate change the values of its operation', () => {
+  assert.deepEqual(plateChange('name', 'Wheel plate'), { name: 'Wheel plate' });
+  assert.deepEqual(plateChange('sheetId', 'aluminium-4'), { sheetId: 'aluminium-4' });
+  assert.deepEqual(plateChange('widthMm', '250'), { widthMm: 250 });
+  assert.deepEqual(plateChange('depthMm', ''), { depthMm: Number.NaN });
+  assert.deepEqual(plateChange('depthAxis', 'x'), { depthAxis: 'x' });
+  assert.deepEqual(plateChange('face', '-y'), { face: '-y' });
+  assert.deepEqual(plateChange('fromEnd', 'end'), { fromEnd: 'end' });
+  assert.deepEqual(plateChange('alongMm', '120'), { alongMm: 120 });
+  assert.deepEqual(plateChange('acrossMm', '-40'), { acrossMm: -40 });
+  assert.throws(() => plateChange('lengthMm', '300'), /lengthMm/);
+  assert.equal(partField('depthAxis'), 'depthAxis');
 });

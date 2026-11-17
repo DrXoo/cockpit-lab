@@ -6,17 +6,23 @@ import {
   anchorWhereItIs,
   faceAxis,
   resolveAssembly,
+  type Axis,
+  type BoxMm,
   type Face,
   type Part,
+  type ProfilePart,
   type ResolvedPart,
 } from './assembly.ts';
+import { CAD_CONTACT_MM } from './interference.ts';
 import {
   AXES,
   makesAPart,
+  makesAProfile,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   partMadeBy,
+  type AddPlate,
   type FastenJoint,
   type JoinParts,
   type MakingOperation,
@@ -187,20 +193,59 @@ interface StepContext {
   failures: ReadonlyMap<string, string>;
 }
 
+/** How each kind of part that hangs from a profile refers to it, and that it needs one. */
+const HANGING_FROM: Record<Exclude<MakingOperation['kind'], 'add-anchored-profile'>, string[]> = {
+  'grow-profile': ['It grows out of', 'a profile only grows out of another profile'],
+  'add-foot': ['It stands under', 'a foot only goes under a profile'],
+  'add-plate': ['It rests on', 'a plate only rests on a profile'],
+};
+
 /** The parts with the one the operation makes, or why it cannot make it at this step. */
 function making(operation: MakingOperation, context: StepContext): Part[] | string {
   if (operation.kind === 'add-anchored-profile') return [...context.parts, partMadeBy(operation)];
-  const refers = operation.kind === 'add-foot' ? 'It stands under' : 'It grows out of';
+  const [refers, needsAProfile] = HANGING_FROM[operation.kind];
   const missing = missingPart(operation.parentId, context, refers);
   if (missing) return missing;
   const parent = context.parts.find((part) => part.id === operation.parentId);
-  if (operation.kind === 'add-foot' && parent?.kind !== 'profile')
-    return `${refers} ${parent?.name ?? operation.parentId}, and a foot only goes under a profile.`;
+  if (parent?.kind !== 'profile')
+    return `${refers} ${parent?.name ?? operation.parentId}, and ${needsAProfile}.`;
+  if (operation.kind === 'add-plate') return withPlate(operation, context.parts, parent);
+  if (operation.kind === 'grow-profile' && operation.reachesId !== undefined) {
+    const reached = operationMaking(context.history, operation.reachesId);
+    if (reached && !makesAProfile(reached))
+      return `It reaches ${reached.name}, and a span only reaches a profile.`;
+  }
   const parts = [...context.parts, partMadeBy(operation)];
   const place: PlaceOnAFace =
     operation.kind === 'add-foot' ? { ...operation, face: '-y', acrossMm: 0 } : operation;
   const misfit = misfitOnItsFace(place, resolveAssembly(parts));
   return misfit ?? parts;
+}
+
+/** The parts with the plate, or why it does not rest on a side face of its profile. */
+function withPlate(
+  operation: AddPlate,
+  parts: readonly Part[],
+  profile: ProfilePart,
+): Part[] | string {
+  const normal = faceAxis(operation.face);
+  if (profile.axis === normal)
+    return `${operation.name} rests on a side of ${profile.name}, not on its end: move it to a side.`;
+  const withIt = [...parts, partMadeBy(operation)];
+  const resolved = resolveAssembly(withIt);
+  const plate = resolved.get(operation.partId);
+  const parent = resolved.get(profile.id);
+  if (plate && parent && !overlapsAcross(plate.box, parent.box, normal))
+    return `${operation.name} would not rest on ${profile.name}: it lies beyond the face.`;
+  return withIt;
+}
+
+/** Whether two boxes have some area in common across `normal`, more than mere contact. */
+function overlapsAcross(a: BoxMm, b: BoxMm, normal: Axis): boolean {
+  return AXES.filter((axis) => axis !== normal).every(
+    (axis) =>
+      Math.min(a.max[axis], b.max[axis]) - Math.max(a.min[axis], b.min[axis]) > CAD_CONTACT_MM,
+  );
 }
 
 /**
@@ -220,7 +265,10 @@ function removal(operation: RemovePart, context: StepContext): Part[] | string {
     .map((part) => {
       const placement = part.placement;
       const where = resolved.get(part.id);
-      if (part.kind !== 'profile' || placement.kind === 'anchor' || !where) return part;
+      if (placement.kind === 'anchor' || !where) return part;
+      if (part.kind === 'plate' && placement.parentId === operation.removedId)
+        return { ...part, placement: anchorWhereItIs(where) };
+      if (part.kind !== 'profile') return part;
       if (placement.parentId === operation.removedId)
         return { ...part, lengthMm: where.lengthMm, placement: anchorWhereItIs(where) };
       if (placement.kind === 'span' && placement.reachesId === operation.removedId)

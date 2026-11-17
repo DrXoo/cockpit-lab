@@ -1,8 +1,9 @@
-// The parts to buy for a CAD cockpit design: its cuts, the connectors on its joints with the
-// fasteners their types need, and its feet. Joints without connectors are listed as pending.
+// The parts to buy for a CAD cockpit design: its cuts of profile and plate, the connectors on its
+// joints with the fasteners their types need, and its feet. Joints without connectors are listed
+// as pending.
 import type { ResolvedPart } from './assembly.ts';
 import { connectorType, fastenersOf, footType, type FastenerCount } from './catalog.ts';
-import { cutList, type Cut } from './cuts.ts';
+import { cutList, plateCutList, type Cut, type PlateCut } from './cuts.ts';
 import { jointsOf, type Connector, type Joint } from './joints.ts';
 
 export interface CatalogCount {
@@ -19,6 +20,7 @@ export interface PendingJoint {
 
 export interface PartsToBuy {
   cuts: Cut[];
+  plates: PlateCut[];
   connectors: CatalogCount[];
   fasteners: FastenerCount[];
   feet: CatalogCount[];
@@ -46,6 +48,7 @@ export function partsToBuy(
 
   return {
     cuts: cutList(resolved),
+    plates: plateCutList(resolved),
     connectors: countByType(connectorTypes),
     fasteners: sumFasteners(connectorTypes.flatMap(fastenersOf)),
     feet: countByType(feetTypes),

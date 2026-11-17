@@ -1,5 +1,5 @@
-// Draws the profiles, feet and connectors of a CAD cockpit design. Parts are in mm in cockpit coordinates;
-// the scene works in cm. Parts at a tilt go into one group per tilt, turned about the cockpit
+// Draws the profiles, plates, feet and connectors of a CAD cockpit design. Parts are in mm in
+// cockpit coordinates; the scene works in cm. Parts at a tilt go into one group per tilt, turned about the cockpit
 // origin as their frame is (src/cad/assembly.ts).
 import { degToRad } from './geometry.ts';
 import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
@@ -59,24 +59,26 @@ export function drawCadProfiles(
   const frameOf = tiltFrames(r, parent);
   for (const { part, box, tiltDeg } of resolved.values()) {
     if (part.kind === 'foot') drawFoot(r, frameOf(tiltDeg), box, part.id === selectedId);
-    if (part.kind !== 'profile') continue;
-    const size: Vec3 = [
-      cm(box.max.x - box.min.x),
-      cm(box.max.y - box.min.y),
-      cm(box.max.z - box.min.z),
-    ];
-    const bar = r.box(
-      ...size,
-      cm((box.min.x + box.max.x) / 2),
-      cm((box.min.y + box.max.y) / 2),
-      cm((box.min.z + box.max.z) / 2),
-      part.id === previewId ? 'preview' : part.id === selectedId ? 'selected' : 'silver',
-      frameOf(tiltDeg),
-      true,
-    );
-    drawGrooves(r, bar.id, size, part.axis, cm(profileSystem(part.systemId).series));
+    if (part.kind !== 'profile' && part.kind !== 'plate') continue;
+    const size = sizeOf(box);
+    const material =
+      part.id === previewId ? 'preview' : part.id === selectedId ? 'selected' : 'silver';
+    const solid = r.box(...size, ...centerOf(box), material, frameOf(tiltDeg), true);
+    if (part.kind === 'profile')
+      drawGrooves(r, solid.id, size, part.axis, cm(profileSystem(part.systemId).series));
   }
 }
+
+const sizeOf = (box: BoxMm): Vec3 => [
+  cm(box.max.x - box.min.x),
+  cm(box.max.y - box.min.y),
+  cm(box.max.z - box.min.z),
+];
+const centerOf = (box: BoxMm): Vec3 => [
+  cm((box.min.x + box.max.x) / 2),
+  cm((box.min.y + box.max.y) / 2),
+  cm((box.min.z + box.max.z) / 2),
+];
 
 const cm = (mm: number) => mm / MM_PER_CM;
 

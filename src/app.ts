@@ -21,6 +21,9 @@ import {
   partChange,
   partField,
   partInspectorHTML,
+  plateChange,
+  platePanelHTML,
+  type PartField,
   type TouchingPart,
 } from './cockpit-editor-view.ts';
 import {
@@ -38,10 +41,13 @@ import {
   operationMaking,
   removePart,
   replayDesign,
+  type AddPlate,
   type GrowProfile,
+  type MakingOperation,
   type Operation,
   type ProfileValues,
 } from './cad/history.ts';
+import { draftPlate, editPlate, editPlateDraft, plateAt } from './cad/plates.ts';
 import type { PartHit } from './cad/picking.ts';
 import { measureBetween, nextMeasurePicks, pickInCockpit } from './cad/measure.ts';
 import { measureReadout } from './measure-view.ts';
@@ -331,7 +337,7 @@ let library: LayoutLibrary = newProject.library,
   /** The edits made to the cockpit design since the project was opened, to undo and redo. */
   designEdits: Edits<CockpitDesign | null> = noEdits(),
   /** A part about to be added to the selected one, shown as a preview until it is added. */
-  draftPart: GrowProfile | null = null,
+  draftPart: GrowProfile | AddPlate | null = null,
   /**
    * The points clicked so far with the measure tool, or null when it is off. Measurements belong
    * to the session and are never saved.
@@ -658,8 +664,8 @@ function selectOperation(operationId: string | null) {
   refresh();
 }
 /**
- * A click in the view selects the step that made a part, or, while a profile grows, picks the
- * face it grows from.
+ * A click in the view selects the step that made a part, or, while a part is about to be added,
+ * picks the face of its parent it goes on.
  */
 function pickInView(hit: PartHit | null) {
   if (measurePicks !== null) {
@@ -674,9 +680,14 @@ function pickInView(hit: PartHit | null) {
   }
   if (hit === null || hit.partId !== draftPart.parentId) return;
   const at = markerIndex();
-  changeDraft((history) => growthAt(history, draftOrFail(), hit.face, hit.pointMm, at));
+  changeDraft((history) => {
+    const current = draftOrFail();
+    return current.kind === 'grow-profile'
+      ? growthAt(history, current, hit.face, hit.pointMm, at)
+      : plateAt(history, current, hit.face, hit.pointMm, at);
+  });
 }
-const draftOrFail = (): GrowProfile => {
+const draftOrFail = (): GrowProfile | AddPlate => {
   if (draftPart === null) throw new Error('No part is being added');
   return draftPart;
 };
@@ -688,8 +699,16 @@ function startGrowth() {
   draftPart = draftGrowth(designHistory(), partId, markerIndex());
   refresh();
 }
+/** Starts a plate resting on the selected profile, shown as a preview until it is added. */
+function startPlate() {
+  const partId = selectedPartId();
+  if (partId === null) return;
+  measurePicks = null;
+  draftPart = draftPlate(designHistory(), partId, markerIndex());
+  refresh();
+}
 /** Changes the part about to be added; values it cannot have, or a place off its face, are explained. */
-function changeDraft(next: (history: readonly Operation[]) => GrowProfile) {
+function changeDraft(next: (history: readonly Operation[]) => GrowProfile | AddPlate) {
   const history = designHistory();
   try {
     const changed = next(history);
@@ -770,29 +789,61 @@ function renderCockpitChecks() {
     partsToBuyHTML(partsToBuy(design.resolved, design.connectors, design.joints)),
   );
 }
+/** The inspector's title: the step selected, or the kind of part about to be added. */
+const DRAFT_TITLES: Record<'none' | (GrowProfile | AddPlate)['kind'], string> = {
+  none: 'Selected step',
+  'grow-profile': 'New profile',
+  'add-plate': 'New plate',
+};
+/** The part about to be added, with the value of one field of its panel changed. */
+function editedDraft(
+  history: readonly Operation[],
+  drafting: GrowProfile | AddPlate,
+  field: PartField,
+  value: string,
+): GrowProfile | AddPlate {
+  return drafting.kind === 'grow-profile'
+    ? editDraft(history, drafting, partChange(drafting, field, value))
+    : editPlateDraft(history, drafting, plateChange(field, value));
+}
+/** Changes one value of the step that made the selected part, each kind of part its own way. */
+function editPartField(operation: MakingOperation, field: PartField, value: string) {
+  if (operation.kind === 'add-foot')
+    changeHistory((history) => editFoot(history, operation.partId, footChange(field, value)));
+  else if (operation.kind === 'add-plate')
+    changeHistory((history) => editPlate(history, operation.partId, plateChange(field, value)));
+  else editSelectedPart(partChange(operation, field, value));
+}
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
   const history = designHistory();
   const operation = selectedOperation();
-  const growing = draftPart;
-  $('#partInspectorTitle').textContent = growing ? 'New profile' : 'Selected step';
+  const drafting = draftPart;
+  $('#partInspectorTitle').textContent = DRAFT_TITLES[drafting?.kind ?? 'none'];
   const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
-  const html = growing
-    ? growPanelHTML(history, growing)
-    : partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected());
+  const html =
+    drafting === null
+      ? partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected())
+      : drafting.kind === 'grow-profile'
+        ? growPanelHTML(history, drafting)
+        : platePanelHTML(history, drafting);
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
   const fields = body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-part-field]');
-  if (growing) {
+  if (drafting) {
     fields.forEach((el) => {
       const field = partField(el.dataset.partField);
       el.addEventListener('change', () =>
-        changeDraft((current) => editDraft(current, growing, partChange(growing, field, el.value))),
+        changeDraft((current) => editedDraft(current, drafting, field, el.value)),
       );
     });
-    $('#confirmGrowth').addEventListener('click', confirmDraft);
-    $('#cancelGrowth').addEventListener('click', cancelDraft);
+    const [confirm, cancel] =
+      drafting.kind === 'grow-profile'
+        ? ['#confirmGrowth', '#cancelGrowth']
+        : ['#confirmPlate', '#cancelPlate'];
+    $(confirm).addEventListener('click', confirmDraft);
+    $(cancel).addEventListener('click', cancelDraft);
     return;
   }
   if (!operation) return;
@@ -800,15 +851,10 @@ function renderPartInspector({ force = false } = {}) {
   if (!makesAPart(operation)) return;
   fields.forEach((el) => {
     const field = partField(el.dataset.partField);
-    el.addEventListener('change', () =>
-      operation.kind === 'add-foot'
-        ? changeHistory((history) =>
-            editFoot(history, operation.partId, footChange(field, el.value)),
-          )
-        : editSelectedPart(partChange(operation, field, el.value)),
-    );
+    el.addEventListener('change', () => editPartField(operation, field, el.value));
   });
   $optional('#growProfile')?.addEventListener('click', startGrowth);
+  $optional('#putPlate')?.addEventListener('click', startPlate);
   $optional('#addFoot')?.addEventListener('click', addFootUnderSelected);
   body.querySelectorAll<HTMLElement>('[data-joint][data-side]').forEach((button) =>
     button.addEventListener('click', () => {

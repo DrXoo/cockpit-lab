@@ -60,6 +60,7 @@ function readOperation(data: unknown): Operation {
   if (data.kind === 'grow-profile') return checkedOperation(readGrowth(data));
   if (data.kind === 'remove-part') return checkedOperation(readRemoval(data));
   if (data.kind === 'add-foot') return checkedOperation(readFoot(data));
+  if (data.kind === 'add-plate') return checkedOperation(readPlate(data));
   if (data.kind === 'fasten-joint') return checkedOperation(readFastening(data));
   if (data.kind === 'join-parts') return checkedOperation(readJoin(data));
   throw new Error('Unknown operation in the design history');
@@ -157,6 +158,40 @@ function readFoot(data: Record<string, unknown>): Operation {
     parentId: identifier(data.parentId),
     fromEnd: parentEnd(data.fromEnd),
     alongMm: millimetres(data.alongMm, 'distance along a part'),
+  };
+}
+
+function readPlate(data: Record<string, unknown>): Operation {
+  onlyKeys(data, [
+    'kind',
+    'id',
+    'partId',
+    'name',
+    'sheetId',
+    'widthMm',
+    'depthMm',
+    'depthAxis',
+    'parentId',
+    'face',
+    'fromEnd',
+    'alongMm',
+    'acrossMm',
+  ]);
+  if (typeof data.name !== 'string') throw new Error('A part name must be text');
+  return {
+    kind: 'add-plate',
+    id: identifier(data.id),
+    partId: identifier(data.partId),
+    name: cleanUserText(data.name, 'Plate', MAX_PART_NAME_LENGTH),
+    sheetId: text(data.sheetId, 'sheet'),
+    widthMm: millimetres(data.widthMm, 'plate width'),
+    depthMm: millimetres(data.depthMm, 'plate depth'),
+    depthAxis: axis(data.depthAxis),
+    parentId: identifier(data.parentId),
+    face: face(data.face),
+    fromEnd: parentEnd(data.fromEnd),
+    alongMm: millimetres(data.alongMm, 'distance along a part'),
+    acrossMm: millimetres(data.acrossMm, 'offset across a face'),
   };
 }
 

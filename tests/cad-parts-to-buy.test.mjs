@@ -81,3 +81,47 @@ test('a connector on a joint that does not exist is an error', () => {
   const orphan = { ...bracket('a', '-z'), jointId: 'rear@nowhere' };
   assert.throws(() => partsToBuy(resolved, [orphan]), /rear@nowhere/);
 });
+
+const plate = (id, widthMm, depthMm, sheetId) => ({
+  kind: 'plate',
+  id,
+  name: id,
+  widthMm,
+  depthMm,
+  sheetId,
+  normal: '+y',
+  depthAxis: 'z',
+  ownHoles: [],
+  placement: {
+    kind: 'attachment',
+    parentId: 'left-rail',
+    face: '+y',
+    alongMm: 600,
+    fromEnd: 'start',
+  },
+});
+
+test('plates are counted by size and sheet, either way round, with the names of their parts', () => {
+  const withPlates = resolveAssembly([
+    rail('left-rail', -280),
+    plate('Wheel plate', 300, 250, 'aluminium-8'),
+    plate('Shifter plate', 300, 250, 'aluminium-5'),
+    plate('Pedal plate', 250, 300, 'aluminium-8'),
+  ]);
+  assert.deepEqual(partsToBuy(withPlates, []).plates, [
+    {
+      sheetId: 'aluminium-8',
+      longSideMm: 300,
+      shortSideMm: 250,
+      quantity: 2,
+      names: ['Wheel plate', 'Pedal plate'],
+    },
+    {
+      sheetId: 'aluminium-5',
+      longSideMm: 300,
+      shortSideMm: 250,
+      quantity: 1,
+      names: ['Shifter plate'],
+    },
+  ]);
+});

@@ -459,3 +459,53 @@ test('a measurement starts again when the design changes', async ({ page }) => {
   await page.locator('#part-lengthMm').press('Enter');
   await expect(page.locator('#measureReadout')).toContainText(/Click a point on a part/);
 });
+
+test('a plate rests on the selected profile, previewed until it is added', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('[data-view="side"]').click();
+  await page.locator('#putPlate').click();
+  await expect(page.locator('#platePanel')).toBeVisible();
+  await expect(page.locator('#plate-face')).toHaveValue('+y');
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('#plate-face')).toHaveValue('-x');
+  await page.locator('#plate-widthMm').fill('200');
+  await page.locator('#plate-widthMm').press('Enter');
+  await expect(page.locator('#plate-widthMm')).toHaveValue('200');
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  await page.locator('#confirmPlate').click();
+  await expect(page.locator('#platePanel')).toBeHidden();
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({
+      kind: 'add-plate',
+      parentId: 'part-1',
+      face: '-x',
+      widthMm: 200,
+      depthMm: 300,
+      sheetId: 'aluminium-8',
+    });
+  await expect(page.locator('#part-sheetId')).toHaveValue('aluminium-8');
+  await expect(page.locator('#growProfile')).toHaveCount(0);
+  await expect(page.locator('#partsToBuy [data-buy="plate"]')).toHaveCount(1);
+});
+
+test('a plate is selected in the view and edited, but never moved off its face', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#putPlate').click();
+  await page.locator('#confirmPlate').click();
+  await page.locator('[data-operation="op-1"]').click();
+  await page.locator('[data-view="top"]').click();
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#part-acrossMm').fill('400');
+  await page.locator('#part-acrossMm').press('Enter');
+  await expect(page.locator('#toast')).toContainText(/would not rest on/);
+  await expect(page.locator('#part-acrossMm')).toHaveValue('0');
+  await page.locator('#part-sheetId').selectOption('aluminium-4');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'add-plate', sheetId: 'aluminium-4', acrossMm: 0 });
+});

@@ -9,7 +9,14 @@ const cut = (sectionId, lengthMm, names) => ({
   quantity: names.length,
   names,
 });
-const nothing = { cuts: [], connectors: [], fasteners: [], feet: [], pendingJoints: [] };
+const nothing = {
+  cuts: [],
+  plates: [],
+  connectors: [],
+  fasteners: [],
+  feet: [],
+  pendingJoints: [],
+};
 const textOf = (html) =>
   html
     .replace(/<[^>]+>/g, ' ')
@@ -57,4 +64,24 @@ test('pending joints are a warning that the list is not complete yet', () => {
 test('names are escaped, as the user typed them', () => {
   const html = partsToBuyHTML({ ...nothing, cuts: [cut('40x40', 500, ['<b>A</b>'])] });
   assert.match(html, /&lt;b&gt;A&lt;\/b&gt;/);
+});
+
+test('plates are listed by size and sheet, with their parts, and the sheet is estimated', () => {
+  const html = partsToBuyHTML({
+    ...nothing,
+    plates: [
+      {
+        sheetId: 'aluminium-8',
+        longSideMm: 300,
+        shortSideMm: 250,
+        quantity: 2,
+        names: ['Wheel plate', 'Pedal plate'],
+      },
+    ],
+  });
+  assert.match(
+    textOf(html),
+    /Plates 2 × 300 × 250 mm plate, Aluminium sheet, 8 mm Wheel plate, Pedal plate · Estimated sheet: check the supplier/,
+  );
+  assert.equal(html.match(/data-buy="plate"/g)?.length, 1);
 });

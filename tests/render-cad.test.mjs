@@ -135,6 +135,37 @@ test('a part about to be added is drawn as a preview', () => {
   );
 });
 
+const plateOn = (parentId) => ({
+  kind: 'plate',
+  id: 'plate',
+  name: 'Plate',
+  widthMm: 300,
+  depthMm: 250,
+  sheetId: 'aluminium-8',
+  normal: '+y',
+  depthAxis: 'z',
+  ownHoles: [],
+  placement: { kind: 'attachment', parentId, face: '+y', alongMm: 600, fromEnd: 'start' },
+});
+
+test('a plate is drawn as an outlined slab at its box, without grooves', () => {
+  const primitives = draw([profile('rail'), plateOn('rail')]);
+  const slab = bars(primitives)[1];
+  assert.deepEqual(slab.position, [-28, 14.4, 60]);
+  assert.deepEqual(slab.size, [30, 0.8, 25]);
+  assert.equal(slab.material, 'silver');
+  assert.equal(slab.edges, true);
+  assert.equal(groovesOf(primitives, slab).length, 0);
+});
+
+test('a selected plate, or one about to be added, is drawn as such', () => {
+  assert.equal(bars(draw([profile('rail'), plateOn('rail')], 'plate'))[1].material, 'selected');
+  assert.equal(
+    bars(draw([profile('rail'), plateOn('rail')], null, 'plate'))[1].material,
+    'preview',
+  );
+});
+
 test('a corner bracket is drawn as an L: a plate against the part, one on the face it meets', () => {
   const r = createRenderList();
   drawConnectors(r, ROOT, [

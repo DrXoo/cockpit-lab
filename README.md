@@ -73,7 +73,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |
 | `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the desk panel of the room editor |
 | `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/undo.ts` | The cockpit design as its design history and how files store it, the cockpit editor's history panel and inspector, and undo and redo of its edits |
-| `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
+| `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
 | `src/render-cad-dimensions.ts`, `src/render-measurement.ts`, `src/measure-view.ts` | The length of the selected part, and the measure tool's drawing and readout |
 | `src/project-summary.ts`, `src/inspector-view.ts`, `src/check-view.ts`, `src/html.ts` | Summary, validation banner, metrics and checks |
 | `src/model.ts` | Public entry point of the room model |

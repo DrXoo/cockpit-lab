@@ -1,5 +1,5 @@
-// The parts to buy for the cockpit design, as the inspector lists them: the cuts with the names
-// of their parts, the connectors with the fasteners they need, and the feet. Items whose catalog
+// The parts to buy for the cockpit design, as the inspector lists them: the cuts of profile and
+// plate with the names of their parts, the connectors with the fasteners they need, and the feet. Items whose catalog
 // values are estimated say so, and joints without connectors warn that the list is not complete.
 import {
   connectorType,
@@ -7,13 +7,14 @@ import {
   footType,
   profileSection,
   profileSystem,
+  sheetType,
 } from './cad/catalog.ts';
 import type { DataSource } from './cad/catalog.ts';
 import type { PartsToBuy } from './cad/parts-to-buy.ts';
 import { escapeHTML } from './html.ts';
 
 interface BuyLine {
-  kind: 'cut' | 'connector' | 'fastener' | 'foot';
+  kind: 'cut' | 'plate' | 'connector' | 'fastener' | 'foot';
   quantity: number;
   name: string;
   /** Under the name: the parts of a cut, or why the item is to be checked. */
@@ -29,6 +30,7 @@ export function partsToBuyHTML(parts: PartsToBuy): string {
   );
   const groups: [string, BuyLine[]][] = [
     ['Profiles', parts.cuts.map(cutLine)],
+    ['Plates', parts.plates.map(plateLine)],
     [
       'Connectors',
       parts.connectors.map(({ typeId, name, quantity }) => ({
@@ -76,6 +78,17 @@ function cutLine(cut: PartsToBuy['cuts'][number]): BuyLine {
     quantity: cut.quantity,
     name: `${section.widthMm} × ${section.heightMm} profile, ${cut.lengthMm} mm`,
     note: cut.names.join(', '),
+  };
+}
+
+function plateLine(cut: PartsToBuy['plates'][number]): BuyLine {
+  const sheet = sheetType(cut.sheetId);
+  const names = cut.names.join(', ');
+  return {
+    kind: 'plate',
+    quantity: cut.quantity,
+    name: `${cut.longSideMm} × ${cut.shortSideMm} mm plate, ${sheet.name}`,
+    note: estimated(sheet.source) ? `${names} · Estimated sheet: check the supplier` : names,
   };
 }
 
