@@ -270,7 +270,9 @@ const plate = (placement) => ({
   name: 'Pedal plate',
   widthMm: 400,
   depthMm: 300,
-  thicknessMm: 5,
+  sheetId: 'aluminium-5',
+  normal: placement.face ?? '+y',
+  depthAxis: 'z',
   ownHoles: [],
   placement,
 });
@@ -344,8 +346,8 @@ test('a peripheral on a tilted plate leans with it', () => {
   );
 });
 
-test('plates and peripherals sit only on top of a face, and nothing hangs from a peripheral', () => {
-  const sideways = plate({ ...onTop('left-rail'), face: '+x' });
+test('peripherals sit only on top of a face, and nothing hangs from a peripheral', () => {
+  const sideways = pedals({ ...onTop('left-rail'), face: '+x' });
   assert.throws(() => resolveAssembly([...frame(), sideways]), /on top/);
   const anchored = plate({ kind: 'anchor', startMm: { x: 0, y: 200, z: 0 } });
   const onPedals = { ...pedals(onTop('pedals')), id: 'more' };
@@ -353,6 +355,42 @@ test('plates and peripherals sit only on top of a face, and nothing hangs from a
     () => resolveAssembly([anchored, pedals(onTop('plate', 150)), onPedals]),
     /hang from peripheral/,
   );
+});
+
+test('a plate rests on a side of a profile, its thickness standing out of the face', () => {
+  const onTheSide = plate({ ...onTop('left-rail', 500), face: '+x' });
+  assert.deepEqual(boxOf([...frame(), onTheSide], 'plate'), {
+    min: { x: -260, y: -100, z: 350 },
+    max: { x: -255, y: 300, z: 650 },
+  });
+  const upright = { ...onTheSide, depthAxis: 'y' };
+  assert.deepEqual(boxOf([...frame(), upright], 'plate'), {
+    min: { x: -260, y: -50, z: 300 },
+    max: { x: -255, y: 250, z: 700 },
+  });
+  const underneath = plate({ ...onTop('left-rail', 500, 30), face: '-y' });
+  assert.deepEqual(boxOf([...frame(), underneath], 'plate'), {
+    min: { x: -450, y: 55, z: 350 },
+    max: { x: -50, y: 60, z: 650 },
+  });
+});
+
+test('a plate rests on a side of a profile, the way it faces, never on its end', () => {
+  const onTheEnd = { ...plate({ ...onTop('left-rail'), face: '+z' }), depthAxis: 'y' };
+  assert.throws(() => resolveAssembly([...frame(), onTheEnd]), /end/);
+  const facingAway = { ...plate({ ...onTop('left-rail'), face: '+x' }), normal: '+y' };
+  assert.throws(() => resolveAssembly([...frame(), facingAway]), /face/);
+  const depthOutOfTheFace = { ...plate(onTop('left-rail')), depthAxis: 'y' };
+  assert.throws(() => resolveAssembly([...frame(), depthOutOfTheFace]), /depth/);
+});
+
+test('a plate that hung from a removed profile is anchored where it is, facing the same way', () => {
+  const onTheSide = { ...plate({ ...onTop('left-rail', 500), face: '-x' }), depthAxis: 'y' };
+  const where = resolveAssembly([...frame(), onTheSide]).get('plate');
+  const anchor = anchorWhereItIs(where);
+  assert.deepEqual(anchor, { kind: 'anchor', startMm: { x: -300, y: 100, z: 500 } });
+  const anchored = { ...where.part, placement: anchor };
+  assert.deepEqual(resolveAssembly([anchored]).get('plate').box, where.box);
 });
 
 test('a point of a standing part is measured from its mounting origin, turned with it', () => {

@@ -8,6 +8,8 @@ import {
   footType,
   profileSection,
   profileSystem,
+  sheetType,
+  sheetTypes,
 } from '../src/cad/catalog.ts';
 
 test('the first profile system is Motedis series 40, I-type, slot 8', () => {
@@ -61,4 +63,15 @@ test('feet come as leveling feet or locking casters, sized from the parametric d
   assert.deepEqual([caster.heightMm, caster.widthMm, caster.depthMm], [60, 40, 66]);
   for (const type of [leveling, caster]) assert.equal(type.source.kind, 'estimated');
   assert.throws(() => footType('wheel'), /wheel/);
+});
+
+test('plates are cut from aluminium sheet of the stocked thicknesses, estimated until verified', () => {
+  assert.deepEqual(
+    sheetTypes().map((sheet) => sheet.thicknessMm),
+    [3, 4, 5, 6, 8, 10],
+  );
+  const sheet = sheetType('aluminium-8');
+  assert.equal(sheet.name, 'Aluminium sheet, 8 mm');
+  assert.equal(sheet.source.kind, 'estimated');
+  assert.throws(() => sheetType('steel-8'), /not in the catalog/);
 });

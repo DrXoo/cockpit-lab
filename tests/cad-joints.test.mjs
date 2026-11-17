@@ -90,7 +90,9 @@ const plateOn = (parentId) => ({
   name: 'Plate',
   widthMm: 200,
   depthMm: 150,
-  thicknessMm: 5,
+  sheetId: 'aluminium-5',
+  normal: '+y',
+  depthAxis: 'z',
   ownHoles: [],
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 200, fromEnd: 'start' },
 });

@@ -47,7 +47,12 @@ test('in a design, a plate gets the holes of the peripherals mounted on it', () 
     kind: 'plate',
     id: 'plate',
     name: 'Reference plate',
-    ...referencePlate,
+    widthMm: referencePlate.widthMm,
+    depthMm: referencePlate.depthMm,
+    sheetId: 'aluminium-5',
+    normal: '+y',
+    depthAxis: 'z',
+    ownHoles: [],
     placement: { kind: 'anchor', startMm: { x: 300, y: 200, z: 500 } },
   };
   const mountedAt = (alongMm, acrossMm) => ({

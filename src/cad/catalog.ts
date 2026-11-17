@@ -137,6 +137,36 @@ const FOOT_TYPES: readonly FootType[] = [
   },
 ];
 
+/** A sheet that plates are cut from. */
+export interface SheetType {
+  id: string;
+  name: string;
+  thicknessMm: number;
+  source: DataSource;
+}
+
+/** The thicknesses agreed for the first catalog; no supplier has been chosen yet. */
+const STOCKED_ALUMINIUM_MM = [3, 4, 5, 6, 8, 10] as const;
+
+const SHEET_TYPES: readonly SheetType[] = STOCKED_ALUMINIUM_MM.map((thicknessMm) => ({
+  id: `aluminium-${thicknessMm}`,
+  name: `Aluminium sheet, ${thicknessMm} mm`,
+  thicknessMm,
+  source: {
+    kind: 'estimated',
+    reference: 'Common stocked thicknesses of aluminium sheet; check the chosen supplier',
+  },
+}));
+
+/** Every sheet in the catalog, thinnest first, to choose from. */
+export const sheetTypes = (): readonly SheetType[] => SHEET_TYPES;
+
+export function sheetType(id: string): SheetType {
+  const type = SHEET_TYPES.find((candidate) => candidate.id === id);
+  if (!type) throw new Error(`Sheet ${id} is not in the catalog.`);
+  return type;
+}
+
 export interface FastenerType {
   id: string;
   name: string;

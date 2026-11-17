@@ -6,7 +6,7 @@
 // An anchored part may be locked at a tilt about X, as the pedal deck is. Its box, and the
 // boxes of everything hanging from it, are then axis-aligned in the cockpit coordinates
 // turned by that tilt, so parts at the same tilt still compare as plain boxes.
-import { footType, profileSection, profileSystem, type DataSource } from './catalog.ts';
+import { footType, profileSection, profileSystem, sheetType, type DataSource } from './catalog.ts';
 import type { Hole, MountingPattern } from './plate.ts';
 
 export type Axis = 'x' | 'y' | 'z';
@@ -28,7 +28,8 @@ export interface Anchor {
   kind: 'anchor';
   /**
    * For a profile, the center of its section at its start, the end with the lower coordinate;
-   * for a plate, the center of its underside; for a peripheral, its mounting origin.
+   * for a plate, the center of its underside, the face it rests on; for a peripheral, its
+   * mounting origin.
    */
   startMm: Vec3Mm;
   /** A positive tilt raises the part's front (+Z) end. */
@@ -82,14 +83,21 @@ export interface FootPart {
   placement: Attachment;
 }
 
-/** A flat piece cut from sheet, lying in its frame: thickness along Y, depth along Z. */
+/**
+ * A flat piece cut from sheet. It rests on its underside, on a side face of the profile it hangs
+ * from, and its thickness stands out of that face; its width runs along the third axis.
+ */
 export interface PlatePart {
   kind: 'plate';
   id: string;
   name: string;
   widthMm: number;
   depthMm: number;
-  thicknessMm: number;
+  sheetId: string;
+  /** The way its thickness stands out of its underside: '+y' for a plate lying flat on top. */
+  normal: Face;
+  /** The axis its depth runs along, never its normal's. */
+  depthAxis: Axis;
   ownHoles: readonly Hole[];
   placement: Anchor | Attachment;
 }
@@ -192,11 +200,7 @@ function resolvePart(
     case 'foot':
       return resolveFoot(part, dependency);
     case 'plate':
-      return resolveStanding(part, dependency, {
-        widthMm: part.widthMm,
-        heightMm: part.thicknessMm,
-        depthMm: part.depthMm,
-      });
+      return resolvePlate(part, dependency);
     case 'peripheral':
       return resolveStanding(part, dependency, part.envelope);
   }
@@ -218,12 +222,8 @@ const boxOn = (originMm: Vec3Mm, size: Size): BoxMm => ({
   },
 });
 
-/** A plate or peripheral, anchored or sitting on top of a face. */
-function resolveStanding(
-  part: PlatePart | PeripheralPart,
-  dependency: Dependency,
-  size: Size,
-): ResolvedPart {
+/** A peripheral, anchored or sitting on top of a face. */
+function resolveStanding(part: PeripheralPart, dependency: Dependency, size: Size): ResolvedPart {
   const placement = part.placement;
   const resolvedAs = (tiltDeg: number, originMm: Vec3Mm): ResolvedPart => ({
     part,
@@ -240,6 +240,47 @@ function resolveStanding(
     throw new Error(`${part.name} must sit on top of a face, not on face ${placement.face}.`);
   const parent = dependency(placement.parentId);
   return resolvedAs(parent.tiltDeg, attachmentPoint(parent, placement));
+}
+
+/** A plate, anchored where its underside is, or resting on a side face of a profile. */
+function resolvePlate(plate: PlatePart, dependency: Dependency): ResolvedPart {
+  const normal = faceAxis(plate.normal);
+  if (plate.depthAxis === normal)
+    throw new Error(`The depth of ${plate.name} cannot run out of the face it rests on.`);
+  const { placement } = plate;
+  const resolvedAs = (tiltDeg: number, undersideMm: Vec3Mm): ResolvedPart => {
+    const thicknessMm = sheetType(plate.sheetId).thicknessMm;
+    return {
+      part: plate,
+      tiltDeg,
+      box: plateBox(plate, undersideMm, thicknessMm),
+      lengthMm: thicknessMm,
+      openEnd: false,
+    };
+  };
+  if (placement.kind === 'anchor') {
+    const tiltDeg = placement.tiltDeg ?? 0;
+    return resolvedAs(tiltDeg, intoTiltedFrame(placement.startMm, tiltDeg));
+  }
+  if (placement.face !== plate.normal)
+    throw new Error(`${plate.name} must face the way the face it rests on does.`);
+  const parent = dependency(placement.parentId);
+  if (parent.part.kind !== 'profile' || parent.part.axis === normal)
+    throw new Error(`${plate.name} must rest on a side of a profile, not on its end.`);
+  return resolvedAs(parent.tiltDeg, attachmentPoint(parent, placement));
+}
+
+/** The box of a plate whose underside is centered on `undersideMm`. */
+function plateBox(plate: PlatePart, undersideMm: Vec3Mm, thicknessMm: number): BoxMm {
+  const normal = faceAxis(plate.normal);
+  const half: Vec3Mm = { x: plate.widthMm / 2, y: plate.widthMm / 2, z: plate.widthMm / 2 };
+  half[plate.depthAxis] = plate.depthMm / 2;
+  half[normal] = 0;
+  const min = { x: undersideMm.x - half.x, y: undersideMm.y - half.y, z: undersideMm.z - half.z };
+  const max = { x: undersideMm.x + half.x, y: undersideMm.y + half.y, z: undersideMm.z + half.z };
+  if (faceSign(plate.normal) > 0) max[normal] += thicknessMm;
+  else min[normal] -= thicknessMm;
+  return { min, max };
 }
 
 function resolveFoot(foot: FootPart, dependency: Dependency): ResolvedPart {
@@ -314,14 +355,17 @@ function resolveLying(
 }
 
 /**
- * The anchor that keeps a resolved profile where it is, at the tilt of its frame: how a part
- * that hung from a removed one stays in place.
+ * The anchor that keeps a resolved profile or plate where it is, at the tilt of its frame: how a
+ * part that hung from a removed one stays in place.
  */
 export function anchorWhereItIs(resolved: ResolvedPart): Anchor {
   const { part, box, tiltDeg } = resolved;
-  if (part.kind !== 'profile') throw new Error(`Only a profile can be anchored where it is.`);
   const startInFrame = center(box);
-  startInFrame[part.axis] = box.min[part.axis];
+  if (part.kind === 'profile') startInFrame[part.axis] = box.min[part.axis];
+  else if (part.kind === 'plate') {
+    const normal = faceAxis(part.normal);
+    startInFrame[normal] = faceSign(part.normal) > 0 ? box.min[normal] : box.max[normal];
+  } else throw new Error(`Only a profile or a plate can be anchored where it is.`);
   const startMm = outOfTiltedFrame(startInFrame, tiltDeg);
   return tiltDeg === 0 ? { kind: 'anchor', startMm } : { kind: 'anchor', startMm, tiltDeg };
 }
@@ -413,7 +457,7 @@ function attachmentPoint(parent: ResolvedPart, attachment: Attachment | Span): V
 /** The axis an attachment's distance runs along: a profile's length, or a plate's depth. */
 function alongAxisOf(part: Part): Axis {
   if (part.kind === 'profile') return part.axis;
-  if (part.kind === 'plate') return 'z';
+  if (part.kind === 'plate') return part.depthAxis;
   throw new Error(`Nothing can hang from ${part.kind} ${part.id}.`);
 }
 
