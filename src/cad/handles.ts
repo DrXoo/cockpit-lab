@@ -1,14 +1,16 @@
-// The handles that change a profile by dragging in the view (docs/cockpit-editor-interactions.md):
-// where they are, and the values of its operation that a drag gives. A drag moves one end of the
-// profile along its length, or both ends with Shift on an anchored profile; the length lands on
-// steps of 10 mm unless the drag is free. Lengths are in mm, positions in cockpit coordinates.
+// The handles that change a part by dragging in the view (docs/cockpit-editor-interactions.md):
+// where they are, and the history a drag gives. Every handle changes the values of the operation
+// that made its part along one direction, as the inspector would. Lengths are in mm, positions
+// in cockpit coordinates.
 import { tiltedFromPivot, type Axis, type Vec3Mm } from './assembly.ts';
 import {
+  editProfile,
   makesAProfile,
   MAX_PROFILE_LENGTH_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   replayDesign,
+  type MakingOperation,
   type Operation,
   type ParentEnd,
   type ProfileOperation,
@@ -18,6 +20,7 @@ import type { RayMm } from './picking.ts';
 
 /** A handle at an end of a profile, dragged along its length. */
 export interface EndHandle {
+  kind: 'end';
   /** The part and the end, as `part-1:end`. */
   id: string;
   partId: string;
@@ -28,15 +31,17 @@ export interface EndHandle {
   outwardMm: Vec3Mm;
 }
 
-/** How a drag resizes a profile: how far the dragged end moves out, each end if symmetric. */
-export interface Resize {
-  end: ParentEnd;
-  symmetric: boolean;
+/** A control on the selected part, dragged along `outwardMm` from `pointMm`. */
+export type Handle = EndHandle;
+
+/** How far a handle was dragged out along its direction, and whether Shift made it symmetric. */
+export interface Drag {
   changeMm: number;
+  symmetric: boolean;
 }
 
 /** What the box beside a dragged handle shows: the change of one end, or the whole length. */
-export interface ResizeReadout {
+export interface DragReadout {
   kind: 'change' | 'length';
   valueMm: number;
 }
@@ -47,16 +52,21 @@ const LENGTH_STEP_MM = 10;
 const FREE_STEP_MM = 1;
 const ORIGIN: Vec3Mm = { x: 0, y: 0, z: 0 };
 
+/** The handles of a part at step `at`. */
+export function partHandles(
+  history: readonly Operation[],
+  partId: string,
+  at: number = history.length,
+): Handle[] {
+  return endHandles(history, partId, at);
+}
+
 /**
  * The end handles of a part at step `at`: both ends of an anchored profile, only the free end
  * of one grown out of a face, and none for a span, whose length is the gap it meets, or for a
  * part that is not a profile.
  */
-export function endHandles(
-  history: readonly Operation[],
-  partId: string,
-  at: number = history.length,
-): EndHandle[] {
+function endHandles(history: readonly Operation[], partId: string, at: number): EndHandle[] {
   const operation = operationMaking(history, partId);
   const resolved = replayDesign(history, at).resolved.get(partId);
   if (!operation || !makesAProfile(operation) || resolved?.part.kind !== 'profile') return [];
@@ -72,6 +82,7 @@ export function endHandles(
     const outwardInFrame = { x: 0, y: 0, z: 0 };
     outwardInFrame[axis] = end === 'start' ? -1 : 1;
     return {
+      kind: 'end',
       id: `${partId}:${end}`,
       partId,
       end,
@@ -89,64 +100,96 @@ function freeEnds(operation: ProfileOperation): ParentEnd[] {
   return [toward[0] === '+' ? 'end' : 'start'];
 }
 
-/** Only an anchored profile resizes symmetrically: the other holds one end on its parent. */
-const asItCan = (operation: ProfileOperation, resize: Resize): Resize => ({
-  ...resize,
-  symmetric: resize.symmetric && operation.kind === 'add-anchored-profile',
-});
-const endsMoved = (resize: Resize) => (resize.symmetric ? 2 : 1);
-
-/** The values of the profile's operation once resized: its length, and its start if it moved. */
-export function resizedValues(
-  operation: ProfileOperation,
-  requested: Resize,
-): Partial<ProfileValues> {
-  const resize = asItCan(operation, requested);
-  const lengthMm = operation.lengthMm + endsMoved(resize) * resize.changeMm;
-  const startMoves = resize.symmetric || resize.end === 'start';
-  if (operation.kind !== 'add-anchored-profile' || !startMoves) return { lengthMm };
-  const startMm = { ...operation.startMm };
-  startMm[operation.axis] -= resize.changeMm;
-  return { lengthMm, startMm };
+/**
+ * The history once the handle is dragged: the values of its part's operation changed as the
+ * inspector would change them. Throws, as the inspector's edit does, when the operation cannot
+ * take them.
+ */
+export function draggedHistory(
+  history: readonly Operation[],
+  handle: Handle,
+  drag: Drag,
+): Operation[] {
+  const operation = profileMaking(history, handle);
+  return editProfile(history, handle.partId, resizedValues(operation, handle, drag));
 }
 
 /**
- * The resize a drag lands on: a length in steps of 10 mm, or of 1 mm when free, within the
+ * The drag a pointer lands on: a length in steps of 10 mm, or of 1 mm when free, within the
  * lengths a profile can have.
  */
-export function snappedResize(
-  operation: ProfileOperation,
-  requested: Resize,
+export function snappedDrag(
+  history: readonly Operation[],
+  handle: Handle,
+  requested: Drag,
   free: boolean,
-): Resize {
-  const resize = asItCan(operation, requested);
-  const ends = endsMoved(resize);
+): Drag {
+  const operation = profileMaking(history, handle);
+  const drag = asItCan(operation, requested);
+  const ends = endsMoved(drag);
   const step = free ? FREE_STEP_MM : LENGTH_STEP_MM;
-  const draggedLengthMm = operation.lengthMm + ends * resize.changeMm;
+  const draggedLengthMm = operation.lengthMm + ends * drag.changeMm;
   const lengthMm = Math.min(
     Math.max(Math.round(draggedLengthMm / step) * step, MIN_PROFILE_LENGTH_MM),
     MAX_PROFILE_LENGTH_MM,
   );
-  return { ...resize, changeMm: (lengthMm - operation.lengthMm) / ends };
+  return { ...drag, changeMm: (lengthMm - operation.lengthMm) / ends };
 }
 
-/** What the box shows for a resize: the change of the dragged end, or the whole length. */
-export function resizeReadout(operation: ProfileOperation, requested: Resize): ResizeReadout {
-  const resize = asItCan(operation, requested);
-  return resize.symmetric
-    ? { kind: 'length', valueMm: operation.lengthMm + 2 * resize.changeMm }
-    : { kind: 'change', valueMm: resize.changeMm };
+/** What the box shows for a drag: the change of the dragged end, or the whole length. */
+export function dragReadout(
+  history: readonly Operation[],
+  handle: Handle,
+  requested: Drag,
+): DragReadout {
+  const operation = profileMaking(history, handle);
+  const drag = asItCan(operation, requested);
+  return drag.symmetric
+    ? { kind: 'length', valueMm: operation.lengthMm + 2 * drag.changeMm }
+    : { kind: 'change', valueMm: drag.changeMm };
 }
 
-/** The resize a value typed in the box gives, as `resizeReadout` shows it, to the millimetre. */
-export function resizeFromTyped(
-  operation: ProfileOperation,
-  requested: Resize,
+/** The drag a value typed in the box gives, as `dragReadout` shows it, to the millimetre. */
+export function dragFromTyped(
+  history: readonly Operation[],
+  handle: Handle,
+  requested: Drag,
   valueMm: number,
-): Resize {
-  const resize = asItCan(operation, requested);
-  const changeMm = resize.symmetric ? (valueMm - operation.lengthMm) / 2 : valueMm;
-  return snappedResize(operation, { ...resize, changeMm }, true);
+): Drag {
+  const operation = profileMaking(history, handle);
+  const drag = asItCan(operation, requested);
+  const changeMm = drag.symmetric ? (valueMm - operation.lengthMm) / 2 : valueMm;
+  return snappedDrag(history, handle, { ...drag, changeMm }, true);
+}
+
+/** The operation that made the profile a handle changes. */
+function profileMaking(history: readonly Operation[], handle: Handle): ProfileOperation {
+  const operation: MakingOperation | undefined = operationMaking(history, handle.partId);
+  if (!operation || !makesAProfile(operation))
+    throw new Error(`Part ${handle.partId} is not a profile: no handle resizes it.`);
+  return operation;
+}
+
+/** Only an anchored profile resizes symmetrically: the other holds one end on its parent. */
+const asItCan = (operation: ProfileOperation, drag: Drag): Drag => ({
+  ...drag,
+  symmetric: drag.symmetric && operation.kind === 'add-anchored-profile',
+});
+const endsMoved = (drag: Drag) => (drag.symmetric ? 2 : 1);
+
+/** The values of the profile's operation once resized: its length, and its start if it moved. */
+function resizedValues(
+  operation: ProfileOperation,
+  handle: EndHandle,
+  requested: Drag,
+): Partial<ProfileValues> {
+  const drag = asItCan(operation, requested);
+  const lengthMm = operation.lengthMm + endsMoved(drag) * drag.changeMm;
+  const startMoves = drag.symmetric || handle.end === 'start';
+  if (operation.kind !== 'add-anchored-profile' || !startMoves) return { lengthMm };
+  const startMm = { ...operation.startMm };
+  startMm[operation.axis] -= drag.changeMm;
+  return { lengthMm, startMm };
 }
 
 /**
@@ -185,10 +228,7 @@ function unit(vector: Vec3Mm): Vec3Mm {
 const SIGHTED_TOLERANCE = 1e-6;
 
 /** The handles a flat view looking along `sightAxis` can drag; all of them in 3D (null). */
-export const handlesSeenAlong = (
-  handles: readonly EndHandle[],
-  sightAxis: Axis | null,
-): EndHandle[] =>
+export const handlesSeenAlong = (handles: readonly Handle[], sightAxis: Axis | null): Handle[] =>
   sightAxis === null
     ? [...handles]
     : handles.filter(({ outwardMm }) => Math.abs(outwardMm[sightAxis]) < SIGHTED_TOLERANCE);

@@ -7,14 +7,15 @@ import {
   editDraft,
   editProfile,
 } from '../src/cad/history.ts';
+import { operationMaking } from '../src/cad/operations.ts';
 import {
   distanceAlongAxis,
-  endHandles,
+  draggedHistory,
+  dragFromTyped,
+  dragReadout,
   handlesSeenAlong,
-  resizedValues,
-  resizeFromTyped,
-  resizeReadout,
-  snappedResize,
+  partHandles,
+  snappedDrag,
 } from '../src/cad/handles.ts';
 
 /** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
@@ -29,6 +30,17 @@ const withGrowth = (changes) => {
 };
 const ends = (handles) =>
   handles.map(({ id, end, pointMm, outwardMm }) => [id, end, pointMm, outwardMm]);
+const endHandles = (history, partId) =>
+  partHandles(history, partId).filter(({ kind }) => kind === 'end');
+/** The handle with this id, as `part-1:end`. */
+const handleOf = (history, id) =>
+  partHandles(history, id.split(':')[0]).find((handle) => handle.id === id);
+/** The values of the part's operation once its handle `id` is dragged. */
+const dragged = (history, id, changeMm, symmetric = false) => {
+  const partId = id.split(':')[0];
+  const changed = draggedHistory(history, handleOf(history, id), { changeMm, symmetric });
+  return operationMaking(changed, partId);
+};
 
 test('an anchored profile has a handle at each end, pointing out of it', () => {
   assert.deepEqual(ends(endHandles(railHistory(), 'part-1')), [
@@ -68,29 +80,29 @@ test('a span has no end handles, as its length is the gap it meets', () => {
 });
 
 test('dragging an end changes the length, and the start too when it is the start', () => {
-  const [rail] = railHistory();
-  assert.deepEqual(resizedValues(rail, { end: 'end', symmetric: false, changeMm: 120 }), {
+  const rail = railHistory();
+  const lengthAndStart = ({ lengthMm, startMm }) => ({ lengthMm, startMm });
+  assert.deepEqual(lengthAndStart(dragged(rail, 'part-1:end', 120)), {
     lengthMm: 1120,
+    startMm: { x: 0, y: 20, z: 0 },
   });
-  assert.deepEqual(resizedValues(rail, { end: 'start', symmetric: false, changeMm: 120 }), {
+  assert.deepEqual(lengthAndStart(dragged(rail, 'part-1:start', 120)), {
     lengthMm: 1120,
     startMm: { x: 0, y: 20, z: -120 },
   });
-  assert.deepEqual(resizedValues(rail, { end: 'end', symmetric: true, changeMm: 60 }), {
+  assert.deepEqual(lengthAndStart(dragged(rail, 'part-1:end', 60, true)), {
     lengthMm: 1120,
     startMm: { x: 0, y: 20, z: -60 },
   });
-  const [, grown] = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
-  assert.deepEqual(resizedValues(grown, { end: 'end', symmetric: false, changeMm: -50 }), {
-    lengthMm: 250,
-  });
+  const grown = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
+  assert.equal(dragged(grown, 'part-2:end', -50, true).lengthMm, 250, 'one end only');
 });
 
 test('a drag lands on lengths in steps of 10 mm, or to the millimetre when free', () => {
-  const [rail] = railHistory();
-  const short = { ...rail, lengthMm: 495 };
-  const snapped = (op, changeMm, symmetric = false, free = false) =>
-    snappedResize(op, { end: 'end', symmetric, changeMm }, free).changeMm;
+  const rail = railHistory();
+  const short = editProfile(rail, 'part-1', { lengthMm: 495 });
+  const snapped = (history, changeMm, symmetric = false, free = false) =>
+    snappedDrag(history, handleOf(history, 'part-1:end'), { symmetric, changeMm }, free).changeMm;
   assert.equal(snapped(rail, 123), 120);
   assert.equal(snapped(short, 7), 5);
   assert.equal(snapped(rail, 33, true), 35, 'symmetric: the whole length lands on a step');
@@ -98,25 +110,26 @@ test('a drag lands on lengths in steps of 10 mm, or to the millimetre when free'
 });
 
 test('a drag keeps the length a profile can have', () => {
-  const [rail] = railHistory();
+  const rail = railHistory();
   const clamped = (changeMm) =>
-    snappedResize(rail, { end: 'end', symmetric: false, changeMm }, false).changeMm;
+    snappedDrag(rail, handleOf(rail, 'part-1:end'), { symmetric: false, changeMm }, false).changeMm;
   assert.equal(clamped(-1200), -990);
   assert.equal(clamped(2500), 2000);
 });
 
 test('the box shows the change of one end, or the whole length of a symmetric one', () => {
-  const [rail] = railHistory();
-  assert.deepEqual(resizeReadout(rail, { end: 'end', symmetric: false, changeMm: 120 }), {
+  const rail = railHistory();
+  const end = handleOf(rail, 'part-1:end');
+  assert.deepEqual(dragReadout(rail, end, { symmetric: false, changeMm: 120 }), {
     kind: 'change',
     valueMm: 120,
   });
-  assert.deepEqual(resizeReadout(rail, { end: 'end', symmetric: true, changeMm: 35 }), {
+  assert.deepEqual(dragReadout(rail, end, { symmetric: true, changeMm: 35 }), {
     kind: 'length',
     valueMm: 1070,
   });
   const typed = (symmetric, valueMm) =>
-    resizeFromTyped(rail, { end: 'end', symmetric, changeMm: 0 }, valueMm).changeMm;
+    dragFromTyped(rail, end, { symmetric, changeMm: 0 }, valueMm).changeMm;
   assert.equal(typed(false, 75), 75);
   assert.equal(typed(true, 1200), 100);
   assert.equal(typed(false, -2000), -990);

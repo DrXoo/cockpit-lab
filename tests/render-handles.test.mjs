@@ -4,6 +4,7 @@ import { createRenderList, ROOT } from '../src/render-list.ts';
 import { drawHandleStems, handleBallMm } from '../src/render-handles.ts';
 
 const endHandle = {
+  kind: 'end',
   id: 'part-1:end',
   partId: 'part-1',
   end: 'end',

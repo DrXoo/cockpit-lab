@@ -84,14 +84,15 @@ import {
 } from './model.ts';
 import { CockpitScene, type HandleModifiers, type PagePoint } from './scene.ts';
 import {
-  endHandles,
+  draggedHistory,
+  dragFromTyped,
+  dragReadout,
   handlesSeenAlong,
-  resizedValues,
-  resizeFromTyped,
-  resizeReadout,
-  snappedResize,
-  type EndHandle,
-  type Resize,
+  partHandles,
+  snappedDrag,
+  type Drag,
+  type DragReadout,
+  type Handle,
 } from './cad/handles.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
@@ -361,12 +362,19 @@ let library: LayoutLibrary = newProject.library,
    */
   measurePicks: PartHit[] | null = null,
   /**
-   * A resize of the selected profile dragged in the view, with the history it would give, shown
-   * as a preview until it is confirmed.
+   * A change of the selected part dragged in the view with one of its handles, with the history
+   * it would give, shown as a preview until it is confirmed.
    */
-  pendingResize: { partId: string; resize: Resize; history: Operation[] } | null = null,
-  /** How far the end had moved when its handle was grabbed, to drag on from there. */
-  resizeAtGrabMm = 0;
+  pendingChange: PendingChange | null = null,
+  /** How far the handle had been dragged when it was grabbed, to drag on from there. */
+  changeAtGrabMm = 0;
+/** A change made with a handle, waiting to be confirmed. */
+interface PendingChange {
+  partId: string;
+  handle: Handle;
+  drag: Drag;
+  history: Operation[];
+}
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -397,7 +405,7 @@ const designHasParts = (): boolean => (cockpit?.history.length ?? 0) > 0;
 /** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
 function cockpitDrawing(): CockpitDrawing | null {
   if (editor() !== 'cockpit' || !designHasParts()) return null;
-  const history = pendingResize?.history ?? designHistory();
+  const history = pendingChange?.history ?? designHistory();
   const at = markerIndex();
   const shown = draftPart ? [...history.slice(0, at), draftPart, ...history.slice(at)] : history;
   const design = replayDesign(shown, draftPart ? at + 1 : at);
@@ -405,7 +413,7 @@ function cockpitDrawing(): CockpitDrawing | null {
     resolved: design.resolved,
     connectors: design.connectors,
     selectedPartId: selectedPartId(),
-    previewPartId: draftPart?.partId ?? pendingResize?.partId ?? null,
+    previewPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
     choosingFaceOf: draftPart?.parentId ?? null,
     measure: measureDrawing(),
     handles: shownHandles(),
@@ -413,44 +421,35 @@ function cockpitDrawing(): CockpitDrawing | null {
 }
 /**
  * The handles of the selected part, when nothing else is being added or measured; while a
- * resize waits, only the handle that made it.
+ * change waits, only the handle that made it.
  */
-function shownHandles(): EndHandle[] {
+function shownHandles(): Handle[] {
   if (draftPart !== null || measurePicks !== null) return [];
-  if (pendingResize) {
-    const { partId, resize, history } = pendingResize;
-    return endHandles(history, partId, markerIndex()).filter(({ end }) => end === resize.end);
+  if (pendingChange) {
+    const { partId, handle, history } = pendingChange;
+    return partHandles(history, partId, markerIndex()).filter(({ id }) => id === handle.id);
   }
   const partId = selectedPartId();
   if (partId === null) return [];
   // A flat view cannot drag a handle that points at it.
-  return handlesSeenAlong(endHandles(designHistory(), partId, markerIndex()), SIGHT_AXIS[view]);
+  return handlesSeenAlong(partHandles(designHistory(), partId, markerIndex()), SIGHT_AXIS[view]);
 }
-/** The operation that made a profile, which a handle resizes. */
-function profileOperation(partId: string): ProfileOperation | undefined {
-  const operation = operationMaking(designHistory(), partId);
-  return operation && makesAProfile(operation) ? operation : undefined;
-}
-/** Shows a resize of a profile as a preview; one its operation cannot take keeps the last. */
-function resizeInView(partId: string, resize: Resize) {
-  const operation = profileOperation(partId);
-  if (!operation) return;
+/** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
+function changeInView(handle: Handle, drag: Drag) {
   try {
-    const history = editProfile(designHistory(), partId, resizedValues(operation, resize));
-    pendingResize = { partId, resize, history };
+    const history = draggedHistory(designHistory(), handle, drag);
+    pendingChange = { partId: handle.partId, handle, drag, history };
   } catch {
     return;
   }
   refresh();
 }
-function grabHandle(handle: EndHandle) {
-  resizeAtGrabMm = pendingResize?.partId === handle.partId ? pendingResize.resize.changeMm : 0;
+function grabHandle(handle: Handle) {
+  changeAtGrabMm = pendingChange?.handle.id === handle.id ? pendingChange.drag.changeMm : 0;
 }
-function dragHandle(handle: EndHandle, movedMm: number, { symmetric, free }: HandleModifiers) {
-  const operation = profileOperation(handle.partId);
-  if (!operation) return;
-  const dragged = { end: handle.end, symmetric, changeMm: resizeAtGrabMm + movedMm };
-  resizeInView(handle.partId, snappedResize(operation, dragged, free));
+function dragHandle(handle: Handle, movedMm: number, { symmetric, free }: HandleModifiers) {
+  const dragged = { symmetric, changeMm: changeAtGrabMm + movedMm };
+  changeInView(handle, snappedDrag(designHistory(), handle, dragged, free));
 }
 /** Once a handle is let go, its value waits in the box, ready to be typed exactly. */
 function releaseHandle() {
@@ -459,48 +458,48 @@ function releaseHandle() {
   input.focus({ preventScroll: true });
   input.select();
 }
-/** A value typed in the box sets the resize exactly. */
-function typeResize() {
+/** A value typed in the box sets the change exactly. */
+function typeChange() {
   const typed = $<HTMLInputElement>('#changeValue').value;
-  if (!pendingResize || typed.trim() === '' || !Number.isFinite(Number(typed))) return;
-  const operation = profileOperation(pendingResize.partId);
-  if (!operation) return;
-  resizeInView(
-    pendingResize.partId,
-    resizeFromTyped(operation, pendingResize.resize, Number(typed)),
-  );
+  if (!pendingChange || typed.trim() === '' || !Number.isFinite(Number(typed))) return;
+  const { handle, drag } = pendingChange;
+  changeInView(handle, dragFromTyped(designHistory(), handle, drag, Number(typed)));
 }
-/** Makes the waiting resize an edit of the design, which undo takes back in one step. */
-function confirmResize() {
-  const pending = pendingResize;
+/** Makes the waiting change an edit of the design, which undo takes back in one step. */
+function confirmChange() {
+  const pending = pendingChange;
   if (!pending) return;
-  pendingResize = null;
-  if (pending.resize.changeMm === 0) refresh();
+  pendingChange = null;
+  if (pending.drag.changeMm === 0) refresh();
   else changeDesign({ history: pending.history });
 }
-function cancelResize() {
-  if (!pendingResize) return;
-  pendingResize = null;
+function cancelChange() {
+  if (!pendingChange) return;
+  pendingChange = null;
   refresh();
 }
-/** Before another edit, a waiting resize is confirmed, so the edit builds on what the view shows. */
-function settleResize() {
-  if (pendingResize) confirmResize();
+/** Before another edit, a waiting change is confirmed, so the edit builds on what the view shows. */
+function settleChange() {
+  if (pendingChange) confirmChange();
 }
-/** The box of a waiting resize, beside the handle that made it, with its value. */
+/** What the box of a waiting change calls its value. */
+const READOUT_LABELS: Record<DragReadout['kind'], string> = {
+  change: 'Change',
+  length: 'Length',
+};
+/** The box of a waiting change, beside the handle that made it, with its value. */
 function renderChangeBox() {
   const box = $('#changeBox');
-  const pending = pendingResize;
-  const operation = pending ? profileOperation(pending.partId) : undefined;
+  const pending = pendingChange;
   const [handle] = pending ? shownHandles() : [];
-  if (!pending || !operation || !handle) {
+  if (!pending || !handle) {
     box.hidden = true;
     scene?.anchorElement(box, null);
     return;
   }
-  const readout = resizeReadout(operation, pending.resize);
+  const readout = dragReadout(designHistory(), pending.handle, pending.drag);
   box.dataset.kind = readout.kind;
-  $('#changeKind').textContent = readout.kind === 'change' ? 'Change' : 'Length';
+  $('#changeKind').textContent = READOUT_LABELS[readout.kind];
   const input = $<HTMLInputElement>('#changeValue');
   if (document.activeElement !== input) input.value = String(readout.valueMm);
   const ball = handleBallMm(handle);
@@ -526,7 +525,7 @@ function setMeasuring(on: boolean) {
   measurePicks = on ? [] : null;
   if (on) {
     draftPart = null;
-    pendingResize = null;
+    pendingChange = null;
   }
   renderControls();
   refresh();
@@ -568,7 +567,7 @@ function openProject(project: Project) {
   designEdits = noEdits();
   measurePicks = null;
   draftPart = null;
-  pendingResize = null;
+  pendingChange = null;
   state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
@@ -644,7 +643,7 @@ function changeDesign(next: CockpitDesign) {
 /** Shows the design after it changed, framing it when its first part appears. */
 function showChangedDesign(hadParts: boolean) {
   draftPart = null;
-  pendingResize = null;
+  pendingChange = null;
   // The parts measured may have moved or gone.
   if (measurePicks !== null) measurePicks = designHasParts() ? [] : null;
   if (!selectedOperation()) selectedOperationId = null;
@@ -703,7 +702,7 @@ function jointsOfSelected(): JointOfPart[] {
  * deleted before it moves the marker back, so the marker stays after the same steps.
  */
 function changeJoints(change: (history: readonly Operation[], at: number) => Operation[]) {
-  settleResize();
+  settleChange();
   const history = designHistory();
   const at = markerIndex();
   let next: Operation[];
@@ -723,7 +722,7 @@ function changeJoints(change: (history: readonly Operation[], at: number) => Ope
 }
 /** Puts a foot under the selected profile, at the marker, and selects it. */
 function addFootUnderSelected() {
-  settleResize();
+  settleChange();
   const partId = selectedPartId();
   if (partId === null) return;
   try {
@@ -737,7 +736,7 @@ function addFootUnderSelected() {
 }
 /** Removes the selected part from the marker on, as a step of its own. */
 function removeSelectedPart() {
-  settleResize();
+  settleChange();
   const partId = selectedPartId();
   if (partId === null) return;
   const at = markerIndex();
@@ -751,7 +750,7 @@ function removeSelectedPart() {
 }
 /** Takes the selected step out of the whole history; what relied on it fails. */
 function deleteSelectedStep() {
-  settleResize();
+  settleChange();
   const operation = selectedOperation();
   if (!operation) return;
   const index = designHistory().indexOf(operation);
@@ -765,7 +764,7 @@ function deleteSelectedStep() {
 /** Moves the history marker, to show the design at another step. */
 function moveMarker(to: number | null) {
   draftPart = null;
-  pendingResize = null;
+  pendingChange = null;
   if (measurePicks !== null) measurePicks = [];
   marker = to === null || to >= designHistory().length ? null : Math.max(0, to);
   const selected = selectedOperation();
@@ -774,8 +773,8 @@ function moveMarker(to: number | null) {
   refresh();
 }
 function undoDesignEdit() {
-  if (pendingResize) {
-    cancelResize();
+  if (pendingChange) {
+    cancelChange();
     return;
   }
   if (draftPart !== null) {
@@ -790,8 +789,8 @@ function undoDesignEdit() {
   showChangedDesign(hadParts);
 }
 function redoDesignEdit() {
-  if (pendingResize) {
-    cancelResize();
+  if (pendingChange) {
+    cancelChange();
     return;
   }
   const hadParts = designHasParts();
@@ -802,7 +801,7 @@ function redoDesignEdit() {
   showChangedDesign(hadParts);
 }
 function selectOperation(operationId: string | null) {
-  pendingResize = null;
+  pendingChange = null;
   selectedOperationId = operationId;
   draftPart = null;
   renderControls();
@@ -813,8 +812,8 @@ function selectOperation(operationId: string | null) {
  * picks the face of its parent it goes on.
  */
 function pickInView(hit: PartHit | null) {
-  // While a resize waits, a click elsewhere in the view does nothing.
-  if (pendingResize) return;
+  // While a change waits, a click elsewhere in the view does nothing.
+  if (pendingChange) return;
   if (measurePicks !== null) {
     measurePicks = nextMeasurePicks(measurePicks, hit);
     refresh();
@@ -840,7 +839,7 @@ const draftOrFail = (): GrowProfile | AddPlate => {
 };
 /** Starts a profile growing out of the selected part, shown as a preview until it is added. */
 function startGrowth() {
-  settleResize();
+  settleChange();
   const partId = selectedPartId();
   if (partId === null) return;
   measurePicks = null;
@@ -876,7 +875,7 @@ function hoverInView(hit: PartHit | null, pointer: PagePoint) {
 }
 /** Starts a plate resting on the selected profile, shown as a preview until it is added. */
 function startPlate() {
-  settleResize();
+  settleChange();
   const partId = selectedPartId();
   if (partId === null) return;
   measurePicks = null;
@@ -984,7 +983,7 @@ function editedDraft(
 }
 /** Changes one value of the step that made the selected part, each kind of part its own way. */
 function editPartField(operation: MakingOperation, field: PartField, value: string) {
-  settleResize();
+  settleChange();
   if (operation.kind === 'add-foot')
     changeHistory((history) => editFoot(history, operation.partId, footChange(field, value)));
   else if (operation.kind === 'add-plate')
@@ -993,8 +992,8 @@ function editPartField(operation: MakingOperation, field: PartField, value: stri
 }
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
-  // A resize waiting in the view shows its values here before it is confirmed.
-  const history = pendingResize?.history ?? designHistory();
+  // A change waiting in the view shows its values here before it is confirmed.
+  const history = pendingChange?.history ?? designHistory();
   const operation = history.find((step) => step.id === selectedOperationId);
   const drafting = draftPart;
   $('#partInspectorTitle').textContent = DRAFT_TITLES[drafting?.kind ?? 'none'];
@@ -1081,7 +1080,7 @@ function renderPartInspector({ force = false } = {}) {
  * of its inspector do. A part about to be added is left alone: Escape cancels it.
  */
 function deleteWithKey(event: KeyboardEvent) {
-  if (draftPart !== null || pendingResize) return;
+  if (draftPart !== null || pendingChange) return;
   const operation = selectedOperation();
   const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
   const action = deleteKeyAction(operation, failure);
@@ -1095,9 +1094,9 @@ function deleteWithKey(event: KeyboardEvent) {
  * and Delete removes the selected part. In a text field they keep editing its text.
  */
 document.addEventListener('keydown', (event) => {
-  if (pendingResize && !document.querySelector('dialog[open]')) {
+  if (pendingChange && !document.querySelector('dialog[open]')) {
     if (event.key === 'Escape') {
-      cancelResize();
+      cancelChange();
       return;
     }
     const typing =
@@ -1106,7 +1105,7 @@ document.addEventListener('keydown', (event) => {
       event.target instanceof HTMLSelectElement ||
       event.target instanceof HTMLButtonElement;
     if (event.key === 'Enter' && !typing) {
-      confirmResize();
+      confirmChange();
       return;
     }
   }
@@ -1963,11 +1962,11 @@ $('#dimensionBtn').addEventListener('click', () => {
   scene?.setDimensions(on);
 });
 $('#measureBtn').addEventListener('click', () => setMeasuring(measurePicks === null));
-$('#confirmChange').addEventListener('click', confirmResize);
-$('#cancelChange').addEventListener('click', cancelResize);
-$('#changeValue').addEventListener('input', typeResize);
+$('#confirmChange').addEventListener('click', confirmChange);
+$('#cancelChange').addEventListener('click', cancelChange);
+$('#changeValue').addEventListener('input', typeChange);
 $('#changeValue').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') confirmResize();
+  if (event.key === 'Enter') confirmChange();
 });
 $('#fitBtn').addEventListener('click', () => scene?.setView(view));
 function focusArmControls() {

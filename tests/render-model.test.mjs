@@ -7,7 +7,7 @@ import { degToRad } from '../src/geometry.ts';
 import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 import { addAnchoredProfile, replayHistory } from '../src/cad/history.ts';
-import { endHandles } from '../src/cad/handles.ts';
+import { partHandles } from '../src/cad/handles.ts';
 
 const options = {
   view: 'iso',
@@ -102,7 +102,7 @@ test('a measurement is drawn apart from the dimensions, so hiding them keeps it'
 
 test('the handles of the selected part are drawn with the design, as stems to their balls', () => {
   const history = addAnchoredProfile([]).history;
-  const handles = endHandles(history, 'part-1');
+  const handles = partHandles(history, 'part-1');
   const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-1' };
   const stems = (drawing) =>
     render(NOTHING_AROUND, { cockpit: drawing }).model.primitives.filter(

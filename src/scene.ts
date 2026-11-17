@@ -19,7 +19,7 @@ import type { CockpitDrawing } from './render-cad.ts';
 import type { ArmHandle } from './render-desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
 import { drawHover } from './render-hover.ts';
-import { distanceAlongAxis, type EndHandle } from './cad/handles.ts';
+import { distanceAlongAxis, type Handle } from './cad/handles.ts';
 import { handleBallMm } from './render-handles.ts';
 import { renderModel } from './render-model.ts';
 import {
@@ -48,7 +48,7 @@ interface LabelItem extends SceneLabel {
 type Drag =
   | { kind: 'arm'; joint: ArmJoint }
   | { kind: 'layout'; grab: LayoutGrab }
-  | { kind: 'handle'; handle: EndHandle; grabbedAtMm: number };
+  | { kind: 'handle'; handle: Handle; grabbedAtMm: number };
 
 /** How far an element kept beside a point stands from it, and from the edges of the view. */
 const ANCHORED_GAP_PX = 16;
@@ -319,12 +319,12 @@ export class CockpitScene {
   declare handleItems: HandleItem[];
   declare anchored: AnchoredItem | null;
   /** A handle of the selected part was grabbed. */
-  declare onHandleGrab: ((handle: EndHandle) => void) | undefined;
+  declare onHandleGrab: ((handle: Handle) => void) | undefined;
   /** A grabbed handle moved this far along its axis, out of the end, since it was grabbed. */
   declare onHandleDrag:
-    ((handle: EndHandle, movedMm: number, modifiers: HandleModifiers) => void) | undefined;
+    ((handle: Handle, movedMm: number, modifiers: HandleModifiers) => void) | undefined;
   /** A grabbed handle was let go. */
-  declare onHandleRelease: ((handle: EndHandle) => void) | undefined;
+  declare onHandleRelease: ((handle: Handle) => void) | undefined;
 
   constructor(container: HTMLElement, labels: HTMLElement) {
     this.container = container;
@@ -432,7 +432,7 @@ export class CockpitScene {
 
   /** Frees what the previous drawing created; the palette is shared and kept. */
   /** A ball over the view for each handle, which a press grabs. */
-  private addHandles(handles: readonly EndHandle[]) {
+  private addHandles(handles: readonly Handle[]) {
     for (const handle of handles) {
       const el = document.createElement('span');
       el.className = 'part-handle';
@@ -454,7 +454,7 @@ export class CockpitScene {
     this.revision++;
   }
 
-  private grabHandle(event: PointerEvent, handle: EndHandle) {
+  private grabHandle(event: PointerEvent, handle: Handle) {
     if (event.button !== PRIMARY_BUTTON) return;
     const grabbedAtMm = this.alongHandle(event, handle);
     if (grabbedAtMm === null) return;
@@ -466,7 +466,7 @@ export class CockpitScene {
   }
 
   /** Where the pointer is along the axis of a handle, from the end it changes. */
-  private alongHandle(event: PointerEvent, handle: EndHandle): number | null {
+  private alongHandle(event: PointerEvent, handle: Handle): number | null {
     const { origin, direction } = this.rayAt(event);
     return distanceAlongAxis(
       {
