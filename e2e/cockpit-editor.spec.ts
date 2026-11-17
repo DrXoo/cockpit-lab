@@ -77,6 +77,14 @@ async function clickViewport(page: Page, x: number, y: number) {
   await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
 }
 
+/** Moves the pointer over the viewport, without pressing, to a fraction of its width and height. */
+async function hoverViewport(page: Page, x: number, y: number) {
+  const canvas = page.locator('#viewport canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('The viewport has no canvas');
+  await page.mouse.move(box.x + box.width * x, box.y + box.height * y);
+}
+
 test('the first profile starts the design, selected and shown in the view', async ({ page }) => {
   await startDesign(page);
   await expect(page.locator('#designHistory [data-part]')).toHaveCount(1);
@@ -555,4 +563,17 @@ test('Delete removes the selected part, and deletes a selected removal', async (
   await page.locator('#part-name').focus();
   await page.keyboard.press('Delete');
   await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+});
+
+test('the part under the pointer is named beside it once the pointer rests there', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  await hoverViewport(page, 0.5, 0.5);
+  await expect(page.locator('#hoverLabel')).toBeVisible();
+  await expect(page.locator('#hoverLabel')).toHaveAttribute('data-part', 'part-1');
+  await expect(page.locator('#hoverLabel')).toHaveText('40 × 40 profile 1 · 40 × 40 · 500 mm');
+  await hoverViewport(page, 0.05, 0.05);
+  await expect(page.locator('#hoverLabel')).toBeHidden();
 });

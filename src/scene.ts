@@ -7,10 +7,18 @@ import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { inversePoint } from './geometry.ts';
 import { hitAlongRay, type PartHit } from './cad/picking.ts';
+import type { Face, ResolvedPart } from './cad/assembly.ts';
+
+/** A point on the page, in CSS pixels from its top left corner. */
+export interface PagePoint {
+  x: number;
+  y: number;
+}
 import { draggedPosition, pickLayoutItem, type LayoutGrab } from './layout-picking.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import type { ArmHandle } from './render-desk.ts';
-import { labelShownIn, type SceneLabel } from './render-list.ts';
+import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
+import { drawHover } from './render-hover.ts';
 import { renderModel } from './render-model.ts';
 import {
   cameraPose,
@@ -120,6 +128,13 @@ function createPalette(vectorFallback: boolean): Palette {
       opacity: 0.45,
       depthWrite: false,
       roughness: 0.6,
+    }),
+    // Blue, apart from the accent of the selection, so a hovered face shows on a selected part.
+    hover: new T.MeshBasicMaterial({
+      color: 0x2f7fd0,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
     }),
   };
 }
@@ -263,6 +278,15 @@ export class CockpitScene {
   declare onLayoutSelect: ((target: string) => void) | undefined;
   /** A click picked a part of the cockpit design, at a face, or nothing (null). */
   declare onPartPick: ((hit: PartHit | null) => void) | undefined;
+  /**
+   * The pointer moved over the cockpit design: the part it marks, or null, and where the pointer
+   * is on the page.
+   */
+  declare onPartHover: ((hit: PartHit | null, pointer: PagePoint) => void) | undefined;
+  /** What marks the part or face under the pointer, drawn apart from the design. */
+  declare hoverRoot: T.Group | null;
+  /** The part and face marked under the pointer, to redraw only when they change. */
+  declare hoverKey: string;
 
   constructor(container: HTMLElement, labels: HTMLElement) {
     this.container = container;
@@ -288,6 +312,9 @@ export class CockpitScene {
     this.onLayoutMove = undefined;
     this.onLayoutSelect = undefined;
     this.onPartPick = undefined;
+    this.onPartHover = undefined;
+    this.hoverRoot = null;
+    this.hoverKey = '';
     this.theme = themeOfPage();
     this.scene = new T.Scene();
     this.scene.background = new T.Color(this.theme.background);
@@ -400,6 +427,8 @@ export class CockpitScene {
     this.addLabels(model.labels);
     this.armHandles = model.armHandles;
     this.setFrustum();
+    // The parts may have changed: the next move of the pointer marks them again.
+    this.clearHover();
   }
 
   /** Puts the ground and the grid at the floor of what the scene shows. */
@@ -539,7 +568,55 @@ export class CockpitScene {
     this.renderer.domElement.style.cursor = 'grabbing';
   }
 
+  /**
+   * Marks the part under the pointer, or, while a part is about to be added to another, the face
+   * of that part a click would choose. Nothing is marked while a button is held.
+   */
+  private hoverAt(event: PointerEvent) {
+    const cockpit = this.cockpit;
+    if (!this.partPicking || !cockpit || event.buttons !== 0) {
+      this.clearHover();
+      return;
+    }
+    const hit = this.partAt(event);
+    const choosing = cockpit.choosingFaceOf ?? null;
+    const marked = hit && (choosing === null || hit.partId === choosing) ? hit : null;
+    const face = marked && choosing !== null ? marked.face : null;
+    const key = marked ? `${marked.partId}|${face ?? ''}` : '';
+    if (key !== this.hoverKey) {
+      this.hoverKey = key;
+      const resolved = marked ? cockpit.resolved.get(marked.partId) : undefined;
+      this.drawHoverMark(resolved ? { resolved, face } : null);
+    }
+    this.onPartHover?.(marked, { x: event.clientX, y: event.clientY });
+  }
+
+  private clearHover() {
+    if (this.hoverKey === '' && this.hoverRoot === null) return;
+    this.hoverKey = '';
+    this.drawHoverMark(null);
+    this.onPartHover?.(null, { x: 0, y: 0 });
+  }
+
+  private drawHoverMark(mark: { resolved: ResolvedPart; face: Face | null } | null) {
+    if (this.hoverRoot) {
+      this.disposeDrawing(this.hoverRoot);
+      this.scene.remove(this.hoverRoot);
+      this.hoverRoot = null;
+    }
+    if (mark) {
+      const r = createRenderList();
+      drawHover(r, ROOT, mark.resolved, mark.face);
+      const group = new T.Group();
+      addPrimitives(r.primitives, group, this.mat);
+      this.scene.add(group);
+      this.hoverRoot = group;
+    }
+    this.revision++;
+  }
+
   private onPointerDown(event: PointerEvent) {
+    this.clearHover();
     if (this.partPicking && event.button === PRIMARY_BUTTON)
       this.press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
     const s = this.s;
@@ -570,7 +647,11 @@ export class CockpitScene {
     const drag = this.drag;
     const s = this.s;
     const e = this.e;
-    if (!drag || !s || !e) return;
+    if (!drag) {
+      this.hoverAt(event);
+      return;
+    }
+    if (!s || !e) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (drag.kind === 'arm') {
@@ -612,6 +693,7 @@ export class CockpitScene {
     element.addEventListener('pointerup', (event) => this.onPointerUp(event), true);
     element.addEventListener('pointerup', (event) => this.onPointerEnd(event), true);
     element.addEventListener('pointercancel', (event) => this.onPointerEnd(event), true);
+    element.addEventListener('pointerleave', () => this.clearHover());
   }
 
   /** Renders only when the camera, the size or the drawing changed. */

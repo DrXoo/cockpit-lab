@@ -17,6 +17,8 @@ export interface CockpitDrawing {
   selectedPartId: string | null;
   /** A part about to be added, drawn as a preview. */
   previewPartId?: string | null;
+  /** The part whose face a click chooses, while a part is about to be added to it. */
+  choosingFaceOf?: string | null;
   /** A measurement being taken in the view. */
   measure?: MeasureDrawing | null;
 }

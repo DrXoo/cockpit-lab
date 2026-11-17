@@ -120,7 +120,7 @@ Planned in November 2026, before the peripherals, which need the same handles to
 4. **Snapping to parts.** Flush with the faces and ends of other parts, centered on the parent, and reaching the facing face of another part, which makes the profile a span; with a guide.
 5. **Joints in the view.** ⚠, ✓ and + markers, and a card with the quick actions of each joint.
 
-Slice 0 was done in November 2026. Delete does what the selected step's inspector offers: **Remove this part** for a part, or **Delete this step** for a failed step or one that makes no part; it does nothing in a text field or while a part is about to be added.
+Slice 0 was done in November 2026. Delete does what the selected step's inspector offers: **Remove this part** for a part, or **Delete this step** for a failed step or one that makes no part; it does nothing in a text field or while a part is about to be added. Slice 1 was done in November 2026 (`src/render-hover.ts`, `src/hover-view.ts`): the part under the pointer is wrapped in a see-through blue box, apart from the accent of the selection, and its label shows by the pointer after half a second at rest. While a part is about to be added, only the faces of the part it goes on are marked.
 
 In the top and side views, the move handle shows only the arrows in the plane of the view. On a tilted part, its handles follow the axes of its tilt.
 

@@ -25,7 +25,9 @@ export type PaletteMaterial =
   /** The part selected in the cockpit editor. */
   | 'selected'
   /** A part about to be added, seen through. */
-  | 'preview';
+  | 'preview'
+  /** What is under the pointer in the cockpit editor, seen through. */
+  | 'hover';
 
 export type MaterialSpec =
   /** Unlit and visible from both sides, for walls, floors and plan zones. */

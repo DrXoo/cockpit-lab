@@ -630,6 +630,21 @@ select option {
 .viewport.measuring > svg:first-child {
   cursor: crosshair;
 }
+/* Names the part under the pointer in the cockpit editor, beside the pointer. */
+.hover-label {
+  position: absolute;
+  z-index: 4;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-subtle) 93%, transparent);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 .measure-readout {
   position: absolute;
   top: 34px;

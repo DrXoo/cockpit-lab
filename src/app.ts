@@ -80,7 +80,8 @@ import {
   resizeDesk,
   moveArmJoint,
 } from './model.ts';
-import { CockpitScene } from './scene.ts';
+import { CockpitScene, type PagePoint } from './scene.ts';
+import { hoverLabel } from './hover-view.ts';
 import type { SceneView } from './scene-camera.ts';
 import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
@@ -385,6 +386,7 @@ function cockpitDrawing(): CockpitDrawing | null {
     connectors: design.connectors,
     selectedPartId: selectedPartId(),
     previewPartId: draftPart?.partId ?? null,
+    choosingFaceOf: draftPart?.parentId ?? null,
     measure: measureDrawing(),
   };
 }
@@ -701,6 +703,33 @@ function startGrowth() {
   measurePicks = null;
   draftPart = draftGrowth(designHistory(), partId, markerIndex());
   refresh();
+}
+/** The label by the pointer shows once the pointer has rested this long on a part. */
+const HOVER_LABEL_DELAY_MS = 500;
+/** How far the label stands from the pointer, so it does not hide what it names. */
+const HOVER_LABEL_OFFSET_PX = 14;
+let hoverLabelTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * Names the part under the pointer once it rests there. Any move hides the label and starts
+ * the wait again, so it never trails the pointer.
+ */
+function hoverInView(hit: PartHit | null, pointer: PagePoint) {
+  const label = $('#hoverLabel');
+  clearTimeout(hoverLabelTimer);
+  label.hidden = true;
+  if (hit === null) return;
+  hoverLabelTimer = setTimeout(() => {
+    const resolved = cockpitDrawing()?.resolved.get(hit.partId);
+    // A hidden label has no offset parent: it is placed in the view area that holds it.
+    const area = label.parentElement;
+    if (!resolved || !(area instanceof HTMLElement)) return;
+    const bounds = area.getBoundingClientRect();
+    label.textContent = hoverLabel(resolved);
+    label.dataset.part = hit.partId;
+    label.style.left = `${pointer.x - bounds.left + HOVER_LABEL_OFFSET_PX}px`;
+    label.style.top = `${pointer.y - bounds.top + HOVER_LABEL_OFFSET_PX}px`;
+    label.hidden = false;
+  }, HOVER_LABEL_DELAY_MS);
 }
 /** Starts a plate resting on the selected profile, shown as a preview until it is added. */
 function startPlate() {
@@ -1995,6 +2024,7 @@ try {
   setActiveView(view);
   syncSceneEditing();
   scene.onPartPick = pickInView;
+  scene.onPartHover = hoverInView;
   scene.onArmMove = (joint, x, z) => {
     state = moveArmJoint(state, joint, x, z);
     queueSave();
