@@ -6,6 +6,7 @@ import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
 import { faceAxis, type Axis, type BoxMm, type ResolvedPart } from './cad/assembly.ts';
 import { connectorType, profileSystem } from './cad/catalog.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
+import type { MeasureDrawing } from './render-measurement.ts';
 import { MM_PER_CM } from './units.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */
@@ -16,6 +17,8 @@ export interface CockpitDrawing {
   selectedPartId: string | null;
   /** A part about to be added, drawn as a preview. */
   previewPartId?: string | null;
+  /** A measurement being taken in the view. */
+  measure?: MeasureDrawing | null;
 }
 
 /** Grooves stop this much short of the profile length. */

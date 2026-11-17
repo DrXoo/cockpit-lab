@@ -471,7 +471,7 @@ export class CockpitScene {
     this.revision++;
     this.dimensions = on;
     if (this.dims) this.dims.visible = on;
-    for (const item of this.labelItems) item.el.hidden = !on;
+    for (const item of this.labelItems) item.el.hidden = !on && !item.alwaysShown;
   }
 
   /** The ray from the camera through the point under the pointer, in world cm. */
@@ -637,7 +637,7 @@ export class CockpitScene {
 
   private placeLabels(w: number, h: number) {
     for (const item of this.labelItems) {
-      if (!this.dimensions && !item.armHandle) {
+      if (!this.dimensions && !item.armHandle && !item.alwaysShown) {
         item.el.hidden = true;
         continue;
       }

@@ -626,6 +626,27 @@ select option {
 .viewport {
   min-height: 0;
 }
+.viewport.measuring canvas,
+.viewport.measuring > svg:first-child {
+  cursor: crosshair;
+}
+.measure-readout {
+  position: absolute;
+  top: 34px;
+  left: 20px;
+  right: 20px;
+  z-index: 3;
+  width: fit-content;
+  max-width: calc(100% - 40px);
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-subtle) 93%, transparent);
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  pointer-events: none;
+}
 .scene-badge {
   left: 20px;
   font-size: 12px;

@@ -420,3 +420,42 @@ test('two parts that only touch are joined, and the joint takes brackets', async
     .poll(async () => (await savedHistory(page))?.[3])
     .toMatchObject({ kind: 'fasten-joint', partId: 'part-2', toPartId: 'part-1' });
 });
+
+test('the measure tool gives the offsets between two clicked points, without saving them', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await expect.poll(() => savedHistory(page)).toHaveLength(1);
+  const saved = JSON.stringify(await getSavedProject(page));
+  await page.locator('[data-view="top"]').click();
+  await page.locator('#dimensionBtn').click();
+  await page.locator('#measureBtn').click();
+  await expect(page.locator('#measureBtn')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#measureReadout')).toBeVisible();
+
+  await clickViewport(page, 0.5, 0.45);
+  await clickViewport(page, 0.5, 0.55);
+  // Lower on the screen of the top view is the front.
+  await expect(page.locator('#measureReadout')).toContainText(/Z \d+(\.\d)? mm to the front/);
+  await expect(page.locator('#sceneLabels [data-measures="offset-z"]')).toBeVisible();
+  await expect(page.locator('#sceneLabels [data-measures="offset-x"]')).toHaveCount(0);
+  // Clicks measure instead of selecting.
+  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#measureReadout')).toBeHidden();
+  await expect(page.locator('#sceneLabels [data-measures="offset-z"]')).toHaveCount(0);
+  await expect(page.locator('#measureBtn')).toHaveAttribute('aria-pressed', 'false');
+  expect(JSON.stringify(await getSavedProject(page))).toBe(saved);
+});
+
+test('a measurement starts again when the design changes', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  await page.locator('#measureBtn').click();
+  await clickViewport(page, 0.5, 0.45);
+  await expect(page.locator('#measureReadout')).toContainText(/second point/);
+  await page.locator('#part-lengthMm').fill('800');
+  await page.locator('#part-lengthMm').press('Enter');
+  await expect(page.locator('#measureReadout')).toContainText(/Click a point on a part/);
+});

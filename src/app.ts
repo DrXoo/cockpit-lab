@@ -43,6 +43,9 @@ import {
   type ProfileValues,
 } from './cad/history.ts';
 import type { PartHit } from './cad/picking.ts';
+import { measureBetween, nextMeasurePicks, pickInCockpit } from './cad/measure.ts';
+import { measureReadout } from './measure-view.ts';
+import type { MeasureDrawing } from './render-measurement.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import { canRedo, canUndo, noEdits, recordEdit, redo, undo, type Edits } from './undo.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
@@ -189,6 +192,7 @@ const paths: Record<string, string> = {
   help: 'M9 16A7 7 0 1 0 9 2a7 7 0 0 0 0 14ZM7 6a2 2 0 1 1 3 2c-1 1-1 1-1 2M9 13h.01',
   reset: 'M3 6a6 6 0 1 1-1 5M3 2v4h4',
   ruler: 'M2 13 13 2l3 3L5 16ZM5 10l2 2m1-5 2 2m1-5 2 2',
+  measure: 'M2 4v10m14-10v10M2 9h14M5 7 2 9l3 2m8-4 3 2-3 2',
   person: 'M11.5 4a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM4 16v-4a5 5 0 0 1 10 0v4',
   expand: 'M6 2H2v4m10-4h4v4M2 12v4h4m6 0h4v-4',
   rotate: 'M3 6a6 6 0 1 1 0 7M3 2v4h4M9 5v8m-3-4h6',
@@ -327,7 +331,12 @@ let library: LayoutLibrary = newProject.library,
   /** The edits made to the cockpit design since the project was opened, to undo and redo. */
   designEdits: Edits<CockpitDesign | null> = noEdits(),
   /** A profile about to grow out of the selected one, shown as a preview until it is added. */
-  growth: GrowProfile | null = null;
+  growth: GrowProfile | null = null,
+  /**
+   * The points clicked so far with the measure tool, or null when it is off. Measurements belong
+   * to the session and are never saved.
+   */
+  measurePicks: PartHit[] | null = null;
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -367,7 +376,38 @@ function cockpitDrawing(): CockpitDrawing | null {
     connectors: design.connectors,
     selectedPartId: selectedPartId(),
     previewPartId: growth?.partId ?? null,
+    measure: measureDrawing(),
   };
+}
+/** The measurement being taken, in the design the view shows at the history marker. */
+function measureDrawing(): MeasureDrawing | null {
+  if (measurePicks === null) return null;
+  const { resolved } = replayDesign(designHistory(), markerIndex());
+  const [first, second] = measurePicks;
+  return {
+    points: measurePicks.map((pick) => pickInCockpit(resolved, pick)),
+    measurement: second === undefined ? null : measureBetween(resolved, first, second),
+  };
+}
+/** Turns the measure tool on, with no points yet, or off. */
+function setMeasuring(on: boolean) {
+  measurePicks = on ? [] : null;
+  if (on) growth = null;
+  renderControls();
+  refresh();
+}
+/** What the measure tool shows besides the view: its button, its readout and the cursor. */
+function renderMeasure() {
+  const on = measurePicks !== null;
+  $('#measureBtn').classList.toggle('active', on);
+  $('#measureBtn').setAttribute('aria-pressed', String(on));
+  $('#viewport').classList.toggle('measuring', on);
+  $('#measureReadout').hidden = !on;
+  if (measurePicks === null) return;
+  $('#measureReadout').textContent = measureReadout(
+    measurePicks.length,
+    measureDrawing()?.measurement ?? null,
+  );
 }
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
 const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
@@ -391,6 +431,7 @@ function openProject(project: Project) {
   selectedOperationId = null;
   marker = null;
   designEdits = noEdits();
+  measurePicks = null;
   growth = null;
   state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
@@ -467,6 +508,8 @@ function changeDesign(next: CockpitDesign) {
 /** Shows the design after it changed, framing it when its first part appears. */
 function showChangedDesign(hadParts: boolean) {
   growth = null;
+  // The parts measured may have moved or gone.
+  if (measurePicks !== null) measurePicks = designHasParts() ? [] : null;
   if (!selectedOperation()) selectedOperationId = null;
   if (marker !== null && marker >= designHistory().length) marker = null;
   queueSave();
@@ -581,6 +624,7 @@ function deleteSelectedStep() {
 /** Moves the history marker, to show the design at another step. */
 function moveMarker(to: number | null) {
   growth = null;
+  if (measurePicks !== null) measurePicks = [];
   marker = to === null || to >= designHistory().length ? null : Math.max(0, to);
   const selected = selectedOperation();
   if (selected && designHistory().indexOf(selected) >= markerIndex()) selectedOperationId = null;
@@ -618,6 +662,11 @@ function selectOperation(operationId: string | null) {
  * face it grows from.
  */
 function pickInView(hit: PartHit | null) {
+  if (measurePicks !== null) {
+    measurePicks = nextMeasurePicks(measurePicks, hit);
+    refresh();
+    return;
+  }
   if (growth === null) {
     const maker = hit === null ? undefined : operationMaking(designHistory(), hit.partId);
     selectOperation(maker?.id ?? null);
@@ -635,6 +684,7 @@ const growthOrFail = (): GrowProfile => {
 function startGrowth() {
   const partId = selectedPartId();
   if (partId === null) return;
+  measurePicks = null;
   growth = draftGrowth(designHistory(), partId, markerIndex());
   refresh();
 }
@@ -792,6 +842,10 @@ function renderPartInspector({ force = false } = {}) {
  * In a text field they keep undoing its typing.
  */
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && measurePicks !== null && !document.querySelector('dialog[open]')) {
+    setMeasuring(false);
+    return;
+  }
   if (event.key === 'Escape' && growth !== null && !document.querySelector('dialog[open]')) {
     cancelGrowth();
     return;
@@ -1127,6 +1181,7 @@ function renderWorkflow() {
   $('[data-workspace="checks"]').textContent = inCockpit ? 'Inspector' : 'Checks';
   $('#partInspector').hidden = !inCockpit || !designHasParts();
   $('#layoutBtn').hidden = inCockpit;
+  $('#measureBtn').hidden = !inCockpit || !designHasParts();
   $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
   $('#layoutBtn').classList.toggle('active', layoutEditing);
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
@@ -1349,6 +1404,7 @@ function renderControls() {
 }
 function switchSection(value: Section) {
   const editorChanged = editorOfSection(value) !== editor();
+  if (editorChanged) measurePicks = null;
   section = value;
   lastSection[editor()] = value;
   // The other editor shows another configuration, so the panels need its evaluation.
@@ -1458,6 +1514,7 @@ function refresh() {
   renderWorkflow();
   renderPartInspector();
   renderCockpitChecks();
+  renderMeasure();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
 function download(filename: string, text: string, type: string) {
@@ -1626,6 +1683,7 @@ $('#dimensionBtn').addEventListener('click', () => {
   $('#dimensionBtn').classList.toggle('active', on);
   scene?.setDimensions(on);
 });
+$('#measureBtn').addEventListener('click', () => setMeasuring(measurePicks === null));
 $('#fitBtn').addEventListener('click', () => scene?.setView(view));
 function focusArmControls() {
   const panel = $('#controls'),

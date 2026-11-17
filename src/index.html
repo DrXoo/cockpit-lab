@@ -211,6 +211,14 @@
             >
               <i data-icon="expand"></i><span>Arrange</span></button
             ><button
+              class="layout-button"
+              id="measureBtn"
+              aria-pressed="false"
+              title="Measure between two points of the design (Esc to stop)"
+              hidden
+            >
+              <i data-icon="measure"></i><span>Measure</span></button
+            ><button
               class="icon-button active"
               id="dimensionBtn"
               aria-label="Hide dimensions"
@@ -236,6 +244,7 @@
             The 3D view needs WebGL. Settings, calculations and the summary are still available.
           </div>
           <div class="scene-labels" id="sceneLabels"></div>
+          <p class="measure-readout" id="measureReadout" role="status" hidden></p>
           <div class="viewport-note" hidden>
             <i data-icon="rotate"></i><span>Drag to orbit · scroll to zoom</span>
           </div>

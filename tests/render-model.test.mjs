@@ -85,3 +85,16 @@ test('the selected part shows its length with the other dimensions, which can be
     ['500 mm'],
   );
 });
+
+test('a measurement is drawn apart from the dimensions, so hiding them keeps it', () => {
+  const history = addAnchoredProfile([]).history;
+  const at = { x: 0, y: 40, z: 100 };
+  const cockpit = {
+    resolved: resolveAssembly(replayHistory(history)),
+    selectedPartId: null,
+    measure: { points: [at], measurement: null },
+  };
+  const { model } = render(NOTHING_AROUND, { cockpit });
+  const marker = model.primitives.find((p) => p.kind === 'sphere');
+  assert.equal(marker.parent, ROOT);
+});
