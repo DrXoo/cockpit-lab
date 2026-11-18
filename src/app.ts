@@ -17,6 +17,8 @@ import {
   designPanelHTML,
   growPanelHTML,
   jointCardHTML,
+  partToolsOf,
+  type PartTool,
   NOTHING_AROUND,
   faceOf,
   footChange,
@@ -243,6 +245,12 @@ const paths: Record<string, string> = {
   undo: 'M6 3 2 7l4 4M2 7h8.5a4.5 4.5 0 0 1 0 9H7',
   redo: 'm12 3 4 4-4 4m4-4H7.5a4.5 4.5 0 0 0 0 9H11',
   plus: 'M9 3v12M3 9h12',
+  // A profile with another growing up out of it.
+  grow: 'M2 12h14v3H2ZM9 12V3M6 6l3-3 3 3',
+  // A plate seen from above and to one side, with its thickness.
+  plate: 'M2 10.5 6.5 7H16l-4.5 3.5ZM2 10.5V12h9.5l4.5-3.5V7',
+  // A leveling foot: its threaded stem, its pad and the floor.
+  foot: 'M9 2v8M5.5 10h7l1.5 3h-10ZM2 16h14',
 };
 function icons(root: ParentNode = document) {
   root
@@ -1224,11 +1232,26 @@ function renderPartInspector({ force = false } = {}) {
     const field = partField(el.dataset.partField);
     el.addEventListener('change', () => editPartField(operation, field, el.value));
   });
-  $optional('#growProfile')?.addEventListener('click', startGrowth);
-  $optional('#putPlate')?.addEventListener('click', startPlate);
-  $optional('#addFoot')?.addEventListener('click', addFootUnderSelected);
   bindJointActions(body);
-  $optional('#removePart')?.addEventListener('click', removeSelectedPart);
+}
+const PART_TOOL_BUTTONS: Record<PartTool, string> = {
+  grow: '#growProfile',
+  plate: '#putPlate',
+  foot: '#addFoot',
+  remove: '#removePart',
+};
+/**
+ * The toolbar of the view offers the actions on the selected part, in the cockpit editor and
+ * while no part is being added.
+ */
+function renderPartTools() {
+  const operation = selectedOperation();
+  const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
+  const offered = editor() === 'cockpit' && draftPart === null;
+  const tools = offered ? partToolsOf(operation, failure) : [];
+  for (const [tool, selector] of Object.entries(PART_TOOL_BUTTONS))
+    $(selector).hidden = !tools.some((offeredTool) => offeredTool === tool);
+  $('#partTools').hidden = tools.length === 0;
 }
 /** The joint actions in `container`: brackets, bolts and joins, as the inspector offers them. */
 function bindJointActions(container: HTMLElement) {
@@ -1995,6 +2018,7 @@ function refresh() {
   renderMeasure();
   renderChangeBox();
   renderJointCard();
+  renderPartTools();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
 function download(filename: string, text: string, type: string) {
@@ -2166,6 +2190,10 @@ $('#dimensionBtn').addEventListener('click', () => {
   scene?.setDimensions(on);
 });
 $('#measureBtn').addEventListener('click', () => setMeasuring(measurePicks === null));
+$('#growProfile').addEventListener('click', startGrowth);
+$('#putPlate').addEventListener('click', startPlate);
+$('#addFoot').addEventListener('click', addFootUnderSelected);
+$('#removePart').addEventListener('click', removeSelectedPart);
 $('#confirmChange').addEventListener('click', confirmChange);
 $('#cancelChange').addEventListener('click', cancelChange);
 $('#changeValue').addEventListener('input', typeChange);

@@ -325,7 +325,7 @@ test('deleting a step fails the steps that relied on it, and keeps the others', 
   await expect(page.locator('[data-operation="op-3"]')).not.toHaveClass(/failed/);
   await page.locator('[data-operation="op-2"]').click();
   await expect(page.locator('#partInspectorBody .part-warning')).toBeVisible();
-  await expect(page.locator('#removePart')).toHaveCount(0);
+  await expect(page.locator('#removePart')).toBeHidden();
 });
 
 test('the history marker shows an earlier step, and new steps go in there', async ({ page }) => {
@@ -495,7 +495,7 @@ test('a plate rests on the selected profile, previewed until it is added', async
       sheetId: 'aluminium-8',
     });
   await expect(page.locator('#part-sheetId')).toHaveValue('aluminium-8');
-  await expect(page.locator('#growProfile')).toHaveCount(0);
+  await expect(page.locator('#growProfile')).toBeHidden();
   await expect(page.locator('#partsToBuy [data-buy="plate"]')).toHaveCount(1);
 });
 

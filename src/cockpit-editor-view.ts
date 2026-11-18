@@ -265,20 +265,26 @@ export function partInspectorHTML(
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
   if (operation.kind === 'join-parts')
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
-  const removePart = `<button class="button button-light" id="removePart" title="Remove it from the design from the marker on"><i data-icon="close"></i>Remove this part</button>`;
   if (operation.kind === 'add-foot' || operation.kind === 'add-plate') {
-    const actions = failure === undefined ? removePart : '';
     const fields =
       operation.kind === 'add-foot'
         ? footFieldsHTML(history, operation)
         : plateFieldsHTML('part', history, operation);
-    return `<div class="part-inspector" id="partInspectorFields">${failed}${fields}${jointsHTML(joints, touching)}<div class="part-actions">${actions}${deleteStep}</div></div>`;
+    return `<div class="part-inspector" id="partInspectorFields">${failed}${fields}${jointsHTML(joints, touching)}<div class="part-actions">${deleteStep}</div></div>`;
   }
-  const partActions =
-    failure === undefined
-      ? `<button class="button button-light" id="growProfile"><i data-icon="plus"></i>Grow a profile out of it</button><button class="button button-light" id="putPlate"><i data-icon="plus"></i>Put a plate on it</button><button class="button button-light" id="addFoot" title="Under the end that has fewer feet"><i data-icon="plus"></i>Add a foot under it</button>${removePart}`
-      : '';
-  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}${jointsHTML(joints, touching)}<div class="part-actions">${partActions}${deleteStep}</div></div>`;
+  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}${jointsHTML(joints, touching)}<div class="part-actions">${deleteStep}</div></div>`;
+}
+
+/** An action on the selected part, from the toolbar of the view. */
+export type PartTool = 'grow' | 'plate' | 'foot' | 'remove';
+
+/**
+ * The tools the view offers for the selected step: a profile grows a profile, takes a plate and
+ * a foot, and any part can be removed. A failed step, or one that makes no part, has none.
+ */
+export function partToolsOf(operation: Operation | undefined, failure?: string): PartTool[] {
+  if (!operation || failure !== undefined || !makesAPart(operation)) return [];
+  return makesAProfile(operation) ? ['grow', 'plate', 'foot', 'remove'] : ['remove'];
 }
 
 /**

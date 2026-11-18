@@ -769,6 +769,30 @@ select option {
   border-color: var(--ok);
 }
 
+/* The actions on the selected part, in the toolbar of the view. */
+.part-tools {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.part-tools[hidden] {
+  display: none;
+}
+
+.part-tools .icon-button {
+  width: 30px;
+  height: 28px;
+  color: var(--text);
+}
+
+.part-tools .icon-button[hidden] {
+  display: none;
+}
+
 /* The card of a joint marker, beside it, with the joint's quick actions. */
 .joint-card {
   position: absolute;

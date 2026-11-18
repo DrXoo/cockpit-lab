@@ -9,6 +9,7 @@ import {
   partChange,
   partField,
   partInspectorHTML,
+  partToolsOf,
   plateChange,
   platePanelHTML,
 } from '../src/cockpit-editor-view.ts';
@@ -292,18 +293,26 @@ test('a removal step names the part it removes, and its inspector can only delet
   const html = partInspectorHTML(history, history[1]);
   assert.match(html, /Removes <strong>Rail<\/strong>/);
   assert.match(html, /id="deleteStep"/);
-  assert.doesNotMatch(html, /data-part-field|id="removePart"|id="growProfile"/);
+  assert.doesNotMatch(html, /data-part-field/);
+  assert.deepEqual(partToolsOf(history[1]), []);
 });
 
-test('the inspector of a part can remove it or delete its step; a failed one says why', () => {
+test('a profile has the tools of the view, and its inspector deletes its step', () => {
   const history = historyWith(1);
   const html = partInspectorHTML(history, history[0]);
-  assert.match(html, /id="removePart"/);
   assert.match(html, /id="deleteStep"/);
-  const failed = partInspectorHTML(history, history[0], 'It grows out of a part that was deleted.');
+  assert.doesNotMatch(html, /id="removePart"|id="growProfile"|id="putPlate"|id="addFoot"/);
+  assert.deepEqual(partToolsOf(history[0]), ['grow', 'plate', 'foot', 'remove']);
+});
+
+test('a failed step says why in its inspector, and has no tools in the view', () => {
+  const history = historyWith(1);
+  const reason = 'It grows out of a part that was deleted.';
+  const failed = partInspectorHTML(history, history[0], reason);
   assert.match(failed, /⚠ Failed: It grows out of a part that was deleted\./);
-  assert.doesNotMatch(failed, /id="removePart"|id="growProfile"/);
   assert.match(failed, /data-part-field="name"/, 'its values can still be fixed');
+  assert.deepEqual(partToolsOf(history[0], reason), []);
+  assert.deepEqual(partToolsOf(undefined), []);
 });
 
 test('a foot is a step under its profile, and its inspector sets its type and place', () => {
@@ -318,13 +327,8 @@ test('a foot is a step under its profile, and its inspector sets its type and pl
   assert.match(html, /id="part-fromEnd"/);
   assert.match(html, /id="part-alongMm"[^>]*value="36"/);
   assert.match(html, /estimated/);
-  assert.match(html, /id="removePart"/);
-  assert.doesNotMatch(html, /id="growProfile"|id="addFoot"|id="part-lengthMm"/);
-});
-
-test('a profile offers a foot under it', () => {
-  const history = historyWith(1);
-  assert.match(partInspectorHTML(history, history[0]), /id="addFoot"/);
+  assert.doesNotMatch(html, /id="part-lengthMm"/);
+  assert.deepEqual(partToolsOf(history[1]), ['remove']);
 });
 
 test('the fields of a foot change the values of its operation', () => {
@@ -413,13 +417,8 @@ test('a plate is a step on its profile, and its inspector sets its sheet, size a
   assert.doesNotMatch(html, /Front end \(\+Z\)/, 'a plate rests on a side, never on an end');
   assert.match(html, /id="part-alongMm"[^>]*value="500"/);
   assert.match(html, /id="part-acrossMm"[^>]*value="0"/);
-  assert.match(html, /id="removePart"/);
-  assert.doesNotMatch(html, /id="growProfile"|id="addFoot"|id="putPlate"|id="part-lengthMm"/);
-});
-
-test('a profile offers a plate on it', () => {
-  const history = historyWith(1);
-  assert.match(partInspectorHTML(history, history[0]), /id="putPlate"/);
+  assert.doesNotMatch(html, /id="part-lengthMm"/);
+  assert.deepEqual(partToolsOf(history[1]), ['remove']);
 });
 
 test('the plate panel edits the new plate before it is added', () => {

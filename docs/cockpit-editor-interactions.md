@@ -23,6 +23,8 @@ How the mouse and keyboard edit a cockpit design in the view of the cockpit edit
 | End | A ball at each free end of a profile, with one arrow along its length | Along the profile's length; with Shift, both ends move symmetrically | The change in length (+120 mm); with Shift, the total length |
 | Edge | A ball at the middle of each edge of a plate | Across that edge, changing the plate's width or depth on both sides, so its center stays where it was placed; with Shift, only that edge moves and the far edge stays | The whole width or depth; with Shift, the change in that side |
 
+The actions on the selected part are icon buttons in the toolbar of the view, each named by its tooltip: **Grow a profile out of it**, **Put a plate on it** and **Add a foot under it** for a profile, and **Remove this part** for any part. A failed step has none; its inspector can still fix its values or delete it.
+
 A profile grown out of a face has an end handle only at its free end: the other end stays on its parent. A span has no end handles, as its length is the gap to the part it reaches. A profile's section and a plate's thickness come from the catalog, so no handle changes them. Dragging outside the handles orbits or pans, as with nothing selected.
 
 ## A part about to be added
