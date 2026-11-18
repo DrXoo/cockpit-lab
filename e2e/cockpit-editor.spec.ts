@@ -949,3 +949,34 @@ test("a peripheral's inspector edits its own values, and swapping its type warns
   await expect(page.locator('#part-backrestDeg')).toBeVisible();
   await expect(page.locator('#part-widthMm')).toHaveValue('540');
 });
+
+test('a part about to be added is added or dropped from its box in the view, or with Enter', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#fitModeBtn').click();
+  const box = page.locator('#draftBox');
+  await expect(box).toBeHidden();
+
+  await page.locator('#mountPedals').click();
+  await expect(box).toBeVisible();
+  await page.locator('#cancelDraftInView').click();
+  await expect(box).toBeHidden();
+  await expect(page.locator('#peripheralPanel')).toBeHidden();
+  expect(await savedHistory(page)).toHaveLength(1);
+
+  await page.locator('#mountPedals').click();
+  await page.locator('#confirmDraftInView').click();
+  await expect(box).toBeHidden();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'mount-peripheral', typeId: 'generic-pedals' });
+
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#mountSeat').click();
+  await expect(box).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'mount-peripheral', typeId: 'generic-seat' });
+});

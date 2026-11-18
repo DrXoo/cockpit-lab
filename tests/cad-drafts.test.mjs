@@ -4,7 +4,8 @@ import { addAnchoredProfile, draftGrowth, editDraft, editProfile } from '../src/
 import { draftPlate } from '../src/cad/plates.ts';
 import { draggedHistory, partHandles } from '../src/cad/handles.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
-import { draftEditedBy, withDraft } from '../src/cad/drafts.ts';
+import { draftCornersMm, draftEditedBy, withDraft } from '../src/cad/drafts.ts';
+import { draftPeripheral } from '../src/cad/peripherals.ts';
 
 /** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
 const railHistory = () => {
@@ -71,4 +72,34 @@ test('an edit that would put a part about to be added off its parent is refused'
   const history = railHistory();
   const plate = draftPlate(history, 'part-1');
   assert.throws(() => dragged(history, plate, 'move:z', { changeMm: 900, symmetric: false }));
+});
+
+/** The lowest and highest coordinates of some points. */
+const extent = (points) => ({
+  min: {
+    x: Math.min(...points.map((p) => p.x)),
+    y: Math.min(...points.map((p) => p.y)),
+    z: Math.min(...points.map((p) => p.z)),
+  },
+  max: {
+    x: Math.max(...points.map((p) => p.x)),
+    y: Math.max(...points.map((p) => p.y)),
+    z: Math.max(...points.map((p) => p.z)),
+  },
+});
+
+test('a part about to be added has the corners the view shows it with, which its box keeps clear of', () => {
+  const history = railHistory();
+  const plate = draftCornersMm(history, draftPlate(history, 'part-1'), history.length);
+  assert.equal(plate.length, 8);
+  assert.deepEqual(extent(plate), {
+    min: { x: -150, y: 40, z: 350 },
+    max: { x: 150, y: 48, z: 650 },
+  });
+  const pedals = draftPeripheral(history, 'part-1', 'generic-pedals');
+  const { widthMm, heightMm, depthMm } = pedals.envelope;
+  assert.deepEqual(extent(draftCornersMm(history, pedals, history.length)), {
+    min: { x: -widthMm / 2, y: 40, z: 500 - depthMm / 2 },
+    max: { x: widthMm / 2, y: 40 + heightMm, z: 500 + depthMm / 2 },
+  });
 });

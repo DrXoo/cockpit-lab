@@ -1,6 +1,7 @@
 // A part about to be added (a profile about to grow, a plate about to rest on a profile, or a
 // peripheral about to be mounted) is an operation that is not in the design history yet. The view shows it at the history marker, and
 // its handles and the inspector's edits change it there, as they change a part already added.
+import { cornersMm, type Vec3Mm } from './assembly.ts';
 import {
   operationMaking,
   type AddPlate,
@@ -8,6 +9,7 @@ import {
   type MountPeripheral,
   type Operation,
 } from './operations.ts';
+import { replayDesign } from './replay.ts';
 
 /** A part about to be added, previewed in the view. */
 export type Draft = GrowProfile | AddPlate | MountPeripheral;
@@ -31,4 +33,14 @@ export function draftEditedBy(
   if (edited?.kind !== draft.kind)
     throw new Error(`${draft.name} is no longer the part about to be added.`);
   return edited;
+}
+
+/**
+ * The corners of a part about to be added, as the view shows it at the marker. The box that adds
+ * or drops it keeps clear of them, and so of the handles that start at its center.
+ */
+export function draftCornersMm(history: readonly Operation[], draft: Draft, at: number): Vec3Mm[] {
+  const shown = replayDesign(withDraft(history, draft, at), at + 1).resolved.get(draft.partId);
+  if (!shown) throw new Error(`${draft.name} does not fit where it is about to be added.`);
+  return cornersMm(shown);
 }

@@ -29,7 +29,7 @@ A profile grown out of a face has an end handle only at its free end: the other 
 
 ## A part about to be added
 
-A profile about to grow, or a plate about to rest on a profile, is shown as a preview with the handles it will have once added, which snap as any other handle does. Dragging one changes the preview at once, without a box: the panel of the new part shows its values, to type them exactly, and adds it or leaves it out. Clicking a face of the parent still moves the preview there. A profile whose end reaches a part as it is dragged is added as a span, and the panel can let its end go again.
+A profile about to grow, a plate about to rest on a profile, or a peripheral about to be mounted, is shown as a preview with the handles it will have once added, which snap as any other handle does. Dragging one changes the preview at once, without a value box: the panel of the new part shows its values, to type them exactly. A box above the preview, clear of it and of its handles, names the new part: ✓ or Enter adds it and ✗ or Escape leaves it out, as the buttons of its panel do, so a part placed with its handles is added without leaving the view. Clicking a face of the parent still moves the preview there. A profile whose end reaches a part as it is dragged is added as a span, and the panel can let its end go again.
 
 While a part is placed on a profile, about to be added or moved by a handle, two dimensions along the profile measure from each of its ends to the part's center, whether dimensions are shown or not; a profile about to be added shows its own length as well.
 
@@ -104,6 +104,7 @@ Moving a part along its travel changes no part and no cut: it is saved with the 
 | Delete, with a part selected | **Remove this part**: a step that removes it from the history marker on |
 | Delete, with a step that makes no part selected (a fastening, a join or a removal) | **Delete this step** |
 | Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z | Undo and redo the edits of the session |
+| Enter, with a part about to be added | Adds it, as ✓ in its box does |
 | Escape | Closes a card, cancels a change waiting to be confirmed or a part about to be added, or stops measuring |
 
 In a text field, these keys edit the text instead. Undo and redo show on an empty design only when there is something to undo or redo.

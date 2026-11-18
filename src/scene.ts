@@ -152,13 +152,19 @@ function clearOfCenter(
   };
 }
 
-/** An element of the page kept beside a point of the scene, such as the box of a change. */
-interface AnchoredItem {
-  el: HTMLElement;
-  position: T.Vector3;
-  /** A point the element keeps clear of, such as the tip of the arrow being dragged. */
-  clearOf: T.Vector3 | null;
-}
+/**
+ * An element of the page kept beside a point of the scene, such as the box of a change, or above
+ * the outline some points make on screen, such as the corners of a part about to be added.
+ */
+type AnchoredItem =
+  | {
+      kind: 'beside';
+      el: HTMLElement;
+      position: T.Vector3;
+      /** A point the element keeps clear of, such as the tip of the arrow being dragged. */
+      clearOf: T.Vector3 | null;
+    }
+  | { kind: 'above'; el: HTMLElement; points: T.Vector3[] };
 
 /**
  * How a handle is being dragged: whether Shift is held, which moves both ends or only one, and
@@ -619,9 +625,25 @@ export class CockpitScene {
     if (pointCm === null) this.anchored.delete(el);
     else
       this.anchored.set(el, {
+        kind: 'beside',
         el,
         position: vector(pointCm),
         clearOf: clearOfCm ? vector(clearOfCm) : null,
+      });
+    this.revision++;
+  }
+
+  /**
+   * Keeps an element of the page above the outline some points of the scene make on screen, or
+   * below it when there is no room above, clear of what lies inside; null lets it go.
+   */
+  anchorAbove(el: HTMLElement, pointsCm: readonly { x: number; y: number; z: number }[] | null) {
+    if (pointsCm === null) this.anchored.delete(el);
+    else
+      this.anchored.set(el, {
+        kind: 'above',
+        el,
+        points: pointsCm.map((cm) => new T.Vector3(cm.x, cm.y, cm.z)),
       });
     this.revision++;
   }
@@ -1031,17 +1053,25 @@ export class CockpitScene {
     const placed = this.handleItems.map((item) => ({ item, at: onScreen(item.position) }));
     const balls = placed.filter(({ item }) => item.kind === 'ball').map(({ at }) => at);
     const arrowDirections: ScreenPoint[] = [];
+    // Where the handles reach on screen, which a box kept above a part stays clear of.
+    const handleReach: ScreenPoint[] = [];
     for (const { item, at } of placed) {
       item.el.hidden = !at.inView;
       item.el.style.left = `${at.x}px`;
       item.el.style.top = `${at.y}px`;
+      if (!item.el.hidden) handleReach.push(at);
       if (!item.toward) continue;
       const tip = onScreen(item.toward);
       const lengthPx = Math.hypot(tip.x - at.x, tip.y - at.y);
       item.el.hidden ||= lengthPx < ARROW_HIDDEN_BELOW_PX;
       const direction = { x: (tip.x - at.x) / lengthPx, y: (tip.y - at.y) / lengthPx };
-      if (!item.el.hidden) arrowDirections.push(direction);
-      item.el.style.width = `${arrowLengthPx(at, direction, balls)}px`;
+      const shownLengthPx = arrowLengthPx(at, direction, balls);
+      if (!item.el.hidden) {
+        arrowDirections.push(direction);
+        const reachPx = ARROW_START_PX + shownLengthPx;
+        handleReach.push({ x: at.x + direction.x * reachPx, y: at.y + direction.y * reachPx });
+      }
+      item.el.style.width = `${shownLengthPx}px`;
       const angleRad = Math.atan2(direction.y, direction.x);
       item.el.style.transform = `rotate(${angleRad}rad) translateX(${ARROW_START_PX}px)`;
     }
@@ -1054,14 +1084,24 @@ export class CockpitScene {
         item.el.style.top = `${moved.y}px`;
       }
     }
-    for (const item of this.anchored.values()) this.placeAnchored(item, w, h);
+    for (const item of this.anchored.values()) this.placeAnchored(item, w, h, handleReach);
   }
 
   /**
    * Puts an element beside its point, to the right of it unless it would leave the view, and
    * always whole within the view, so it never has to be scrolled to.
    */
-  private placeAnchored({ el, position, clearOf }: AnchoredItem, w: number, h: number) {
+  private placeAnchored(
+    item: AnchoredItem,
+    w: number,
+    h: number,
+    handleReach: readonly ScreenPoint[],
+  ) {
+    if (item.kind === 'above') {
+      this.placeAbove(item.el, item.points, handleReach, w, h);
+      return;
+    }
+    const { el, position, clearOf } = item;
     const p = position.clone().project(this.camera);
     const x = (p.x * 0.5 + 0.5) * w;
     const y = (-p.y * 0.5 + 0.5) * h;
@@ -1076,6 +1116,37 @@ export class CockpitScene {
     const left = rightFits && !rightIsTaken ? right : leftOf;
     el.style.left = `${clamp(left, ANCHORED_MARGIN_PX, w - width - ANCHORED_MARGIN_PX)}px`;
     el.style.top = `${clamp(y - height / 2, ANCHORED_MARGIN_PX, h - height - ANCHORED_MARGIN_PX)}px`;
+  }
+
+  /**
+   * Puts an element centered above the outline of some points on screen and of where the
+   * handles reach, or below it if it must.
+   */
+  private placeAbove(
+    el: HTMLElement,
+    points: readonly T.Vector3[],
+    handleReach: readonly ScreenPoint[],
+    w: number,
+    h: number,
+  ) {
+    const onScreen = [
+      ...points.map((point) => {
+        const p = point.clone().project(this.camera);
+        return { x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h };
+      }),
+      ...handleReach,
+    ];
+    const left = Math.min(...onScreen.map((p) => p.x));
+    const right = Math.max(...onScreen.map((p) => p.x));
+    const top = Math.min(...onScreen.map((p) => p.y));
+    const bottom = Math.max(...onScreen.map((p) => p.y));
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
+    const above = top - ANCHORED_GAP_PX - height;
+    const y = above >= ANCHORED_MARGIN_PX ? above : bottom + ANCHORED_GAP_PX;
+    const x = (left + right) / 2 - width / 2;
+    el.style.left = `${clamp(x, ANCHORED_MARGIN_PX, w - width - ANCHORED_MARGIN_PX)}px`;
+    el.style.top = `${clamp(y, ANCHORED_MARGIN_PX, h - height - ANCHORED_MARGIN_PX)}px`;
   }
 
   private placeLabels(w: number, h: number) {

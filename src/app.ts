@@ -116,7 +116,7 @@ import {
   type Handle,
 } from './cad/handles.ts';
 import { snapToParts, type Snap } from './cad/snapping.ts';
-import { draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
+import { draftCornersMm, draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
 import { jointMarkers, type JointMarker } from './cad/joint-markers.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
@@ -741,6 +741,37 @@ function renderChangeBox() {
     z: ball.z + outwardMm.z * ARROW_CLEARANCE_MM,
   };
   scene?.anchorElement(box, inCm(ball), handle.kind === 'move' ? inCm(arrowTip) : null);
+  box.hidden = false;
+}
+/** What ✓ in the box of a part about to be added does, as its panel's button says it. */
+const DRAFT_CONFIRM_LABELS: Record<Draft['kind'], string> = {
+  'grow-profile': 'Add the profile',
+  'add-plate': 'Add the plate',
+  'mount-peripheral': 'Mount it',
+};
+/**
+ * The box of a part about to be added, above it in the view: ✓ adds it and ✗ drops it, as
+ * the buttons of its panel do, so a part placed with its handles is added without leaving the view.
+ */
+function renderDraftBox() {
+  const box = $('#draftBox');
+  const drafting = draftPart;
+  if (drafting === null || editor() !== 'cockpit') {
+    box.hidden = true;
+    scene?.anchorAbove(box, null);
+    return;
+  }
+  $('#draftKind').textContent = DRAFT_TITLES[drafting.kind];
+  const confirm = $('#confirmDraftInView');
+  const confirmLabel = DRAFT_CONFIRM_LABELS[drafting.kind];
+  confirm.title = `${confirmLabel} (Enter)`;
+  confirm.setAttribute('aria-label', confirmLabel);
+  const cornersCm = draftCornersMm(designHistory(), drafting, markerIndex()).map((cornerMm) => ({
+    x: cornerMm.x / MM_PER_CM,
+    y: cornerMm.y / MM_PER_CM,
+    z: cornerMm.z / MM_PER_CM,
+  }));
+  scene?.anchorAbove(box, cornersCm);
   box.hidden = false;
 }
 /** The measurement being taken, in the design the view shows at the history marker. */
@@ -1508,6 +1539,12 @@ document.addEventListener('keydown', (event) => {
     deleteWithKey(event);
     return;
   }
+  // A focused button takes Enter as its own click.
+  if (event.key === 'Enter' && draftPart !== null && !(event.target instanceof HTMLButtonElement)) {
+    event.preventDefault();
+    confirmDraft();
+    return;
+  }
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
   if (key === 'z' && !event.shiftKey) {
@@ -2175,6 +2212,7 @@ function refresh() {
   renderCockpitChecks();
   renderMeasure();
   renderChangeBox();
+  renderDraftBox();
   renderJointCard();
   renderPartTools();
   scene?.update(shown, evaluation, cockpitDrawing());
@@ -2356,6 +2394,8 @@ $('#mountPedals').addEventListener('click', () => startMounting('generic-pedals'
 $('#fitModeBtn').addEventListener('click', () => setFitting(!fitting));
 $('#addFoot').addEventListener('click', addFootUnderSelected);
 $('#removePart').addEventListener('click', removeSelectedPart);
+$('#confirmDraftInView').addEventListener('click', confirmDraft);
+$('#cancelDraftInView').addEventListener('click', cancelDraft);
 $('#confirmChange').addEventListener('click', confirmChange);
 $('#cancelChange').addEventListener('click', cancelChange);
 $('#changeValue').addEventListener('input', typeChange);
