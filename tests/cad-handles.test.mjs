@@ -18,6 +18,7 @@ import {
   handlesSeenAlong,
   partHandles,
   snappedDrag,
+  symmetricDrag,
 } from '../src/cad/handles.ts';
 
 /** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
@@ -331,4 +332,13 @@ test('the box shows the change of one edge, or the whole width or depth of a sym
     valueMm: 200,
   });
   assert.equal(dragFromTyped(plate, along, { changeMm: 0, symmetric: true }, 400).changeMm, 50);
+});
+
+test('a plate grows on both sides of its center, and Shift moves only the dragged edge', () => {
+  const plate = handleOf(withPlate(), 'part-2:edge:+x');
+  assert.equal(symmetricDrag(plate, false), true);
+  assert.equal(symmetricDrag(plate, true), false);
+  const end = handleOf(railHistory(), 'part-1:end');
+  assert.equal(symmetricDrag(end, false), false);
+  assert.equal(symmetricDrag(end, true), true);
 });

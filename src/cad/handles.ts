@@ -155,6 +155,14 @@ export function draggedHistory(
 }
 
 /**
+ * Whether a drag moves both ends or edges at once. A plate is placed by its center, so its edges
+ * move together unless Shift holds the far one; a profile is lengthened from the end dragged,
+ * and Shift moves both of its ends.
+ */
+export const symmetricDrag = (handle: Handle, shiftHeld: boolean): boolean =>
+  handle.kind === 'edge' ? !shiftHeld : shiftHeld;
+
+/**
  * The handle where a drag leaves it: moved as far along its direction as the drag went, as the
  * end, edge or part it changes did. It stays even where the part then has no such handle, as a
  * span has no end handle.

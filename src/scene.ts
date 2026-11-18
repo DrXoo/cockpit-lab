@@ -84,7 +84,7 @@ const AHEAD_WITHIN_PX = 12;
 
 const HANDLE_TITLES: Record<Handle['kind'], string> = {
   end: 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre',
-  edge: 'Drag to widen or narrow · Shift: both edges · Alt: to the millimetre',
+  edge: 'Drag to widen or narrow on both sides · Shift: this edge only · Alt: to the millimetre',
   move: 'Drag to move along this axis · Alt: to the millimetre',
 };
 
@@ -117,11 +117,12 @@ interface AnchoredItem {
 }
 
 /**
- * How a handle is being dragged: Shift moves both ends, Alt drops the steps and the snapping; a
- * snap reaches as far along the handle as a few pixels on screen cover where it is.
+ * How a handle is being dragged: whether Shift is held, which moves both ends or only one, and
+ * Alt, which drops the steps and the snapping; a snap reaches as far along the handle as a few
+ * pixels on screen cover where it is.
  */
 export interface HandleModifiers {
-  symmetric: boolean;
+  shiftHeld: boolean;
   free: boolean;
   snapWithinMm: number;
 }
@@ -859,7 +860,7 @@ export class CockpitScene {
       const alongMm = this.alongHandle(event, drag.handle);
       if (alongMm !== null)
         this.onHandleDrag?.(drag.handle, alongMm - drag.grabbedAtMm, {
-          symmetric: event.shiftKey,
+          shiftHeld: event.shiftKey,
           free: event.altKey,
           snapWithinMm: this.snapWithinMm(drag.handle),
         });

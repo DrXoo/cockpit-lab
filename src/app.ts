@@ -91,6 +91,7 @@ import {
   handlesSeenAlong,
   partHandles,
   snappedDrag,
+  symmetricDrag,
   type Drag,
   type DragReadout,
   type Handle,
@@ -468,22 +469,22 @@ function grabHandle(handle: Handle) {
   changeAtGrabMm = pendingChange?.handle.id === handle.id ? pendingChange.drag.changeMm : 0;
 }
 /** A drag snaps to the parts around it when near them, and otherwise goes in steps. */
-function dragHandle(
-  shown: Handle,
-  movedMm: number,
-  { symmetric, free, snapWithinMm }: HandleModifiers,
-) {
+function dragHandle(shown: Handle, movedMm: number, modifiers: HandleModifiers) {
   if (draftAtGrab !== null) {
     // A part no longer about to be added, as Escape left it mid-drag, is not brought back.
     if (draftPart === null) draftAtGrab = null;
-    else dragDraft(draftAtGrab, shown, movedMm, { symmetric, free, snapWithinMm });
+    else dragDraft(draftAtGrab, shown, movedMm, modifiers);
     return;
   }
   // A waiting change shows its handle where it was let go: the drag goes on from the handle
   // as it was before the change.
   const handle = pendingChange?.handle.id === shown.id ? pendingChange.handle : shown;
   const history = designHistory();
-  const dragged = { symmetric, changeMm: changeAtGrabMm + movedMm };
+  const { shiftHeld, free, snapWithinMm } = modifiers;
+  const dragged = {
+    symmetric: symmetricDrag(handle, shiftHeld),
+    changeMm: changeAtGrabMm + movedMm,
+  };
   const toParts = free ? null : snapToParts(history, handle, dragged, snapWithinMm, markerIndex());
   if (toParts) changeInView(handle, toParts.drag, toParts.snap);
   else changeInView(handle, snappedDrag(history, handle, dragged, free));
@@ -496,12 +497,12 @@ function dragDraft(
   draft: Draft,
   handle: Handle,
   movedMm: number,
-  { symmetric, free, snapWithinMm }: HandleModifiers,
+  { shiftHeld, free, snapWithinMm }: HandleModifiers,
 ) {
   const history = designHistory();
   const at = markerIndex();
   const shown = withDraft(history, draft, at);
-  const dragged = { symmetric, changeMm: movedMm };
+  const dragged = { symmetric: symmetricDrag(handle, shiftHeld), changeMm: movedMm };
   const toParts = free ? null : snapToParts(shown, handle, dragged, snapWithinMm, at + 1);
   const drag = toParts?.drag ?? snappedDrag(shown, handle, dragged, free);
   try {
