@@ -1,6 +1,6 @@
 // Measuring a cockpit design between two points clicked on its parts: the gap between two faces
 // that face each other, or else the X, Y and Z offsets from the first point to the second.
-// Measurements belong to the session and are never saved (docs/mini-cad.md, stage 2, slice 7).
+// Measurements belong to the session and are never saved (docs/mini-cad-log.md, stage 2, slice 7).
 // Clicked points are in their part's frame, as picking gives them; results are in cockpit mm.
 import {
   faceAxis,
