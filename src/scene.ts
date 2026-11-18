@@ -20,6 +20,7 @@ import type { ArmHandle } from './render-desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
 import { drawHover } from './render-hover.ts';
 import { distanceAlongAxis, type Handle } from './cad/handles.ts';
+import type { JointMarker } from './cad/joint-markers.ts';
 import { handleBallMm } from './render-handles.ts';
 import { renderModel } from './render-model.ts';
 import {
@@ -61,7 +62,7 @@ const clamp = (value: number, min: number, max: number) =>
  * that points to where `toward` is on screen.
  */
 interface HandleItem {
-  kind: 'ball' | 'center' | 'arrow';
+  kind: 'ball' | 'center' | 'arrow' | 'joint';
   el: HTMLElement;
   position: T.Vector3;
   toward?: T.Vector3;
@@ -81,6 +82,17 @@ const ARROW_MIN_LENGTH_PX = 24;
 const BALL_CLEARANCE_PX = 12;
 /** A ball this close to the line of an arrow lies ahead of it. */
 const AHEAD_WITHIN_PX = 12;
+
+const JOINT_MARKER_SYMBOLS: Record<JointMarker['state'], string> = {
+  pending: '⚠',
+  fastened: '✓',
+  touching: '+',
+};
+const JOINT_MARKER_TITLES: Record<JointMarker['state'], string> = {
+  pending: 'Joint without connectors · click for its quick actions',
+  fastened: 'Fastened joint · click for its connectors',
+  touching: 'Touching, without a joint · click to join them',
+};
 
 const HANDLE_TITLES: Record<Handle['kind'], string> = {
   end: 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre',
@@ -106,6 +118,38 @@ function arrowLengthPx(
     lengthPx = Math.min(lengthPx, aheadPx - BALL_CLEARANCE_PX - ARROW_START_PX);
   }
   return Math.max(lengthPx, ARROW_MIN_LENGTH_PX);
+}
+
+interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+/** A joint marker this near the center of the selected part would cover where its arrows start. */
+const MARKER_CLEARANCE_PX = 22;
+
+/**
+ * Where a joint marker at `at` is drawn: where it is, unless it lies on the center of the
+ * selected part, where it moves out to the side its arrows leave most room on.
+ */
+function clearOfCenter(
+  at: ScreenPoint,
+  center: ScreenPoint,
+  arrowDirections: readonly ScreenPoint[],
+): ScreenPoint {
+  if (Math.hypot(at.x - center.x, at.y - center.y) >= MARKER_CLEARANCE_PX) return at;
+  const sides = Array.from({ length: 8 }, (_, index) => {
+    const angleRad = (index * Math.PI) / 4 + Math.PI / 8;
+    return { x: Math.cos(angleRad), y: Math.sin(angleRad) };
+  });
+  // The side least in line with any arrow: the one whose nearest arrow is furthest round.
+  const nearestArrow = (side: ScreenPoint) =>
+    Math.max(-1, ...arrowDirections.map((arrow) => arrow.x * side.x + arrow.y * side.y));
+  const [freest = { x: 0, y: 1 }] = [...sides].sort((a, b) => nearestArrow(a) - nearestArrow(b));
+  return {
+    x: center.x + freest.x * MARKER_CLEARANCE_PX,
+    y: center.y + freest.y * MARKER_CLEARANCE_PX,
+  };
 }
 
 /** An element of the page kept beside a point of the scene, such as the box of a change. */
@@ -377,7 +421,10 @@ export class CockpitScene {
   /** The part and face marked under the pointer, to redraw only when they change. */
   declare hoverKey: string;
   declare handleItems: HandleItem[];
-  declare anchored: AnchoredItem | null;
+  /** The elements kept beside a point of the scene, such as the box of a change. */
+  declare anchored: Map<HTMLElement, AnchoredItem>;
+  /** A click on the marker of a joint, to open its card. */
+  declare onJointMarkerPick: ((marker: JointMarker) => void) | undefined;
   /** A handle of the selected part was grabbed. */
   declare onHandleGrab: ((handle: Handle) => void) | undefined;
   /** A grabbed handle moved this far along its axis, out of the end, since it was grabbed. */
@@ -414,7 +461,8 @@ export class CockpitScene {
     this.hoverRoot = null;
     this.hoverKey = '';
     this.handleItems = [];
-    this.anchored = null;
+    this.anchored = new Map();
+    this.onJointMarkerPick = undefined;
     this.onHandleGrab = undefined;
     this.onHandleDrag = undefined;
     this.onHandleRelease = undefined;
@@ -525,6 +573,29 @@ export class CockpitScene {
     }
   }
 
+  /** A button over the view for each joint marker, with its symbol, which opens its card. */
+  private addJointMarkers(markers: readonly JointMarker[]) {
+    for (const marker of markers) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'joint-marker';
+      el.dataset.jointMarker = marker.id;
+      el.dataset.state = marker.state;
+      el.textContent = JOINT_MARKER_SYMBOLS[marker.state];
+      el.title = JOINT_MARKER_TITLES[marker.state];
+      el.setAttribute('aria-label', JOINT_MARKER_TITLES[marker.state]);
+      el.addEventListener('click', () => this.onJointMarkerPick?.(marker));
+      this.labels.append(el);
+      const { pointMm } = marker;
+      const position = new T.Vector3(
+        pointMm.x / MM_PER_CM,
+        pointMm.y / MM_PER_CM,
+        pointMm.z / MM_PER_CM,
+      );
+      this.handleItems.push({ kind: 'joint', el, position });
+    }
+  }
+
   /** Where a handle is drawn, in the scene's cm. */
   private handleBall(handle: Handle): T.Vector3 {
     const ball = handleBallMm(handle);
@@ -538,9 +609,13 @@ export class CockpitScene {
     clearOfCm: { x: number; y: number; z: number } | null = null,
   ) {
     const vector = (cm: { x: number; y: number; z: number }) => new T.Vector3(cm.x, cm.y, cm.z);
-    this.anchored = pointCm
-      ? { el, position: vector(pointCm), clearOf: clearOfCm ? vector(clearOfCm) : null }
-      : null;
+    if (pointCm === null) this.anchored.delete(el);
+    else
+      this.anchored.set(el, {
+        el,
+        position: vector(pointCm),
+        clearOf: clearOfCm ? vector(clearOfCm) : null,
+      });
     this.revision++;
   }
 
@@ -624,6 +699,7 @@ export class CockpitScene {
     this.dims = addPrimitives(model.primitives, root, this.mat).dimensions;
     if (this.dims) this.dims.visible = this.dimensions;
     this.addLabels(model.labels);
+    this.addJointMarkers(cockpit?.jointMarkers ?? []);
     this.addHandles(cockpit?.handles ?? []);
     this.armHandles = model.armHandles;
     this.setFrustum();
@@ -942,6 +1018,7 @@ export class CockpitScene {
     };
     const placed = this.handleItems.map((item) => ({ item, at: onScreen(item.position) }));
     const balls = placed.filter(({ item }) => item.kind === 'ball').map(({ at }) => at);
+    const arrowDirections: ScreenPoint[] = [];
     for (const { item, at } of placed) {
       item.el.hidden = !at.inView;
       item.el.style.left = `${at.x}px`;
@@ -951,11 +1028,21 @@ export class CockpitScene {
       const lengthPx = Math.hypot(tip.x - at.x, tip.y - at.y);
       item.el.hidden ||= lengthPx < ARROW_HIDDEN_BELOW_PX;
       const direction = { x: (tip.x - at.x) / lengthPx, y: (tip.y - at.y) / lengthPx };
+      if (!item.el.hidden) arrowDirections.push(direction);
       item.el.style.width = `${arrowLengthPx(at, direction, balls)}px`;
       const angleRad = Math.atan2(direction.y, direction.x);
       item.el.style.transform = `rotate(${angleRad}rad) translateX(${ARROW_START_PX}px)`;
     }
-    if (this.anchored) this.placeAnchored(this.anchored, w, h);
+    const center = placed.find(({ item }) => item.kind === 'center')?.at;
+    if (center) {
+      const markers = placed.filter(({ item }) => item.kind === 'joint');
+      for (const { item, at } of markers) {
+        const moved = clearOfCenter(at, center, arrowDirections);
+        item.el.style.left = `${moved.x}px`;
+        item.el.style.top = `${moved.y}px`;
+      }
+    }
+    for (const item of this.anchored.values()) this.placeAnchored(item, w, h);
   }
 
   /**

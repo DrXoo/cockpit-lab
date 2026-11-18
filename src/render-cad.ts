@@ -9,6 +9,7 @@ import type { PlacedConnector } from './cad/connectors.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
 import type { Handle } from './cad/handles.ts';
 import type { SnapGuide } from './cad/snapping.ts';
+import type { JointMarker } from './cad/joint-markers.ts';
 import { MM_PER_CM } from './units.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */
@@ -27,6 +28,8 @@ export interface CockpitDrawing {
   snapGuide?: SnapGuide | null;
   /** A part being placed, measured along the profile it hangs from. */
   placedPartId?: string | null;
+  /** The markers of joints, over the view. */
+  jointMarkers?: readonly JointMarker[];
   /** A measurement being taken in the view. */
   measure?: MeasureDrawing | null;
 }

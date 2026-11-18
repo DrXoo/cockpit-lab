@@ -16,6 +16,7 @@ import {
   deleteKeyAction,
   designPanelHTML,
   growPanelHTML,
+  jointCardHTML,
   NOTHING_AROUND,
   faceOf,
   footChange,
@@ -27,6 +28,7 @@ import {
   QUICK_BOLTS_PER_SLOT,
   type PartField,
   type TouchingPart,
+  type JointCard,
 } from './cockpit-editor-view.ts';
 import {
   addAnchoredProfile,
@@ -98,6 +100,7 @@ import {
 } from './cad/handles.ts';
 import { snapToParts, type Snap } from './cad/snapping.ts';
 import { draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
+import { jointMarkers, type JointMarker } from './cad/joint-markers.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
@@ -375,7 +378,9 @@ let library: LayoutLibrary = newProject.library,
   /** The part about to be added as it was when one of its handles was grabbed. */
   draftAtGrab: Draft | null = null,
   /** What a handle of the part about to be added last snapped to, shown with a guide. */
-  draftSnap: Snap | null = null;
+  draftSnap: Snap | null = null,
+  /** The joint marker whose card is open, or null. */
+  openJointMarker: JointMarker | null = null;
 /** A change made with a handle, waiting to be confirmed. */
 interface PendingChange {
   partId: string;
@@ -429,6 +434,7 @@ function cockpitDrawing(): CockpitDrawing | null {
     handles: shownHandles(),
     snapGuide: (pendingChange?.snap ?? (draftPart ? draftSnap : null))?.guide ?? null,
     placedPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
+    jointMarkers: shownJointMarkers(),
   };
 }
 /**
@@ -444,6 +450,87 @@ function shownHandles(): Handle[] {
     : handlesOfSelected(at);
   // A flat view cannot drag a handle that points at it.
   return handlesSeenAlong(handles, SIGHT_AXIS[view]);
+}
+/**
+ * The joint markers of the design at the marker. They are left out while a part is about to be
+ * added, measured or changed by a handle, where a click in the view does something else.
+ */
+function shownJointMarkers(): JointMarker[] {
+  if (!jointMarkersShown()) return [];
+  return jointMarkers(designHistory(), selectedPartId(), markerIndex());
+}
+const jointMarkersShown = (): boolean =>
+  draftPart === null && measurePicks === null && pendingChange === null;
+/** Opens the card of a joint marker beside it, closing any other. */
+function openJointCard(marker: JointMarker) {
+  openJointMarker = marker;
+  renderJointCard();
+}
+function closeJointCard() {
+  if (openJointMarker === null) return;
+  openJointMarker = null;
+  renderJointCard();
+}
+/**
+ * What the card of the open marker shows, from the design as it is now: the joint between its
+ * two parts, which joining them makes, or the two parts touching. Null once neither is left.
+ */
+function jointCardOf(marker: JointMarker): JointCard | null {
+  const history = designHistory();
+  const at = markerIndex();
+  const { partId, toPartId } = marker;
+  const between = [`${partId}@${toPartId}`, `${toPartId}@${partId}`];
+  const joint = jointsOfPart(history, partId, at).find(({ jointId }) => between.includes(jointId));
+  if (joint) {
+    const [joinedId = partId] = joint.jointId.split('@');
+    return { kind: 'joint', partId: joinedId, joint };
+  }
+  if (!touchingParts(history, partId, at).includes(toPartId)) return null;
+  const nameOf = (id: string) => operationMaking(history, id)?.name ?? id;
+  return {
+    kind: 'touching',
+    partId,
+    partName: nameOf(partId),
+    toPartId,
+    toPartName: nameOf(toPartId),
+  };
+}
+let shownJointCard = '';
+function renderJointCard() {
+  const card = $('#jointCard');
+  const marker = jointMarkersShown() ? openJointMarker : null;
+  const content = marker ? jointCardOf(marker) : null;
+  if (!marker || !content) {
+    openJointMarker = null;
+    shownJointCard = '';
+    card.hidden = true;
+    scene?.anchorElement(card, null);
+    return;
+  }
+  const html = jointCardHTML(content);
+  if (html !== shownJointCard) {
+    shownJointCard = html;
+    replaceKeepingFocus(card, html);
+    bindJointActions(card);
+    card
+      .querySelectorAll<HTMLElement>('[data-joint-more]')
+      .forEach((button) =>
+        button.addEventListener('click', () => showJointInInspector(dataOf(button, 'jointMore'))),
+      );
+  }
+  const { pointMm } = marker;
+  scene?.anchorElement(card, {
+    x: pointMm.x / MM_PER_CM,
+    y: pointMm.y / MM_PER_CM,
+    z: pointMm.z / MM_PER_CM,
+  });
+  card.hidden = false;
+}
+/** Selects a part of the open joint and shows its joints in the inspector. */
+function showJointInInspector(partId: string) {
+  closeJointCard();
+  selectOperation(operationMaking(designHistory(), partId)?.id ?? null);
+  $optional('#partJoints')?.scrollIntoView({ block: 'nearest' });
 }
 function handlesOfSelected(at: number): Handle[] {
   const partId = selectedPartId();
@@ -907,6 +994,11 @@ function selectOperation(operationId: string | null) {
 function pickInView(hit: PartHit | null) {
   // While a change waits, a click elsewhere in the view does nothing.
   if (pendingChange) return;
+  // A click elsewhere closes the card of a joint, without selecting anything.
+  if (openJointMarker !== null) {
+    closeJointCard();
+    return;
+  }
   if (measurePicks !== null) {
     measurePicks = nextMeasurePicks(measurePicks, hit);
     refresh();
@@ -1149,7 +1241,8 @@ function bindJointActions(container: HTMLElement) {
   );
   container.querySelectorAll<HTMLElement>('[data-join]').forEach((button) =>
     button.addEventListener('click', () => {
-      const partId = selectedPartId();
+      // A card names the part it joins from; the inspector joins from the selected part.
+      const partId = button.dataset.joinFrom ?? selectedPartId();
       if (partId === null) return;
       changeJoints((history, at) => joinParts(history, partId, dataOf(button, 'join'), at));
     }),
@@ -1214,6 +1307,10 @@ document.addEventListener('keydown', (event) => {
       confirmChange();
       return;
     }
+  }
+  if (event.key === 'Escape' && openJointMarker !== null) {
+    closeJointCard();
+    return;
   }
   if (event.key === 'Escape' && measurePicks !== null && !document.querySelector('dialog[open]')) {
     setMeasuring(false);
@@ -1897,6 +1994,7 @@ function refresh() {
   renderCockpitChecks();
   renderMeasure();
   renderChangeBox();
+  renderJointCard();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
 function download(filename: string, text: string, type: string) {
@@ -2303,6 +2401,7 @@ try {
   scene.onHandleGrab = grabHandle;
   scene.onHandleDrag = dragHandle;
   scene.onHandleRelease = releaseHandle;
+  scene.onJointMarkerPick = openJointCard;
   scene.onArmMove = (joint, x, z) => {
     state = moveArmJoint(state, joint, x, z);
     queueSave();

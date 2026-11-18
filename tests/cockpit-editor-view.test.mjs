@@ -5,6 +5,7 @@ import {
   designPanelHTML,
   footChange,
   growPanelHTML,
+  jointCardHTML,
   partChange,
   partField,
   partInspectorHTML,
@@ -474,4 +475,26 @@ test('a fastening with bolts says how many go in each slot', async () => {
   const { fastenWithBolts } = await import('../src/cad/fastening.ts');
   const history = fastenWithBolts(railAndPlate(), 'part-2@part-1', 2);
   assert.match(panel({ history }), /Fastens Plate 2 to Rail.*2 bolts in each slot/s);
+});
+
+test('the card of a joint names its parts and state, with its quick action and the inspector', async () => {
+  const { history, joints } = await railAndUpright();
+  const [joint] = joints(history);
+  const html = jointCardHTML({ kind: 'joint', partId: 'part-2', joint });
+  assert.match(html, /B to A<\/strong><small>⚠ No connectors yet/);
+  assert.match(html, /data-joint-brackets="part-2@part-1"/);
+  assert.match(html, /data-joint-more="part-2"/);
+});
+
+test('the card of two parts that only touch joins them', () => {
+  const html = jointCardHTML({
+    kind: 'touching',
+    partId: 'part-1',
+    partName: 'A',
+    toPartId: 'part-2',
+    toPartName: 'C',
+  });
+  assert.match(html, /<strong>A and C<\/strong><small>\+ Touching, without a joint/);
+  assert.match(html, /data-join="part-2" data-join-from="part-1"[^>]*>.*Join to C/);
+  assert.match(html, /data-joint-more="part-1"/);
 });

@@ -507,7 +507,8 @@ test('a plate is selected in the view and edited, but never moved off its face',
   await page.locator('#confirmPlate').click();
   await page.locator('[data-operation="op-1"]').click();
   await page.locator('[data-view="top"]').click();
-  await clickViewport(page, 0.5, 0.5);
+  // The marker of the plate's joint sits at its center, over the rail: click beside it.
+  await clickViewport(page, 0.42, 0.5);
   await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('#part-acrossMm').fill('400');
   await page.locator('#part-acrossMm').press('Enter');
@@ -785,4 +786,57 @@ test('a profile about to grow is dragged by its handles, measured, and added as 
   await expect
     .poll(async () => (await savedHistory(page))?.[2])
     .toMatchObject({ reachesId: 'part-2', lengthMm: 760, alongMm: 250 });
+});
+
+test('a joint without connectors is marked in the view, and its card fastens it', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  const marker = page.locator('[data-joint-marker="part-2@part-1"]');
+  await expect(marker).toHaveAttribute('data-state', 'pending');
+
+  await marker.click();
+  const card = page.locator('#jointCard');
+  await expect(card).toBeVisible();
+  await card.locator('[data-joint-brackets]').click();
+  await expect
+    .poll(async () =>
+      (await savedHistory(page))?.map((operation: { kind: string }) => operation.kind),
+    )
+    .toEqual(['add-anchored-profile', 'grow-profile', 'fasten-joint']);
+  // The new profile is still selected, so its fastened joint keeps a marker.
+  await expect(marker).toHaveAttribute('data-state', 'fastened');
+  await expect(card).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(card).toBeHidden();
+  await marker.click();
+  await clickViewport(page, 0.05, 0.05);
+  await expect(card).toBeHidden();
+  // A click that closes the card selects nothing: the profile stays selected.
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('two parts that only touch are marked, and their card joins them', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('#part-startX').fill('40');
+  await page.locator('#part-startX').press('Enter');
+  const touching = page.locator('[data-joint-marker][data-state="touching"]');
+  await expect(touching).toHaveCount(1);
+
+  await touching.click();
+  const card = page.locator('#jointCard');
+  await card.locator('[data-join]').click();
+  await expect.poll(async () => (await savedHistory(page))?.at(-1)?.kind).toBe('join-parts');
+  await expect(touching).toHaveCount(0);
+  await expect(page.locator('[data-joint-marker][data-state="pending"]')).toHaveCount(1);
+  // The card stays open on the joint the two parts now have.
+  await expect(card.locator('[data-joint-row]')).toBeVisible();
+
+  await card.locator('[data-joint-more]').click();
+  await expect(card).toBeHidden();
+  await expect(page.locator('#partJoints')).toBeVisible();
 });

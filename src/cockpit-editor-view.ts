@@ -296,14 +296,18 @@ function jointsHTML(joints: readonly JointOfPart[], touching: readonly TouchingP
   const touchingHTML = touching.length
     ? `<div class="joint-row" id="touchingParts"><p class="joint-name"><strong>Touching, without a joint</strong><small>Join them to fasten them and count them as support.</small></p><div class="joint-sides">${joins}</div></div>`
     : '';
-  return `<div class="part-joints" id="partJoints"><h4 class="buy-group">Joints</h4>${joints.map(jointHTML).join('')}${touchingHTML}</div>`;
+  return `<div class="part-joints" id="partJoints"><h4 class="buy-group">Joints</h4>${joints.map((joint) => jointHTML(joint)).join('')}${touchingHTML}</div>`;
 }
 
 /** How many bolts the plate's joint takes in each slot it covers, two at once by default. */
 export const QUICK_BOLTS_PER_SLOT = 2;
 
 /** A plate's joint to a profile: the bolts in each slot it covers, or why it takes none. */
-function boltedJointHTML(joint: JointOfPart, bolts: { perSlot: number; slots: number }): string {
+function boltedJointHTML(
+  joint: JointOfPart,
+  bolts: { perSlot: number; slots: number },
+  fieldPrefix: string,
+): string {
   const id = escapeHTML(joint.jointId);
   const toPart = escapeHTML(joint.toPartName);
   const total = bolts.perSlot * bolts.slots;
@@ -315,12 +319,30 @@ function boltedJointHTML(joint: JointOfPart, bolts: { perSlot: number; slots: nu
   const name = `<p class="joint-name"><strong>${escapeHTML(joint.partName)} to ${toPart}</strong><small>${status}</small></p>`;
   if (bolts.slots === 0)
     return `<div class="joint-row" data-joint-row="${id}">${name}<p class="layout-hint">It covers no slot of ${toPart}: move it over one to bolt it.</p></div>`;
-  const field = `<div class="control"><div class="control-top"><label for="bolts-${id}">Bolts in each slot</label><div class="number-wrap"><input id="bolts-${id}" type="number" data-joint-bolts="${id}" min="0" max="${MAX_BOLTS_PER_SLOT}" step="1" value="${bolts.perSlot}"><span>of ${slots}</span></div></div></div>`;
+  const field = `<div class="control"><div class="control-top"><label for="${fieldPrefix}-${id}">Bolts in each slot</label><div class="number-wrap"><input id="${fieldPrefix}-${id}" type="number" data-joint-bolts="${id}" min="0" max="${MAX_BOLTS_PER_SLOT}" step="1" value="${bolts.perSlot}"><span>of ${slots}</span></div></div></div>`;
   const quick =
     bolts.perSlot === QUICK_BOLTS_PER_SLOT
       ? ''
       : `<button class="button button-light" data-joint-two-bolts="${id}" title="Spaced evenly along ${toPart}"><i data-icon="plus"></i>Two in each slot</button>`;
   return `<div class="joint-row" data-joint-row="${id}">${name}${field}${quick}</div>`;
+}
+
+/**
+ * What the card of a joint marker in the view shows: a joint, or two parts that only touch. The
+ * part is the one its inspector shows.
+ */
+export type JointCard =
+  | { kind: 'joint'; partId: string; joint: JointOfPart }
+  | { kind: 'touching'; partId: string; partName: string; toPartId: string; toPartName: string };
+
+/** The card of a joint marker: its two parts, its state and its quick actions. */
+export function jointCardHTML(card: JointCard): string {
+  const more = `<button class="text-button" data-joint-more="${escapeHTML(card.partId)}">More in the inspector</button>`;
+  if (card.kind === 'joint') return `${jointHTML(card.joint, 'card-bolts')}${more}`;
+  const toName = escapeHTML(card.toPartName);
+  const name = `<p class="joint-name"><strong>${escapeHTML(card.partName)} and ${toName}</strong><small>+ Touching, without a joint</small></p>`;
+  const join = `<button class="button button-light" data-join="${escapeHTML(card.toPartId)}" data-join-from="${escapeHTML(card.partId)}" title="Make a joint where they touch"><i data-icon="plus"></i>Join to ${toName}</button>`;
+  return `<div class="joint-row">${name}${join}</div>${more}`;
 }
 
 /** A part that touches the selected one without a joint, to join it to. */
@@ -331,8 +353,9 @@ export interface TouchingPart {
 
 const boltCount = (count: number) => `${count} ${count === 1 ? 'bolt' : 'bolts'}`;
 
-function jointHTML(joint: JointOfPart): string {
-  if (joint.bolts !== null) return boltedJointHTML(joint, joint.bolts);
+/** A joint with its state and connectors; `fieldPrefix` keeps the ids of two of them apart. */
+function jointHTML(joint: JointOfPart, fieldPrefix = 'bolts'): string {
+  if (joint.bolts !== null) return boltedJointHTML(joint, joint.bolts, fieldPrefix);
   const id = escapeHTML(joint.jointId);
   const count = joint.sides.length;
   const status =

@@ -117,7 +117,7 @@ export function jointsOfPart(
 }
 
 /** Profiles join profiles and plates; a plate joins only profiles, which it is bolted to. */
-const joinable = (a: Part, b: Part): boolean =>
+export const joinable = (a: Part, b: Part): boolean =>
   (a.kind === 'profile' && (b.kind === 'profile' || b.kind === 'plate')) ||
   (a.kind === 'plate' && b.kind === 'profile');
 
