@@ -28,19 +28,19 @@ const ORIGIN: Vec3Mm = { x: 0, y: 0, z: 0 };
 const OFFSET_PREFERENCE: readonly Axis[] = ['y', 'z', 'x'];
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
 
-/** The length of the selected profile, as a dimension beside it that the view can show. */
+/** The length of a profile, as a dimension beside it that the view can show; null for another part. */
 export function drawPartLength(
   r: RenderList,
   parent: ParentRef,
   resolved: ReadonlyMap<string, ResolvedPart>,
   selectedId: string | null,
   view: SceneView,
-): void {
+): SceneLabel | null {
   const selected = selectedId === null ? undefined : resolved.get(selectedId);
-  if (!selected || selected.part.kind !== 'profile') return;
+  if (!selected || selected.part.kind !== 'profile') return null;
   const axis = selected.part.axis;
   const { box, lengthMm } = selected;
-  drawAlongProfile(r, parent, selected, view, {
+  return drawAlongProfile(r, parent, selected, view, {
     fromMm: box.min[axis],
     toMm: box.max[axis],
     text: `${round(lengthMm, LENGTH_DECIMALS)} mm`,

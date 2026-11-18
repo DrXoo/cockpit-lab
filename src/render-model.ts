@@ -62,9 +62,14 @@ export function renderModel(
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
     const { resolved, selectedPartId, placedPartId = null } = options.cockpit;
-    // While a part is placed on the selected profile, it is measured along it instead.
+    // While a part is placed on the selected profile, it is measured along it instead, and a
+    // profile being placed shows its own length, whether dimensions are shown or not.
     const placingOnSelected = placedPartId !== null && placedPartId !== selectedPartId;
-    drawPartLength(r, dimensions, resolved, placingOnSelected ? null : selectedPartId, view);
+    if (!placingOnSelected) drawPartLength(r, dimensions, resolved, selectedPartId, view);
+    const placedLength = placingOnSelected
+      ? drawPartLength(r, ROOT, resolved, placedPartId, view)
+      : null;
+    if (placedLength) placedLength.alwaysShown = true;
     drawPlacementAlong(r, ROOT, resolved, placedPartId, view);
     drawPlateSize(r, dimensions, resolved, placedPartId ?? selectedPartId, view);
     if (options.cockpit.measure) drawMeasurement(r, ROOT, options.cockpit.measure);

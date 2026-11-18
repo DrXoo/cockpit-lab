@@ -6,7 +6,13 @@ import { defaults, evaluate } from '../src/model.ts';
 import { degToRad } from '../src/geometry.ts';
 import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { addAnchoredProfile, replayHistory } from '../src/cad/history.ts';
+import {
+  addAnchoredProfile,
+  draftGrowth,
+  editDraft,
+  editProfile,
+  replayHistory,
+} from '../src/cad/history.ts';
 import { partHandles } from '../src/cad/handles.ts';
 
 const options = {
@@ -110,4 +116,19 @@ test('the handles of the selected part are drawn with the design, as stems to th
     );
   assert.equal(stems(cockpit).length, 0);
   assert.equal(stems({ ...cockpit, handles }).length, 2, 'the two ends; a move handle has none');
+});
+
+test('a profile being placed shows its own length, even with dimensions hidden', () => {
+  const rail = editProfile(addAnchoredProfile([]).history, 'part-1', { lengthMm: 1000 });
+  const growing = editDraft(rail, draftGrowth(rail, 'part-1'), { lengthMm: 300 });
+  const cockpit = {
+    resolved: resolveAssembly(replayHistory([...rail, growing])),
+    selectedPartId: 'part-1',
+    placedPartId: growing.partId,
+  };
+  const { model } = render(NOTHING_AROUND, { cockpit });
+  const length = model.labels.find((label) => label.measures === 'part-length');
+  assert.equal(length.text, '300 mm');
+  assert.equal(length.alwaysShown, true);
+  assert.equal(model.labels.filter((label) => label.measures === 'part-length').length, 1);
 });

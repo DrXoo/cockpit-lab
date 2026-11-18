@@ -763,6 +763,8 @@ test('a profile about to grow is dragged by its handles, measured, and added as 
   const fromStart = page.locator('#sceneLabels [data-measures="placement-start"]');
   await expect(fromStart).toHaveText('250 mm');
   await expect(page.locator('#sceneLabels [data-measures="placement-end"]')).toHaveText('250 mm');
+  const length = page.locator('#sceneLabels [data-measures="part-length"]');
+  await expect(length).toHaveText('500 mm');
 
   // In the top view +X is towards the right of the screen: the free end goes towards the other
   // rail a few pixels at a time, until it reaches its face.
@@ -781,6 +783,7 @@ test('a profile about to grow is dragged by its handles, measured, and added as 
   await expect(reaching).toHaveValue('part-2');
   await expect(page.locator('#changeBox')).toBeHidden();
   await expect(page.locator('#grow-lengthMm')).toHaveValue('760');
+  await expect(length).toHaveText('760 mm');
 
   await page.locator('#confirmGrowth').click();
   await expect
