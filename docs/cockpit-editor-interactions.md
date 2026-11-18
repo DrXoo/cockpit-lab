@@ -83,7 +83,7 @@ The part under the pointer is outlined, and its label shows after half a second 
 
 ## Fit mode
 
-**Fit** is a toggle in the toolbar of the view. Planned for stage 5 (see [mini-cad.md](mini-cad.md)).
+**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. Until adjustments come in slice 3, a selected peripheral has the move handles of a part that hangs from another.
 
 | | Designing (Fit off) | Fit on |
 | --- | --- | --- |

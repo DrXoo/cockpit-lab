@@ -843,3 +843,66 @@ test('two parts that only touch are marked, and their card joins them', async ({
   await expect(card).toBeHidden();
   await expect(page.locator('#partJoints')).toBeVisible();
 });
+
+/** Turns Fit on and mounts pedals on the selected part, as previewed. */
+async function mountPedals(page: Page) {
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountPedals').click();
+  await expect(page.locator('#peripheralPanel')).toBeVisible();
+  await page.locator('#confirmPeripheral').click();
+  await expect(page.locator('#peripheralPanel')).toBeHidden();
+}
+
+test('Fit locks the frame and mounts a peripheral on it, previewed until it is mounted', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#fitModeBtn').click();
+  await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#lockedPart')).toBeVisible();
+  await expect(page.locator('#growProfile')).toBeHidden();
+  await expect(page.locator('#removePart')).toBeHidden();
+  await expect(page.locator('#addProfile')).toBeDisabled();
+  await page.locator('#mountPedals').click();
+  await expect(page.locator('#peripheralPanel')).toBeVisible();
+  await expect(page.locator('#peripheral-face')).toHaveValue('+y');
+  await expect(page.locator('#peripheral-facing')).toHaveValue('+z');
+  await page.locator('#confirmPeripheral').click();
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-facing')).toHaveValue('+z');
+  await expect(page.locator('#removePart')).toBeVisible();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({
+      kind: 'mount-peripheral',
+      typeId: 'generic-pedals',
+      category: 'pedals',
+      parentId: 'part-1',
+      face: '+y',
+      facing: '+z',
+    });
+  await page.locator('#removePart').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'remove-part', removedId: 'part-2' });
+});
+
+test('out of Fit a peripheral is a reference that clicks go through; its step turns Fit on', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await mountPedals(page);
+  await page.locator('#fitModeBtn').click();
+  await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#noPartSelected')).toBeVisible();
+  await page.locator('[data-view="top"]').click();
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#growProfile')).toBeVisible();
+  await page.locator('[data-part="part-2"]').click();
+  await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-facing')).toBeVisible();
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+});

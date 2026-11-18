@@ -9,6 +9,7 @@ import {
   editProfile,
 } from '../src/cad/history.ts';
 import { draftPlate, editPlateDraft } from '../src/cad/plates.ts';
+import { draftPeripheral } from '../src/cad/peripherals.ts';
 import { operationMaking } from '../src/cad/operations.ts';
 import {
   distanceAlongAxis,
@@ -341,4 +342,16 @@ test('a plate grows on both sides of its center, and Shift moves only the dragge
   const end = handleOf(railHistory(), 'part-1:end');
   assert.equal(symmetricDrag(end, false), false);
   assert.equal(symmetricDrag(end, true), true);
+});
+
+test('a peripheral moves along and across the face it is mounted on, along the depth of a plate', () => {
+  const plated = withPlate({ depthAxis: 'x' });
+  const history = addOperation(plated, draftPeripheral(plated, 'part-2', 'generic-pedals'));
+  assert.deepEqual(
+    moves(history, 'part-3').map(([id]) => id),
+    ['part-3:move:x', 'part-3:move:z'],
+  );
+  assert.equal(dragged(history, 'part-3:move:x', 40).alongMm, 190);
+  assert.equal(dragged(history, 'part-3:move:z', -30).acrossMm, -30);
+  assert.equal(partHandles(history, 'part-3').filter(({ kind }) => kind !== 'move').length, 0);
 });

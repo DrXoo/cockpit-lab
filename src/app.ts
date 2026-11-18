@@ -26,6 +26,7 @@ import {
   partField,
   partInspectorHTML,
   peripheralChange,
+  peripheralPanelHTML,
   plateChange,
   platePanelHTML,
   QUICK_BOLTS_PER_SLOT,
@@ -57,7 +58,12 @@ import {
 } from './cad/history.ts';
 import { MM_PER_CM } from './units.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from './cad/plates.ts';
-import { editPeripheral } from './cad/peripherals.ts';
+import {
+  draftPeripheral,
+  editPeripheral,
+  editPeripheralDraft,
+  peripheralAt,
+} from './cad/peripherals.ts';
 import type { PartHit } from './cad/picking.ts';
 import { measureBetween, nextMeasurePicks, pickInCockpit } from './cad/measure.ts';
 import { measureReadout } from './measure-view.ts';
@@ -253,6 +259,8 @@ const paths: Record<string, string> = {
   plate: 'M2 10.5 6.5 7H16l-4.5 3.5ZM2 10.5V12h9.5l4.5-3.5V7',
   // A leveling foot: its threaded stem, its pad and the floor.
   foot: 'M9 2v8M5.5 10h7l1.5 3h-10ZM2 16h14',
+  // Three pedals standing on their base.
+  pedals: 'M2 15h14M4 15l1-8h2l-1 8M8 15l1-8h2l-1 8M12 15l1-8h2l-1 8',
 };
 function icons(root: ParentNode = document) {
   root
@@ -372,7 +380,12 @@ let library: LayoutLibrary = newProject.library,
   /** The edits made to the cockpit design since the project was opened, to undo and redo. */
   designEdits: Edits<CockpitDesign | null> = noEdits(),
   /** A part about to be added to the selected one, shown as a preview until it is added. */
-  draftPart: GrowProfile | AddPlate | null = null,
+  draftPart: Draft | null = null,
+  /**
+   * Whether the cockpit editor is in Fit mode, fitting the design to the driver: peripherals are
+   * mounted and moved, and the frame is locked. It belongs to the session.
+   */
+  fitting = false,
   /**
    * The points clicked so far with the measure tool, or null when it is off. Measurements belong
    * to the session and are never saved.
@@ -445,6 +458,7 @@ function cockpitDrawing(): CockpitDrawing | null {
     snapGuide: (pendingChange?.snap ?? (draftPart ? draftSnap : null))?.guide ?? null,
     placedPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
     jointMarkers: shownJointMarkers(),
+    fitting,
   };
 }
 /**
@@ -463,14 +477,33 @@ function shownHandles(): Handle[] {
 }
 /**
  * The joint markers of the design at the marker. They are left out while a part is about to be
- * added, measured or changed by a handle, where a click in the view does something else.
+ * added, measured or changed by a handle, where a click in the view does something else, and
+ * while fitting, which leaves the joints of the frame alone.
  */
 function shownJointMarkers(): JointMarker[] {
   if (!jointMarkersShown()) return [];
   return jointMarkers(designHistory(), selectedPartId(), markerIndex());
 }
 const jointMarkersShown = (): boolean =>
-  draftPart === null && measurePicks === null && pendingChange === null;
+  !fitting && draftPart === null && measurePicks === null && pendingChange === null;
+/** Whether a step is one the mode of the view changes: a peripheral's while fitting, else the frame's. */
+const changeableInMode = (operation: Operation): boolean =>
+  fitting === (operation.kind === 'mount-peripheral');
+/**
+ * Turns Fit on or off. What was about to be added or changed is dropped, and a peripheral
+ * selected while fitting is left unselected, as designing cannot change it.
+ */
+function setFitting(on: boolean) {
+  if (fitting === on) return;
+  fitting = on;
+  draftPart = null;
+  pendingChange = null;
+  closeJointCard();
+  const selected = selectedOperation();
+  if (!on && selected?.kind === 'mount-peripheral') selectedOperationId = null;
+  renderControls();
+  refresh();
+}
 /** Opens the card of a joint marker beside it, closing any other. */
 function openJointCard(marker: JointMarker) {
   openJointMarker = marker;
@@ -542,9 +575,12 @@ function showJointInInspector(partId: string) {
   selectOperation(operationMaking(designHistory(), partId)?.id ?? null);
   $optional('#partJoints')?.scrollIntoView({ block: 'nearest' });
 }
+/** The handles of the selected part, when the mode of the view lets it change. */
 function handlesOfSelected(at: number): Handle[] {
   const partId = selectedPartId();
-  return partId === null ? [] : partHandles(designHistory(), partId, at);
+  const operation = selectedOperation();
+  if (partId === null || !operation || !changeableInMode(operation)) return [];
+  return partHandles(designHistory(), partId, at);
 }
 /** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
 function changeInView(handle: Handle, drag: Drag, snap: Snap | null = null) {
@@ -990,7 +1026,10 @@ function redoDesignEdit() {
   cockpit = step.value;
   showChangedDesign(hadParts);
 }
+/** Selects a step. A peripheral's turns Fit on, as peripherals are only changed while fitting. */
 function selectOperation(operationId: string | null) {
+  const operation = designHistory().find((step) => step.id === operationId);
+  if (operation?.kind === 'mount-peripheral') setFitting(true);
   pendingChange = null;
   selectedOperationId = operationId;
   draftPart = null;
@@ -1023,12 +1062,13 @@ function pickInView(hit: PartHit | null) {
   const at = markerIndex();
   changeDraft((history) => {
     const current = draftOrFail();
-    return current.kind === 'grow-profile'
-      ? growthAt(history, current, hit.face, hit.pointMm, at)
-      : plateAt(history, current, hit.face, hit.pointMm, at);
+    if (current.kind === 'grow-profile')
+      return growthAt(history, current, hit.face, hit.pointMm, at);
+    if (current.kind === 'add-plate') return plateAt(history, current, hit.face, hit.pointMm, at);
+    return peripheralAt(history, current, hit.face, hit.pointMm, at);
   });
 }
-const draftOrFail = (): GrowProfile | AddPlate => {
+const draftOrFail = (): Draft => {
   if (draftPart === null) throw new Error('No part is being added');
   return draftPart;
 };
@@ -1079,8 +1119,18 @@ function startPlate() {
   draftSnap = null;
   refresh();
 }
+/** Starts mounting a peripheral of a catalog type on the selected part, shown as a preview. */
+function startMounting(typeId: string) {
+  settleChange();
+  const partId = selectedPartId();
+  if (partId === null) return;
+  measurePicks = null;
+  draftPart = draftPeripheral(designHistory(), partId, typeId, markerIndex());
+  draftSnap = null;
+  refresh();
+}
 /** Changes the part about to be added; values it cannot have, or a place off its face, are explained. */
-function changeDraft(next: (history: readonly Operation[]) => GrowProfile | AddPlate) {
+function changeDraft(next: (history: readonly Operation[]) => Draft) {
   const history = designHistory();
   try {
     const changed = next(history);
@@ -1163,20 +1213,36 @@ function renderCockpitChecks() {
   );
 }
 /** The inspector's title: the step selected, or the kind of part about to be added. */
-const DRAFT_TITLES: Record<'none' | (GrowProfile | AddPlate)['kind'], string> = {
+const DRAFT_TITLES: Record<'none' | Draft['kind'], string> = {
   none: 'Selected step',
   'grow-profile': 'New profile',
   'add-plate': 'New plate',
+  'mount-peripheral': 'New peripheral',
 };
+/** The buttons that add or cancel the part about to be added, in its panel. */
+const DRAFT_BUTTONS: Record<Draft['kind'], [confirm: string, cancel: string]> = {
+  'grow-profile': ['#confirmGrowth', '#cancelGrowth'],
+  'add-plate': ['#confirmPlate', '#cancelPlate'],
+  'mount-peripheral': ['#confirmPeripheral', '#cancelPeripheral'],
+};
+/** The panel of the part about to be added, each kind its own. */
+function draftPanelHTML(history: readonly Operation[], drafting: Draft): string {
+  if (drafting.kind === 'grow-profile')
+    return growPanelHTML(withDraft(history, drafting, markerIndex()), drafting);
+  if (drafting.kind === 'add-plate') return platePanelHTML(history, drafting);
+  return peripheralPanelHTML(history, drafting);
+}
 /** The part about to be added, with the value of one field of its panel changed. */
 function editedDraft(
   history: readonly Operation[],
-  drafting: GrowProfile | AddPlate,
+  drafting: Draft,
   field: PartField,
   value: string,
-): GrowProfile | AddPlate {
+): Draft {
   if (drafting.kind === 'add-plate')
     return editPlateDraft(history, drafting, plateChange(field, value));
+  if (drafting.kind === 'mount-peripheral')
+    return editPeripheralDraft(history, drafting, peripheralChange(field, value));
   const change = partChange(drafting, field, value);
   // The parts a profile can reach are those in front of it, in the design as the view shows it.
   if (field === 'reachesId')
@@ -1208,10 +1274,10 @@ function renderPartInspector({ force = false } = {}) {
   const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
   const html =
     drafting === null
-      ? partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected())
-      : drafting.kind === 'grow-profile'
-        ? growPanelHTML(withDraft(history, drafting, markerIndex()), drafting)
-        : platePanelHTML(history, drafting);
+      ? partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected(), {
+          fitting,
+        })
+      : draftPanelHTML(history, drafting);
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
@@ -1223,15 +1289,13 @@ function renderPartInspector({ force = false } = {}) {
         changeDraft((current) => editedDraft(current, drafting, field, el.value)),
       );
     });
-    const [confirm, cancel] =
-      drafting.kind === 'grow-profile'
-        ? ['#confirmGrowth', '#cancelGrowth']
-        : ['#confirmPlate', '#cancelPlate'];
+    const [confirm, cancel] = DRAFT_BUTTONS[drafting.kind];
     $(confirm).addEventListener('click', confirmDraft);
     $(cancel).addEventListener('click', cancelDraft);
     return;
   }
-  if (!operation) return;
+  // A step the mode of the view locks has nothing to change.
+  if (!operation || !changeableInMode(operation)) return;
   $('#deleteStep').addEventListener('click', deleteSelectedStep);
   if (!makesAPart(operation)) return;
   fields.forEach((el) => {
@@ -1245,6 +1309,9 @@ const PART_TOOL_BUTTONS: Record<PartTool, string> = {
   plate: '#putPlate',
   foot: '#addFoot',
   remove: '#removePart',
+  'mount-seat': '#mountSeat',
+  'mount-wheel-base': '#mountWheelBase',
+  'mount-pedals': '#mountPedals',
 };
 /**
  * The toolbar of the view offers the actions on the selected part, in the cockpit editor and
@@ -1254,7 +1321,7 @@ function renderPartTools() {
   const operation = selectedOperation();
   const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
   const offered = editor() === 'cockpit' && draftPart === null;
-  const tools = offered ? partToolsOf(operation, failure) : [];
+  const tools = offered ? partToolsOf(operation, failure, { fitting }) : [];
   for (const [tool, selector] of Object.entries(PART_TOOL_BUTTONS))
     $(selector).hidden = !tools.some((offeredTool) => offeredTool === tool);
   $('#partTools').hidden = tools.length === 0;
@@ -1311,7 +1378,7 @@ function deleteWithKey(event: KeyboardEvent) {
   if (draftPart !== null || pendingChange) return;
   const operation = selectedOperation();
   const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
-  const action = deleteKeyAction(operation, failure);
+  const action = deleteKeyAction(operation, failure, { fitting });
   if (action === null) return;
   event.preventDefault();
   if (action === 'remove-part') removeSelectedPart();
@@ -1689,6 +1756,9 @@ function renderWorkflow() {
   $('#partInspector').hidden = !inCockpit || !designHasParts();
   $('#layoutBtn').hidden = inCockpit;
   $('#measureBtn').hidden = !inCockpit || !designHasParts();
+  $('#fitModeBtn').hidden = !inCockpit || !designHasParts();
+  $('#fitModeBtn').classList.toggle('active', fitting);
+  $('#fitModeBtn').setAttribute('aria-pressed', String(fitting));
   $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
   $('#layoutBtn').classList.toggle('active', layoutEditing);
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
@@ -1750,6 +1820,7 @@ function renderControls() {
       failures: replayDesign(designHistory()).failures,
       canUndo: canUndo(designEdits),
       canRedo: canRedo(designEdits),
+      fitting,
     });
   } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
     html = creationControls(
@@ -2198,6 +2269,10 @@ $('#dimensionBtn').addEventListener('click', () => {
 $('#measureBtn').addEventListener('click', () => setMeasuring(measurePicks === null));
 $('#growProfile').addEventListener('click', startGrowth);
 $('#putPlate').addEventListener('click', startPlate);
+$('#mountSeat').addEventListener('click', () => startMounting('generic-seat'));
+$('#mountWheelBase').addEventListener('click', () => startMounting('generic-wheel-base'));
+$('#mountPedals').addEventListener('click', () => startMounting('generic-pedals'));
+$('#fitModeBtn').addEventListener('click', () => setFitting(!fitting));
 $('#addFoot').addEventListener('click', addFootUnderSelected);
 $('#removePart').addEventListener('click', removeSelectedPart);
 $('#confirmChange').addEventListener('click', confirmChange);

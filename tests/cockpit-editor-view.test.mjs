@@ -520,7 +520,6 @@ test('a peripheral is a step on its part, and its inspector sets its place and t
   assert.match(html, /id="part-acrossMm"[^>]*value="0"/);
   assert.match(html, /400 × 200 × 320 mm/);
   assert.match(html, /estimated/);
-  assert.deepEqual(partToolsOf(history[1]), ['remove']);
 });
 
 test('a peripheral on a plate is mounted on one of its two faces', () => {
@@ -553,4 +552,44 @@ test('the fields of a peripheral change the values of its operation', () => {
   assert.deepEqual(peripheralChange('acrossMm', ''), { acrossMm: Number.NaN });
   assert.throws(() => peripheralChange('sheetId', 'aluminium-4'), /sheetId/);
   assert.equal(partField('facing'), 'facing');
+});
+
+test('in Fit, a plate or a profile mounts peripherals, and a peripheral can be removed', () => {
+  const history = railWithPedals();
+  const fitting = { fitting: true };
+  assert.deepEqual(partToolsOf(history[0], undefined, fitting), [
+    'mount-seat',
+    'mount-wheel-base',
+    'mount-pedals',
+  ]);
+  assert.deepEqual(partToolsOf(history[1], undefined, fitting), ['remove']);
+  const plated = railAndPlate();
+  assert.deepEqual(partToolsOf(plated[1], undefined, fitting), [
+    'mount-seat',
+    'mount-wheel-base',
+    'mount-pedals',
+  ]);
+  assert.deepEqual(partToolsOf(history[1]), [], 'out of Fit a peripheral is only a reference');
+});
+
+test('in Fit, the frame is locked: its steps can be selected but not changed', () => {
+  const history = railWithPedals();
+  const fitting = { fitting: true };
+  const locked = partInspectorHTML(history, history[0], undefined, [], [], fitting);
+  assert.match(locked, /id="lockedPart"/);
+  assert.match(locked, /Rail/);
+  assert.doesNotMatch(locked, /data-part-field|id="deleteStep"/);
+  assert.match(
+    partInspectorHTML(history, history[1], undefined, [], [], fitting),
+    /id="part-facing"/,
+  );
+  assert.equal(deleteKeyAction(history[0], undefined, fitting), null);
+  assert.equal(deleteKeyAction(history[1], undefined, fitting), 'remove-part');
+  assert.equal(deleteKeyAction(history[1]), null, 'out of Fit a peripheral is left alone');
+});
+
+test('in Fit, the history adds no profile, as the frame is locked', () => {
+  const history = railWithPedals();
+  assert.match(panel({ history, fitting: true }), /id="addProfile"[^>]*disabled/);
+  assert.doesNotMatch(panel({ history }), /id="addProfile"[^>]*disabled/);
 });

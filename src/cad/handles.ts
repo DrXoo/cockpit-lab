@@ -34,6 +34,7 @@ import {
 } from './history.ts';
 import type { RayMm } from './picking.ts';
 import { editPlate } from './plates.ts';
+import { editPeripheral } from './peripherals.ts';
 
 /** A handle at an end of a profile, dragged along its length. */
 export interface EndHandle {
@@ -296,6 +297,8 @@ function editPart(
 ): Operation[] {
   if (operation.kind === 'add-foot') return editFoot(history, operation.partId, values);
   if (operation.kind === 'add-plate') return editPlate(history, operation.partId, values);
+  if (operation.kind === 'mount-peripheral')
+    return editPeripheral(history, operation.partId, values);
   return editProfile(history, operation.partId, values);
 }
 
@@ -391,10 +394,10 @@ function moveHandles(
   }));
 }
 
-/** The axes of its frame a part moves along, along its parent's length first. */
+/** The axes of its frame a part moves along: first the one its place is measured along. */
 function movingAxes(history: readonly Operation[], operation: MakingOperation): Axis[] {
   if (operation.kind === 'add-anchored-profile') return [...AXES];
-  const along = parentLengthAxis(history, operation);
+  const along = parentAlongAxis(history, operation);
   const normal = operation.kind === 'add-foot' ? 'y' : faceAxis(operation.face);
   if (along === null || along === normal) return [];
   if (operation.kind === 'add-foot') return [along];
@@ -402,13 +405,17 @@ function movingAxes(history: readonly Operation[], operation: MakingOperation): 
   return [along, ...across];
 }
 
-/** The axis the parent of a hanging part runs along, or null if it is not a profile. */
-function parentLengthAxis(
+/**
+ * The axis a hanging part's place is measured along: the length of a profile it hangs from, or
+ * the depth of a plate a peripheral is mounted on. Null for any other parent.
+ */
+function parentAlongAxis(
   history: readonly Operation[],
   operation: Exclude<MakingOperation, { kind: 'add-anchored-profile' }>,
 ): Axis | null {
   const parent = operationMaking(history, operation.parentId);
-  return parent && makesAProfile(parent) ? lengthAxisOf(parent) : null;
+  if (parent && makesAProfile(parent)) return lengthAxisOf(parent);
+  return parent?.kind === 'add-plate' ? parent.depthAxis : null;
 }
 
 /**
@@ -422,7 +429,7 @@ function positionMoved(
 ): { valueMm: number; sign: 1 | -1 } {
   if (operation.kind === 'add-anchored-profile')
     return { valueMm: operation.startMm[handle.axis], sign: 1 };
-  if (handle.axis === parentLengthAxis(history, operation))
+  if (handle.axis === parentAlongAxis(history, operation))
     return { valueMm: operation.alongMm, sign: operation.fromEnd === 'start' ? 1 : -1 };
   if (operation.kind === 'add-foot') throw new Error(`${operation.name} only moves along.`);
   return { valueMm: operation.acrossMm, sign: 1 };
@@ -442,7 +449,7 @@ function movedValues(
     startMm[handle.axis] = movedMm;
     return { startMm };
   }
-  return handle.axis === parentLengthAxis(history, operation)
+  return handle.axis === parentAlongAxis(history, operation)
     ? { alongMm: movedMm }
     : { acrossMm: movedMm };
 }
@@ -502,7 +509,7 @@ function resizedPlateValues(
   if (drag.symmetric) return side;
   const axis = faceAxis(handle.side);
   const shiftMm = ((handle.side[0] === '+' ? 1 : -1) * drag.changeMm) / 2;
-  if (axis !== parentLengthAxis(history, plate))
+  if (axis !== parentAlongAxis(history, plate))
     return { ...side, acrossMm: plate.acrossMm + shiftMm };
   const alongShiftMm = plate.fromEnd === 'start' ? shiftMm : -shiftMm;
   return { ...side, alongMm: plate.alongMm + alongShiftMm };

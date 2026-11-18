@@ -72,6 +72,8 @@ export interface DesignPanel {
   failures: ReadonlyMap<string, string>;
   canUndo: boolean;
   canRedo: boolean;
+  /** Whether the design is being fitted, which locks the frame. */
+  fitting?: boolean;
 }
 
 /** The fields of the inspector, as the markup names them in `data-part-field`. */
@@ -144,7 +146,10 @@ const sectionName = (widthMm: number, heightMm: number) => `${widthMm} × ${heig
 /** The history panel: the design's operations, the undo and redo of its edits, and its tools. */
 export function designPanelHTML(panel: DesignPanel): string {
   const editTools = `<div class="history-tools"><button class="text-button" id="undoEdit" title="Undo (Ctrl+Z)" ${panel.canUndo ? '' : 'disabled'}><i data-icon="undo"></i>Undo</button><button class="text-button" id="redoEdit" title="Redo (Ctrl+Y)" ${panel.canRedo ? '' : 'disabled'}><i data-icon="redo"></i>Redo</button></div>`;
-  const addProfile = `<button class="button button-dark history-add" id="addProfile"><i data-icon="plus"></i>Add a profile</button>`;
+  const locked = panel.fitting
+    ? ' disabled title="The frame is locked while fitting: turn Fit off to add a profile"'
+    : '';
+  const addProfile = `<button class="button button-dark history-add" id="addProfile"${locked}><i data-icon="plus"></i>Add a profile</button>`;
   if (panel.history.length === 0) {
     // Nothing to undo in a new design; after undoing back to empty, redo brings the parts back.
     const tools = panel.canUndo || panel.canRedo ? editTools : '';
@@ -257,9 +262,11 @@ export function partInspectorHTML(
   failure?: string,
   joints: readonly JointOfPart[] = [],
   touching: readonly TouchingPart[] = [],
+  { fitting = false }: Mode = {},
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
+  if (fitting && !isAPeripheral(operation)) return lockedStepHTML(history, operation);
   const deleteStep = `<button class="button button-light" id="deleteStep" title="Take this step out of the whole history"><i data-icon="trash"></i>Delete this step</button>`;
   const failed =
     failure === undefined
@@ -284,15 +291,39 @@ export function partInspectorHTML(
 }
 
 /** An action on the selected part, from the toolbar of the view. */
-export type PartTool = 'grow' | 'plate' | 'foot' | 'remove';
+export type PartTool =
+  'grow' | 'plate' | 'foot' | 'remove' | 'mount-seat' | 'mount-wheel-base' | 'mount-pedals';
+
+/** Whether the design is being fitted to the driver, in the Fit mode of the view. */
+export interface Mode {
+  fitting?: boolean;
+}
+
+const isAPeripheral = (operation: Operation) => operation.kind === 'mount-peripheral';
 
 /**
- * The tools the view offers for the selected step: a profile grows a profile, takes a plate and
- * a foot, and any part can be removed. A failed step, or one that makes no part, has none.
+ * The tools the view offers for the selected step. Designing, a profile grows a profile, takes a
+ * plate and a foot, and any part of the frame can be removed. Fitting, a profile or a plate
+ * takes a peripheral, and a peripheral can be removed. A failed step, or one that makes no part,
+ * has none.
  */
-export function partToolsOf(operation: Operation | undefined, failure?: string): PartTool[] {
+export function partToolsOf(
+  operation: Operation | undefined,
+  failure?: string,
+  { fitting = false }: Mode = {},
+): PartTool[] {
   if (!operation || failure !== undefined || !makesAPart(operation)) return [];
+  if (isAPeripheral(operation)) return fitting ? ['remove'] : [];
+  if (fitting)
+    return makesAProfile(operation) || operation.kind === 'add-plate'
+      ? ['mount-seat', 'mount-wheel-base', 'mount-pedals']
+      : [];
   return makesAProfile(operation) ? ['grow', 'plate', 'foot', 'remove'] : ['remove'];
+}
+
+/** A step of the frame while fitting: it can be selected, but not changed. */
+function lockedStepHTML(history: readonly Operation[], operation: Operation): string {
+  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p></div>`;
 }
 
 /**
@@ -853,11 +884,13 @@ function changedStart(operation: ProfileOperation, field: PartField, valueMm: nu
 /**
  * What the Delete key does to the selected step, as its inspector offers it: remove the part it
  * made from the history marker on, or, for a failed step or one that makes no part, delete it.
+ * Fitting, the frame is locked; designing, a peripheral is only a reference: both are left alone.
  */
 export function deleteKeyAction(
   operation: Operation | undefined,
   failure?: string,
+  { fitting = false }: Mode = {},
 ): 'remove-part' | 'delete-step' | null {
-  if (!operation) return null;
+  if (!operation || fitting !== isAPeripheral(operation)) return null;
   return makesAPart(operation) && failure === undefined ? 'remove-part' : 'delete-step';
 }

@@ -1,10 +1,16 @@
-// A part about to be added (a profile about to grow, or a plate about to rest on a profile) is an
-// operation that is not in the design history yet. The view shows it at the history marker, and
+// A part about to be added (a profile about to grow, a plate about to rest on a profile, or a
+// peripheral about to be mounted) is an operation that is not in the design history yet. The view shows it at the history marker, and
 // its handles and the inspector's edits change it there, as they change a part already added.
-import { operationMaking, type AddPlate, type GrowProfile, type Operation } from './operations.ts';
+import {
+  operationMaking,
+  type AddPlate,
+  type GrowProfile,
+  type MountPeripheral,
+  type Operation,
+} from './operations.ts';
 
 /** A part about to be added, previewed in the view. */
-export type Draft = GrowProfile | AddPlate;
+export type Draft = GrowProfile | AddPlate | MountPeripheral;
 
 /** The history the view shows while a part is about to be added: the draft at the marker. */
 export function withDraft(history: readonly Operation[], draft: Draft, at: number): Operation[] {
