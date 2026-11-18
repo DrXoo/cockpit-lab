@@ -104,6 +104,7 @@ const peripheralOn = (parentId) => ({
   mountingPattern: { holes: [] },
   contactPoints: [],
   source: { kind: 'estimated', reference: 'test' },
+  facing: '+z',
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 75, fromEnd: 'start' },
 });
 

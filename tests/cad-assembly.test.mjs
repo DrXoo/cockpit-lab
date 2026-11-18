@@ -284,6 +284,7 @@ const pedals = (placement) => ({
   mountingPattern: { holes: [] },
   contactPoints: [{ role: 'heel', offsetMm: { x: 0, y: 30, z: -100 } }],
   source: { kind: 'estimated', reference: 'test' },
+  facing: '+z',
   placement,
 });
 const onTop = (parentId, alongMm = 0, acrossMm = 0) => ({
@@ -346,9 +347,34 @@ test('a peripheral on a tilted plate leans with it', () => {
   );
 });
 
-test('peripherals sit only on top of a face, and nothing hangs from a peripheral', () => {
-  const sideways = pedals({ ...onTop('left-rail'), face: '+x' });
-  assert.throws(() => resolveAssembly([...frame(), sideways]), /on top/);
+test('a peripheral mounts on any face, standing out of it and facing the way it is turned', () => {
+  const onTheSide = pedals({ ...onTop('left-rail', 600), face: '+x' });
+  const resolved = resolveAssembly([...frame(), onTheSide]).get('pedals');
+  assert.deepEqual(resolved.box, {
+    min: { x: -260, y: -50, z: 475 },
+    max: { x: -60, y: 250, z: 725 },
+  });
+  assert.deepEqual(contactPointsMm(resolved), [
+    { role: 'heel', pointMm: { x: -230, y: 100, z: 500 } },
+  ]);
+});
+
+test('a peripheral turned on its face takes its depth and contact points along the way it faces', () => {
+  const anchored = plate({ kind: 'anchor', startMm: { x: 0, y: 200, z: 0 } });
+  const turned = { ...pedals(onTop('plate', 150, 20)), facing: '-x' };
+  const resolved = resolveAssembly([anchored, turned]).get('pedals');
+  assert.deepEqual(resolved.box, {
+    min: { x: -105, y: 205, z: -150 },
+    max: { x: 145, y: 405, z: 150 },
+  });
+  assert.deepEqual(contactPointsMm(resolved), [
+    { role: 'heel', pointMm: { x: 120, y: 235, z: 0 } },
+  ]);
+});
+
+test('a peripheral cannot face out of the face it is mounted on, and nothing hangs from one', () => {
+  const facingOut = { ...pedals({ ...onTop('left-rail'), face: '+x' }), facing: '-x' };
+  assert.throws(() => resolveAssembly([...frame(), facingOut]), /faces/);
   const anchored = plate({ kind: 'anchor', startMm: { x: 0, y: 200, z: 0 } });
   const onPedals = { ...pedals(onTop('pedals')), id: 'more' };
   assert.throws(

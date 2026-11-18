@@ -11,6 +11,7 @@ const peripheral = (id, contactPoints, changes = {}) => ({
   mountingPattern: { holes: [] },
   contactPoints,
   source: { kind: 'estimated', reference: 'test' },
+  facing: '+z',
   placement: { kind: 'anchor', startMm: { x: 0, y: 0, z: 0 } },
   ...changes,
 });

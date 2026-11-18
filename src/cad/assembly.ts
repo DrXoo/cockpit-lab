@@ -114,6 +114,11 @@ export interface ContactPoint {
  * A device mounted on the cockpit. Its envelope stands on its mounting origin, the center of
  * the envelope's underside, and its mounting pattern and contact points are measured from it,
  * so resizing the envelope never moves them.
+ *
+ * It has a frame of its own: up out of the face it is mounted on (+Y for an anchored one), its
+ * front the way it faces (+Z), and across (+X) the third axis, as +X is to the cockpit. Its
+ * height runs up, its depth along its front and its width across; contact points are measured
+ * in that frame.
  */
 export interface PeripheralPart {
   kind: 'peripheral';
@@ -125,6 +130,11 @@ export interface PeripheralPart {
   /** For a seat, the backrest's angle back from upright. */
   backrestDeg?: number;
   source: DataSource;
+  /**
+   * The way the driver faces when using it, along the face it is mounted on: +Z, the front of
+   * the cockpit, for a peripheral mounted as usual.
+   */
+  facing: Face;
   placement: Anchor | Attachment;
 }
 
@@ -202,44 +212,73 @@ function resolvePart(
     case 'plate':
       return resolvePlate(part, dependency);
     case 'peripheral':
-      return resolveStanding(part, dependency, part.envelope);
+      return resolvePeripheral(part, dependency);
   }
 }
 
-interface Size {
-  widthMm: number;
-  heightMm: number;
-  depthMm: number;
-}
-
-/** A box standing on `originMm`, centered on it across X and Z. */
-const boxOn = (originMm: Vec3Mm, size: Size): BoxMm => ({
-  min: { x: originMm.x - size.widthMm / 2, y: originMm.y, z: originMm.z - size.depthMm / 2 },
-  max: {
-    x: originMm.x + size.widthMm / 2,
-    y: originMm.y + size.heightMm,
-    z: originMm.z + size.depthMm / 2,
-  },
-});
-
-/** A peripheral, anchored or sitting on top of a face. */
-function resolveStanding(part: PeripheralPart, dependency: Dependency, size: Size): ResolvedPart {
+/** A peripheral, anchored or standing out of the face it is mounted on. */
+function resolvePeripheral(part: PeripheralPart, dependency: Dependency): ResolvedPart {
   const placement = part.placement;
+  const frame = peripheralFrame(part);
   const resolvedAs = (tiltDeg: number, originMm: Vec3Mm): ResolvedPart => ({
     part,
     tiltDeg,
-    box: boxOn(originMm, size),
-    lengthMm: size.heightMm,
+    box: peripheralBox(part, frame, originMm),
+    lengthMm: part.envelope.heightMm,
     openEnd: false,
   });
   if (placement.kind === 'anchor') {
     const tiltDeg = placement.tiltDeg ?? 0;
     return resolvedAs(tiltDeg, intoTiltedFrame(placement.startMm, tiltDeg));
   }
-  if (placement.face !== '+y')
-    throw new Error(`${part.name} must sit on top of a face, not on face ${placement.face}.`);
   const parent = dependency(placement.parentId);
   return resolvedAs(parent.tiltDeg, attachmentPoint(parent, placement));
+}
+
+/** The faces a peripheral's own axes look along, in the frame of its tilt. */
+interface PeripheralFrame {
+  across: Face;
+  up: Face;
+  front: Face;
+}
+
+function peripheralFrame(part: PeripheralPart): PeripheralFrame {
+  const up: Face = part.placement.kind === 'anchor' ? '+y' : part.placement.face;
+  const front = part.facing;
+  if (faceAxis(front) === faceAxis(up))
+    throw new Error(
+      `${part.name} faces ${front}, out of the face it is mounted on: it must face along it.`,
+    );
+  return { across: crossFace(up, front), up, front };
+}
+
+/** The face that the cross product of the directions two faces look along looks along. */
+function crossFace(a: Face, b: Face): Face {
+  const from = AXES.indexOf(faceAxis(a));
+  const to = AXES.indexOf(faceAxis(b));
+  const third = AXES[3 - from - to];
+  const cyclic = (to - from + 3) % 3 === 1;
+  const sign = faceSign(a) * faceSign(b) * (cyclic ? 1 : -1);
+  return `${sign > 0 ? '+' : '-'}${third}`;
+}
+
+/** The box of a peripheral standing out of its face on `originMm`, centered on it across. */
+function peripheralBox(part: PeripheralPart, frame: PeripheralFrame, originMm: Vec3Mm): BoxMm {
+  const { widthMm, heightMm, depthMm } = part.envelope;
+  const min = { ...originMm };
+  const max = { ...originMm };
+  const centeredSizes: [Face, number][] = [
+    [frame.across, widthMm],
+    [frame.front, depthMm],
+  ];
+  for (const [face, sizeMm] of centeredSizes) {
+    min[faceAxis(face)] -= sizeMm / 2;
+    max[faceAxis(face)] += sizeMm / 2;
+  }
+  const upAxis = faceAxis(frame.up);
+  if (faceSign(frame.up) > 0) max[upAxis] += heightMm;
+  else min[upAxis] -= heightMm;
+  return { min, max };
 }
 
 /** A plate, anchored where its underside is, or resting on a side face of a profile. */
@@ -391,18 +430,35 @@ export function contactPointsMm(resolved: ResolvedPart): { role: ContactRole; po
 
 /**
  * The cockpit point at `offsetMm` from the mounting origin of a plate or peripheral, the center
- * of its underside, measured in its frame.
+ * of its underside: measured in a peripheral's own frame, or in the frame of a plate's tilt.
  */
 export function partPointMm(resolved: ResolvedPart, offsetMm: Vec3Mm): Vec3Mm {
-  if (resolved.part.kind !== 'plate' && resolved.part.kind !== 'peripheral')
-    throw new Error(`A ${resolved.part.kind} has no mounting origin to measure from.`);
-  const { box, tiltDeg } = resolved;
+  const { part, box, tiltDeg } = resolved;
+  if (part.kind === 'peripheral')
+    return outOfTiltedFrame(peripheralPoint(part, box, offsetMm), tiltDeg);
+  if (part.kind !== 'plate')
+    throw new Error(`A ${part.kind} has no mounting origin to measure from.`);
   const origin = center(box);
   origin.y = box.min.y;
   return outOfTiltedFrame(
     { x: origin.x + offsetMm.x, y: origin.y + offsetMm.y, z: origin.z + offsetMm.z },
     tiltDeg,
   );
+}
+
+/** The point at `offsetMm` from a peripheral's mounting origin, in the frame of its tilt. */
+function peripheralPoint(part: PeripheralPart, box: BoxMm, offsetMm: Vec3Mm): Vec3Mm {
+  const frame = peripheralFrame(part);
+  const point = center(box);
+  const upAxis = faceAxis(frame.up);
+  point[upAxis] = faceSign(frame.up) > 0 ? box.min[upAxis] : box.max[upAxis];
+  const offsets: [Face, number][] = [
+    [frame.across, offsetMm.x],
+    [frame.up, offsetMm.y],
+    [frame.front, offsetMm.z],
+  ];
+  for (const [face, distanceMm] of offsets) point[faceAxis(face)] += faceSign(face) * distanceMm;
+  return point;
 }
 
 /** The cockpit point at `offsetMm` from `pivotMm`, measured in a frame at `tiltDeg`. */

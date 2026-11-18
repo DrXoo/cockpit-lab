@@ -63,6 +63,7 @@ test('in a design, a plate gets the holes of the peripherals mounted on it', () 
     mountingPattern: referencePattern,
     contactPoints: [],
     source: { kind: 'estimated', reference: 'test case' },
+    facing: '+z',
     placement: {
       kind: 'attachment',
       parentId: 'plate',

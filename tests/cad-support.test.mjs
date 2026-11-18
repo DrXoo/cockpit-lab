@@ -95,6 +95,7 @@ test('a peripheral on a plate is supported through the plate', () => {
     mountingPattern: { holes: [] },
     contactPoints: [],
     source: { kind: 'estimated', reference: 'test' },
+    facing: '+z',
     placement: { kind: 'attachment', parentId: 'plate', face: '+y', alongMm: 75, fromEnd: 'start' },
   };
   assert.deepEqual(
