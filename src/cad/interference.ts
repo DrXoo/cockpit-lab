@@ -71,7 +71,7 @@ export function cockpitInterferences(
 function shortestWayOut(a: Solid, b: Solid): { depthMm: number; axis: Axis } | null {
   const alongX = penetration(a.box.min.x, a.box.max.x, b.box.min.x, b.box.max.x);
   if (alongX <= 0) return null;
-  let best = { depthMm: alongX, axis: 'x' as Axis };
+  let best: { depthMm: number; axis: Axis } = { depthMm: alongX, axis: 'x' };
   const cornersA = sideCorners(a);
   const cornersB = sideCorners(b);
   for (const owner of [a, b])

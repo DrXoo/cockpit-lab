@@ -675,8 +675,8 @@ function grownPlacementHTML(
   const onTheSide = onAnEnd
     ? '<p class="layout-hint">Out of an end face it grows from the center of the end.</p>'
     : `${fields.select('fromEnd', 'Measured from', ends, growth.fromEnd)}${fields.number('alongMm', 'Distance from that end', growth.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', growth.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
-  const ways = [
-    ['out', 'Out of the face'] as [string, string],
+  const ways: [string, string][] = [
+    ['out', 'Out of the face'],
     ...FACES.filter((way) => faceAxis(way) !== faceAxis(growth.face)).map(
       (way): [string, string] => [way, `Along the face, ${DIRECTION_NAMES[way]}`],
     ),
