@@ -1135,21 +1135,26 @@ function renderPartInspector({ force = false } = {}) {
   $optional('#growProfile')?.addEventListener('click', startGrowth);
   $optional('#putPlate')?.addEventListener('click', startPlate);
   $optional('#addFoot')?.addEventListener('click', addFootUnderSelected);
-  body.querySelectorAll<HTMLElement>('[data-joint][data-side]').forEach((button) =>
+  bindJointActions(body);
+  $optional('#removePart')?.addEventListener('click', removeSelectedPart);
+}
+/** The joint actions in `container`: brackets, bolts and joins, as the inspector offers them. */
+function bindJointActions(container: HTMLElement) {
+  container.querySelectorAll<HTMLElement>('[data-joint][data-side]').forEach((button) =>
     button.addEventListener('click', () => {
       const side = faceOf(dataOf(button, 'side'));
       const on = button.getAttribute('aria-pressed') !== 'true';
       changeJoints((history, at) => setConnector(history, dataOf(button, 'joint'), side, on, at));
     }),
   );
-  body.querySelectorAll<HTMLElement>('[data-join]').forEach((button) =>
+  container.querySelectorAll<HTMLElement>('[data-join]').forEach((button) =>
     button.addEventListener('click', () => {
       const partId = selectedPartId();
       if (partId === null) return;
       changeJoints((history, at) => joinParts(history, partId, dataOf(button, 'join'), at));
     }),
   );
-  body
+  container
     .querySelectorAll<HTMLElement>('[data-joint-brackets]')
     .forEach((button) =>
       button.addEventListener('click', () =>
@@ -1158,7 +1163,7 @@ function renderPartInspector({ force = false } = {}) {
         ),
       ),
     );
-  body.querySelectorAll<HTMLInputElement>('[data-joint-bolts]').forEach((input) =>
+  container.querySelectorAll<HTMLInputElement>('[data-joint-bolts]').forEach((input) =>
     input.addEventListener('change', () => {
       const perSlot = input.value.trim() === '' ? Number.NaN : Number(input.value);
       changeJoints((history, at) =>
@@ -1166,7 +1171,7 @@ function renderPartInspector({ force = false } = {}) {
       );
     }),
   );
-  body
+  container
     .querySelectorAll<HTMLElement>('[data-joint-two-bolts]')
     .forEach((button) =>
       button.addEventListener('click', () =>
@@ -1175,7 +1180,6 @@ function renderPartInspector({ force = false } = {}) {
         ),
       ),
     );
-  $optional('#removePart')?.addEventListener('click', removeSelectedPart);
 }
 /**
  * Delete removes the selected part, or deletes a selected step that makes none, as the buttons
