@@ -55,6 +55,7 @@ import {
   type Operation,
   type ProfileOperation,
   type ProfileValues,
+  unknownOperation,
 } from './cad/history.ts';
 import { MM_PER_CM } from './units.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from './cad/plates.ts';
@@ -1062,10 +1063,14 @@ function pickInView(hit: PartHit | null) {
   const at = markerIndex();
   changeDraft((history) => {
     const current = draftOrFail();
-    if (current.kind === 'grow-profile')
-      return growthAt(history, current, hit.face, hit.pointMm, at);
-    if (current.kind === 'add-plate') return plateAt(history, current, hit.face, hit.pointMm, at);
-    return peripheralAt(history, current, hit.face, hit.pointMm, at);
+    switch (current.kind) {
+      case 'grow-profile':
+        return growthAt(history, current, hit.face, hit.pointMm, at);
+      case 'add-plate':
+        return plateAt(history, current, hit.face, hit.pointMm, at);
+      case 'mount-peripheral':
+        return peripheralAt(history, current, hit.face, hit.pointMm, at);
+    }
   });
 }
 const draftOrFail = (): Draft => {
@@ -1227,10 +1232,14 @@ const DRAFT_BUTTONS: Record<Draft['kind'], [confirm: string, cancel: string]> = 
 };
 /** The panel of the part about to be added, each kind its own. */
 function draftPanelHTML(history: readonly Operation[], drafting: Draft): string {
-  if (drafting.kind === 'grow-profile')
-    return growPanelHTML(withDraft(history, drafting, markerIndex()), drafting);
-  if (drafting.kind === 'add-plate') return platePanelHTML(history, drafting);
-  return peripheralPanelHTML(history, drafting);
+  switch (drafting.kind) {
+    case 'grow-profile':
+      return growPanelHTML(withDraft(history, drafting, markerIndex()), drafting);
+    case 'add-plate':
+      return platePanelHTML(history, drafting);
+    case 'mount-peripheral':
+      return peripheralPanelHTML(history, drafting);
+  }
 }
 /** The part about to be added, with the value of one field of its panel changed. */
 function editedDraft(
@@ -1239,10 +1248,22 @@ function editedDraft(
   field: PartField,
   value: string,
 ): Draft {
-  if (drafting.kind === 'add-plate')
-    return editPlateDraft(history, drafting, plateChange(field, value));
-  if (drafting.kind === 'mount-peripheral')
-    return editPeripheralDraft(history, drafting, peripheralChange(field, value));
+  switch (drafting.kind) {
+    case 'add-plate':
+      return editPlateDraft(history, drafting, plateChange(field, value));
+    case 'mount-peripheral':
+      return editPeripheralDraft(history, drafting, peripheralChange(field, value));
+    case 'grow-profile':
+      return editedGrowthDraft(history, drafting, field, value);
+  }
+}
+/** The profile about to grow, with the value of one field of its panel changed. */
+function editedGrowthDraft(
+  history: readonly Operation[],
+  drafting: GrowProfile,
+  field: PartField,
+  value: string,
+): Draft {
   const change = partChange(drafting, field, value);
   // The parts a profile can reach are those in front of it, in the design as the view shows it.
   if (field === 'reachesId')
@@ -1254,15 +1275,24 @@ function editedDraft(
 /** Changes one value of the step that made the selected part, each kind of part its own way. */
 function editPartField(operation: MakingOperation, field: PartField, value: string) {
   settleChange();
-  if (operation.kind === 'add-foot')
-    changeHistory((history) => editFoot(history, operation.partId, footChange(field, value)));
-  else if (operation.kind === 'add-plate')
-    changeHistory((history) => editPlate(history, operation.partId, plateChange(field, value)));
-  else if (operation.kind === 'mount-peripheral')
-    changeHistory((history) =>
-      editPeripheral(history, operation.partId, peripheralChange(field, value)),
-    );
-  else editSelectedPart(partChange(operation, field, value));
+  const { partId } = operation;
+  switch (operation.kind) {
+    case 'add-foot':
+      changeHistory((history) => editFoot(history, partId, footChange(field, value)));
+      return;
+    case 'add-plate':
+      changeHistory((history) => editPlate(history, partId, plateChange(field, value)));
+      return;
+    case 'mount-peripheral':
+      changeHistory((history) => editPeripheral(history, partId, peripheralChange(field, value)));
+      return;
+    case 'add-anchored-profile':
+    case 'grow-profile':
+      editSelectedPart(partChange(operation, field, value));
+      return;
+    default:
+      unknownOperation(operation);
+  }
 }
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');

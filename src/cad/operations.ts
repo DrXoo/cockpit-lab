@@ -8,8 +8,10 @@ import {
   type ContactPoint,
   type Envelope,
   type Face,
+  type FootPart,
   type Part,
   type PeripheralPart,
+  type PlatePart,
   type ProfilePart,
   type Vec3Mm,
 } from './assembly.ts';
@@ -310,42 +312,55 @@ export const lengthAxisOf = (operation: ProfileOperation): Axis =>
 
 /** The part an operation makes, placed as its values say. */
 export function partMadeBy(operation: MakingOperation): Part {
-  if (operation.kind === 'mount-peripheral') return peripheralMadeBy(operation);
-  if (operation.kind === 'add-foot')
-    return {
-      kind: 'foot',
-      id: operation.partId,
-      name: operation.name,
-      footTypeId: operation.footTypeId,
-      placement: {
-        kind: 'attachment',
-        parentId: operation.parentId,
-        face: '-y',
-        alongMm: operation.alongMm,
-        fromEnd: operation.fromEnd,
-      },
-    };
-  if (operation.kind === 'add-plate')
-    return {
-      kind: 'plate',
-      id: operation.partId,
-      name: operation.name,
-      widthMm: operation.widthMm,
-      depthMm: operation.depthMm,
-      sheetId: operation.sheetId,
-      normal: operation.face,
-      depthAxis: operation.depthAxis,
-      ownHoles: [],
-      placement: {
-        kind: 'attachment',
-        parentId: operation.parentId,
-        face: operation.face,
-        alongMm: operation.alongMm,
-        fromEnd: operation.fromEnd,
-        acrossMm: operation.acrossMm,
-      },
-    };
-  return profileMadeBy(operation);
+  switch (operation.kind) {
+    case 'mount-peripheral':
+      return peripheralMadeBy(operation);
+    case 'add-foot':
+      return footMadeBy(operation);
+    case 'add-plate':
+      return plateMadeBy(operation);
+    case 'add-anchored-profile':
+    case 'grow-profile':
+      return profileMadeBy(operation);
+  }
+}
+
+function footMadeBy(operation: AddFoot): FootPart {
+  return {
+    kind: 'foot',
+    id: operation.partId,
+    name: operation.name,
+    footTypeId: operation.footTypeId,
+    placement: {
+      kind: 'attachment',
+      parentId: operation.parentId,
+      face: '-y',
+      alongMm: operation.alongMm,
+      fromEnd: operation.fromEnd,
+    },
+  };
+}
+
+function plateMadeBy(operation: AddPlate): PlatePart {
+  return {
+    kind: 'plate',
+    id: operation.partId,
+    name: operation.name,
+    widthMm: operation.widthMm,
+    depthMm: operation.depthMm,
+    sheetId: operation.sheetId,
+    normal: operation.face,
+    depthAxis: operation.depthAxis,
+    ownHoles: [],
+    placement: {
+      kind: 'attachment',
+      parentId: operation.parentId,
+      face: operation.face,
+      alongMm: operation.alongMm,
+      fromEnd: operation.fromEnd,
+      acrossMm: operation.acrossMm,
+    },
+  };
 }
 
 function peripheralMadeBy(operation: MountPeripheral): PeripheralPart {
@@ -429,31 +444,45 @@ export function operationMaking(
 
 /** The operation as given, or an error naming the first value it cannot have. */
 export function checkedOperation<T extends Operation>(operation: T): T {
-  if (operation.kind === 'remove-part') {
-    if (typeof operation.removedId !== 'string' || operation.removedId === '')
-      throw new Error('A removal needs the part it removes');
-    return operation;
+  checkValues(operation);
+  return operation;
+}
+
+/** Each kind of operation checks its own values; a kind without a case is a type error. */
+function checkValues(operation: Operation): void {
+  switch (operation.kind) {
+    case 'remove-part':
+      if (typeof operation.removedId !== 'string' || operation.removedId === '')
+        throw new Error('A removal needs the part it removes');
+      return;
+    case 'add-foot':
+      return checkFoot(operation);
+    case 'add-plate':
+      return checkPlate(operation);
+    case 'mount-peripheral':
+      return checkPeripheral(operation);
+    case 'fasten-joint':
+      return checkFastening(operation);
+    case 'join-parts':
+      if (operation.partId === operation.toPartId) throw new Error('A part cannot join itself.');
+      return;
+    case 'add-anchored-profile':
+    case 'grow-profile':
+      return checkProfile(operation);
+    default:
+      return unknownOperation(operation);
   }
-  if (operation.kind === 'add-foot') {
-    checkFoot(operation);
-    return operation;
-  }
-  if (operation.kind === 'add-plate') {
-    checkPlate(operation);
-    return operation;
-  }
-  if (operation.kind === 'mount-peripheral') {
-    checkPeripheral(operation);
-    return operation;
-  }
-  if (operation.kind === 'fasten-joint') {
-    checkFastening(operation);
-    return operation;
-  }
-  if (operation.kind === 'join-parts') {
-    if (operation.partId === operation.toPartId) throw new Error('A part cannot join itself.');
-    return operation;
-  }
+}
+
+/**
+ * The default of a switch that returns nothing, over every kind of operation: once each kind has
+ * its case nothing is left, so a kind without one is a type error here.
+ */
+export function unknownOperation(operation: never): never {
+  throw new Error(`Unknown operation: ${JSON.stringify(operation)}`);
+}
+
+function checkProfile(operation: ProfileOperation): void {
   const system = profileSystem(operation.systemId);
   if (!system.sections.some((section) => section.id === operation.sectionId))
     throw new Error(`Profile section ${operation.sectionId} is not in ${system.id}.`);
@@ -472,7 +501,6 @@ export function checkedOperation<T extends Operation>(operation: T): T {
       `A profile length must be between ${MIN_PROFILE_LENGTH_MM} and ${MAX_PROFILE_LENGTH_MM} mm.`,
     );
   if (operation.kind === 'add-anchored-profile') checkStart(operation.startMm);
-  return operation;
 }
 
 function checkStart(startMm: Vec3Mm) {

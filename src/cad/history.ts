@@ -568,21 +568,25 @@ export function nextIdentifiers(history: readonly Operation[]): { id: string; pa
 }
 
 function partIdsNamed(operation: Operation): string[] {
-  if (operation.kind === 'remove-part') return [operation.removedId];
-  if (operation.kind === 'add-anchored-profile') return [operation.partId];
-  if (
-    operation.kind === 'add-foot' ||
-    operation.kind === 'add-plate' ||
-    operation.kind === 'mount-peripheral'
-  )
-    return [operation.partId, operation.parentId];
-  if (operation.kind === 'fasten-joint' || operation.kind === 'join-parts')
-    return [operation.partId, operation.toPartId];
-  return [
-    operation.partId,
-    operation.parentId,
-    ...(operation.reachesId ? [operation.reachesId] : []),
-  ];
+  switch (operation.kind) {
+    case 'remove-part':
+      return [operation.removedId];
+    case 'add-anchored-profile':
+      return [operation.partId];
+    case 'add-foot':
+    case 'add-plate':
+    case 'mount-peripheral':
+      return [operation.partId, operation.parentId];
+    case 'fasten-joint':
+    case 'join-parts':
+      return [operation.partId, operation.toPartId];
+    case 'grow-profile':
+      return [
+        operation.partId,
+        operation.parentId,
+        ...(operation.reachesId ? [operation.reachesId] : []),
+      ];
+  }
 }
 
 /** Named after the section and the step that makes it, such as "40 × 40 profile 3". */

@@ -77,27 +77,29 @@ export interface DesignPanel {
 }
 
 /** The fields of the inspector, as the markup names them in `data-part-field`. */
-export type PartField =
-  | 'name'
-  | 'sectionId'
-  | 'axis'
-  | 'heightAxis'
-  | 'lengthMm'
-  | 'startX'
-  | 'startY'
-  | 'startZ'
-  | 'face'
-  | 'fromEnd'
-  | 'alongMm'
-  | 'acrossMm'
-  | 'way'
-  | 'reachesId'
-  | 'footTypeId'
-  | 'sheetId'
-  | 'widthMm'
-  | 'depthMm'
-  | 'depthAxis'
-  | 'facing';
+const PART_FIELDS = [
+  'name',
+  'sectionId',
+  'axis',
+  'heightAxis',
+  'lengthMm',
+  'startX',
+  'startY',
+  'startZ',
+  'face',
+  'fromEnd',
+  'alongMm',
+  'acrossMm',
+  'way',
+  'reachesId',
+  'footTypeId',
+  'sheetId',
+  'widthMm',
+  'depthMm',
+  'depthAxis',
+  'facing',
+] as const;
+export type PartField = (typeof PART_FIELDS)[number];
 
 const AXIS_NAMES: Record<Axis, string> = {
   x: 'Across (X)',
@@ -186,15 +188,26 @@ function historyStepHTML(panel: DesignPanel, index: number) {
 }
 
 function stepDetail(history: readonly Operation[], operation: Operation): string {
-  if (operation.kind === 'remove-part') return 'What hangs from it stays where it is, anchored';
-  if (operation.kind === 'add-foot')
-    return `Under ${escapeHTML(nameOf(history, operation.parentId))} · ${escapeHTML(footType(operation.footTypeId).name)}`;
-  if (operation.kind === 'fasten-joint') return escapeHTML(connectorCountText(operation));
-  if (operation.kind === 'join-parts') return 'They touch: a joint to fasten';
-  if (operation.kind === 'mount-peripheral')
-    return `Mounted on ${escapeHTML(nameOf(history, operation.parentId))} · ${CATEGORY_NAMES[operation.category]}`;
-  if (operation.kind === 'add-plate')
-    return `On ${escapeHTML(nameOf(history, operation.parentId))} · ${round(operation.widthMm, 1)} × ${round(operation.depthMm, 1)} mm · ${escapeHTML(sheetType(operation.sheetId).name)}`;
+  switch (operation.kind) {
+    case 'remove-part':
+      return 'What hangs from it stays where it is, anchored';
+    case 'add-foot':
+      return `Under ${escapeHTML(nameOf(history, operation.parentId))} · ${escapeHTML(footType(operation.footTypeId).name)}`;
+    case 'fasten-joint':
+      return escapeHTML(connectorCountText(operation));
+    case 'join-parts':
+      return 'They touch: a joint to fasten';
+    case 'mount-peripheral':
+      return `Mounted on ${escapeHTML(nameOf(history, operation.parentId))} · ${CATEGORY_NAMES[operation.category]}`;
+    case 'add-plate':
+      return `On ${escapeHTML(nameOf(history, operation.parentId))} · ${round(operation.widthMm, 1)} × ${round(operation.depthMm, 1)} mm · ${escapeHTML(sheetType(operation.sheetId).name)}`;
+    case 'add-anchored-profile':
+    case 'grow-profile':
+      return profileStepDetail(history, operation);
+  }
+}
+
+function profileStepDetail(history: readonly Operation[], operation: ProfileOperation): string {
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
   const made =
     operation.kind === 'add-anchored-profile'
@@ -272,22 +285,30 @@ export function partInspectorHTML(
     failure === undefined
       ? ''
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
-  if (operation.kind === 'remove-part')
-    return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
-  if (operation.kind === 'fasten-joint')
-    return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
-  if (operation.kind === 'join-parts')
-    return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
-  if (operation.kind === 'mount-peripheral')
-    return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralFieldsHTML('part', history, operation)}<div class="part-actions">${deleteStep}</div></div>`;
-  if (operation.kind === 'add-foot' || operation.kind === 'add-plate') {
-    const fields =
-      operation.kind === 'add-foot'
-        ? footFieldsHTML(history, operation)
-        : plateFieldsHTML('part', history, operation);
+  switch (operation.kind) {
+    case 'remove-part':
+      return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+    case 'fasten-joint':
+      return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+    case 'join-parts':
+      return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+    case 'mount-peripheral':
+      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralFieldsHTML('part', history, operation)}<div class="part-actions">${deleteStep}</div></div>`;
+    case 'add-foot':
+      return partFieldsHTML(footFieldsHTML(history, operation));
+    case 'add-plate':
+      return partFieldsHTML(plateFieldsHTML('part', history, operation));
+    case 'add-anchored-profile':
+    case 'grow-profile':
+      return partFieldsHTML(
+        profileFieldsHTML('part', history, operation, { reach: failure === undefined }),
+      );
+  }
+
+  /** The fields of a part of the frame, with its joints and the deletion of its step. */
+  function partFieldsHTML(fields: string): string {
     return `<div class="part-inspector" id="partInspectorFields">${failed}${fields}${jointsHTML(joints, touching)}<div class="part-actions">${deleteStep}</div></div>`;
   }
-  return `<div class="part-inspector" id="partInspectorFields">${failed}${profileFieldsHTML('part', history, operation, { reach: failure === undefined })}${jointsHTML(joints, touching)}<div class="part-actions">${deleteStep}</div></div>`;
 }
 
 /** An action on the selected part, from the toolbar of the view. */
@@ -718,29 +739,6 @@ class FieldTemplates {
     return `<div class="control"><div class="control-top"><label for="${this.prefix}-${field}">${label}</label><div class="number-wrap"><input id="${this.prefix}-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"${disabled ? ' disabled' : ''}><span>mm</span></div></div></div>`;
   }
 }
-
-const PART_FIELDS: readonly PartField[] = [
-  'name',
-  'sectionId',
-  'axis',
-  'heightAxis',
-  'lengthMm',
-  'startX',
-  'startY',
-  'startZ',
-  'face',
-  'fromEnd',
-  'alongMm',
-  'acrossMm',
-  'way',
-  'reachesId',
-  'footTypeId',
-  'sheetId',
-  'widthMm',
-  'depthMm',
-  'depthAxis',
-  'facing',
-];
 
 /** The inspector field a `data-part-field` names. The markup is the app's, so others are bugs. */
 export function partField(value: string | undefined): PartField {

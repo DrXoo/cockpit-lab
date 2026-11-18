@@ -295,11 +295,17 @@ function editPart(
   operation: MakingOperation,
   values: Partial<ProfileValues & FootValues & PlateValues>,
 ): Operation[] {
-  if (operation.kind === 'add-foot') return editFoot(history, operation.partId, values);
-  if (operation.kind === 'add-plate') return editPlate(history, operation.partId, values);
-  if (operation.kind === 'mount-peripheral')
-    return editPeripheral(history, operation.partId, values);
-  return editProfile(history, operation.partId, values);
+  switch (operation.kind) {
+    case 'add-foot':
+      return editFoot(history, operation.partId, values);
+    case 'add-plate':
+      return editPlate(history, operation.partId, values);
+    case 'mount-peripheral':
+      return editPeripheral(history, operation.partId, values);
+    case 'add-anchored-profile':
+    case 'grow-profile':
+      return editProfile(history, operation.partId, values);
+  }
 }
 
 /** The cockpit point at `inFrameMm`, in the frame of a part at `tiltDeg`. */
