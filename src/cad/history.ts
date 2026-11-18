@@ -440,7 +440,7 @@ export function facingParts(history: readonly Operation[], partId: string): stri
 }
 
 /** The part and every part that hangs from it or reaches it, directly or through others. */
-function dependentsOf(history: readonly Operation[], partId: string): Set<string> {
+export function dependentsOf(history: readonly Operation[], partId: string): Set<string> {
   const dependents = new Set([partId]);
   let grown = true;
   while (grown) {

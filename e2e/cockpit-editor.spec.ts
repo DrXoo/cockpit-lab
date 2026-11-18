@@ -681,6 +681,43 @@ test('dragging an edge of a plate with Shift widens it on both sides', async ({ 
     .toMatchObject({ kind: 'add-plate', widthMm: 400, depthMm: 300, acrossMm: 0 });
 });
 
+test('dragging the free end of a profile to the face in front of it makes it a span', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('#part-startX').fill('800');
+  await page.locator('#part-startX').press('Enter');
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#growProfile').click();
+  await page.locator('#grow-face').selectOption('+x');
+  await page.locator('#confirmGrowth').click();
+  await page.locator('[data-view="top"]').click();
+  // The growth is 500 mm long out of the rail's face at x = 20; the other rail's face is at 780.
+
+  // In the top view +X is towards the right of the screen: the end goes towards the other rail
+  // a few pixels at a time, until it reaches its face.
+  const ball = await page.locator('[data-handle="part-3:end"]').boundingBox();
+  if (!ball) throw new Error('No end handle on the growth');
+  const x = ball.x + ball.width / 2;
+  const y = ball.y + ball.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  const box = page.locator('#changeBox');
+  for (let dx = 4; dx < 600; dx += 4) {
+    await page.mouse.move(x + dx, y);
+    if ((await box.getAttribute('data-kind')) === 'reach') break;
+  }
+  await page.mouse.up();
+  await expect(box).toHaveAttribute('data-kind', 'reach');
+  await expect(page.locator('#changeValue')).toBeHidden();
+
+  await page.locator('#confirmChange').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ reachesId: 'part-2', lengthMm: 760 });
+});
+
 test('dragging a waiting change again carries on from where it was let go', async ({ page }) => {
   await startDesign(page);
   await page.locator('[data-view="top"]').click();

@@ -733,6 +733,12 @@ select option {
   display: none;
 }
 
+/* An end that reaches a part takes its length from the gap: there is no value to type. */
+.change-box[data-kind='reach'] input,
+.change-box[data-kind='reach'] .change-unit {
+  display: none;
+}
+
 .change-box input {
   width: 72px;
   padding: 2px 4px;

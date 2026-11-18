@@ -116,11 +116,22 @@ interface AnchoredItem {
   clearOf: T.Vector3 | null;
 }
 
-/** How a handle is being dragged: Shift moves both ends, Alt drops the steps. */
+/**
+ * How a handle is being dragged: Shift moves both ends, Alt drops the steps and the snapping; a
+ * snap reaches as far along the handle as a few pixels on screen cover where it is.
+ */
 export interface HandleModifiers {
   symmetric: boolean;
   free: boolean;
+  snapWithinMm: number;
 }
+
+/** How near on screen a dragged handle comes to a place before it snaps there. */
+const SNAP_WITHIN_PX = 10;
+/** A handle seen almost end on would snap from afar: it never snaps from further than this. */
+const MAX_SNAP_WITHIN_MM = 50;
+/** How far along a handle the screen scale of its axis is measured. */
+const SNAP_SCALE_SPAN_MM = 100;
 
 /** The parts of the surroundings whose colors follow the theme. */
 interface Environment {
@@ -556,6 +567,24 @@ export class CockpitScene {
     );
   }
 
+  /** How many mm along a handle's axis `SNAP_WITHIN_PX` on screen cover where the handle is. */
+  private snapWithinMm({ pointMm, outwardMm }: Handle): number {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    const onScreen = (alongMm: number) => {
+      const p = new T.Vector3(
+        (pointMm.x + outwardMm.x * alongMm) / MM_PER_CM,
+        (pointMm.y + outwardMm.y * alongMm) / MM_PER_CM,
+        (pointMm.z + outwardMm.z * alongMm) / MM_PER_CM,
+      ).project(this.camera);
+      return { x: p.x * 0.5 * w, y: p.y * 0.5 * h };
+    };
+    const from = onScreen(0);
+    const to = onScreen(SNAP_SCALE_SPAN_MM);
+    const pxPerMm = Math.hypot(to.x - from.x, to.y - from.y) / SNAP_SCALE_SPAN_MM;
+    return pxPerMm > 0 ? Math.min(SNAP_WITHIN_PX / pxPerMm, MAX_SNAP_WITHIN_MM) : 0;
+  }
+
   private disposeDrawing(root: T.Object3D) {
     const shared = new Set<T.Material>(Object.values(this.mat));
     root.traverse((object) => {
@@ -832,6 +861,7 @@ export class CockpitScene {
         this.onHandleDrag?.(drag.handle, alongMm - drag.grabbedAtMm, {
           symmetric: event.shiftKey,
           free: event.altKey,
+          snapWithinMm: this.snapWithinMm(drag.handle),
         });
       return;
     }

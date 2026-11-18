@@ -1,7 +1,8 @@
 // Draws the stems of the handles of the selected part: a thin bar from the end a handle changes
 // out to the handle itself, which the scene shows on top of the view. A move handle sits on its
-// part, with no stem. Positions are in mm in cockpit coordinates; the scene works in cm.
+// part, with no stem. Draws the dashed guide of what a dragged handle snapped to. Positions are in mm in cockpit coordinates; the scene works in cm.
 import type { Handle } from './cad/handles.ts';
+import type { SnapGuide } from './cad/snapping.ts';
 import type { Vec3Mm } from './cad/assembly.ts';
 import type { ParentRef, RenderList } from './render-list.ts';
 import { MM_PER_CM } from './units.ts';
@@ -43,4 +44,22 @@ export function drawHandleStems(
       parent,
     );
   }
+}
+
+/** The guide of a snap, dashed in the accent of the handles, drawn over the parts it lines up. */
+const SNAP_GUIDE = {
+  kind: 'dashed',
+  color: 0x2f7fd0,
+  dashSize: 1.5,
+  gapSize: 1,
+  onTop: true,
+} as const;
+
+export function drawSnapGuide(r: RenderList, parent: ParentRef, guide: SnapGuide): void {
+  const cm = ({ x, y, z }: Vec3Mm): [number, number, number] => [
+    x / MM_PER_CM,
+    y / MM_PER_CM,
+    z / MM_PER_CM,
+  ];
+  r.line([cm(guide.fromMm), cm(guide.toMm)], r.material(SNAP_GUIDE), parent);
 }

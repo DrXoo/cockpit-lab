@@ -12,6 +12,8 @@ const MIN_TUBE_LENGTH_CM = 0.01;
 const TUBE_SEGMENTS = 12;
 const SPHERE_SEGMENTS: [width: number, height: number] = [16, 10];
 const DASHED_LINE = { color: 0x9ba78d, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.7 };
+/** Drawn after everything else, so nothing in the scene dims it. */
+const ON_TOP_RENDER_ORDER = 10;
 const UP = new T.Vector3(0, 1, 0);
 
 const vector = ([x, y, z]: Vec3) => new T.Vector3(x, y, z);
@@ -32,6 +34,7 @@ function createMaterial(spec: MaterialSpec): T.Material {
       color: spec.color,
       dashSize: spec.dashSize,
       gapSize: spec.gapSize,
+      depthTest: !spec.onTop,
     });
   return spec.opacity === undefined
     ? new T.LineBasicMaterial({ color: spec.color })
@@ -143,6 +146,8 @@ export function addPrimitives(
         const line = new T.Line(geometry, material);
         // Dashes are laid out along the line's length.
         if (material instanceof T.LineDashedMaterial) line.computeLineDistances();
+        // A line drawn over everything goes after the see-through parts, which would dim it.
+        if (!material.depthTest) line.renderOrder = ON_TOP_RENDER_ORDER;
         parentOf(p.parent).add(line);
         break;
       }

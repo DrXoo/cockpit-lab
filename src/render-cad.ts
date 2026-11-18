@@ -8,6 +8,7 @@ import { connectorType, isPlateBolt, profileSystem } from './cad/catalog.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
 import type { Handle } from './cad/handles.ts';
+import type { SnapGuide } from './cad/snapping.ts';
 import { MM_PER_CM } from './units.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */
@@ -22,6 +23,8 @@ export interface CockpitDrawing {
   choosingFaceOf?: string | null;
   /** The handles of the selected part, to drag in the view. */
   handles?: readonly Handle[];
+  /** The guide of what a dragged handle snapped to. */
+  snapGuide?: SnapGuide | null;
   /** A measurement being taken in the view. */
   measure?: MeasureDrawing | null;
 }

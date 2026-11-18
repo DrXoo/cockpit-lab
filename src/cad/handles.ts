@@ -77,18 +77,23 @@ export interface EdgeHandle {
 /** A control on the selected part, dragged along `outwardMm` from `pointMm`. */
 export type Handle = EndHandle | MoveHandle | EdgeHandle;
 
-/** How far a handle was dragged out along its direction, and whether Shift made it symmetric. */
+/**
+ * How far a handle was dragged out along its direction, whether Shift made it symmetric, and the
+ * part a dragged end reaches, which makes its profile a span.
+ */
 export interface Drag {
   changeMm: number;
   symmetric: boolean;
+  reachesId?: string;
 }
 
 /**
  * What the box beside a dragged handle shows: the change of one end or edge, the whole length,
- * width or depth of a symmetric resize, or how far the part moved.
+ * width or depth of a symmetric resize, how far the part moved, or the length of a span an end
+ * makes by reaching a part.
  */
 export interface DragReadout {
-  kind: 'change' | 'length' | 'width' | 'depth' | 'move';
+  kind: 'change' | 'length' | 'width' | 'depth' | 'move' | 'reach';
   valueMm: number;
 }
 
@@ -144,7 +149,27 @@ export function draggedHistory(
     return editPlate(history, handle.partId, resizedPlateValues(history, plate, handle, sized));
   }
   const operation = profileMaking(history, handle);
+  if (drag.reachesId !== undefined)
+    return editProfile(history, handle.partId, { reachesId: drag.reachesId });
   return editProfile(history, handle.partId, resizedValues(operation, handle, sized));
+}
+
+/**
+ * The handle where a drag leaves it: moved as far along its direction as the drag went, as the
+ * end, edge or part it changes did. It stays even where the part then has no such handle, as a
+ * span has no end handle.
+ */
+export function draggedHandle<Dragged extends Handle>(handle: Dragged, drag: Drag): Dragged {
+  const { pointMm, outwardMm } = handle;
+  const { changeMm } = drag;
+  return {
+    ...handle,
+    pointMm: {
+      x: pointMm.x + outwardMm.x * changeMm,
+      y: pointMm.y + outwardMm.y * changeMm,
+      z: pointMm.z + outwardMm.z * changeMm,
+    },
+  };
 }
 
 /**
@@ -186,6 +211,8 @@ export function dragReadout(
 ): DragReadout {
   if (handle.kind === 'move') return { kind: 'move', valueMm: requested.changeMm };
   const sizing = sizingOf(history, handle);
+  if (requested.reachesId !== undefined)
+    return { kind: 'reach', valueMm: sizing.sizeMm + requested.changeMm };
   const drag = asItCan(sizing, requested);
   return drag.symmetric
     ? { kind: sizing.kind, valueMm: sizing.sizeMm + 2 * drag.changeMm }
@@ -223,9 +250,9 @@ function sizingOf(history: readonly Operation[], handle: EndHandle | EdgeHandle)
   };
 }
 
-/** A drag as the size allows it: symmetric only where both ends can move. */
+/** A drag as the size allows it: symmetric only where both ends can move, reaching no part. */
 const asItCan = (sizing: Sizing, drag: Drag): Drag => ({
-  ...drag,
+  changeMm: drag.changeMm,
   symmetric: drag.symmetric && sizing.symmetric,
 });
 const endsMoved = (drag: Drag) => (drag.symmetric ? 2 : 1);

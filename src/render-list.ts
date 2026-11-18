@@ -36,8 +36,11 @@ export type MaterialSpec =
   | { kind: 'matte'; color: Color; roughness: number }
   /** Outlines; transparent when an opacity is given. */
   | { kind: 'line'; color: Color; opacity?: number }
-  /** Dashed outlines in their own colour; `dashed` lines use the measurement style. */
-  | { kind: 'dashed'; color: Color; dashSize: number; gapSize: number };
+  /**
+   * Dashed outlines in their own colour, drawn over everything when `onTop`; `dashed` lines use
+   * the measurement style.
+   */
+  | { kind: 'dashed'; color: Color; dashSize: number; gapSize: number; onTop?: boolean };
 
 /** A palette material, or the id returned by `material()`. */
 export type MaterialRef = PaletteMaterial | number;

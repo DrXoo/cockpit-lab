@@ -84,6 +84,7 @@ import {
 } from './model.ts';
 import { CockpitScene, type HandleModifiers, type PagePoint } from './scene.ts';
 import {
+  draggedHandle,
   draggedHistory,
   dragFromTyped,
   dragReadout,
@@ -94,6 +95,7 @@ import {
   type DragReadout,
   type Handle,
 } from './cad/handles.ts';
+import { snapToParts, type Snap } from './cad/snapping.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
@@ -373,6 +375,8 @@ interface PendingChange {
   partId: string;
   handle: Handle;
   drag: Drag;
+  /** What the drag snapped to, shown with a guide, or null. */
+  snap: Snap | null;
   history: Operation[];
 }
 const loaded = store.load();
@@ -417,6 +421,7 @@ function cockpitDrawing(): CockpitDrawing | null {
     choosingFaceOf: draftPart?.parentId ?? null,
     measure: measureDrawing(),
     handles: shownHandles(),
+    snapGuide: pendingChange?.snap?.guide ?? null,
   };
 }
 /**
@@ -425,20 +430,17 @@ function cockpitDrawing(): CockpitDrawing | null {
  */
 function shownHandles(): Handle[] {
   if (draftPart !== null || measurePicks !== null) return [];
-  if (pendingChange) {
-    const { partId, handle, history } = pendingChange;
-    return partHandles(history, partId, markerIndex()).filter(({ id }) => id === handle.id);
-  }
+  if (pendingChange) return [draggedHandle(pendingChange.handle, pendingChange.drag)];
   const partId = selectedPartId();
   if (partId === null) return [];
   // A flat view cannot drag a handle that points at it.
   return handlesSeenAlong(partHandles(designHistory(), partId, markerIndex()), SIGHT_AXIS[view]);
 }
 /** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
-function changeInView(handle: Handle, drag: Drag) {
+function changeInView(handle: Handle, drag: Drag, snap: Snap | null = null) {
   try {
     const history = draggedHistory(designHistory(), handle, drag);
-    pendingChange = { partId: handle.partId, handle, drag, history };
+    pendingChange = { partId: handle.partId, handle, drag, snap, history };
   } catch {
     return;
   }
@@ -449,14 +451,29 @@ function grabHandle(handle: Handle) {
   $('#changeValue').blur();
   changeAtGrabMm = pendingChange?.handle.id === handle.id ? pendingChange.drag.changeMm : 0;
 }
-function dragHandle(handle: Handle, movedMm: number, { symmetric, free }: HandleModifiers) {
+/** A drag snaps to the parts around it when near them, and otherwise goes in steps. */
+function dragHandle(
+  shown: Handle,
+  movedMm: number,
+  { symmetric, free, snapWithinMm }: HandleModifiers,
+) {
+  // A waiting change shows its handle where it was let go: the drag goes on from the handle
+  // as it was before the change.
+  const handle = pendingChange?.handle.id === shown.id ? pendingChange.handle : shown;
+  const history = designHistory();
   const dragged = { symmetric, changeMm: changeAtGrabMm + movedMm };
-  changeInView(handle, snappedDrag(designHistory(), handle, dragged, free));
+  const toParts = free ? null : snapToParts(history, handle, dragged, snapWithinMm, markerIndex());
+  if (toParts) changeInView(handle, toParts.drag, toParts.snap);
+  else changeInView(handle, snappedDrag(history, handle, dragged, free));
 }
 /** Once a handle is let go, its value waits in the box, ready to be typed exactly. */
 function releaseHandle() {
-  const input = $<HTMLInputElement>('#changeValue');
   // The box stays where the view shows it: focusing it must not scroll the page.
+  if (pendingChange?.drag.reachesId !== undefined) {
+    $('#confirmChange').focus({ preventScroll: true });
+    return;
+  }
+  const input = $<HTMLInputElement>('#changeValue');
   input.focus({ preventScroll: true });
   input.select();
 }
@@ -493,6 +510,7 @@ const READOUT_LABELS: Record<DragReadout['kind'], string> = {
   width: 'Width',
   depth: 'Depth',
   move: 'Move',
+  reach: 'Reaches',
 };
 /** The box of a waiting change, beside the handle that made it, with its value. */
 function renderChangeBox() {
@@ -506,7 +524,12 @@ function renderChangeBox() {
   }
   const readout = dragReadout(designHistory(), pending.handle, pending.drag);
   box.dataset.kind = readout.kind;
-  $('#changeKind').textContent = READOUT_LABELS[readout.kind];
+  const { reachesId } = pending.drag;
+  // An end that reaches a part takes its length from the gap: the box names the part instead.
+  $('#changeKind').textContent =
+    reachesId === undefined
+      ? READOUT_LABELS[readout.kind]
+      : `${READOUT_LABELS.reach} ${operationMaking(designHistory(), reachesId)?.name ?? reachesId}`;
   const input = $<HTMLInputElement>('#changeValue');
   if (document.activeElement !== input) input.value = String(readout.valueMm);
   const ball = handleBallMm(handle);
