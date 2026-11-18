@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderList, ROOT } from '../src/render-list.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { drawPartLength, drawPlacementAlong } from '../src/render-cad-dimensions.ts';
+import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../src/render-cad-dimensions.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 // A 40 × 80 rail from front to back: x −300…−260, y 60…140, z 0…1200 mm.
@@ -158,4 +158,69 @@ test('seen from above, where a part is on its profile is measured beside the pro
 test('an anchored part, or none, is not measured along a parent', () => {
   assert.equal(placed([profile('rail')], 'rail').primitives.length, 0);
   assert.equal(placed([profile('rail')], null).primitives.length, 0);
+});
+
+/** A 400 × 300 × 5 mm plate on top of the rail, centered 600 mm along it: x −480…−80, z 450…750. */
+const plate = {
+  kind: 'plate',
+  id: 'plate',
+  name: 'Plate',
+  widthMm: 400,
+  depthMm: 300,
+  sheetId: 'aluminium-5',
+  normal: '+y',
+  depthAxis: 'z',
+  ownHoles: [],
+  placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 600, fromEnd: 'start' },
+};
+const sized = (view = 'iso', plateId = 'plate') => {
+  const r = createRenderList();
+  drawPlateSize(r, ROOT, resolveAssembly([profile('rail'), plate]), plateId, view);
+  return r;
+};
+const straightLines = (r) =>
+  r.primitives
+    .filter((p) => p.kind === 'line')
+    .map((p) => p.points.map(rounded))
+    .filter(([a, b]) => [0, 1, 2].filter((i) => a[i] !== b[i]).length === 1)
+    .filter(([a, b]) => Math.abs(a[0] - b[0]) + Math.abs(a[2] - b[2]) > 5);
+
+test('a plate shows its width and depth, each beside the edge it measures, past its handles', () => {
+  const r = sized();
+  assert.deepEqual(
+    r.labels.map(({ text, measures }) => [text, measures]),
+    [
+      ['400 mm', 'plate-width'],
+      ['300 mm', 'plate-depth'],
+    ],
+  );
+  assert.deepEqual(straightLines(r), [
+    [
+      [-48, 14.25, 85],
+      [-8, 14.25, 85],
+    ],
+    [
+      [2, 14.25, 45],
+      [2, 14.25, 75],
+    ],
+  ]);
+});
+
+test('seen from the side, a plate shows only its depth, above it', () => {
+  const r = sized('side');
+  assert.deepEqual(
+    r.labels.map(({ measures }) => measures),
+    ['plate-depth'],
+  );
+  assert.deepEqual(straightLines(r), [
+    [
+      [-28, 24.5, 45],
+      [-28, 24.5, 75],
+    ],
+  ]);
+});
+
+test('a part that is not a plate shows no plate size', () => {
+  assert.equal(sized('iso', 'rail').primitives.length, 0);
+  assert.equal(sized('iso', null).primitives.length, 0);
 });

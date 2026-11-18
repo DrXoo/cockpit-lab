@@ -1,8 +1,14 @@
-// Dimensions drawn over a CAD cockpit design: the length of the selected profile, and where a part
-// being placed is along the profile it hangs from. Parts are in mm in their own frame
-// (src/cad/assembly.ts); lines and labels are drawn in cockpit cm, so a tilted part is measured
-// in its frame and turned out of it.
-import { tiltedFromPivot, type Axis, type ResolvedPart, type Vec3Mm } from './cad/assembly.ts';
+// Dimensions drawn over a CAD cockpit design: the length of the selected profile, the size of a
+// plate, and where a part being placed is along the profile it hangs from. Parts are in mm in
+// their own frame (src/cad/assembly.ts); lines and labels are drawn in cockpit cm, so a tilted
+// part is measured in its frame and turned out of it.
+import {
+  faceAxis,
+  tiltedFromPivot,
+  type Axis,
+  type ResolvedPart,
+  type Vec3Mm,
+} from './cad/assembly.ts';
 import { round } from './geometry.ts';
 import type { ParentRef, RenderList, SceneLabel, Vec3 } from './render-list.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
@@ -10,6 +16,8 @@ import { MM_PER_CM } from './units.ts';
 
 /** How far a dimension stands off the face of the part it measures. */
 const DIMENSION_CLEARANCE_MM = 50;
+/** A plate's size stands further off, past the handles on its edges (`HANDLE_STANDOFF_MM`). */
+const PLATE_DIMENSION_CLEARANCE_MM = 100;
 /** How far its label stands beyond the line, so it does not cover the part. */
 const LABEL_STANDOFF_MM = 50;
 /** Lengths are shown to the tenth of a mm, as the design history shows them. */
@@ -18,6 +26,7 @@ const LENGTH_DECIMALS = 1;
 const ORIGIN: Vec3Mm = { x: 0, y: 0, z: 0 };
 /** The axes a dimension may stand off along, best first: above, then in front, then beside. */
 const OFFSET_PREFERENCE: readonly Axis[] = ['y', 'z', 'x'];
+const AXES: readonly Axis[] = ['x', 'y', 'z'];
 
 /** The length of the selected profile, as a dimension beside it that the view can show. */
 export function drawPartLength(
@@ -68,8 +77,71 @@ export function drawPlacementAlong(
   measured(centerMm, profile.box.max[axis], 'placement-end').alwaysShown = true;
 }
 
+/**
+ * The size of a plate: its width and depth, each beside the edge it measures, in the plane of
+ * the plate. A flat view that sees one of them end on leaves it out, and draws the other off the
+ * plate's face when it would lie along the plate's edge.
+ */
+export function drawPlateSize(
+  r: RenderList,
+  parent: ParentRef,
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  plateId: string | null,
+  view: SceneView,
+): void {
+  const plate = plateId === null ? undefined : resolved.get(plateId);
+  if (!plate || plate.part.kind !== 'plate') return;
+  const { normal, depthAxis } = plate.part;
+  const normalAxis = faceAxis(normal);
+  const widthAxis = AXES.find((axis) => axis !== normalAxis && axis !== depthAxis);
+  if (widthAxis === undefined) return;
+  const sides: [Axis, Axis, string][] = [
+    [widthAxis, depthAxis, 'plate-width'],
+    [depthAxis, widthAxis, 'plate-depth'],
+  ];
+  for (const [axis, besideAxis, measures] of sides) {
+    if (axis === SIGHT_AXIS[view]) continue;
+    const { min, max } = plate.box;
+    drawDimension(r, parent, plate, {
+      axis,
+      offsetAxis: besideAxis === SIGHT_AXIS[view] ? normalAxis : besideAxis,
+      clearanceMm: PLATE_DIMENSION_CLEARANCE_MM,
+      fromMm: min[axis],
+      toMm: max[axis],
+      text: `${round(max[axis] - min[axis], LENGTH_DECIMALS)} mm`,
+      measures,
+    });
+  }
+}
+
 /** A dimension along a profile, between two points of its length, standing off beside it. */
-interface AlongProfile {
+function drawAlongProfile(
+  r: RenderList,
+  parent: ParentRef,
+  profile: ResolvedPart,
+  view: SceneView,
+  along: Omit<Dimension, 'axis' | 'offsetAxis' | 'clearanceMm'>,
+): SceneLabel {
+  const axis = lengthAxisOf(profile);
+  // The length and the line of sight leave at least one of the three axes to stand off along.
+  const offsetAxis =
+    OFFSET_PREFERENCE.find((other) => other !== axis && other !== SIGHT_AXIS[view]) ?? 'y';
+  return drawDimension(r, parent, profile, {
+    ...along,
+    axis,
+    offsetAxis,
+    clearanceMm: DIMENSION_CLEARANCE_MM,
+  });
+}
+
+/**
+ * A dimension of a part along `axis`, between two points on it, standing `clearanceMm` off the
+ * part's box towards + on `offsetAxis`.
+ */
+interface Dimension {
+  axis: Axis;
+  offsetAxis: Axis;
+  clearanceMm: number;
   fromMm: number;
   toMm: number;
   text: string;
@@ -77,26 +149,20 @@ interface AlongProfile {
   measures: string;
 }
 
-function drawAlongProfile(
+function drawDimension(
   r: RenderList,
   parent: ParentRef,
-  profile: ResolvedPart,
-  view: SceneView,
-  { fromMm, toMm, text, measures }: AlongProfile,
+  { box, tiltDeg }: ResolvedPart,
+  { axis, offsetAxis, clearanceMm, fromMm, toMm, text, measures }: Dimension,
 ): SceneLabel {
-  const { box, tiltDeg } = profile;
-  const lengthAxis = lengthAxisOf(profile);
-  // The length and the line of sight leave at least one of the three axes to stand off along.
-  const offsetAxis =
-    OFFSET_PREFERENCE.find((axis) => axis !== lengthAxis && axis !== SIGHT_AXIS[view]) ?? 'y';
   const start: Vec3Mm = {
     x: (box.min.x + box.max.x) / 2,
     y: (box.min.y + box.max.y) / 2,
     z: (box.min.z + box.max.z) / 2,
   };
-  start[offsetAxis] = box.max[offsetAxis] + DIMENSION_CLEARANCE_MM;
-  start[lengthAxis] = fromMm;
-  const end = { ...start, [lengthAxis]: toMm };
+  start[offsetAxis] = box.max[offsetAxis] + clearanceMm;
+  start[axis] = fromMm;
+  const end = { ...start, [axis]: toMm };
   const inCockpitCm = (pointMm: Vec3Mm): Vec3 => {
     const { x, y, z } = tiltedFromPivot(ORIGIN, pointMm, tiltDeg);
     return [x / MM_PER_CM, y / MM_PER_CM, z / MM_PER_CM];
