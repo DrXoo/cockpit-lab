@@ -735,3 +735,43 @@ test('dragging a waiting change again carries on from where it was let go', asyn
   const secondY = (await ball.boundingBox())?.y ?? 0;
   expect(Math.abs(secondY - firstY - (firstY - startY))).toBeLessThan(10);
 });
+
+test('a profile about to grow is dragged by its handles, measured, and added as it snapped', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#addProfile').click();
+  await page.locator('#part-startX').fill('800');
+  await page.locator('#part-startX').press('Enter');
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#growProfile').click();
+  await page.locator('#grow-face').selectOption('+x');
+  await page.locator('[data-view="top"]').click();
+  // The rail is 500 mm long, and the new profile starts at its middle.
+  const fromStart = page.locator('#sceneLabels [data-measures="placement-start"]');
+  await expect(fromStart).toHaveText('250 mm');
+  await expect(page.locator('#sceneLabels [data-measures="placement-end"]')).toHaveText('250 mm');
+
+  // In the top view +X is towards the right of the screen: the free end goes towards the other
+  // rail a few pixels at a time, until it reaches its face.
+  const ball = await page.locator('[data-handle="part-3:end"]').boundingBox();
+  if (!ball) throw new Error('No end handle on the profile about to grow');
+  const x = ball.x + ball.width / 2;
+  const y = ball.y + ball.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  const reaching = page.locator('#grow-reachesId');
+  for (let dx = 4; dx < 600; dx += 4) {
+    await page.mouse.move(x + dx, y);
+    if ((await reaching.inputValue()) === 'part-2') break;
+  }
+  await page.mouse.up();
+  await expect(reaching).toHaveValue('part-2');
+  await expect(page.locator('#changeBox')).toBeHidden();
+  await expect(page.locator('#grow-lengthMm')).toHaveValue('760');
+
+  await page.locator('#confirmGrowth').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ reachesId: 'part-2', lengthMm: 760, alongMm: 250 });
+});

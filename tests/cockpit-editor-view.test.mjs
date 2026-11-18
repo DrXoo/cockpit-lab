@@ -240,7 +240,10 @@ test('the end of a grown profile can reach the parts in front of it', () => {
   ]);
   assert.deepEqual(partChange(history[2], 'reachesId', 'part-2'), { reachesId: 'part-2' });
   assert.deepEqual(partChange(history[2], 'reachesId', ''), { reachesId: null });
-  assert.doesNotMatch(growPanelHTML(history, draftGrowth(history, 'part-1')), /reachesId/);
+  // A profile about to grow can reach a part too, from the design as the view shows it.
+  const draft = draftGrowth(history, 'part-1');
+  const growing = growPanelHTML([...history, draft], draft);
+  assert.deepEqual(reachChoices(growing)[0], ['', true, 'Free, at its own length']);
 });
 
 test('a span shows its length as the gap, and says when its end no longer meets its part', () => {

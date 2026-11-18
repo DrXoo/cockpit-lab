@@ -25,6 +25,12 @@ How the mouse and keyboard edit a cockpit design in the view of the cockpit edit
 
 A profile grown out of a face has an end handle only at its free end: the other end stays on its parent. A span has no end handles, as its length is the gap to the part it reaches. A profile's section and a plate's thickness come from the catalog, so no handle changes them. Dragging outside the handles orbits or pans, as with nothing selected.
 
+## A part about to be added
+
+A profile about to grow, or a plate about to rest on a profile, is shown as a preview with the handles it will have once added, which snap as any other handle does. Dragging one changes the preview at once, without a box: the panel of the new part shows its values, to type them exactly, and adds it or leaves it out. Clicking a face of the parent still moves the preview there. A profile whose end reaches a part as it is dragged is added as a span, and the panel can let its end go again.
+
+While a part is placed on a profile, about to be added or moved by a handle, two dimensions along the profile measure from each of its ends to the part's center, whether dimensions are shown or not.
+
 ## A change waiting to be confirmed
 
 Releasing a handle leaves the part as a preview at its new size or place, with a box beside it that holds the value and ✓ and ✗ buttons. Until the change is confirmed the design does not change, and the inspector shows the values waiting.

@@ -25,6 +25,8 @@ export interface CockpitDrawing {
   handles?: readonly Handle[];
   /** The guide of what a dragged handle snapped to. */
   snapGuide?: SnapGuide | null;
+  /** A part being placed, measured along the profile it hangs from. */
+  placedPartId?: string | null;
   /** A measurement being taken in the view. */
   measure?: MeasureDrawing | null;
 }

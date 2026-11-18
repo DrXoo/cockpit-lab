@@ -96,6 +96,7 @@ import {
   type Handle,
 } from './cad/handles.ts';
 import { snapToParts, type Snap } from './cad/snapping.ts';
+import { draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
@@ -369,7 +370,11 @@ let library: LayoutLibrary = newProject.library,
    */
   pendingChange: PendingChange | null = null,
   /** How far the handle had been dragged when it was grabbed, to drag on from there. */
-  changeAtGrabMm = 0;
+  changeAtGrabMm = 0,
+  /** The part about to be added as it was when one of its handles was grabbed. */
+  draftAtGrab: Draft | null = null,
+  /** What a handle of the part about to be added last snapped to, shown with a guide. */
+  draftSnap: Snap | null = null;
 /** A change made with a handle, waiting to be confirmed. */
 interface PendingChange {
   partId: string;
@@ -411,7 +416,7 @@ function cockpitDrawing(): CockpitDrawing | null {
   if (editor() !== 'cockpit' || !designHasParts()) return null;
   const history = pendingChange?.history ?? designHistory();
   const at = markerIndex();
-  const shown = draftPart ? [...history.slice(0, at), draftPart, ...history.slice(at)] : history;
+  const shown = draftPart ? withDraft(history, draftPart, at) : history;
   const design = replayDesign(shown, draftPart ? at + 1 : at);
   return {
     resolved: design.resolved,
@@ -421,7 +426,8 @@ function cockpitDrawing(): CockpitDrawing | null {
     choosingFaceOf: draftPart?.parentId ?? null,
     measure: measureDrawing(),
     handles: shownHandles(),
-    snapGuide: pendingChange?.snap?.guide ?? null,
+    snapGuide: (pendingChange?.snap ?? (draftPart ? draftSnap : null))?.guide ?? null,
+    placedPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
   };
 }
 /**
@@ -429,12 +435,18 @@ function cockpitDrawing(): CockpitDrawing | null {
  * change waits, only the handle that made it.
  */
 function shownHandles(): Handle[] {
-  if (draftPart !== null || measurePicks !== null) return [];
+  if (measurePicks !== null) return [];
   if (pendingChange) return [draggedHandle(pendingChange.handle, pendingChange.drag)];
-  const partId = selectedPartId();
-  if (partId === null) return [];
+  const at = markerIndex();
+  const handles = draftPart
+    ? partHandles(withDraft(designHistory(), draftPart, at), draftPart.partId, at + 1)
+    : handlesOfSelected(at);
   // A flat view cannot drag a handle that points at it.
-  return handlesSeenAlong(partHandles(designHistory(), partId, markerIndex()), SIGHT_AXIS[view]);
+  return handlesSeenAlong(handles, SIGHT_AXIS[view]);
+}
+function handlesOfSelected(at: number): Handle[] {
+  const partId = selectedPartId();
+  return partId === null ? [] : partHandles(designHistory(), partId, at);
 }
 /** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
 function changeInView(handle: Handle, drag: Drag, snap: Snap | null = null) {
@@ -447,6 +459,10 @@ function changeInView(handle: Handle, drag: Drag, snap: Snap | null = null) {
   refresh();
 }
 function grabHandle(handle: Handle) {
+  if (draftPart?.partId === handle.partId) {
+    draftAtGrab = draftPart;
+    return;
+  }
   // The box shows the value as the drag goes, which it keeps while its field has the focus.
   $('#changeValue').blur();
   changeAtGrabMm = pendingChange?.handle.id === handle.id ? pendingChange.drag.changeMm : 0;
@@ -457,6 +473,12 @@ function dragHandle(
   movedMm: number,
   { symmetric, free, snapWithinMm }: HandleModifiers,
 ) {
+  if (draftAtGrab !== null) {
+    // A part no longer about to be added, as Escape left it mid-drag, is not brought back.
+    if (draftPart === null) draftAtGrab = null;
+    else dragDraft(draftAtGrab, shown, movedMm, { symmetric, free, snapWithinMm });
+    return;
+  }
   // A waiting change shows its handle where it was let go: the drag goes on from the handle
   // as it was before the change.
   const handle = pendingChange?.handle.id === shown.id ? pendingChange.handle : shown;
@@ -466,8 +488,40 @@ function dragHandle(
   if (toParts) changeInView(handle, toParts.drag, toParts.snap);
   else changeInView(handle, snappedDrag(history, handle, dragged, free));
 }
+/**
+ * A handle of the part about to be added changes it at once, with no box: its panel shows the
+ * values, to type them exactly, and adds it.
+ */
+function dragDraft(
+  draft: Draft,
+  handle: Handle,
+  movedMm: number,
+  { symmetric, free, snapWithinMm }: HandleModifiers,
+) {
+  const history = designHistory();
+  const at = markerIndex();
+  const shown = withDraft(history, draft, at);
+  const dragged = { symmetric, changeMm: movedMm };
+  const toParts = free ? null : snapToParts(shown, handle, dragged, snapWithinMm, at + 1);
+  const drag = toParts?.drag ?? snappedDrag(shown, handle, dragged, free);
+  try {
+    draftPart = draftEditedBy(history, draft, at, (showing) =>
+      draggedHistory(showing, handle, drag),
+    );
+  } catch {
+    // A place the part cannot take keeps it where it last fitted.
+    return;
+  }
+  draftSnap = toParts?.snap ?? null;
+  renderPartInspector({ force: true });
+  refresh();
+}
 /** Once a handle is let go, its value waits in the box, ready to be typed exactly. */
 function releaseHandle() {
+  if (draftAtGrab !== null) {
+    draftAtGrab = null;
+    return;
+  }
   // The box stays where the view shows it: focusing it must not scroll the page.
   if (pendingChange?.drag.reachesId !== undefined) {
     $('#confirmChange').focus({ preventScroll: true });
@@ -882,6 +936,7 @@ function startGrowth() {
   if (partId === null) return;
   measurePicks = null;
   draftPart = draftGrowth(designHistory(), partId, markerIndex());
+  draftSnap = null;
   refresh();
 }
 /** The label by the pointer shows once the pointer has rested this long on a part. */
@@ -918,6 +973,7 @@ function startPlate() {
   if (partId === null) return;
   measurePicks = null;
   draftPart = draftPlate(designHistory(), partId, markerIndex());
+  draftSnap = null;
   refresh();
 }
 /** Changes the part about to be added; values it cannot have, or a place off its face, are explained. */
@@ -927,6 +983,7 @@ function changeDraft(next: (history: readonly Operation[]) => GrowProfile | AddP
     const changed = next(history);
     addOperation(history, changed, markerIndex());
     draftPart = changed;
+    draftSnap = null;
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
@@ -1015,9 +1072,15 @@ function editedDraft(
   field: PartField,
   value: string,
 ): GrowProfile | AddPlate {
-  return drafting.kind === 'grow-profile'
-    ? editDraft(history, drafting, partChange(drafting, field, value))
-    : editPlateDraft(history, drafting, plateChange(field, value));
+  if (drafting.kind === 'add-plate')
+    return editPlateDraft(history, drafting, plateChange(field, value));
+  const change = partChange(drafting, field, value);
+  // The parts a profile can reach are those in front of it, in the design as the view shows it.
+  if (field === 'reachesId')
+    return draftEditedBy(history, drafting, markerIndex(), (shown) =>
+      editProfile(shown, drafting.partId, change),
+    );
+  return editDraft(history, drafting, change);
 }
 /** Changes one value of the step that made the selected part, each kind of part its own way. */
 function editPartField(operation: MakingOperation, field: PartField, value: string) {
@@ -1040,7 +1103,7 @@ function renderPartInspector({ force = false } = {}) {
     drafting === null
       ? partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected())
       : drafting.kind === 'grow-profile'
-        ? growPanelHTML(history, drafting)
+        ? growPanelHTML(withDraft(history, drafting, markerIndex()), drafting)
         : platePanelHTML(history, drafting);
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;

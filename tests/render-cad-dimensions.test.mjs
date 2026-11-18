@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderList, ROOT } from '../src/render-list.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { drawPartLength } from '../src/render-cad-dimensions.ts';
+import { drawPartLength, drawPlacementAlong } from '../src/render-cad-dimensions.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 // A 40 × 80 rail from front to back: x −300…−260, y 60…140, z 0…1200 mm.
@@ -104,4 +104,58 @@ test('a tilted profile is measured in its frame, turned about the origin', () =>
     [0, 40, -7],
   ]);
   assert.deepEqual(rounded(Object.values(r.labels[0].position)), [0, 20, -12]);
+});
+
+/** A 40 × 40 profile up out of the rail's top, its center 300 mm from the rail's start. */
+const post = profile('post', {
+  sectionId: '40x40',
+  axis: 'y',
+  heightAxis: 'z',
+  lengthMm: 300,
+  placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 300, fromEnd: 'start' },
+});
+const placed = (parts, partId, view = 'iso') => {
+  const r = createRenderList();
+  drawPlacementAlong(r, ROOT, resolveAssembly(parts), partId, view);
+  return r;
+};
+const lines = (r) =>
+  r.primitives
+    .filter((p) => p.kind === 'line')
+    .map((p) => p.points.map(rounded))
+    .filter(([a, b]) => a[0] === b[0] && a[1] === b[1]);
+
+test('a part on a profile is measured from each end of the profile to its center', () => {
+  const r = placed([profile('rail'), post], 'post');
+  assert.deepEqual(
+    r.labels.map(({ text, measures }) => [text, measures]),
+    [
+      ['300 mm', 'placement-start'],
+      ['900 mm', 'placement-end'],
+    ],
+  );
+  // Above the rail in 3D, from its start to the post's center and on to its end.
+  assert.deepEqual(lines(r), [
+    [
+      [-28, 19, 0],
+      [-28, 19, 30],
+    ],
+    [
+      [-28, 19, 30],
+      [-28, 19, 120],
+    ],
+  ]);
+});
+
+test('seen from above, where a part is on its profile is measured beside the profile', () => {
+  const [first] = lines(placed([profile('rail'), post], 'post', 'top'));
+  assert.deepEqual(first, [
+    [-21, 10, 0],
+    [-21, 10, 30],
+  ]);
+});
+
+test('an anchored part, or none, is not measured along a parent', () => {
+  assert.equal(placed([profile('rail')], 'rail').primitives.length, 0);
+  assert.equal(placed([profile('rail')], null).primitives.length, 0);
 });

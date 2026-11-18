@@ -8,7 +8,7 @@ import {
   type LayoutSelection,
 } from './render-annotations.ts';
 import { drawCadProfiles, drawConnectors, type CockpitDrawing } from './render-cad.ts';
-import { drawPartLength } from './render-cad-dimensions.ts';
+import { drawPartLength, drawPlacementAlong } from './render-cad-dimensions.ts';
 import { drawMeasurement } from './render-measurement.ts';
 import { drawHandleStems, drawSnapGuide } from './render-handles.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
@@ -61,7 +61,11 @@ export function renderModel(
       options.cockpit.previewPartId ?? null,
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
-    drawPartLength(r, dimensions, options.cockpit.resolved, options.cockpit.selectedPartId, view);
+    const { resolved, selectedPartId, placedPartId = null } = options.cockpit;
+    // While a part is placed on the selected profile, it is measured along it instead.
+    const placingOnSelected = placedPartId !== null && placedPartId !== selectedPartId;
+    drawPartLength(r, dimensions, resolved, placingOnSelected ? null : selectedPartId, view);
+    drawPlacementAlong(r, ROOT, resolved, placedPartId, view);
     if (options.cockpit.measure) drawMeasurement(r, ROOT, options.cockpit.measure);
     drawHandleStems(r, ROOT, options.cockpit.handles ?? []);
     if (options.cockpit.snapGuide) drawSnapGuide(r, ROOT, options.cockpit.snapGuide);
