@@ -116,6 +116,10 @@ _Avoid_: hardware (for a single bolt), screw
 An **Attachment** with a travel, along which its part moves without changing any part, as a seat on its rails or a plate in its slots.
 _Avoid_: slider, setting, degree of freedom
 
+**Fitting**:
+Moving parts along their **Adjustments** to suit the **Driver**, as on the built cockpit, without changing any part or cut. Everything else is designing.
+_Avoid_: tuning, setup (that is the room's)
+
 **Anchored part**:
 A part placed on its own in the cockpit design, hanging from no other part.
 _Avoid_: root, absolute part, fixed part
@@ -167,9 +171,12 @@ _Avoid_: wizard, onboarding
 - A **Cockpit design** may carry a **Fixed monitor**; the **Monitor arm** stays part of the room either way.
 - The **Driver**'s posture, and so the **Eye point**, follow from the **Contact points** of the **Peripherals** where the design mounts them; the driver has no positions of its own.
 - The **Driver** is fitted through the **Adjustments** of a cockpit design; anything else about the posture changes by editing **Parts**.
+- Any **Part** with an **Attachment** can have an **Adjustment**, except a **Span**, whose length depends on the part it reaches; what hangs from the part moves with it. A span that would change its length when an adjustment moves a part it depends on is reported, not prevented.
+- An **Adjustment** has one axis of the face its part hangs from, a travel centered where the part is attached, and the part's current position along it. Moving the part along its travel never moves the holes, slots or joints its attachment makes.
 - A **Cockpit design** is its **Design history**. Editing the size or position of a **Part** changes the values of the **Operation** that made it, and everything after it is replayed; undoing an edit is separate from the history and lasts only while the design is open.
 - A new **Cockpit design** starts empty, and its first **Part** is an **Anchored part**. A design starts from one or more **Anchored parts**; every other **Part** has exactly one **Attachment**, to a part that is anchored or attached in turn.
 - A **Span** takes its position from its **Attachment** and its length from the part it reaches. It never reaches a part that depends on it, so moving either part has one answer. If the faces stop facing each other, the span keeps its last length and reports the open end.
+- A **Peripheral** hangs from a **Plate** or a **Profile**, with its mounting face on one of their faces, on any side; it is the only part that hangs from a plate.
 - A **Peripheral** mounted on a **Plate** puts its **Mounting pattern** into the plate as holes that follow it; with an **Adjustment** on the plate, they become slots that cover its travel. A plate can have holes and slots of its own as well.
 - Every **Part** has a name, which is the user's data like a furniture name and may repeat; interference and warnings name the part by it. The parts to buy group **Profiles** by **Cut** and list the names under each.
 - Every **Attachment** and each end of a **Span** that meets its part make a **Joint**, except a **Foot**'s, which its own adapter fastens, and a **Peripheral**'s, bolted through its **Mounting pattern**; a peripheral is supported by the part it is mounted on. Parts that only touch make none until the user adds one. The parts to buy come from the resolved joints, and the unresolved ones are listed as pending.

@@ -81,6 +81,22 @@ The card stays open after a quick action, showing the joint as it then is; two p
 
 The part under the pointer is outlined, and its label shows after half a second at rest; neither changes the selection, and neither shows while a handle is dragged. While a part is about to be added, or a change waits to be confirmed, the outline marks the face under the pointer, which is what a click there chooses.
 
+## Fit mode
+
+**Fit** is a toggle in the toolbar of the view. Planned for stage 5 (see [mini-cad.md](mini-cad.md)).
+
+| | Designing (Fit off) | Fit on |
+| --- | --- | --- |
+| Profiles, plates, feet, joints | Selected, moved, resized and joined as above | Selected, but neither moved nor resized; no joint markers |
+| Peripherals | Drawn grey, as a reference: never outlined or picked, and a click goes to what is behind | Drawn as they are; mounted, swapped and removed |
+| Toolbar of a selected plate or profile | Grow a profile, put a plate, add a foot, remove | Mount a seat, a wheel base or pedals, as a preview with handles |
+| Toolbar of a selected peripheral | — | Swap its type, remove it |
+| Inspector of a selected attached part | Its values | Its adjustment: axis and travel; a peripheral's own values |
+| Handles | Move, end and edge handles | One arrow along each part's travel, kept within it, with its center marked |
+| Driver | — | The figure on the seat, the stature, the knee, hip and elbow angles and the reach warnings |
+
+Moving a part along its travel changes no part and no cut: it is saved with the design and undone with Ctrl+Z, but adds no step to the design history.
+
 ## Keyboard
 
 | Key | Result |

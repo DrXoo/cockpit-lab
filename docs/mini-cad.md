@@ -126,7 +126,20 @@ In the top and side views, the move handle shows only the arrows in the plane of
 
 ### 5. Peripherals and adjustments
 
-Mount, swap and remove peripherals; edit their mounting patterns, contact points and the travel of adjustments, and check that the travel fits its rails.
+Planned in November 2026. Designing the frame and fitting it to the driver are kept apart: the cockpit editor gets a **Fit** mode, where peripherals are mounted, adjustments are defined and moved along their travel, and the driver is fitted, while the frame can be selected but not moved or resized. Out of Fit, peripherals are drawn grey and cannot be picked, as a reference only. [cockpit-editor-interactions.md](cockpit-editor-interactions.md) describes the gestures.
+
+- **Peripherals.** A seat, a wheel base and pedals, each a generic type with estimated dimensions; named products come with the verified catalogs of stage 8, and shifters, handbrakes, sticks and HOTAS with stage 7. A peripheral hangs from a plate or a profile, its mounting face on any face of it, measured from its mounting origin with quarter turns about the face's normal, as a plate on a profile; it makes no joint and is supported by its parent. Mounting one copies its type's envelope, mounting pattern, contact points, backrest angle and rail travel into its operation, in mm, so a saved design never changes with the catalog. Swapping its type keeps where it is mounted and replaces those values, warning first when some were edited. It is drawn as simple shapes made from its envelope (a seat's base and backrest, a wheel base with its rim, pedals on a base), while interference uses the envelope.
+- **Adjustments.** Any part with an attachment can have one, except a span: an axis of the face it hangs from, a travel centered where it is attached, and its position along it, stored with its operation. The seat comes with the travel of its rails. Moving a part along its travel carries what hangs from it and never moves the holes, slots or joints its attachment makes. A travel that would take the part off its parent at either end is refused; interference is checked at the part's position and at both ends of its travel, one adjustment at a time with the others where they are; a span that would change length when an adjustment moves a part it depends on is reported.
+- **Driver.** The design stores the driver's stature, 175 cm unless changed; the proportions are the average ones of `anatomy.ts` and the torso follows the seat's backrest. In Fit, the driver is drawn as a simple figure on the seat's center plane, with the knee, hip and elbow angles against estimated GT ranges (knee 110–140°, hip 95–120°, elbow 90–130°) and warnings when legs or arms do not reach. The eye point serves the room's monitor arm again.
+- **Format.** Version 5 grows, without a new version: an optional driver, a mount-peripheral operation and optional adjustments on the operations that attach parts. Designs saved before open unchanged.
+
+Built in slices, each usable in the browser when it lands:
+
+1. **Fit mode and mounting.** The Fit toggle; the three generic peripherals mounted from the view's toolbar as a preview with handles and snapping, removed again, drawn grey out of Fit; the frame locked in Fit; the format grows.
+2. **The peripheral's inspector.** Its envelope, the holes of its mounting pattern, its contact points and backrest angle; swapping its type.
+3. **Adjustments.** Defined on any attached part in Fit, the seat's by default; an arrow along the travel in the view with its center marked, and the position typed in the panel; the rules above.
+4. **Checking the travel.** Interference at both ends of each travel, saying where.
+5. **The driver.** The stature, the figure, the angles and the reach warnings, and the eye point for the room.
 
 ### 6. Plate drawings and holes
 
