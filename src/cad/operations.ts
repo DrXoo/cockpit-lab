@@ -255,7 +255,10 @@ export interface PlateValues {
   acrossMm: number;
 }
 
-/** The values the inspector edits on a peripheral: its name, where it is and the way it faces. */
+/**
+ * The values the inspector edits on a peripheral: its name, where it is and the way it faces,
+ * and the values copied from its type, which describe the product mounted.
+ */
 export interface PeripheralValues {
   name: string;
   face: Face;
@@ -263,6 +266,10 @@ export interface PeripheralValues {
   alongMm: number;
   acrossMm: number;
   facing: Face;
+  envelope: Envelope;
+  mountingPattern: MountingPattern;
+  contactPoints: readonly ContactPoint[];
+  backrestDeg: number;
 }
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
@@ -572,6 +579,8 @@ function checkPeripheral(operation: MountPeripheral) {
     checkOffset(contact.offsetMm);
   }
   const { backrestDeg } = operation;
+  if (backrestDeg !== undefined && operation.category !== 'seat')
+    throw new Error('Only a seat has a backrest.');
   if (
     backrestDeg !== undefined &&
     (!Number.isFinite(backrestDeg) || backrestDeg < 0 || backrestDeg > MAX_BACKREST_DEG)

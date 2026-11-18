@@ -183,7 +183,7 @@ function holesAtCorners(acrossMm: number, alongMm: number, diameterMm: number): 
 }
 
 /** Clearance holes for M8 and M6 bolts. */
-const M8_CLEARANCE_MM = 8.5;
+export const M8_CLEARANCE_MM = 8.5;
 const M6_CLEARANCE_MM = 6.5;
 
 const GENERIC_PERIPHERAL: DataSource = {

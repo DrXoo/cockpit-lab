@@ -1,9 +1,17 @@
 // Mounting peripherals on profiles and plates in a design history (docs/adr/0005): a new
-// peripheral ready to mount, one moved to a face clicked in the view, and the edits of its step.
-// Lengths are in mm.
+// peripheral ready to mount, one moved to a face clicked in the view, the edits of its step and
+// swapping its type. Lengths are in mm.
 import { cleanUserText } from '../user-text.ts';
-import { faceAxis, type Axis, type Face, type ResolvedPart, type Vec3Mm } from './assembly.ts';
-import { peripheralType } from './catalog.ts';
+import {
+  faceAxis,
+  type Axis,
+  type ContactPoint,
+  type Envelope,
+  type Face,
+  type ResolvedPart,
+  type Vec3Mm,
+} from './assembly.ts';
+import { M8_CLEARANCE_MM, peripheralType, peripheralTypes } from './catalog.ts';
 import {
   changeOperation,
   checkedOperation,
@@ -18,7 +26,9 @@ import {
   type Operation,
   type ParentEnd,
   type PeripheralValues,
+  type PeripheralShape,
 } from './history.ts';
+import type { Hole, MountingPattern } from './plate.ts';
 
 /** A peripheral faces the front of the cockpit, as the driver does, unless it cannot. */
 const USUAL_FACING: Face = '+z';
@@ -92,8 +102,16 @@ export function editPeripheralDraft(
   changes: Partial<PeripheralValues>,
 ): MountPeripheral {
   const face = changes.face ?? draft.face;
+  const backrestDeg = changes.backrestDeg ?? draft.backrestDeg;
   const edited: MountPeripheral = {
     ...draft,
+    ...copiedPeripheral({
+      envelope: changes.envelope ?? draft.envelope,
+      mountingPattern: changes.mountingPattern ?? draft.mountingPattern,
+      contactPoints: changes.contactPoints ?? draft.contactPoints,
+      ...(backrestDeg === undefined ? {} : { backrestDeg }),
+      source: draft.source,
+    }),
     face,
     fromEnd: changes.fromEnd ?? draft.fromEnd,
     alongMm: changes.alongMm ?? draft.alongMm,
@@ -110,11 +128,112 @@ export function editPeripheral(
   partId: string,
   changes: Partial<PeripheralValues>,
 ): Operation[] {
+  const operation = peripheralStep(history, partId);
+  return changeOperation(history, editPeripheralDraft(history, operation, changes));
+}
+
+/**
+ * Adds a hole to a peripheral's mounting pattern, at its mounting origin and as wide as its last
+ * hole, or an M8 clearance hole, the usual bolt of a peripheral, to a pattern without holes.
+ */
+export function addMountingHole(history: readonly Operation[], partId: string): Operation[] {
+  const { holes } = peripheralStep(history, partId).mountingPattern;
+  const diameterMm = holes.at(-1)?.diameterMm ?? M8_CLEARANCE_MM;
+  const mountingPattern = { holes: [...holes, { xMm: 0, yMm: 0, diameterMm }] };
+  return editPeripheral(history, partId, { mountingPattern });
+}
+
+/** Takes the hole at `index` out of a peripheral's mounting pattern. */
+export function removeMountingHole(
+  history: readonly Operation[],
+  partId: string,
+  index: number,
+): Operation[] {
+  const operation = peripheralStep(history, partId);
+  const { holes } = operation.mountingPattern;
+  if (!Number.isInteger(index) || index < 0 || index >= holes.length)
+    throw new Error(`${operation.name} has no hole ${index + 1}.`);
+  const mountingPattern = { holes: holes.filter((_, holeIndex) => holeIndex !== index) };
+  return editPeripheral(history, partId, { mountingPattern });
+}
+
+/**
+ * Swaps the type of a mounted peripheral: it stays where it is mounted, facing the same way, and
+ * takes the values of its new type in place of its own. A name that was its old type's becomes
+ * the new type's; a name the user gave it stays.
+ */
+export function swapPeripheralType(
+  history: readonly Operation[],
+  partId: string,
+  typeId: string,
+): Operation[] {
+  const operation = peripheralStep(history, partId);
+  const type = peripheralType(typeId);
+  const swapped: MountPeripheral = {
+    kind: 'mount-peripheral',
+    id: operation.id,
+    partId: operation.partId,
+    name: hasItsTypeName(operation) ? type.name : operation.name,
+    typeId: type.id,
+    category: type.category,
+    ...copiedPeripheral(type),
+    parentId: operation.parentId,
+    face: operation.face,
+    fromEnd: operation.fromEnd,
+    alongMm: operation.alongMm,
+    acrossMm: operation.acrossMm,
+    facing: operation.facing,
+  };
+  return changeOperation(history, checkedOperation(swapped));
+}
+
+/**
+ * Whether a peripheral's envelope, mounting pattern, contact points or backrest differ from the
+ * values of its type, which swapping it would lose. A type that has left the catalog cannot give
+ * them back, so its peripherals always differ.
+ */
+export function differsFromItsType(peripheral: PeripheralShape): boolean {
+  const type = peripheralTypes().find((candidate) => candidate.id === peripheral.typeId);
+  if (!type) return true;
+  return !(
+    sameEnvelope(peripheral.envelope, type.envelope) &&
+    samePattern(peripheral.mountingPattern, type.mountingPattern) &&
+    sameContactPoints(peripheral.contactPoints, type.contactPoints) &&
+    peripheral.backrestDeg === type.backrestDeg
+  );
+}
+
+function hasItsTypeName(peripheral: PeripheralShape): boolean {
+  const type = peripheralTypes().find((candidate) => candidate.id === peripheral.typeId);
+  return type?.name === peripheral.name;
+}
+
+const sameEnvelope = (a: Envelope, b: Envelope) =>
+  a.widthMm === b.widthMm && a.heightMm === b.heightMm && a.depthMm === b.depthMm;
+
+const sameHole = (a: Hole, b: Hole) =>
+  a.xMm === b.xMm && a.yMm === b.yMm && a.diameterMm === b.diameterMm;
+
+const samePattern = (a: MountingPattern, b: MountingPattern) =>
+  a.holes.length === b.holes.length &&
+  a.holes.every((hole, index) => sameHole(hole, b.holes[index]));
+
+const sameOffset = (a: Vec3Mm, b: Vec3Mm) => a.x === b.x && a.y === b.y && a.z === b.z;
+
+const sameContactPoints = (a: readonly ContactPoint[], b: readonly ContactPoint[]) =>
+  a.length === b.length &&
+  a.every(
+    (contact, index) =>
+      contact.role === b[index].role && sameOffset(contact.offsetMm, b[index].offsetMm),
+  );
+
+/** The step that mounts a peripheral, which its edits change. */
+function peripheralStep(history: readonly Operation[], partId: string): MountPeripheral {
   const operation = operationMaking(history, partId);
   if (!operation) throw new Error(`Part ${partId} is not in the design history.`);
   if (operation.kind !== 'mount-peripheral')
     throw new Error(`${operation.name} is not a peripheral.`);
-  return changeOperation(history, editPeripheralDraft(history, operation, changes));
+  return operation;
 }
 
 /** A profile or a plate in the design at step `at`, which a peripheral can be mounted on. */
