@@ -1,11 +1,19 @@
 // The cockpit editor's panels: the design history on the left, with the tools that add to it,
 // and the inspector of the selected part on the right. The design is shown on its own, in an
 // empty workspace without any room. Cockpit files are imported from the actions above the panel.
-import { faceAxis, type Axis, type Face, type Vec3Mm } from './cad/assembly.ts';
+import {
+  faceAxis,
+  type Axis,
+  type ContactPoint,
+  type ContactRole,
+  type Face,
+  type Vec3Mm,
+} from './cad/assembly.ts';
 import {
   connectorType,
   footType,
   footTypes,
+  peripheralTypes,
   profileSection,
   profileSystem,
   sheetType,
@@ -20,11 +28,15 @@ import {
   lengthAxisOf,
   makesAPart,
   makesAProfile,
+  MAX_BACKREST_DEG,
   MAX_BOLTS_PER_SLOT,
+  MAX_ENVELOPE_SIDE_MM,
+  MAX_HOLE_DIAMETER_MM,
   MAX_PART_NAME_LENGTH,
   MAX_PLATE_SIDE_MM,
   MAX_POSITION_MM,
   MAX_PROFILE_LENGTH_MM,
+  MIN_ENVELOPE_SIDE_MM,
   MIN_PLATE_SIDE_MM,
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
@@ -44,6 +56,8 @@ import {
   type PlateValues,
   type ProfileValues,
 } from './cad/history.ts';
+import { differsFromItsType } from './cad/peripherals.ts';
+import type { Hole } from './cad/plate.ts';
 import { defaults, type RoomConfig } from './config.ts';
 import { round } from './geometry.ts';
 import { escapeHTML } from './html.ts';
@@ -98,6 +112,15 @@ const PART_FIELDS = [
   'depthMm',
   'depthAxis',
   'facing',
+  'typeId',
+  'heightMm',
+  'backrestDeg',
+  'holeXMm',
+  'holeYMm',
+  'holeDiameterMm',
+  'contactXMm',
+  'contactYMm',
+  'contactZMm',
 ] as const;
 export type PartField = (typeof PART_FIELDS)[number];
 
@@ -293,7 +316,7 @@ export function partInspectorHTML(
     case 'join-parts':
       return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
     case 'mount-peripheral':
-      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralFieldsHTML('part', history, operation)}<div class="part-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}<div class="part-actions">${deleteStep}</div></div>`;
     case 'add-foot':
       return partFieldsHTML(footFieldsHTML(history, operation));
     case 'add-plate':
@@ -511,11 +534,8 @@ function alongAxisOfPart(history: readonly Operation[], partId: string): Axis | 
   return operation.kind === 'add-plate' ? operation.depthAxis : null;
 }
 
-/**
- * The values of a peripheral: where its mounting origin is on its part and the way it faces.
- * Its size comes from the type it was mounted from.
- */
-function peripheralFieldsHTML(
+/** Where a peripheral's mounting origin is on its part, and the way it faces. */
+function peripheralPlaceHTML(
   prefix: string,
   history: readonly Operation[],
   peripheral: MountPeripheral,
@@ -545,18 +565,153 @@ function peripheralFieldsHTML(
   const place = onAnEnd
     ? '<p class="layout-hint">On an end face it is mounted at the center of the end.</p>'
     : `${fields.select('fromEnd', 'Measured from', ends, peripheral.fromEnd)}${fields.number('alongMm', 'Distance to its mounting origin', peripheral.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', peripheral.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
-  const { widthMm, heightMm, depthMm } = peripheral.envelope;
-  const estimated =
-    peripheral.source.kind === 'estimated' ? ' (estimated: measure the chosen product)' : '';
-  const size = `<p class="layout-hint">${round(widthMm, 1)} × ${round(heightMm, 1)} × ${round(depthMm, 1)} mm, width × height × depth${estimated}.</p>`;
-  return `${nameFieldHTML(prefix, peripheral.name)}<p class="part-parent">Mounted on <strong>${escapeHTML(nameOf(history, peripheral.parentId))}</strong></p>${size}${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
+  return `${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
 }
 
 const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+const mountedOnHTML = (history: readonly Operation[], peripheral: MountPeripheral) =>
+  `<p class="part-parent">Mounted on <strong>${escapeHTML(nameOf(history, peripheral.parentId))}</strong></p>`;
+
+const ESTIMATED_PERIPHERAL_HINT = 'estimated: measure the chosen product';
+
+/**
+ * The inspector of a mounted peripheral: its name, its type, where it is mounted, and the values
+ * copied from its type, which describe the product: its envelope, backrest, mounting holes and
+ * contact points.
+ */
+function peripheralInspectorHTML(
+  history: readonly Operation[],
+  peripheral: MountPeripheral,
+): string {
+  const fields = new FieldTemplates('part');
+  const types = peripheralTypes().map((type): [string, string] => [type.id, escapeHTML(type.name)]);
+  if (!types.some(([id]) => id === peripheral.typeId))
+    types.push([escapeHTML(peripheral.typeId), 'A type no longer in the catalog']);
+  const source = differsFromItsType(peripheral)
+    ? '✎ Edited from its type: swapping the type replaces these values.'
+    : peripheral.source.kind === 'estimated'
+      ? `The values of its type, ${ESTIMATED_PERIPHERAL_HINT}.`
+      : 'The values of its type.';
+  const type = `${fields.select('typeId', 'Type', types, peripheral.typeId)}<p class="layout-hint">${source}</p>`;
+  const place = peripheralPlaceHTML('part', history, peripheral);
+  const ownValues = `${envelopeHTML(fields, peripheral)}${mountingPatternHTML(peripheral.mountingPattern.holes)}${contactPointsHTML(peripheral.contactPoints)}`;
+  return `${nameFieldHTML('part', peripheral.name)}${mountedOnHTML(history, peripheral)}${type}${place}${ownValues}`;
+}
+
+/** A peripheral's envelope, and a seat's backrest, which leans back from upright. */
+function envelopeHTML(fields: FieldTemplates, peripheral: MountPeripheral): string {
+  const { widthMm, heightMm, depthMm } = peripheral.envelope;
+  const side = (field: PartField, label: string, valueMm: number) =>
+    fields.number(field, label, valueMm, MIN_ENVELOPE_SIDE_MM, MAX_ENVELOPE_SIDE_MM);
+  const { backrestDeg } = peripheral;
+  const backrest =
+    backrestDeg === undefined
+      ? ''
+      : fields.number(
+          'backrestDeg',
+          'Backrest back from upright',
+          backrestDeg,
+          0,
+          MAX_BACKREST_DEG,
+          {
+            unit: '°',
+          },
+        );
+  return `<h4 class="buy-group">Envelope</h4>${side('widthMm', 'Width', widthMm)}${side('heightMm', 'Height', heightMm)}${side('depthMm', 'Depth', depthMm)}${backrest}<p class="layout-hint">The box it takes, standing on its mounting origin. Resizing it moves neither its holes nor its contact points.</p>`;
+}
+
+/** The holes a peripheral is bolted through, a row each, and a button to add one. */
+function mountingPatternHTML(holes: readonly Hole[]): string {
+  const rows = holes
+    .map((hole, index) => {
+      const item = String(index);
+      const name = `Hole ${index + 1}`;
+      const remove = `<button class="text-button" data-remove-hole="${index}" title="Take ${name} out of the pattern"><i data-icon="trash"></i>Remove</button>`;
+      const cells = [
+        valueCellHTML('holeXMm', item, 'X', `${name}, across`, hole.xMm, MAX_POSITION_MM),
+        valueCellHTML(
+          'holeYMm',
+          item,
+          'Y',
+          `${name}, towards its front`,
+          hole.yMm,
+          MAX_POSITION_MM,
+        ),
+        valueCellHTML(
+          'holeDiameterMm',
+          item,
+          '⌀',
+          `${name}, diameter`,
+          hole.diameterMm,
+          MAX_HOLE_DIAMETER_MM,
+          0,
+        ),
+      ];
+      return `<div class="value-row" data-hole-row="${index}"><p class="value-row-name"><span>${name}</span>${remove}</p><div class="value-cells">${cells.join('')}</div></div>`;
+    })
+    .join('');
+  const none =
+    holes.length === 0
+      ? '<p class="layout-hint">No holes yet: add the ones it is bolted through.</p>'
+      : '';
+  return `<h4 class="buy-group">Mounting holes</h4><p class="layout-hint">On its underside, in mm from its mounting origin: X across it, Y towards its front.</p>${rows}${none}<button class="text-button" id="addHole"><i data-icon="plus"></i>Add a hole</button>`;
+}
+
+/** What the driver meets at each contact point, as the inspector names it. */
+const CONTACT_NAMES: Record<ContactRole, string> = {
+  hip: 'Hip',
+  heel: 'Heels',
+  hands: 'Hands',
+};
+
+/** Where the driver meets the peripheral, a row each. */
+function contactPointsHTML(contactPoints: readonly ContactPoint[]): string {
+  if (contactPoints.length === 0) return '';
+  const rows = contactPoints
+    .map(({ role, offsetMm }) => {
+      const name = CONTACT_NAMES[role];
+      const cells = [
+        valueCellHTML('contactXMm', role, 'X', `${name}, across`, offsetMm.x, MAX_POSITION_MM),
+        valueCellHTML('contactYMm', role, 'Y', `${name}, up`, offsetMm.y, MAX_POSITION_MM),
+        valueCellHTML(
+          'contactZMm',
+          role,
+          'Z',
+          `${name}, towards its front`,
+          offsetMm.z,
+          MAX_POSITION_MM,
+        ),
+      ];
+      return `<div class="value-row" data-contact-row="${role}"><p class="value-row-name"><span>${name}</span></p><div class="value-cells">${cells.join('')}</div></div>`;
+    })
+    .join('');
+  return `<h4 class="buy-group">Contact points</h4><p class="layout-hint">Where the driver meets it, in mm from its mounting origin: X across, Y up, Z towards its front.</p>${rows}`;
+}
+
+/**
+ * One value of an item in a list, such as a hole: a short label in a row of them, and the item's
+ * name with what the value is for screen readers. `min` is `-max` unless given.
+ */
+function valueCellHTML(
+  field: PartField,
+  item: string,
+  label: string,
+  accessibleName: string,
+  valueMm: number,
+  max: number,
+  min = -max,
+): string {
+  const id = `part-${field}-${escapeHTML(item)}`;
+  return `<label class="value-cell" for="${id}"><span>${label}</span><input id="${id}" type="number" data-part-field="${field}" data-part-item="${escapeHTML(item)}" min="${min}" max="${max}" step="0.5" value="${round(valueMm, 1)}" aria-label="${escapeHTML(accessibleName)}"></label>`;
+}
+
 /** The panel of a peripheral about to be mounted, shown in the view as a preview. */
 export function peripheralPanelHTML(history: readonly Operation[], draft: MountPeripheral): string {
-  return `<div class="part-inspector" id="peripheralPanel"><p class="layout-hint">A new ${CATEGORY_NOUNS[draft.category]} on <strong>${escapeHTML(nameOf(history, draft.parentId))}</strong>. Click a face of it in the view, or choose one here.</p>${peripheralFieldsHTML('peripheral', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmPeripheral">Mount it</button><button class="button button-light" id="cancelPeripheral">Cancel</button></div></div>`;
+  const { widthMm, heightMm, depthMm } = draft.envelope;
+  const estimated = draft.source.kind === 'estimated' ? ` (${ESTIMATED_PERIPHERAL_HINT})` : '';
+  const size = `<p class="layout-hint">${round(widthMm, 1)} × ${round(heightMm, 1)} × ${round(depthMm, 1)} mm, width × height × depth${estimated}. Its own values are set in its inspector once it is mounted.</p>`;
+  return `<div class="part-inspector" id="peripheralPanel"><p class="layout-hint">A new ${CATEGORY_NOUNS[draft.category]} on <strong>${escapeHTML(nameOf(history, draft.parentId))}</strong>. Click a face of it in the view, or choose one here.</p>${nameFieldHTML('peripheral', draft.name)}${mountedOnHTML(history, draft)}${size}${peripheralPlaceHTML('peripheral', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmPeripheral">Mount it</button><button class="button button-light" id="cancelPeripheral">Cancel</button></div></div>`;
 }
 
 /** The panel of a plate about to rest on a profile, shown in the view as a preview. */
@@ -734,9 +889,9 @@ class FieldTemplates {
     valueMm: number,
     min: number,
     max: number,
-    { disabled = false } = {},
+    { disabled = false, unit = 'mm' } = {},
   ): string {
-    return `<div class="control"><div class="control-top"><label for="${this.prefix}-${field}">${label}</label><div class="number-wrap"><input id="${this.prefix}-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"${disabled ? ' disabled' : ''}><span>mm</span></div></div></div>`;
+    return `<div class="control"><div class="control-top"><label for="${this.prefix}-${field}">${label}</label><div class="number-wrap"><input id="${this.prefix}-${field}" type="number" data-part-field="${field}" min="${min}" max="${max}" step="1" value="${round(valueMm, 1)}"${disabled ? ' disabled' : ''}><span>${unit}</span></div></div></div>`;
   }
 }
 
@@ -802,6 +957,15 @@ export function partChange(
     case 'depthMm':
     case 'depthAxis':
     case 'facing':
+    case 'typeId':
+    case 'heightMm':
+    case 'backrestDeg':
+    case 'holeXMm':
+    case 'holeYMm':
+    case 'holeDiameterMm':
+    case 'contactXMm':
+    case 'contactYMm':
+    case 'contactZMm':
       throw new Error(`A profile has no ${field}`);
     case 'startX':
     case 'startY':
@@ -826,9 +990,47 @@ export function footChange(field: PartField, value: string): Partial<FootValues>
   }
 }
 
-/** The change one field of a peripheral's inspector makes to the values of its operation. */
-export function peripheralChange(field: PartField, value: string): Partial<PeripheralValues> {
+/**
+ * The change one field of a peripheral's inspector makes to the values of its operation. A field
+ * of a hole or a contact point names it as `item`: the hole's index, or the contact's role. Its
+ * type is swapped rather than changed, as a swap may first need confirming.
+ */
+export function peripheralChange(
+  peripheral: MountPeripheral,
+  field: PartField,
+  value: string,
+  item?: string,
+): Partial<PeripheralValues> {
+  const { envelope } = peripheral;
+  const holeChange = (change: Partial<Hole>) => ({
+    mountingPattern: { holes: changedHoles(peripheral, item, change) },
+  });
+  const contactChange = (axis: Axis) => ({
+    contactPoints: changedContacts(peripheral, item, axis, typedNumber(value)),
+  });
   switch (field) {
+    case 'widthMm':
+      return { envelope: { ...envelope, widthMm: typedNumber(value) } };
+    case 'heightMm':
+      return { envelope: { ...envelope, heightMm: typedNumber(value) } };
+    case 'depthMm':
+      return { envelope: { ...envelope, depthMm: typedNumber(value) } };
+    case 'backrestDeg':
+      return { backrestDeg: typedNumber(value) };
+    case 'holeXMm':
+      return holeChange({ xMm: typedNumber(value) });
+    case 'holeYMm':
+      return holeChange({ yMm: typedNumber(value) });
+    case 'holeDiameterMm':
+      return holeChange({ diameterMm: typedNumber(value) });
+    case 'contactXMm':
+      return contactChange('x');
+    case 'contactYMm':
+      return contactChange('y');
+    case 'contactZMm':
+      return contactChange('z');
+    case 'typeId':
+      throw new Error("A peripheral's type is swapped, not edited: use swapPeripheralType.");
     case 'name':
       return { name: value };
     case 'face':
@@ -844,6 +1046,35 @@ export function peripheralChange(field: PartField, value: string): Partial<Perip
     default:
       throw new Error(`A peripheral has no ${field}`);
   }
+}
+
+/** The holes of a peripheral with the one at index `item` changed. */
+function changedHoles(
+  peripheral: MountPeripheral,
+  item: string | undefined,
+  change: Partial<Hole>,
+): Hole[] {
+  const { holes } = peripheral.mountingPattern;
+  const index = Number(item);
+  if (item === undefined || !Number.isInteger(index) || index < 0 || index >= holes.length)
+    throw new Error(`${peripheral.name} has no hole ${index + 1}.`);
+  return holes.map((hole, holeIndex) => (holeIndex === index ? { ...hole, ...change } : hole));
+}
+
+/** The contact points of a peripheral with the one of role `item` moved along `axis`. */
+function changedContacts(
+  peripheral: MountPeripheral,
+  item: string | undefined,
+  axis: Axis,
+  valueMm: number,
+): ContactPoint[] {
+  if (!peripheral.contactPoints.some((contact) => contact.role === item))
+    throw new Error(`${peripheral.name} has no ${item} contact point.`);
+  return peripheral.contactPoints.map((contact) =>
+    contact.role === item
+      ? { role: contact.role, offsetMm: { ...contact.offsetMm, [axis]: valueMm } }
+      : contact,
+  );
 }
 
 /** The change one field of a plate's inspector makes to the values of its operation. */

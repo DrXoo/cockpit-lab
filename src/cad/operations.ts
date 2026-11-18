@@ -304,9 +304,9 @@ export const MAX_PART_NAME_LENGTH = 45;
 export const MIN_ENVELOPE_SIDE_MM = 10;
 export const MAX_ENVELOPE_SIDE_MM = 2000;
 /** Wider holes than this are not for bolting a peripheral. */
-const MAX_HOLE_DIAMETER_MM = 30;
+export const MAX_HOLE_DIAMETER_MM = 30;
 /** A backrest leans back from upright at most this far, lying flat. */
-const MAX_BACKREST_DEG = 90;
+export const MAX_BACKREST_DEG = 90;
 
 export const AXES: readonly Axis[] = ['x', 'y', 'z'];
 export const FACES: readonly Face[] = ['+y', '-y', '+x', '-x', '+z', '-z'];

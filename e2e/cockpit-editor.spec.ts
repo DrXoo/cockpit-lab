@@ -906,3 +906,46 @@ test('out of Fit a peripheral is a reference that clicks go through; its step tu
   await clickViewport(page, 0.5, 0.5);
   await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
 });
+
+test("a peripheral's inspector edits its own values, and swapping its type warns when they were edited", async ({
+  page,
+}) => {
+  await startDesign(page);
+  await mountPedals(page);
+  const peripheral = async () => (await savedHistory(page))?.[1];
+  await expect(page.locator('#part-typeId')).toHaveValue('generic-pedals');
+
+  await page.locator('#part-widthMm').fill('420');
+  await page.locator('#part-widthMm').press('Enter');
+  await expect.poll(async () => (await peripheral())?.envelope).toMatchObject({ widthMm: 420 });
+  await page.locator('#addHole').click();
+  await expect.poll(async () => (await peripheral())?.mountingPattern.holes.length).toBe(5);
+  await page.locator('[data-remove-hole="4"]').click();
+  await expect.poll(async () => (await peripheral())?.mountingPattern.holes.length).toBe(4);
+  await page.locator('#part-holeDiameterMm-0').fill('10');
+  await page.locator('#part-holeDiameterMm-0').press('Enter');
+  await expect
+    .poll(async () => (await peripheral())?.mountingPattern.holes[0])
+    .toMatchObject({ diameterMm: 10 });
+  await page.locator('#part-contactYMm-heel').fill('40');
+  await page.locator('#part-contactYMm-heel').press('Enter');
+  await expect
+    .poll(async () => (await peripheral())?.contactPoints[0].offsetMm)
+    .toMatchObject({ y: 40 });
+
+  const dialog = page.locator('#swapPeripheralDialog');
+  await page.locator('#part-typeId').selectOption('generic-seat');
+  await expect(dialog).toBeVisible();
+  await dialog.locator('.dialog-actions [data-close]').click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#part-typeId')).toHaveValue('generic-pedals');
+  expect((await peripheral())?.typeId).toBe('generic-pedals');
+
+  await page.locator('#part-typeId').selectOption('generic-seat');
+  await page.locator('#confirmSwapPeripheral').click();
+  await expect
+    .poll(peripheral)
+    .toMatchObject({ typeId: 'generic-seat', category: 'seat', name: 'Bucket seat' });
+  await expect(page.locator('#part-backrestDeg')).toBeVisible();
+  await expect(page.locator('#part-widthMm')).toHaveValue('540');
+});

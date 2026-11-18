@@ -83,15 +83,15 @@ The part under the pointer is outlined, and its label shows after half a second 
 
 ## Fit mode
 
-**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. Until adjustments come in slice 3, a selected peripheral has the move handles of a part that hangs from another.
+**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. Until adjustments come in slice 3, a selected peripheral has the move handles of a part that hangs from another. Its type is swapped in its inspector, as a foot's is; when its own values were edited, a confirmation says the new type's values take their place first.
 
 | | Designing (Fit off) | Fit on |
 | --- | --- | --- |
 | Profiles, plates, feet, joints | Selected, moved, resized and joined as above | Selected, but neither moved nor resized; no joint markers |
 | Peripherals | Drawn grey, as a reference: never outlined or picked, and a click goes to what is behind | Drawn as they are; mounted, swapped and removed |
 | Toolbar of a selected plate or profile | Grow a profile, put a plate, add a foot, remove | Mount a seat, a wheel base or pedals, as a preview with handles |
-| Toolbar of a selected peripheral | — | Swap its type, remove it |
-| Inspector of a selected attached part | Its values | Its adjustment: axis and travel; a peripheral's own values |
+| Toolbar of a selected peripheral | — | Remove it |
+| Inspector of a selected attached part | Its values | Its adjustment: axis and travel; a peripheral's type and own values |
 | Handles | Move, end and edge handles | One arrow along each part's travel, kept within it, with its center marked |
 | Driver | — | The figure on the seat, the stature, the knee, hip and elbow angles and the reach warnings |
 

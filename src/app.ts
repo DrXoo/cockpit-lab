@@ -52,6 +52,7 @@ import {
   type AddPlate,
   type GrowProfile,
   type MakingOperation,
+  type MountPeripheral,
   type Operation,
   type ProfileOperation,
   type ProfileValues,
@@ -60,11 +61,16 @@ import {
 import { MM_PER_CM } from './units.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from './cad/plates.ts';
 import {
+  addMountingHole,
+  differsFromItsType,
   draftPeripheral,
   editPeripheral,
   editPeripheralDraft,
   peripheralAt,
+  removeMountingHole,
+  swapPeripheralType,
 } from './cad/peripherals.ts';
+import { peripheralType } from './cad/catalog.ts';
 import type { PartHit } from './cad/picking.ts';
 import { measureBetween, nextMeasurePicks, pickInCockpit } from './cad/measure.ts';
 import { measureReadout } from './measure-view.ts';
@@ -1252,7 +1258,7 @@ function editedDraft(
     case 'add-plate':
       return editPlateDraft(history, drafting, plateChange(field, value));
     case 'mount-peripheral':
-      return editPeripheralDraft(history, drafting, peripheralChange(field, value));
+      return editPeripheralDraft(history, drafting, peripheralChange(drafting, field, value));
     case 'grow-profile':
       return editedGrowthDraft(history, drafting, field, value);
   }
@@ -1272,8 +1278,16 @@ function editedGrowthDraft(
     );
   return editDraft(history, drafting, change);
 }
-/** Changes one value of the step that made the selected part, each kind of part its own way. */
-function editPartField(operation: MakingOperation, field: PartField, value: string) {
+/**
+ * Changes one value of the step that made the selected part, each kind of part its own way. A
+ * field of an item in a list, such as a peripheral's hole, names the item.
+ */
+function editPartField(
+  operation: MakingOperation,
+  field: PartField,
+  value: string,
+  item: string | undefined,
+) {
   settleChange();
   const { partId } = operation;
   switch (operation.kind) {
@@ -1284,7 +1298,13 @@ function editPartField(operation: MakingOperation, field: PartField, value: stri
       changeHistory((history) => editPlate(history, partId, plateChange(field, value)));
       return;
     case 'mount-peripheral':
-      changeHistory((history) => editPeripheral(history, partId, peripheralChange(field, value)));
+      if (field === 'typeId') {
+        swapPeripheral(operation, value);
+        return;
+      }
+      changeHistory((history) =>
+        editPeripheral(history, partId, peripheralChange(operation, field, value, item)),
+      );
       return;
     case 'add-anchored-profile':
     case 'grow-profile':
@@ -1330,9 +1350,40 @@ function renderPartInspector({ force = false } = {}) {
   if (!makesAPart(operation)) return;
   fields.forEach((el) => {
     const field = partField(el.dataset.partField);
-    el.addEventListener('change', () => editPartField(operation, field, el.value));
+    el.addEventListener('change', () =>
+      editPartField(operation, field, el.value, el.dataset.partItem),
+    );
   });
+  if (operation.kind === 'mount-peripheral') bindMountingHoleActions(body, operation.partId);
   bindJointActions(body);
+}
+/** The buttons that add a hole to a peripheral's mounting pattern, or take one out. */
+function bindMountingHoleActions(container: HTMLElement, partId: string) {
+  container
+    .querySelector('#addHole')
+    ?.addEventListener('click', () => changeHistory((history) => addMountingHole(history, partId)));
+  container.querySelectorAll<HTMLElement>('[data-remove-hole]').forEach((button) =>
+    button.addEventListener('click', () => {
+      const index = Number(dataOf(button, 'removeHole'));
+      changeHistory((history) => removeMountingHole(history, partId, index));
+    }),
+  );
+}
+/** The peripheral and the type it waits to be swapped for, while the swap is being confirmed. */
+let pendingSwap: { partId: string; typeId: string } | null = null;
+/**
+ * Swaps a peripheral's type. When its own values were edited, which the swap replaces, the
+ * swap waits for a confirmation first.
+ */
+function swapPeripheral(peripheral: MountPeripheral, typeId: string) {
+  if (!differsFromItsType(peripheral)) {
+    changeHistory((history) => swapPeripheralType(history, peripheral.partId, typeId));
+    return;
+  }
+  pendingSwap = { partId: peripheral.partId, typeId };
+  $('#swapPeripheralName').textContent = peripheral.name;
+  $('#swapPeripheralType').textContent = peripheralType(typeId).name;
+  $<HTMLDialogElement>('#swapPeripheralDialog').showModal();
 }
 const PART_TOOL_BUTTONS: Record<PartTool, string> = {
   grow: '#growProfile',
@@ -2489,6 +2540,16 @@ importCockpitFile.addEventListener('change', async () => {
   } finally {
     importCockpitFile.value = '';
   }
+});
+$('#confirmSwapPeripheral').addEventListener('click', () => {
+  const swap = pendingSwap;
+  $<HTMLDialogElement>('#swapPeripheralDialog').close();
+  if (swap) changeHistory((history) => swapPeripheralType(history, swap.partId, swap.typeId));
+});
+// Kept or swapped, the inspector shows the type the peripheral has.
+$('#swapPeripheralDialog').addEventListener('close', () => {
+  pendingSwap = null;
+  renderPartInspector({ force: true });
 });
 $('#confirmReplaceCockpit').addEventListener('click', () => {
   $<HTMLDialogElement>('#replaceCockpitDialog').close();

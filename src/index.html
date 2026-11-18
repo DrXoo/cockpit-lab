@@ -559,6 +559,33 @@
       </div>
     </dialog>
     <dialog
+      id="swapPeripheralDialog"
+      class="reset-dialog"
+      aria-labelledby="swapPeripheralTitle"
+      aria-describedby="swapPeripheralDescription"
+    >
+      <div class="dialog-header">
+        <h2 id="swapPeripheralTitle">Swap the type of an edited peripheral?</h2>
+        <button
+          class="icon-button"
+          data-close="swapPeripheralDialog"
+          aria-label="Close confirmation"
+        >
+          <i data-icon="close"></i>
+        </button>
+      </div>
+      <p id="swapPeripheralDescription">
+        The envelope, holes, contact points or backrest of
+        <strong id="swapPeripheralName"></strong> were edited. The values of
+        <strong id="swapPeripheralType"></strong> take their place; it stays where it is mounted.
+      </p>
+      <div class="dialog-actions">
+        <button class="button button-light" data-close="swapPeripheralDialog" autofocus>
+          Keep its values</button
+        ><button class="button button-dark" id="confirmSwapPeripheral">Swap type</button>
+      </div>
+    </dialog>
+    <dialog
       id="leftOutCockpitDialog"
       class="reset-dialog"
       aria-labelledby="leftOutCockpitTitle"
