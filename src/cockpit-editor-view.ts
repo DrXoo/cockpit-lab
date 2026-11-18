@@ -10,6 +10,7 @@ import {
   profileSystem,
   sheetType,
   sheetTypes,
+  type PeripheralCategory,
 } from './cad/catalog.ts';
 import type { JointOfPart } from './cad/fastening.ts';
 import {
@@ -35,6 +36,8 @@ import {
   type FastenJoint,
   type FootValues,
   type GrowProfile,
+  type MountPeripheral,
+  type PeripheralValues,
   type ProfileOperation,
   type Operation,
   type ParentEnd,
@@ -91,7 +94,8 @@ export type PartField =
   | 'sheetId'
   | 'widthMm'
   | 'depthMm'
-  | 'depthAxis';
+  | 'depthAxis'
+  | 'facing';
 
 const AXIS_NAMES: Record<Axis, string> = {
   x: 'Across (X)',
@@ -182,6 +186,8 @@ function stepDetail(history: readonly Operation[], operation: Operation): string
     return `Under ${escapeHTML(nameOf(history, operation.parentId))} · ${escapeHTML(footType(operation.footTypeId).name)}`;
   if (operation.kind === 'fasten-joint') return escapeHTML(connectorCountText(operation));
   if (operation.kind === 'join-parts') return 'They touch: a joint to fasten';
+  if (operation.kind === 'mount-peripheral')
+    return `Mounted on ${escapeHTML(nameOf(history, operation.parentId))} · ${CATEGORY_NAMES[operation.category]}`;
   if (operation.kind === 'add-plate')
     return `On ${escapeHTML(nameOf(history, operation.parentId))} · ${round(operation.widthMm, 1)} × ${round(operation.depthMm, 1)} mm · ${escapeHTML(sheetType(operation.sheetId).name)}`;
   const section = profileSection(profileSystem(operation.systemId), operation.sectionId);
@@ -265,6 +271,8 @@ export function partInspectorHTML(
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
   if (operation.kind === 'join-parts')
     return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+  if (operation.kind === 'mount-peripheral')
+    return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralFieldsHTML('part', history, operation)}<div class="part-actions">${deleteStep}</div></div>`;
   if (operation.kind === 'add-foot' || operation.kind === 'add-plate') {
     const fields =
       operation.kind === 'add-foot'
@@ -429,6 +437,74 @@ function plateFieldsHTML(prefix: string, history: readonly Operation[], plate: A
   const sheetHint = `<p class="layout-hint">${sheet.thicknessMm} mm thick${estimated}.</p>`;
   const place = `${fields.select('face', 'Face', faces, plate.face)}${fields.select('depthAxis', 'Depth along', depthAxes, plate.depthAxis)}${fields.select('fromEnd', 'Measured from', ends, plate.fromEnd)}${fields.number('alongMm', 'Distance to its center', plate.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset of its center across the face', plate.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
   return `${nameFieldHTML(prefix, plate.name)}<p class="part-parent">Rests on <strong>${escapeHTML(nameOf(history, plate.parentId))}</strong></p>${fields.select('sheetId', 'Sheet', sheets, plate.sheetId)}${sheetHint}${side('widthMm', 'Width', plate.widthMm)}${side('depthMm', 'Depth', plate.depthMm)}${place}<p class="layout-hint">Its center may lie beyond the face, between two profiles, as long as the plate rests on part of it.</p>`;
+}
+
+/** What each kind of peripheral is called in the history, and in a sentence. */
+const CATEGORY_NAMES: Record<PeripheralCategory, string> = {
+  seat: 'Seat',
+  'wheel-base': 'Wheel base',
+  pedals: 'Pedals',
+};
+const CATEGORY_NOUNS: Record<PeripheralCategory, string> = {
+  seat: 'seat',
+  'wheel-base': 'wheel base',
+  pedals: 'pedal set',
+};
+
+/** The axis a place on a part is measured along: a profile's length or a plate's depth. */
+function alongAxisOfPart(history: readonly Operation[], partId: string): Axis | null {
+  const operation = operationMaking(history, partId);
+  if (!operation) return null;
+  if (makesAProfile(operation)) return lengthAxisOf(operation);
+  return operation.kind === 'add-plate' ? operation.depthAxis : null;
+}
+
+/**
+ * The values of a peripheral: where its mounting origin is on its part and the way it faces.
+ * Its size comes from the type it was mounted from.
+ */
+function peripheralFieldsHTML(
+  prefix: string,
+  history: readonly Operation[],
+  peripheral: MountPeripheral,
+): string {
+  const fields = new FieldTemplates(prefix);
+  const parent = operationMaking(history, peripheral.parentId);
+  const alongAxis = alongAxisOfPart(history, peripheral.parentId) ?? 'z';
+  // A plate carries a peripheral on either of its faces, never on its edges.
+  const faceChoices =
+    parent?.kind === 'add-plate'
+      ? FACES.filter((face) => faceAxis(face) === faceAxis(parent.face))
+      : FACES;
+  const faces = faceChoices.map((face): [string, string] => [
+    face,
+    parent?.kind !== 'add-plate' && faceAxis(face) === alongAxis
+      ? END_FACE_NAMES[face]
+      : SIDE_FACE_NAMES[face],
+  ]);
+  const facings = FACES.filter((face) => faceAxis(face) !== faceAxis(peripheral.face)).map(
+    (face): [string, string] => [face, capitalized(DIRECTION_NAMES[face])],
+  );
+  const ends = (['start', 'end'] as const).map((end): [string, string] => [
+    end,
+    END_NAMES[alongAxis][end],
+  ]);
+  const onAnEnd = parent?.kind !== 'add-plate' && faceAxis(peripheral.face) === alongAxis;
+  const place = onAnEnd
+    ? '<p class="layout-hint">On an end face it is mounted at the center of the end.</p>'
+    : `${fields.select('fromEnd', 'Measured from', ends, peripheral.fromEnd)}${fields.number('alongMm', 'Distance to its mounting origin', peripheral.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', peripheral.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
+  const { widthMm, heightMm, depthMm } = peripheral.envelope;
+  const estimated =
+    peripheral.source.kind === 'estimated' ? ' (estimated: measure the chosen product)' : '';
+  const size = `<p class="layout-hint">${round(widthMm, 1)} × ${round(heightMm, 1)} × ${round(depthMm, 1)} mm, width × height × depth${estimated}.</p>`;
+  return `${nameFieldHTML(prefix, peripheral.name)}<p class="part-parent">Mounted on <strong>${escapeHTML(nameOf(history, peripheral.parentId))}</strong></p>${size}${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
+}
+
+const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** The panel of a peripheral about to be mounted, shown in the view as a preview. */
+export function peripheralPanelHTML(history: readonly Operation[], draft: MountPeripheral): string {
+  return `<div class="part-inspector" id="peripheralPanel"><p class="layout-hint">A new ${CATEGORY_NOUNS[draft.category]} on <strong>${escapeHTML(nameOf(history, draft.parentId))}</strong>. Click a face of it in the view, or choose one here.</p>${peripheralFieldsHTML('peripheral', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmPeripheral">Mount it</button><button class="button button-light" id="cancelPeripheral">Cancel</button></div></div>`;
 }
 
 /** The panel of a plate about to rest on a profile, shown in the view as a preview. */
@@ -632,6 +708,7 @@ const PART_FIELDS: readonly PartField[] = [
   'widthMm',
   'depthMm',
   'depthAxis',
+  'facing',
 ];
 
 /** The inspector field a `data-part-field` names. The markup is the app's, so others are bugs. */
@@ -695,6 +772,7 @@ export function partChange(
     case 'widthMm':
     case 'depthMm':
     case 'depthAxis':
+    case 'facing':
       throw new Error(`A profile has no ${field}`);
     case 'startX':
     case 'startY':
@@ -716,6 +794,26 @@ export function footChange(field: PartField, value: string): Partial<FootValues>
       return { alongMm: typedNumber(value) };
     default:
       throw new Error(`A foot has no ${field}`);
+  }
+}
+
+/** The change one field of a peripheral's inspector makes to the values of its operation. */
+export function peripheralChange(field: PartField, value: string): Partial<PeripheralValues> {
+  switch (field) {
+    case 'name':
+      return { name: value };
+    case 'face':
+      return { face: faceOf(value) };
+    case 'facing':
+      return { facing: faceOf(value) };
+    case 'fromEnd':
+      return { fromEnd: endOf(value) };
+    case 'alongMm':
+      return { alongMm: typedNumber(value) };
+    case 'acrossMm':
+      return { acrossMm: typedNumber(value) };
+    default:
+      throw new Error(`A peripheral has no ${field}`);
   }
 }
 

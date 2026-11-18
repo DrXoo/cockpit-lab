@@ -6,7 +6,14 @@
 // An anchored part may be locked at a tilt about X, as the pedal deck is. Its box, and the
 // boxes of everything hanging from it, are then axis-aligned in the cockpit coordinates
 // turned by that tilt, so parts at the same tilt still compare as plain boxes.
-import { footType, profileSection, profileSystem, sheetType, type DataSource } from './catalog.ts';
+import {
+  footType,
+  profileSection,
+  profileSystem,
+  sheetType,
+  type DataSource,
+  type PeripheralCategory,
+} from './catalog.ts';
 import type { Hole, MountingPattern } from './plate.ts';
 
 export type Axis = 'x' | 'y' | 'z';
@@ -103,6 +110,14 @@ export interface PlatePart {
 }
 
 export type ContactRole = 'hip' | 'heel' | 'hands';
+export const CONTACT_ROLES: readonly ContactRole[] = ['hip', 'heel', 'hands'];
+
+/** The box a peripheral takes, in its own frame: width across, height up, depth to its front. */
+export interface Envelope {
+  widthMm: number;
+  heightMm: number;
+  depthMm: number;
+}
 
 /** Where the driver meets a peripheral, relative to its mounting origin. */
 export interface ContactPoint {
@@ -124,7 +139,8 @@ export interface PeripheralPart {
   kind: 'peripheral';
   id: string;
   name: string;
-  envelope: { widthMm: number; heightMm: number; depthMm: number };
+  category: PeripheralCategory;
+  envelope: Envelope;
   mountingPattern: MountingPattern;
   contactPoints: readonly ContactPoint[];
   /** For a seat, the backrest's angle back from upright. */

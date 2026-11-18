@@ -12,8 +12,11 @@ import {
   partToolsOf,
   plateChange,
   platePanelHTML,
+  peripheralChange,
+  peripheralPanelHTML,
 } from '../src/cockpit-editor-view.ts';
 import { draftPlate } from '../src/cad/plates.ts';
+import { draftPeripheral } from '../src/cad/peripherals.ts';
 import {
   addAnchoredProfile,
   addFoot,
@@ -496,4 +499,58 @@ test('the card of two parts that only touch joins them', () => {
   assert.match(html, /<strong>A and C<\/strong><small>\+ Touching, without a joint/);
   assert.match(html, /data-join="part-2" data-join-from="part-1"[^>]*>.*Join to C/);
   assert.match(html, /data-joint-more="part-1"/);
+});
+
+const railWithPedals = () => {
+  const history = editProfile(historyWith(1), 'part-1', { name: 'Rail', lengthMm: 1000 });
+  return addOperation(history, draftPeripheral(history, 'part-1', 'generic-pedals'));
+};
+
+test('a peripheral is a step on its part, and its inspector sets its place and the way it faces', () => {
+  const history = railWithPedals();
+  assert.match(panel({ history }), /Pedal set.*Mounted on Rail · Pedals/s);
+  const html = partInspectorHTML(history, history[1]);
+  assert.match(html, /Mounted on <strong>Rail<\/strong>/);
+  assert.match(html, /id="part-name"[^>]*value="Pedal set"/);
+  assert.match(html, /<option value="\+y" selected>Top \(\+Y\)<\/option>/);
+  assert.match(html, /id="part-facing"/);
+  assert.match(html, /<option value="\+z" selected>Towards the front \(\+Z\)<\/option>/);
+  assert.doesNotMatch(html, /id="part-facing"[^]*<option value="-y"/, 'it faces along its face');
+  assert.match(html, /id="part-alongMm"[^>]*value="500"/);
+  assert.match(html, /id="part-acrossMm"[^>]*value="0"/);
+  assert.match(html, /400 × 200 × 320 mm/);
+  assert.match(html, /estimated/);
+  assert.deepEqual(partToolsOf(history[1]), ['remove']);
+});
+
+test('a peripheral on a plate is mounted on one of its two faces', () => {
+  const plated = railAndPlate();
+  const history = addOperation(plated, draftPeripheral(plated, 'part-2', 'generic-seat'));
+  const html = partInspectorHTML(history, history[2]);
+  assert.match(html, /Mounted on <strong>Plate 2<\/strong>/);
+  const faces = [...html.matchAll(/id="part-face"[^]*?<\/select>/g)][0][0];
+  assert.deepEqual(
+    [...faces.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]),
+    ['+y', '-y'],
+  );
+});
+
+test('the peripheral panel edits the new peripheral before it is mounted', () => {
+  const history = editProfile(historyWith(1), 'part-1', { name: 'Rail' });
+  const html = peripheralPanelHTML(history, draftPeripheral(history, 'part-1', 'generic-seat'));
+  assert.match(html, /A new seat on <strong>Rail<\/strong>/);
+  assert.match(html, /id="peripheral-alongMm"/);
+  assert.match(html, /id="confirmPeripheral"/);
+  assert.match(html, /id="cancelPeripheral"/);
+});
+
+test('the fields of a peripheral change the values of its operation', () => {
+  assert.deepEqual(peripheralChange('name', 'Seat'), { name: 'Seat' });
+  assert.deepEqual(peripheralChange('face', '+x'), { face: '+x' });
+  assert.deepEqual(peripheralChange('facing', '-x'), { facing: '-x' });
+  assert.deepEqual(peripheralChange('fromEnd', 'end'), { fromEnd: 'end' });
+  assert.deepEqual(peripheralChange('alongMm', '120'), { alongMm: 120 });
+  assert.deepEqual(peripheralChange('acrossMm', ''), { acrossMm: Number.NaN });
+  assert.throws(() => peripheralChange('sheetId', 'aluminium-4'), /sheetId/);
+  assert.equal(partField('facing'), 'facing');
 });

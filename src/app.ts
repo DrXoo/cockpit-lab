@@ -25,6 +25,7 @@ import {
   partChange,
   partField,
   partInspectorHTML,
+  peripheralChange,
   plateChange,
   platePanelHTML,
   QUICK_BOLTS_PER_SLOT,
@@ -56,6 +57,7 @@ import {
 } from './cad/history.ts';
 import { MM_PER_CM } from './units.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from './cad/plates.ts';
+import { editPeripheral } from './cad/peripherals.ts';
 import type { PartHit } from './cad/picking.ts';
 import { measureBetween, nextMeasurePicks, pickInCockpit } from './cad/measure.ts';
 import { measureReadout } from './measure-view.ts';
@@ -1190,6 +1192,10 @@ function editPartField(operation: MakingOperation, field: PartField, value: stri
     changeHistory((history) => editFoot(history, operation.partId, footChange(field, value)));
   else if (operation.kind === 'add-plate')
     changeHistory((history) => editPlate(history, operation.partId, plateChange(field, value)));
+  else if (operation.kind === 'mount-peripheral')
+    changeHistory((history) =>
+      editPeripheral(history, operation.partId, peripheralChange(field, value)),
+    );
   else editSelectedPart(partChange(operation, field, value));
 }
 function renderPartInspector({ force = false } = {}) {

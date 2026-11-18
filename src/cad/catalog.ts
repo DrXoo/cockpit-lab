@@ -1,12 +1,19 @@
 // The catalog of profile systems, connectors and fasteners the CAD builds with.
 // Every dimension records its source, so measured or estimated values are never
 // mistaken for a manufacturer's data sheet.
+import type { ContactPoint, Envelope } from './assembly.ts';
+import type { MountingPattern } from './plate.ts';
 
 export interface DataSource {
   kind: 'data sheet' | 'measured' | 'estimated';
   /** A URL for a data sheet; for other kinds, how the value was obtained. */
   reference: string;
 }
+export const DATA_SOURCE_KINDS: readonly DataSource['kind'][] = [
+  'data sheet',
+  'measured',
+  'estimated',
+];
 
 export interface ProfileSection {
   id: string;
@@ -136,6 +143,98 @@ const FOOT_TYPES: readonly FootType[] = [
     source: FROM_THE_DRAWING,
   },
 ];
+
+/** What a peripheral is, which decides how it is drawn and where the driver meets it. */
+export type PeripheralCategory = 'seat' | 'wheel-base' | 'pedals';
+export const PERIPHERAL_CATEGORIES: readonly PeripheralCategory[] = [
+  'seat',
+  'wheel-base',
+  'pedals',
+];
+
+/**
+ * A kind of peripheral, whose values are copied into a design when one is mounted, so a saved
+ * design never changes with the catalog. Its envelope, mounting pattern and contact points are
+ * measured in the peripheral's own frame (src/cad/assembly.ts); the holes of the pattern lie on
+ * its underside, their X across it and their Y towards its front.
+ */
+export interface PeripheralType {
+  id: string;
+  name: string;
+  category: PeripheralCategory;
+  envelope: Envelope;
+  mountingPattern: MountingPattern;
+  contactPoints: readonly ContactPoint[];
+  /** For a seat, the backrest's angle back from upright. */
+  backrestDeg?: number;
+  source: DataSource;
+}
+
+/** Four holes at the corners of a rectangle centered on the mounting origin. */
+function holesAtCorners(acrossMm: number, alongMm: number, diameterMm: number): MountingPattern {
+  const holes = [-1, 1].flatMap((acrossSign) =>
+    [-1, 1].map((alongSign) => ({
+      xMm: (acrossSign * acrossMm) / 2,
+      yMm: (alongSign * alongMm) / 2,
+      diameterMm,
+    })),
+  );
+  return { holes };
+}
+
+/** Clearance holes for M8 and M6 bolts. */
+const M8_CLEARANCE_MM = 8.5;
+const M6_CLEARANCE_MM = 6.5;
+
+const GENERIC_PERIPHERAL: DataSource = {
+  kind: 'estimated',
+  reference: 'Typical of the kind, not of a product; measure the chosen one',
+};
+
+/**
+ * The generic peripherals of stage 5, until named products come with verified catalogs. Each
+ * faces the way the driver does: the seat's hip, the rim of the wheel and the heels on the pedals
+ * lie towards its back (−Z).
+ */
+const PERIPHERAL_TYPES: readonly PeripheralType[] = [
+  {
+    id: 'generic-seat',
+    name: 'Bucket seat',
+    category: 'seat',
+    envelope: { widthMm: 540, heightMm: 900, depthMm: 700 },
+    mountingPattern: holesAtCorners(360, 320, M8_CLEARANCE_MM),
+    contactPoints: [{ role: 'hip', offsetMm: { x: 0, y: 110, z: -170 } }],
+    backrestDeg: 25,
+    source: GENERIC_PERIPHERAL,
+  },
+  {
+    id: 'generic-wheel-base',
+    name: 'Wheel base and wheel',
+    category: 'wheel-base',
+    envelope: { widthMm: 300, heightMm: 300, depthMm: 330 },
+    mountingPattern: holesAtCorners(80, 120, M6_CLEARANCE_MM),
+    contactPoints: [{ role: 'hands', offsetMm: { x: 0, y: 150, z: -150 } }],
+    source: GENERIC_PERIPHERAL,
+  },
+  {
+    id: 'generic-pedals',
+    name: 'Pedal set',
+    category: 'pedals',
+    envelope: { widthMm: 400, heightMm: 200, depthMm: 320 },
+    mountingPattern: holesAtCorners(320, 240, M8_CLEARANCE_MM),
+    contactPoints: [{ role: 'heel', offsetMm: { x: 0, y: 30, z: -130 } }],
+    source: GENERIC_PERIPHERAL,
+  },
+];
+
+/** Every peripheral type in the catalog: a seat, a wheel base and pedals. */
+export const peripheralTypes = (): readonly PeripheralType[] => PERIPHERAL_TYPES;
+
+export function peripheralType(id: string): PeripheralType {
+  const type = PERIPHERAL_TYPES.find((candidate) => candidate.id === id);
+  if (!type) throw new Error(`Peripheral type ${id} is not in the catalog.`);
+  return type;
+}
 
 /** A sheet that plates are cut from. */
 export interface SheetType {

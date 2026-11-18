@@ -2,14 +2,29 @@
 // makes when it is replayed (docs/adr/0005). Every kind of operation, and every value it holds,
 // is part of the file format. Lengths are in mm.
 import {
+  CONTACT_ROLES,
   faceAxis,
   type Axis,
+  type ContactPoint,
+  type Envelope,
   type Face,
   type Part,
+  type PeripheralPart,
   type ProfilePart,
   type Vec3Mm,
 } from './assembly.ts';
-import { connectorType, footType, plateBoltType, profileSystem, sheetType } from './catalog.ts';
+import {
+  connectorType,
+  footType,
+  DATA_SOURCE_KINDS,
+  PERIPHERAL_CATEGORIES,
+  plateBoltType,
+  profileSystem,
+  sheetType,
+  type DataSource,
+  type PeripheralCategory,
+} from './catalog.ts';
+import type { MountingPattern } from './plate.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {
@@ -115,6 +130,41 @@ export interface AddPlate {
   acrossMm: number;
 }
 
+/** What a peripheral is made of: the values of the type it was mounted from, as copied. */
+export interface PeripheralShape {
+  name: string;
+  /** The catalog type its values were copied from. */
+  typeId: string;
+  category: PeripheralCategory;
+  envelope: Envelope;
+  mountingPattern: MountingPattern;
+  contactPoints: readonly ContactPoint[];
+  /** For a seat, the backrest's angle back from upright. */
+  backrestDeg?: number;
+  source: DataSource;
+}
+
+/**
+ * Mounts a peripheral on a face of a profile or a plate, which it hangs from: its mounting
+ * origin, the center of its underside, is measured along the part from one of its ends and
+ * across the face from its middle. The values of its type are copied into the step, so a saved
+ * design never changes with the catalog.
+ */
+export interface MountPeripheral extends PeripheralShape {
+  kind: 'mount-peripheral';
+  id: string;
+  partId: string;
+  parentId: string;
+  face: Face;
+  fromEnd: ParentEnd;
+  /** From `fromEnd` along the part, a profile's length or a plate's depth, to its origin. */
+  alongMm: number;
+  /** From the center of the face, towards + on the axis across it, to its origin. */
+  acrossMm: number;
+  /** The way the driver faces when using it, along the face: +Z as usually mounted. */
+  facing: Face;
+}
+
 /** A corner bracket a fastening puts on its joint, on one side of the joined part. */
 export interface BracketChoice {
   typeId: string;
@@ -167,7 +217,7 @@ export interface JoinParts {
 export type ProfileOperation = AddAnchoredProfile | GrowProfile;
 
 /** An operation that makes a part. */
-export type MakingOperation = ProfileOperation | AddFoot | AddPlate;
+export type MakingOperation = ProfileOperation | AddFoot | AddPlate | MountPeripheral;
 
 /** One step of a design history. Every kind is part of the file format. */
 export type Operation = MakingOperation | RemovePart | FastenJoint | JoinParts;
@@ -176,7 +226,8 @@ export const makesAPart = (operation: Operation): operation is MakingOperation =
   operation.kind === 'add-anchored-profile' ||
   operation.kind === 'grow-profile' ||
   operation.kind === 'add-foot' ||
-  operation.kind === 'add-plate';
+  operation.kind === 'add-plate' ||
+  operation.kind === 'mount-peripheral';
 
 export const makesAProfile = (operation: Operation): operation is ProfileOperation =>
   operation.kind === 'add-anchored-profile' || operation.kind === 'grow-profile';
@@ -200,6 +251,16 @@ export interface PlateValues {
   fromEnd: ParentEnd;
   alongMm: number;
   acrossMm: number;
+}
+
+/** The values the inspector edits on a peripheral: its name, where it is and the way it faces. */
+export interface PeripheralValues {
+  name: string;
+  face: Face;
+  fromEnd: ParentEnd;
+  alongMm: number;
+  acrossMm: number;
+  facing: Face;
 }
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
@@ -230,6 +291,13 @@ export const MIN_PLATE_SIDE_MM = 50;
 export const MAX_PLATE_SIDE_MM = 1500;
 /** Part names, like furniture names, are short labels. */
 export const MAX_PART_NAME_LENGTH = 45;
+/** No peripheral is smaller or larger than these on any side; others are mistyped. */
+export const MIN_ENVELOPE_SIDE_MM = 10;
+export const MAX_ENVELOPE_SIDE_MM = 2000;
+/** Wider holes than this are not for bolting a peripheral. */
+const MAX_HOLE_DIAMETER_MM = 30;
+/** A backrest leans back from upright at most this far, lying flat. */
+const MAX_BACKREST_DEG = 90;
 
 export const AXES: readonly Axis[] = ['x', 'y', 'z'];
 export const FACES: readonly Face[] = ['+y', '-y', '+x', '-x', '+z', '-z'];
@@ -242,6 +310,7 @@ export const lengthAxisOf = (operation: ProfileOperation): Axis =>
 
 /** The part an operation makes, placed as its values say. */
 export function partMadeBy(operation: MakingOperation): Part {
+  if (operation.kind === 'mount-peripheral') return peripheralMadeBy(operation);
   if (operation.kind === 'add-foot')
     return {
       kind: 'foot',
@@ -277,6 +346,42 @@ export function partMadeBy(operation: MakingOperation): Part {
       },
     };
   return profileMadeBy(operation);
+}
+
+function peripheralMadeBy(operation: MountPeripheral): PeripheralPart {
+  return {
+    kind: 'peripheral',
+    id: operation.partId,
+    name: operation.name,
+    category: operation.category,
+    ...copiedPeripheral(operation),
+    facing: operation.facing,
+    placement: {
+      kind: 'attachment',
+      parentId: operation.parentId,
+      face: operation.face,
+      alongMm: operation.alongMm,
+      fromEnd: operation.fromEnd,
+      acrossMm: operation.acrossMm,
+    },
+  };
+}
+
+/**
+ * Copies of the values that make a peripheral what it is, so that neither the catalog nor a
+ * later edit of a step changes another's.
+ */
+export function copiedPeripheral(shape: Omit<PeripheralShape, 'name' | 'typeId' | 'category'>) {
+  return {
+    envelope: { ...shape.envelope },
+    mountingPattern: { holes: shape.mountingPattern.holes.map((hole) => ({ ...hole })) },
+    contactPoints: shape.contactPoints.map(({ role, offsetMm }) => ({
+      role,
+      offsetMm: { ...offsetMm },
+    })),
+    ...(shape.backrestDeg === undefined ? {} : { backrestDeg: shape.backrestDeg }),
+    source: { ...shape.source },
+  };
 }
 
 function profileMadeBy(operation: ProfileOperation): ProfilePart {
@@ -335,6 +440,10 @@ export function checkedOperation<T extends Operation>(operation: T): T {
   }
   if (operation.kind === 'add-plate') {
     checkPlate(operation);
+    return operation;
+  }
+  if (operation.kind === 'mount-peripheral') {
+    checkPeripheral(operation);
     return operation;
   }
   if (operation.kind === 'fasten-joint') {
@@ -420,6 +529,66 @@ function checkPlate(operation: AddPlate) {
   checkPlaceAlong(operation);
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
+}
+
+function checkPeripheral(operation: MountPeripheral) {
+  if (typeof operation.typeId !== 'string' || operation.typeId === '')
+    throw new Error('A peripheral needs the type it was mounted from.');
+  if (!PERIPHERAL_CATEGORIES.includes(operation.category))
+    throw new Error(`Unknown kind of peripheral: ${operation.category}`);
+  checkEnvelope(operation.envelope);
+  for (const hole of operation.mountingPattern.holes) checkHole(hole);
+  for (const contact of operation.contactPoints) {
+    if (!CONTACT_ROLES.includes(contact.role))
+      throw new Error(`Unknown contact point: ${contact.role}`);
+    checkOffset(contact.offsetMm);
+  }
+  const { backrestDeg } = operation;
+  if (
+    backrestDeg !== undefined &&
+    (!Number.isFinite(backrestDeg) || backrestDeg < 0 || backrestDeg > MAX_BACKREST_DEG)
+  )
+    throw new Error(`A backrest leans back between 0 and ${MAX_BACKREST_DEG}°.`);
+  if (
+    !DATA_SOURCE_KINDS.includes(operation.source.kind) ||
+    typeof operation.source.reference !== 'string'
+  )
+    throw new Error('A peripheral needs the source of its values.');
+  if (!FACES.includes(operation.face)) throw new Error(`Unknown face: ${operation.face}`);
+  if (!FACES.includes(operation.facing)) throw new Error(`Unknown face: ${operation.facing}`);
+  if (faceAxis(operation.facing) === faceAxis(operation.face))
+    throw new Error('A peripheral faces along the face it is mounted on, not out of it.');
+  checkPlaceAlong(operation);
+  if (!Number.isFinite(operation.acrossMm))
+    throw new Error('An offset across a face must be a number of mm.');
+}
+
+function checkEnvelope({ widthMm, heightMm, depthMm }: Envelope) {
+  for (const sideMm of [widthMm, heightMm, depthMm])
+    if (!Number.isFinite(sideMm) || sideMm < MIN_ENVELOPE_SIDE_MM || sideMm > MAX_ENVELOPE_SIDE_MM)
+      throw new Error(
+        `A peripheral's width, height and depth must be between ${MIN_ENVELOPE_SIDE_MM} and ${MAX_ENVELOPE_SIDE_MM} mm.`,
+      );
+}
+
+function checkHole({ xMm, yMm, diameterMm }: { xMm: number; yMm: number; diameterMm: number }) {
+  if (
+    ![xMm, yMm].every((valueMm) => Number.isFinite(valueMm) && Math.abs(valueMm) <= MAX_POSITION_MM)
+  )
+    throw new Error(`A hole must be within ${MAX_POSITION_MM} mm of the mounting origin.`);
+  if (!Number.isFinite(diameterMm) || diameterMm <= 0 || diameterMm > MAX_HOLE_DIAMETER_MM)
+    throw new Error(
+      `A hole's diameter must be more than 0 and at most ${MAX_HOLE_DIAMETER_MM} mm.`,
+    );
+}
+
+function checkOffset(offsetMm: Vec3Mm) {
+  if (
+    !AXES.every(
+      (axis) => Number.isFinite(offsetMm[axis]) && Math.abs(offsetMm[axis]) <= MAX_POSITION_MM,
+    )
+  )
+    throw new Error(`A contact point must be within ${MAX_POSITION_MM} mm of the mounting origin.`);
 }
 
 /** A place along a parent: from one of its ends, never before it. */

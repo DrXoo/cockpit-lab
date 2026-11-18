@@ -148,6 +148,80 @@ test('a removal reads back, and must name the part it removes', () => {
   );
 });
 
+test('a mounted peripheral reads back with the values copied from its type and its place', () => {
+  const { history } = designWith(1);
+  const pedals = {
+    kind: 'mount-peripheral',
+    id: 'op-2',
+    partId: 'part-2',
+    name: 'Pedals',
+    typeId: 'generic-pedals',
+    category: 'pedals',
+    envelope: { widthMm: 400, heightMm: 200, depthMm: 320 },
+    mountingPattern: { holes: [{ xMm: -160, yMm: 120, diameterMm: 8.5 }] },
+    contactPoints: [{ role: 'heel', offsetMm: { x: 0, y: 30, z: -130 } }],
+    source: { kind: 'measured', reference: 'Measured on my own pedals' },
+    parentId: 'part-1',
+    face: '+y',
+    fromEnd: 'end',
+    alongMm: 200,
+    acrossMm: 0,
+    facing: '+z',
+  };
+  const seat = {
+    ...pedals,
+    id: 'op-3',
+    partId: 'part-3',
+    name: 'Seat',
+    typeId: 'generic-seat',
+    category: 'seat',
+    contactPoints: [{ role: 'hip', offsetMm: { x: 0, y: 110, z: -170 } }],
+    backrestDeg: 25,
+    fromEnd: 'start',
+  };
+  const data = stored({ history: [...history, pedals, seat] });
+  assert.deepEqual(readDesign(data).history.slice(1), [pedals, seat]);
+  const withPedals = (changes) => ({
+    ...data,
+    history: [data.history[0], { ...pedals, ...changes }],
+  });
+  // A type the catalog no longer has still opens: its values are in the step.
+  assert.equal(
+    readDesign(withPedals({ typeId: 'retired-pedals' })).history[1].typeId,
+    'retired-pedals',
+  );
+  assert.throws(() => readDesign(withPedals({ category: 'shifter' })), /shifter/);
+  assert.throws(
+    () => readDesign(withPedals({ envelope: { widthMm: 400, heightMm: 200 } })),
+    /depth/,
+  );
+  assert.throws(
+    () => readDesign(withPedals({ envelope: { ...pedals.envelope, heightMm: 5 } })),
+    /between 10 and 2000/,
+  );
+  assert.throws(
+    () =>
+      readDesign(withPedals({ mountingPattern: { holes: [{ xMm: 0, yMm: '0', diameterMm: 8 }] } })),
+    /number/,
+  );
+  assert.throws(
+    () =>
+      readDesign(withPedals({ contactPoints: [{ role: 'knee', offsetMm: { x: 0, y: 0, z: 0 } }] })),
+    /knee/,
+  );
+  assert.throws(() => readDesign(withPedals({ backrestDeg: '25' })), /number/);
+  assert.throws(
+    () => readDesign(withPedals({ source: { kind: 'guessed', reference: '' } })),
+    /source/,
+  );
+  assert.throws(() => readDesign(withPedals({ facing: '-y' })), /faces along/);
+  assert.throws(() => readDesign(withPedals({ turns: 1 })), /turns/);
+  assert.throws(
+    () => readDesign(withPedals({ envelope: { ...pedals.envelope, colour: 'red' } })),
+    /colour/,
+  );
+});
+
 test('a foot reads back with its type and its place under the profile', () => {
   const { history } = designWith(1);
   const foot = {

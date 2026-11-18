@@ -10,6 +10,7 @@ import {
   type BoxMm,
   type Face,
   type Part,
+  type PlatePart,
   type ProfilePart,
   type ResolvedPart,
 } from './assembly.ts';
@@ -27,6 +28,7 @@ import {
   type FastenJoint,
   type JoinParts,
   type MakingOperation,
+  type MountPeripheral,
   type Operation,
   type RemovePart,
 } from './operations.ts';
@@ -202,6 +204,7 @@ const HANGING_FROM: Record<Exclude<MakingOperation['kind'], 'add-anchored-profil
   'grow-profile': ['It grows out of', 'a profile only grows out of another profile'],
   'add-foot': ['It stands under', 'a foot only goes under a profile'],
   'add-plate': ['It rests on', 'a plate only rests on a profile'],
+  'mount-peripheral': ['It is mounted on', 'a peripheral is mounted on a profile or a plate'],
 };
 
 /** The parts with the one the operation makes, or why it cannot make it at this step. */
@@ -211,6 +214,11 @@ function making(operation: MakingOperation, context: StepContext): Part[] | stri
   const missing = missingPart(operation.parentId, context, refers);
   if (missing) return missing;
   const parent = context.parts.find((part) => part.id === operation.parentId);
+  if (
+    operation.kind === 'mount-peripheral' &&
+    (parent?.kind === 'profile' || parent?.kind === 'plate')
+  )
+    return withPeripheral(operation, context.parts, parent);
   if (parent?.kind !== 'profile')
     return `${refers} ${parent?.name ?? operation.parentId}, and ${needsAProfile}.`;
   if (operation.kind === 'add-plate') return withPlate(operation, context.parts, parent);
@@ -244,6 +252,25 @@ function withPlate(
   return withIt;
 }
 
+/**
+ * The parts with the peripheral, or why it is not on a face of its part: off the face, on an
+ * end of a profile anywhere but its center, or on the edge of a plate.
+ */
+function withPeripheral(
+  operation: MountPeripheral,
+  parts: readonly Part[],
+  parent: ProfilePart | PlatePart,
+): Part[] | string {
+  const normal = faceAxis(operation.face);
+  if (parent.kind === 'plate' && normal !== faceAxis(parent.normal))
+    return `${operation.name} is mounted on an edge of ${parent.name}: mount it on one of its faces.`;
+  const onAnEnd = parent.kind === 'profile' && parent.axis === normal;
+  if (onAnEnd && (operation.alongMm !== 0 || operation.acrossMm !== 0))
+    return `${operation.name} is mounted on an end of ${parent.name}, which has only its center to mount on.`;
+  const withIt = [...parts, partMadeBy(operation)];
+  return misfitOnItsFace(operation, resolveAssembly(withIt)) ?? withIt;
+}
+
 /** Whether two boxes have some area in common across `normal`, more than mere contact. */
 function overlapsAcross(a: BoxMm, b: BoxMm, normal: Axis): boolean {
   return AXES.filter((axis) => axis !== normal).every(
@@ -260,10 +287,13 @@ function removal(operation: RemovePart, context: StepContext): Part[] | string {
   const missing = missingPart(operation.removedId, context, 'It removes');
   if (missing) return missing;
   const resolved = resolveAssembly(context.parts);
-  // A foot is fastened to its profile by its own adapter, so it goes with it.
+  // A foot is fastened to its profile by its own adapter, and a peripheral is bolted through its
+  // mounting pattern, so they go with the part they are on.
   const goesWithIt = (part: Part) =>
     part.id === operation.removedId ||
-    (part.kind === 'foot' && part.placement.parentId === operation.removedId);
+    ((part.kind === 'foot' || part.kind === 'peripheral') &&
+      part.placement.kind !== 'anchor' &&
+      part.placement.parentId === operation.removedId);
   return context.parts
     .filter((part) => !goesWithIt(part))
     .map((part) => {
@@ -302,7 +332,7 @@ function missingPart(partId: string, context: StepContext, refers: string): stri
   return `${refers} ${maker.name}, which is not in the design at this step.`;
 }
 
-/** Where on a face of its parent a grown profile or a foot is. */
+/** Where on a face of its parent a grown profile, a foot or a peripheral is. */
 interface PlaceOnAFace {
   name: string;
   parentId: string;
@@ -311,21 +341,31 @@ interface PlaceOnAFace {
   acrossMm: number;
 }
 
-/** Why a part placed on a face of its parent does not stay on it, or null when it does. */
+/**
+ * Why a part placed on a face of its parent does not stay on it, or null when it does. Along a
+ * profile it is measured on its length, along a plate on its depth.
+ */
 function misfitOnItsFace(
   operation: PlaceOnAFace,
   resolved: ReadonlyMap<string, ResolvedPart>,
 ): string | null {
-  const parentPart = resolved.get(operation.parentId)?.part;
   const parent = resolved.get(operation.parentId);
-  if (!parent || parentPart?.kind !== 'profile') return null;
+  if (!parent) return null;
+  const parentPart = parent.part;
+  const along =
+    parentPart.kind === 'profile'
+      ? parentPart.axis
+      : parentPart.kind === 'plate'
+        ? parentPart.depthAxis
+        : null;
   const normal = faceAxis(operation.face);
-  if (normal === parentPart.axis) return null;
-  const across = AXES.find((axis) => axis !== normal && axis !== parentPart.axis) ?? 'y';
+  if (along === null || normal === along) return null;
+  const across = AXES.find((axis) => axis !== normal && axis !== along) ?? 'y';
   const faceWidthMm = parent.box.max[across] - parent.box.min[across];
-  const lengthMm = Math.round(parent.lengthMm);
-  if (operation.alongMm > parent.lengthMm)
-    return `${operation.name} would hang off ${parentPart.name}: ${operation.alongMm} mm along it is more than its ${lengthMm} mm length.`;
+  const extentMm = parent.box.max[along] - parent.box.min[along];
+  const extent = parentPart.kind === 'plate' ? 'depth' : 'length';
+  if (operation.alongMm > extentMm)
+    return `${operation.name} would hang off ${parentPart.name}: ${operation.alongMm} mm along it is more than its ${Math.round(extentMm)} mm ${extent}.`;
   if (Math.abs(operation.acrossMm) > faceWidthMm / 2)
     return `${operation.name} would hang off the side of ${parentPart.name}: an offset of ${Math.abs(operation.acrossMm)} mm is more than half its ${faceWidthMm} mm face.`;
   return null;

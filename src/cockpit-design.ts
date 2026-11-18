@@ -1,7 +1,22 @@
 // The cockpit design: its design history, the ordered list of operations that builds it, in mm
 // (docs/adr/0005). A project has at most one, and until the mini CAD is complete no room
 // includes it (docs/adr/0004).
-import type { Axis, Face, Vec3Mm } from './cad/assembly.ts';
+import {
+  CONTACT_ROLES,
+  type Axis,
+  type ContactPoint,
+  type ContactRole,
+  type Envelope,
+  type Face,
+  type Vec3Mm,
+} from './cad/assembly.ts';
+import {
+  DATA_SOURCE_KINDS,
+  PERIPHERAL_CATEGORIES,
+  type DataSource,
+  type PeripheralCategory,
+} from './cad/catalog.ts';
+import type { Hole, MountingPattern } from './cad/plate.ts';
 import {
   checkedHistory,
   checkedOperation,
@@ -61,6 +76,7 @@ function readOperation(data: unknown): Operation {
   if (data.kind === 'remove-part') return checkedOperation(readRemoval(data));
   if (data.kind === 'add-foot') return checkedOperation(readFoot(data));
   if (data.kind === 'add-plate') return checkedOperation(readPlate(data));
+  if (data.kind === 'mount-peripheral') return checkedOperation(readMounting(data));
   if (data.kind === 'fasten-joint') return checkedOperation(readFastening(data));
   if (data.kind === 'join-parts') return checkedOperation(readJoin(data));
   throw new Error('Unknown operation in the design history');
@@ -198,6 +214,120 @@ function readPlate(data: Record<string, unknown>): Operation {
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
   };
+}
+
+/**
+ * A mounted peripheral holds the values its type had when it was mounted. Its type and
+ * category are checked by the operation itself: a type no longer in the catalog still opens.
+ */
+function readMounting(data: Record<string, unknown>): Operation {
+  onlyKeys(data, [
+    'kind',
+    'id',
+    'partId',
+    'name',
+    'typeId',
+    'category',
+    'envelope',
+    'mountingPattern',
+    'contactPoints',
+    'backrestDeg',
+    'source',
+    'parentId',
+    'face',
+    'fromEnd',
+    'alongMm',
+    'acrossMm',
+    'facing',
+  ]);
+  if (typeof data.name !== 'string') throw new Error('A part name must be text');
+  if (!Array.isArray(data.contactPoints)) throw new Error('A peripheral needs its contact points');
+  return {
+    kind: 'mount-peripheral',
+    id: identifier(data.id),
+    partId: identifier(data.partId),
+    name: cleanUserText(data.name, 'Peripheral', MAX_PART_NAME_LENGTH),
+    typeId: text(data.typeId, 'peripheral type'),
+    category: peripheralCategory(data.category),
+    envelope: readEnvelope(data.envelope),
+    mountingPattern: readMountingPattern(data.mountingPattern),
+    contactPoints: data.contactPoints.map(readContactPoint),
+    ...(data.backrestDeg === undefined
+      ? {}
+      : { backrestDeg: number(data.backrestDeg, 'backrest angle') }),
+    source: readSource(data.source),
+    parentId: identifier(data.parentId),
+    face: face(data.face),
+    fromEnd: parentEnd(data.fromEnd),
+    alongMm: millimetres(data.alongMm, 'distance along a part'),
+    acrossMm: millimetres(data.acrossMm, 'offset across a face'),
+    facing: face(data.facing),
+  };
+}
+
+function readEnvelope(value: unknown): Envelope {
+  const data = recordOf(value, 'envelope', ['widthMm', 'heightMm', 'depthMm']);
+  return {
+    widthMm: millimetres(data.widthMm, 'peripheral width'),
+    heightMm: millimetres(data.heightMm, 'peripheral height'),
+    depthMm: millimetres(data.depthMm, 'peripheral depth'),
+  };
+}
+
+function readMountingPattern(value: unknown): MountingPattern {
+  const data = recordOf(value, 'mounting pattern', ['holes']);
+  if (!Array.isArray(data.holes)) throw new Error('A mounting pattern needs its holes');
+  return { holes: data.holes.map(readHole) };
+}
+
+function readHole(value: unknown): Hole {
+  const data = recordOf(value, 'hole', ['xMm', 'yMm', 'diameterMm']);
+  return {
+    xMm: millimetres(data.xMm, 'hole position'),
+    yMm: millimetres(data.yMm, 'hole position'),
+    diameterMm: millimetres(data.diameterMm, 'hole diameter'),
+  };
+}
+
+function readContactPoint(value: unknown): ContactPoint {
+  const data = recordOf(value, 'contact point', ['role', 'offsetMm']);
+  return { role: contactRole(data.role), offsetMm: pointMm(data.offsetMm) };
+}
+
+function readSource(value: unknown): DataSource {
+  const data = recordOf(value, 'source', ['kind', 'reference']);
+  return { kind: sourceKind(data.kind), reference: text(data.reference, 'source') };
+}
+
+function peripheralCategory(value: unknown): PeripheralCategory {
+  const known = PERIPHERAL_CATEGORIES.find((candidate) => candidate === value);
+  if (!known) throw new Error(`Unknown kind of peripheral: ${value}`);
+  return known;
+}
+
+function contactRole(value: unknown): ContactRole {
+  const known = CONTACT_ROLES.find((candidate) => candidate === value);
+  if (!known) throw new Error(`Unknown contact point: ${value}`);
+  return known;
+}
+
+function sourceKind(value: unknown): DataSource['kind'] {
+  const known = DATA_SOURCE_KINDS.find((candidate) => candidate === value);
+  if (!known) throw new Error(`Unknown kind of source: ${value}`);
+  return known;
+}
+
+/** A stored record holding the values named and nothing else. */
+function recordOf(value: unknown, what: string, keys: readonly string[]): Record<string, unknown> {
+  if (!isPlainRecord(value)) throw new Error(`Invalid ${what}`);
+  const unknown = Object.keys(value).find((key) => !keys.includes(key));
+  if (unknown) throw new Error(`A ${what} has no ${unknown}`);
+  return value;
+}
+
+function number(value: unknown, what: string): number {
+  if (typeof value !== 'number') throw new Error(`A ${what} must be a number`);
+  return value;
 }
 
 function readGrowth(data: Record<string, unknown>): Operation {
