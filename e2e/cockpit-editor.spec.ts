@@ -680,3 +680,21 @@ test('dragging an edge of a plate with Shift widens it on both sides', async ({ 
     .poll(async () => (await savedHistory(page))?.[1])
     .toMatchObject({ kind: 'add-plate', widthMm: 400, depthMm: 300, acrossMm: 0 });
 });
+
+test('dragging a waiting change again carries on from where it was let go', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  const ball = page.locator('[data-handle="part-1:end"]');
+  const startY = (await ball.boundingBox())?.y ?? 0;
+  await dragHandle(page, 'part-1:end', 0, 60);
+  const first = Number(await page.locator('#changeValue').inputValue());
+  const firstY = (await ball.boundingBox())?.y ?? 0;
+  await dragHandle(page, 'part-1:end', 0, 60);
+  const second = Number(await page.locator('#changeValue').inputValue());
+  // Both drags cover the same pixels, so the second adds about as much as the first.
+  expect(Math.abs(second - 2 * first)).toBeLessThan(first / 4);
+  await expect(page.locator('#changeBox')).toBeVisible();
+  // The ball goes on from where it was let go: the second drag moves it about as far.
+  const secondY = (await ball.boundingBox())?.y ?? 0;
+  expect(Math.abs(secondY - firstY - (firstY - startY))).toBeLessThan(10);
+});

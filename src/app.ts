@@ -445,6 +445,8 @@ function changeInView(handle: Handle, drag: Drag) {
   refresh();
 }
 function grabHandle(handle: Handle) {
+  // The box shows the value as the drag goes, which it keeps while its field has the focus.
+  $('#changeValue').blur();
   changeAtGrabMm = pendingChange?.handle.id === handle.id ? pendingChange.drag.changeMm : 0;
 }
 function dragHandle(handle: Handle, movedMm: number, { symmetric, free }: HandleModifiers) {
