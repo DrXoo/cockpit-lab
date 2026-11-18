@@ -4,6 +4,7 @@ import { createRenderList, ROOT } from '../src/render-list.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 import { drawCadProfiles, drawConnectors } from '../src/render-cad.ts';
 import { degToRad } from '../src/geometry.ts';
+import { peripheralType } from '../src/cad/catalog.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const profile = (id, changes) => ({
@@ -215,4 +216,79 @@ test('a plate bolt is drawn as its head, standing on the plate', () => {
     ]),
     [['box', [1.3, 0.8, 1.3], [-10, 5.2, 42.5], 'dark']],
   );
+});
+
+const peripheralOf = (typeId, changes = {}) => {
+  const type = peripheralType(typeId);
+  return {
+    kind: 'peripheral',
+    id: typeId,
+    name: type.name,
+    category: type.category,
+    envelope: type.envelope,
+    mountingPattern: type.mountingPattern,
+    contactPoints: type.contactPoints,
+    source: type.source,
+    facing: '+z',
+    placement: { kind: 'anchor', startMm: { x: 0, y: 0, z: 0 } },
+    ...changes,
+  };
+};
+const drawFitting = (parts, { fitting = true, selectedId = null, previewId = null } = {}) => {
+  const r = createRenderList();
+  drawCadProfiles(r, ROOT, resolveAssembly(parts), selectedId, previewId, { fitting });
+  return r.primitives.filter((p) => p.kind === 'box' || p.kind === 'tube');
+};
+/** The bounds of the boxes drawn, in mm. */
+const boundsMm = (primitives) => {
+  const boxes = primitives.filter((p) => p.kind === 'box');
+  const low = (i) => Math.min(...boxes.map((b) => (b.position[i] - b.size[i] / 2) * 10));
+  const high = (i) => Math.max(...boxes.map((b) => (b.position[i] + b.size[i] / 2) * 10));
+  return [0, 1, 2].map((i) => [Math.round(low(i)), Math.round(high(i))]);
+};
+
+test('in Fit, a seat is drawn as a base and a backrest that fill its envelope', () => {
+  const seat = peripheralOf('generic-seat');
+  const primitives = drawFitting([seat]);
+  const { widthMm, heightMm, depthMm } = seat.envelope;
+  assert.ok(primitives.length >= 2);
+  assert.deepEqual(boundsMm(primitives), [
+    [-widthMm / 2, widthMm / 2],
+    [0, heightMm],
+    [-depthMm / 2, depthMm / 2],
+  ]);
+  // The backrest is at the back, where the driver leans.
+  const tallest = primitives.reduce((a, b) => (b.size[1] > a.size[1] ? b : a));
+  assert.ok(tallest.position[2] < 0);
+});
+
+test('a wheel base has its rim on the side of the driver, within its envelope', () => {
+  const wheel = peripheralOf('generic-wheel-base');
+  const tubes = drawFitting([wheel]).filter((p) => p.kind === 'tube');
+  assert.ok(tubes.length >= 12);
+  const { heightMm, depthMm } = wheel.envelope;
+  for (const { from } of tubes) {
+    assert.ok(from[2] * 10 < -depthMm / 4, 'the rim faces the driver');
+    assert.ok(from[1] * 10 >= 0 && from[1] * 10 <= heightMm);
+  }
+});
+
+test('a peripheral turned on its face is drawn turned', () => {
+  const pedals = peripheralOf('generic-pedals', { facing: '-x' });
+  const { widthMm, depthMm } = pedals.envelope;
+  const [x, , z] = boundsMm(drawFitting([pedals]));
+  assert.deepEqual(x, [-depthMm / 2, depthMm / 2]);
+  assert.deepEqual(z, [-widthMm / 2, widthMm / 2]);
+});
+
+test('out of Fit a peripheral is drawn grey, as a reference; in Fit selected or previewed as a part', () => {
+  const pedals = peripheralOf('generic-pedals');
+  const materials = (options) => new Set(drawFitting([pedals], options).map((p) => p.material));
+  assert.deepEqual(materials({ fitting: false }), new Set(['reference']));
+  assert.deepEqual(
+    materials({ fitting: false, selectedId: 'generic-pedals' }),
+    new Set(['reference']),
+  );
+  assert.deepEqual(materials({ selectedId: 'generic-pedals' }), new Set(['selected']));
+  assert.deepEqual(materials({ previewId: 'generic-pedals' }), new Set(['preview']));
 });

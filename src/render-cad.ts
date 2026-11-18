@@ -1,9 +1,17 @@
-// Draws the profiles, plates, feet and connectors of a CAD cockpit design. Parts are in mm in
-// cockpit coordinates; the scene works in cm. Parts at a tilt go into one group per tilt, turned about the cockpit
-// origin as their frame is (src/cad/assembly.ts).
+// Draws the profiles, plates, feet, peripherals and connectors of a CAD cockpit design. Parts are
+// in mm in cockpit coordinates; the scene works in cm. Parts at a tilt go into one group per tilt,
+// turned about the cockpit origin as their frame is (src/cad/assembly.ts).
 import { degToRad } from './geometry.ts';
-import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
-import { faceAxis, type Axis, type BoxMm, type ResolvedPart } from './cad/assembly.ts';
+import type { PaletteMaterial, ParentRef, RenderList, Vec3 } from './render-list.ts';
+import {
+  faceAxis,
+  peripheralPointInFrame,
+  type Axis,
+  type BoxMm,
+  type PeripheralPart,
+  type ResolvedPart,
+  type Vec3Mm,
+} from './cad/assembly.ts';
 import { connectorType, isPlateBolt, profileSystem } from './cad/catalog.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
@@ -32,6 +40,11 @@ export interface CockpitDrawing {
   jointMarkers?: readonly JointMarker[];
   /** A measurement being taken in the view. */
   measure?: MeasureDrawing | null;
+  /**
+   * Whether the design is being fitted to the driver: peripherals are drawn and picked as parts.
+   * Otherwise they are a grey reference that clicks go through.
+   */
+  fitting?: boolean;
 }
 
 /** Grooves stop this much short of the profile length. */
@@ -68,10 +81,23 @@ export function drawCadProfiles(
   resolved: ReadonlyMap<string, ResolvedPart>,
   selectedId: string | null = null,
   previewId: string | null = null,
+  { fitting = false }: { fitting?: boolean } = {},
 ): void {
   const frameOf = tiltFrames(r, parent);
-  for (const { part, box, tiltDeg } of resolved.values()) {
+  for (const resolvedPart of resolved.values()) {
+    const { part, box, tiltDeg } = resolvedPart;
     if (part.kind === 'foot') drawFoot(r, frameOf(tiltDeg), box, part.id === selectedId);
+    if (part.kind === 'peripheral') {
+      // Out of Fit a peripheral is only a reference for the frame, never selected or previewed.
+      const shown: PeripheralLook = !fitting
+        ? 'reference'
+        : part.id === previewId
+          ? 'preview'
+          : part.id === selectedId
+            ? 'selected'
+            : 'own';
+      drawPeripheral(r, frameOf(tiltDeg), resolvedPart, shown);
+    }
     if (part.kind !== 'profile' && part.kind !== 'plate') continue;
     const size = sizeOf(box);
     const material =
@@ -79,6 +105,144 @@ export function drawCadProfiles(
     const solid = r.box(...size, ...centerOf(box), material, frameOf(tiltDeg), true);
     if (part.kind === 'profile')
       drawGrooves(r, solid.id, size, part.axis, cm(profileSystem(part.systemId).series));
+  }
+}
+
+/** How a peripheral is drawn: in its own materials, or all in one that marks its state. */
+type PeripheralLook = 'own' | 'selected' | 'preview' | 'reference';
+
+/** A box of a peripheral's drawing, in its own frame from its mounting origin, in mm. */
+interface ShapeBox {
+  min: Vec3Mm;
+  max: Vec3Mm;
+  material: PaletteMaterial;
+}
+
+/** A wheel rim, a ring across the peripheral's front, in its own frame. */
+interface Rim {
+  centerMm: Vec3Mm;
+  radiusMm: number;
+}
+
+/** A seat as drawn: a cushion this share of its height, and a backrest this share of its depth. */
+const SEAT_CUSHION_HEIGHT_SHARE = 0.25;
+const SEAT_BACKREST_DEPTH_SHARE = 0.2;
+/** A wheel base as drawn: a body behind the rim, this share of the envelope across and up. */
+const WHEEL_BODY_WIDTH_SHARE = 0.5;
+const WHEEL_BODY_HEIGHT_SHARE = 0.65;
+const WHEEL_BODY_START_SHARE = 0.3;
+const WHEEL_SHAFT_HALF_MM = 20;
+const RIM_TUBE_MM = 15;
+const RIM_SEGMENTS = 24;
+/** Pedals as drawn: three pedals on a base plate. */
+const PEDAL_BASE_MM = 20;
+const PEDAL_WIDTH_MM = 60;
+const PEDAL_DEPTH_SHARE = 0.1;
+const PEDAL_COUNT = 3;
+
+/**
+ * A peripheral as a few simple shapes filling its envelope, so its kind and the way it faces
+ * can be told apart: a seat's cushion and backrest, a wheel base with its rim towards the
+ * driver, pedals on a base. Checks use the envelope itself, not these shapes.
+ */
+function drawPeripheral(
+  r: RenderList,
+  frame: ParentRef,
+  resolved: ResolvedPart,
+  look: PeripheralLook,
+): void {
+  if (resolved.part.kind !== 'peripheral') return;
+  const { boxes, rim } = peripheralShapes(resolved.part);
+  const materialOf = (own: PaletteMaterial): PaletteMaterial => (look === 'own' ? own : look);
+  const inFrameCm = (localMm: Vec3Mm): Vec3 => {
+    const point = peripheralPointInFrame(resolved, localMm);
+    return [cm(point.x), cm(point.y), cm(point.z)];
+  };
+  for (const shape of boxes) {
+    const a = inFrameCm(shape.min);
+    const b = inFrameCm(shape.max);
+    const size: Vec3 = [Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]), Math.abs(b[2] - a[2])];
+    const middle: Vec3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+    r.box(...size, ...middle, materialOf(shape.material), frame);
+  }
+  if (!rim) return;
+  const ring = Array.from({ length: RIM_SEGMENTS + 1 }, (_, index) => {
+    const angle = (2 * Math.PI * index) / RIM_SEGMENTS;
+    return inFrameCm({
+      x: rim.centerMm.x + rim.radiusMm * Math.cos(angle),
+      y: rim.centerMm.y + rim.radiusMm * Math.sin(angle),
+      z: rim.centerMm.z,
+    });
+  });
+  for (let index = 0; index < RIM_SEGMENTS; index++)
+    r.tube(ring[index], ring[index + 1], cm(RIM_TUBE_MM), materialOf('rubber'), frame);
+}
+
+/** The shapes of a peripheral of each kind, made from its envelope. */
+function peripheralShapes(part: PeripheralPart): { boxes: ShapeBox[]; rim: Rim | null } {
+  const { widthMm, heightMm, depthMm } = part.envelope;
+  const halfWidth = widthMm / 2;
+  const back = -depthMm / 2;
+  const front = depthMm / 2;
+  const shape = (
+    from: [number, number, number],
+    to: [number, number, number],
+    material: PaletteMaterial,
+  ): ShapeBox => ({
+    min: { x: from[0], y: from[1], z: from[2] },
+    max: { x: to[0], y: to[1], z: to[2] },
+    material,
+  });
+  switch (part.category) {
+    case 'seat': {
+      const cushionTop = heightMm * SEAT_CUSHION_HEIGHT_SHARE;
+      const backrestFront = back + depthMm * SEAT_BACKREST_DEPTH_SHARE;
+      return {
+        boxes: [
+          shape([-halfWidth, 0, back], [halfWidth, cushionTop, front], 'seat'),
+          shape([-halfWidth, cushionTop, back], [halfWidth, heightMm, backrestFront], 'seat'),
+        ],
+        rim: null,
+      };
+    }
+    case 'wheel-base': {
+      const bodyHalfWidth = (widthMm * WHEEL_BODY_WIDTH_SHARE) / 2;
+      const bodyBack = back + depthMm * WHEEL_BODY_START_SHARE;
+      const rimZ = back + RIM_TUBE_MM;
+      const axleY = heightMm / 2;
+      const shaft = WHEEL_SHAFT_HALF_MM;
+      return {
+        boxes: [
+          shape(
+            [-bodyHalfWidth, 0, bodyBack],
+            [bodyHalfWidth, heightMm * WHEEL_BODY_HEIGHT_SHARE, front],
+            'dark',
+          ),
+          shape([-shaft, axleY - shaft, rimZ], [shaft, axleY + shaft, bodyBack], 'dark'),
+        ],
+        rim: {
+          centerMm: { x: 0, y: axleY, z: rimZ },
+          radiusMm: Math.min(widthMm, heightMm) / 2 - RIM_TUBE_MM,
+        },
+      };
+    }
+    case 'pedals': {
+      const pedalHalfDepth = (depthMm * PEDAL_DEPTH_SHARE) / 2;
+      const spacingMm = widthMm / PEDAL_COUNT;
+      const pedals = Array.from({ length: PEDAL_COUNT }, (_, index) => {
+        const centerX = (index - (PEDAL_COUNT - 1) / 2) * spacingMm;
+        const half = Math.min(PEDAL_WIDTH_MM, spacingMm) / 2;
+        return shape(
+          [centerX - half, PEDAL_BASE_MM, -pedalHalfDepth],
+          [centerX + half, heightMm, pedalHalfDepth],
+          'silver',
+        );
+      });
+      return {
+        boxes: [shape([-halfWidth, 0, back], [halfWidth, PEDAL_BASE_MM, front], 'dark'), ...pedals],
+        rim: null,
+      };
+    }
   }
 }
 

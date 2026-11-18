@@ -27,7 +27,9 @@ export type PaletteMaterial =
   /** A part about to be added, seen through. */
   | 'preview'
   /** What is under the pointer in the cockpit editor, seen through. */
-  | 'hover';
+  | 'hover'
+  /** A peripheral out of Fit: grey and seen through, a reference for designing the frame. */
+  | 'reference';
 
 export type MaterialSpec =
   /** Unlit and visible from both sides, for walls, floors and plan zones. */

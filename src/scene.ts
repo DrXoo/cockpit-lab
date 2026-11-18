@@ -269,6 +269,13 @@ function createPalette(vectorFallback: boolean): Palette {
       opacity: 0.45,
       depthWrite: false,
     }),
+    reference: new T.MeshStandardMaterial({
+      color: 0x8f968f,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+      roughness: 1,
+    }),
   };
 }
 
@@ -808,9 +815,14 @@ export class CockpitScene {
   private partAt(event: PointerEvent): PartHit | null {
     if (!this.cockpit) return null;
     const { origin, direction } = this.rayAt(event);
-    const { resolved, previewPartId } = this.cockpit;
-    // A part about to be added is only a preview: clicks go through it.
-    const pickable = new Map([...resolved].filter(([partId]) => partId !== previewPartId));
+    const { resolved, previewPartId, fitting = false } = this.cockpit;
+    // A part about to be added is only a preview, and out of Fit a peripheral is only a
+    // reference: clicks go through them.
+    const pickable = new Map(
+      [...resolved].filter(
+        ([partId, { part }]) => partId !== previewPartId && (fitting || part.kind !== 'peripheral'),
+      ),
+    );
     return hitAlongRay(pickable, {
       originMm: { x: origin.x * MM_PER_CM, y: origin.y * MM_PER_CM, z: origin.z * MM_PER_CM },
       directionMm: { x: direction.x, y: direction.y, z: direction.z },

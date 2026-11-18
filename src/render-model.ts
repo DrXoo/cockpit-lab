@@ -59,6 +59,7 @@ export function renderModel(
       options.cockpit.resolved,
       options.cockpit.selectedPartId,
       options.cockpit.previewPartId ?? null,
+      { fitting: options.cockpit.fitting ?? false },
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
     const { resolved, selectedPartId, placedPartId = null } = options.cockpit;

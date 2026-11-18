@@ -462,6 +462,16 @@ export function partPointMm(resolved: ResolvedPart, offsetMm: Vec3Mm): Vec3Mm {
   );
 }
 
+/**
+ * The point at `offsetMm` from a resolved peripheral's mounting origin, measured in its own
+ * frame, given in the frame of its tilt as its box is: how its shapes are drawn.
+ */
+export function peripheralPointInFrame(resolved: ResolvedPart, offsetMm: Vec3Mm): Vec3Mm {
+  if (resolved.part.kind !== 'peripheral')
+    throw new Error(`${resolved.part.name} is not a peripheral.`);
+  return peripheralPoint(resolved.part, resolved.box, offsetMm);
+}
+
 /** The point at `offsetMm` from a peripheral's mounting origin, in the frame of its tilt. */
 function peripheralPoint(part: PeripheralPart, box: BoxMm, offsetMm: Vec3Mm): Vec3Mm {
   const frame = peripheralFrame(part);
