@@ -1,5 +1,10 @@
 #!/bin/sh
 # The checks every commit needs (AGENTS.md): types, syntax and formatting, then the unit tests.
 # The end-to-end tests are too slow for a hook; run them by hand when the interface changes.
-# The dot reporter keeps the output short, printing only the failures in full.
-npm run --silent check && node --test --test-reporter=dot
+# The unit tests print in full only when they fail, so a passing commit stays short.
+npm run --silent check || exit 1
+if ! output=$(node --test --test-reporter=dot 2>&1); then
+  printf '%s\n' "$output"
+  exit 1
+fi
+echo "Unit tests: OK."
