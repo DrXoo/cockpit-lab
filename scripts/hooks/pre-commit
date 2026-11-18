@@ -1,0 +1,4 @@
+#!/bin/sh
+# The checks every commit needs (AGENTS.md): types, syntax and formatting, then the unit tests.
+# The end-to-end tests are too slow for a hook; run them by hand when the interface changes.
+npm run check && npm test

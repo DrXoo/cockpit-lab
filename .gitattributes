@@ -6,3 +6,5 @@
 *.html text eol=lf
 *.css text eol=lf
 *.md text eol=lf
+# Git runs hooks with sh, which needs LF line endings.
+scripts/hooks/* text eol=lf
