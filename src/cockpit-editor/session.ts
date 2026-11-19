@@ -241,15 +241,15 @@ export function deleteSelectedStep(session: CockpitSession): HistoryChange {
   const operation = selectedOperation(session);
   if (!operation) return { kind: 'unchanged' };
   const index = designHistory(session).indexOf(operation);
-  const at = markerIndex(session);
-  const result = historyChange(session, (history) => deleteOperation(history, operation.id));
+  const { marker } = session;
+  // The marker moves back before the shorter history is shown, which would otherwise take a
+  // marker at its end for one following the last step.
+  const back = marker !== null && index < markerIndex(session) ? marker - 1 : marker;
+  const result = historyChange({ ...session, marker: back }, (history) =>
+    deleteOperation(history, operation.id),
+  );
   if (result.kind !== 'changed') return result;
-  const { marker } = result.session;
-  const back = marker !== null && index < at ? marker - 1 : marker;
-  return {
-    kind: 'changed',
-    session: { ...result.session, marker: back, selectedOperationId: null },
-  };
+  return { kind: 'changed', session: { ...result.session, selectedOperationId: null } };
 }
 
 /**

@@ -286,6 +286,14 @@ test('deleting a selected step before the marker moves the marker back over it',
   assert.equal(deleted.selectedOperationId, null);
 });
 
+test('deleting the step just before the marker keeps the steps after it waiting', () => {
+  const back = selectStep(moveMarker(sessionOf(threeSteps()), 2), 'op-2');
+  const deleted = changedSession(deleteSelectedStep(back));
+  assert.equal(designHistory(deleted).length, 2);
+  assert.equal(markerIndex(deleted), 1);
+  assert.equal(deleted.marker, 1);
+});
+
 test('with nothing selected, removing or deleting changes nothing', () => {
   const session = sessionOf(threeSteps());
   assert.deepEqual(removeSelectedPart(session), { kind: 'unchanged' });
