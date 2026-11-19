@@ -1663,6 +1663,16 @@ select option {
 .part-warning {
   color: var(--warning);
 }
+.driver-angles {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.driver-angle.warning {
+  color: var(--warning);
+}
 .history-marker {
   display: flex;
   flex-wrap: wrap;

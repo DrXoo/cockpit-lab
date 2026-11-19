@@ -1021,6 +1021,41 @@ test('fitting, the checks list what a part would reach at an end of its travel',
   await expect(page.locator('#cockpitChecks [data-check="cad-interference"]')).toHaveClass(/ok/);
 });
 
+test('fitting with nothing selected, the panel seats the driver and sets the stature', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#part-lengthMm').fill('1500');
+  await page.locator('#part-lengthMm').press('Enter');
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountSeat').click();
+  await page.locator('#peripheral-alongMm').fill('400');
+  await page.locator('#peripheral-alongMm').press('Enter');
+  await page.locator('#confirmPeripheral').click();
+  await clickViewport(page, 0.03, 0.97);
+  await expect(page.locator('#driverUnseated')).toBeVisible();
+
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#mountPedals').click();
+  await page.locator('#peripheral-alongMm').fill('1250');
+  await page.locator('#peripheral-alongMm').press('Enter');
+  await page.locator('#confirmPeripheral').click();
+  await clickViewport(page, 0.03, 0.97);
+  await expect(page.locator('#driverAngles [data-angle]')).toHaveCount(2);
+  await expect(page.locator('#driverStature')).toHaveValue('175');
+  const eye = await page.locator('#driverEye').textContent();
+
+  await page.locator('#driverStature').fill('190');
+  await page.locator('#driverStature').press('Enter');
+  await expect
+    .poll(async () => (await getSavedProject(page))?.cockpit?.driver)
+    .toEqual({ statureMm: 1900 });
+  await expect(page.locator('#driverEye')).not.toHaveText(eye ?? '');
+  await page.locator('#viewport canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('#driverStature')).toHaveValue('175');
+});
+
 test('a part about to be added is added or dropped from its box in the view, or with Enter', async ({
   page,
 }) => {

@@ -12,7 +12,14 @@ import {
   readCockpitFile,
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
-import { DEFAULT_DRIVER } from './cad/driver.ts';
+import {
+  DEFAULT_DRIVER,
+  driverOfStature,
+  seatedDriver,
+  type Driver,
+  type SeatedDriver,
+} from './cad/driver.ts';
+import { driverHTML } from './driver-view.ts';
 import {
   deleteKeyAction,
   designPanelHTML,
@@ -1370,10 +1377,15 @@ function renderPartInspector({ force = false } = {}) {
   const history = pendingChange?.history ?? designHistory();
   const operation = history.find((step) => step.id === selectedOperationId);
   const drafting = draftPart;
-  $('#partInspectorTitle').textContent = DRAFT_TITLES[drafting?.kind ?? 'none'];
+  // Fitting with nothing selected, the panel is the driver's.
+  const showsDriver = fitting && drafting === null && !operation;
+  $('#partInspectorTitle').textContent = showsDriver
+    ? 'Driver'
+    : DRAFT_TITLES[drafting?.kind ?? 'none'];
   const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
-  const html =
-    drafting === null
+  const html = showsDriver
+    ? driverHTML(currentDriver(), seatedDriverShown())
+    : drafting === null
       ? partInspectorHTML(history, operation, failure, jointsOfSelected(), touchingSelected(), {
           fitting,
         })
@@ -1381,6 +1393,10 @@ function renderPartInspector({ force = false } = {}) {
   if (!force && html === shownPartInspector) return;
   shownPartInspector = html;
   replaceKeepingFocus(body, html);
+  if (showsDriver) {
+    bindDriverActions(body);
+    return;
+  }
   const fields = body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-part-field]');
   if (drafting) {
     fields.forEach((el) => {
@@ -1409,6 +1425,25 @@ function renderPartInspector({ force = false } = {}) {
   });
   if (operation.kind === 'mount-peripheral') bindMountingHoleActions(body, operation.partId);
   bindJointActions(body);
+}
+const currentDriver = (): Driver => cockpit?.driver ?? DEFAULT_DRIVER;
+/** The driver seated in the design the view shows, each part where it is along its travel. */
+const seatedDriverShown = (): SeatedDriver =>
+  seatedDriver(replayDesign(designHistory(), markerIndex()).fitted.resolved, currentDriver());
+/** The stature typed in cm; one the driver cannot have is explained and nothing changes. */
+function bindDriverActions(container: HTMLElement) {
+  const stature = container.querySelector<HTMLInputElement>('#driverStature');
+  stature?.addEventListener('change', () => {
+    let driver: Driver;
+    try {
+      driver = driverOfStature(Number(stature.value) * MM_PER_CM);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error));
+      renderPartInspector({ force: true });
+      return;
+    }
+    changeDesign({ history: designHistory(), driver });
+  });
 }
 /** The fields of a part's adjustment, and the buttons that give it one or take it away. */
 function bindAdjustmentActions(container: HTMLElement, partId: string) {
