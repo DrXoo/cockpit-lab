@@ -95,7 +95,7 @@ The part under the pointer is outlined, and its label shows after half a second 
 | Handles | Move, end and edge handles | One arrow along the selected part's travel, kept within it, on a bar from end to end with its center marked; a peripheral without an adjustment, its move handles |
 | Driver | — | The figure on the seat, the stature, the knee, hip and elbow angles and the reach warnings |
 
-Moving a part along its travel changes no part and no cut: it is saved with the design and undone with Ctrl+Z, but adds no step to the design history. The arrow moves it in steps of 10 mm, which Alt turns off, and lines up with nothing; its box shows the position from the center of the travel, waiting for ✓ as any other handle's change. The view, the joint markers and interference show every part where it is along its travel; the joints, connectors and parts to buy are those at the centers.
+Moving a part along its travel changes no part and no cut: it is saved with the design and undone with Ctrl+Z, but adds no step to the design history. The arrow moves it in steps of 10 mm, which Alt turns off, and lines up with nothing; its box shows the position from the center of the travel, waiting for ✓ as any other handle's change. The view, the joint markers and interference show every part where it is along its travel; the joints, connectors and parts to buy are those at the centers. The design checks also list what a part would reach at either end of its travel, saying which end.
 
 ## Keyboard
 
