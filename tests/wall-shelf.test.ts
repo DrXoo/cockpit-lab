@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, sanitize, rectangle } from '../src/model.ts';
-import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../src/room.ts';
+import { defaults, sanitize, rectangle, evaluate } from '../src/model.ts';
+import {
+  normalizeRoom,
+  evaluateRoom,
+  moveRoomTarget,
+  wallFrame,
+  type FloorFurniture,
+  type RoomInput,
+  type FurnitureItem,
+  type WallId,
+  type WallShelf,
+} from '../src/room.ts';
+import type { RoomConfig } from '../src/config.ts';
+import { present } from './support/lookups.ts';
 import { roomControls } from '../src/room-editor.ts';
 import {
   createProject,
@@ -11,7 +23,10 @@ import {
   projectFromConfig,
 } from '../src/project.ts';
 
-const room = (more = {}) =>
+/** Room settings with furniture and features as a file holds them, before they are normalized. */
+type RawRoom = Partial<Omit<RoomConfig, 'roomFeatures' | 'roomFurniture'>> & RoomInput;
+
+const room = (more: RawRoom = {}) =>
   normalizeRoom({
     ...structuredClone(defaults),
     roomX: 0,
@@ -21,7 +36,8 @@ const room = (more = {}) =>
     roomH: 250,
     ...more,
   });
-const shelf = (more = {}) => ({
+/** A wall shelf as a file holds it: normalizing places it on its wall. */
+const shelf = (more: Partial<WallShelf> = {}) => ({
   id: 'alta',
   type: 'wallShelf',
   name: 'Estantería alta',
@@ -33,7 +49,7 @@ const shelf = (more = {}) => ({
   elevation: 140,
   ...more,
 });
-const low = (height = 100) => ({
+const low = (height = 100): FloorFurniture => ({
   id: 'baja',
   type: 'shelf',
   name: 'Estantería baja',
@@ -45,8 +61,15 @@ const low = (height = 100) => ({
   angle: 0,
 });
 
+/** `item`, failing the test unless it is a wall shelf. */
+function wallShelf(item: FurnitureItem | undefined): WallShelf {
+  assert.ok(item?.type === 'wallShelf', 'Not a wall shelf.');
+  return item;
+}
+const WALLS: readonly WallId[] = ['north', 'east', 'south', 'west'];
+
 test('a wall shelf rests inside all four walls and dragging keeps its height and wall', () => {
-  for (const mountWall of ['north', 'east', 'south', 'west']) {
+  for (const mountWall of WALLS) {
     const s = room({ roomX: -50, roomZ: 20, roomFurniture: [shelf({ mountWall })] }),
       f = wallFrame(s, mountWall),
       item = s.roomFurniture[0],
@@ -57,32 +80,36 @@ test('a wall shelf rests inside all four walls and dragging keeps its height and
     assert.ok(Math.abs(Math.min(...normalDistances)) < 1e-8, mountWall);
     assert.ok(Math.abs(Math.max(...normalDistances) - 30) < 1e-8, mountWall);
     assert.ok(!e.checks.some((c) => c.id === 'room-out-alta'), mountWall);
-    const moved = moveRoomTarget(
-      s,
-      'furniture:alta',
-      item.x + f.tx * 30 + f.nx * 90,
-      item.z + f.tz * 30 + f.nz * 90,
-    ).roomFurniture[0];
+    const moved = wallShelf(
+      moveRoomTarget(
+        s,
+        'furniture:alta',
+        item.x + f.tx * 30 + f.nx * 90,
+        item.z + f.tz * 30 + f.nz * 90,
+      ).roomFurniture[0],
+    );
     assert.equal(moved.offset, 80);
     assert.equal(moved.elevation, 140);
     assert.equal(moved.mountWall, mountWall);
     assert.equal(
-      moveRoomTarget(s, 'furniture:alta', f.x + f.tx * 2000, f.z + f.tz * 2000).roomFurniture[0]
-        .offset,
+      wallShelf(
+        moveRoomTarget(s, 'furniture:alta', f.x + f.tx * 2000, f.z + f.tz * 2000).roomFurniture[0],
+      ).offset,
       f.length - 100,
     );
-    assert.equal(s.roomFurniture[0].offset, 50);
+    assert.equal(wallShelf(s.roomFurniture[0]).offset, 50);
   }
 });
 
 test('two shelves share the plan without interference when their heights allow it', () => {
-  for (const [height, collides] of [
+  const cases: [height: number, collides: boolean][] = [
     [100, false],
     [140, false],
     [140.05, false],
     [141, true],
     [180, true],
-  ]) {
+  ];
+  for (const [height, collides] of cases) {
     const e = evaluateRoom(room({ roomFurniture: [shelf(), low(height)] }), []);
     assert.equal(e.collisions.includes('alta'), collides, `altura ${height}`);
     assert.equal(
@@ -92,7 +119,7 @@ test('two shelves share the plan without interference when their heights allow i
   }
   const s = room({ roomFurniture: [shelf(), shelf({ id: 'superior', elevation: 180 })] });
   assert.deepEqual(evaluateRoom(s, []).collisions, []);
-  s.roomFurniture[1].elevation = 179;
+  wallShelf(s.roomFurniture[1]).elevation = 179;
   assert.deepEqual(evaluateRoom(s, []).collisions, ['alta', 'superior']);
 });
 
@@ -131,7 +158,13 @@ test('a shelf cannot be mounted over a window even with its clearance turned off
     clearance: 0,
   };
   let s = room({ roomFurniture: [shelf()], roomFeatures: [window] });
-  assert.equal(evaluateRoom(s, []).checks.find((c) => c.id === 'room-mount-alta').level, 'error');
+  assert.equal(
+    present(
+      evaluateRoom(s, []).checks.find((c) => c.id === 'room-mount-alta'),
+      'mount check',
+    ).level,
+    'error',
+  );
   s = room({
     roomFurniture: [shelf({ elevation: 205, height: 30 })],
     roomFeatures: [{ ...window, clearance: 60 }],
@@ -180,10 +213,10 @@ test('saving keeps the wall, height and position, and v1 furniture still imports
   assert.equal(evaluateRoom(projectConfig(old), []).furniture[0].y0, 0);
   const invalid = sanitize({
     ...config,
-    roomFurniture: [shelf({ mountWall: 'desconocida', offset: Infinity, elevation: NaN })],
+    roomFurniture: [{ ...shelf(), mountWall: 'desconocida', offset: Infinity, elevation: NaN }],
   });
-  assert.equal(invalid.roomFurniture[0].mountWall, 'north');
-  assert.equal(invalid.roomFurniture[0].elevation, 140);
+  assert.equal(wallShelf(invalid.roomFurniture[0]).mountWall, 'north');
+  assert.equal(wallShelf(invalid.roomFurniture[0]).elevation, 140);
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(invalid))), invalid);
 });
 
@@ -191,7 +224,7 @@ test('the furniture panel offers wall and height without the free rotation contr
   const s = room({ roomFurniture: [shelf()] }),
     html = roomControls(
       s,
-      evaluateRoom(s, []),
+      evaluate(s),
       'furniture:alta',
       () => '',
       () => '',

@@ -8,15 +8,21 @@ import {
   MIN_PROFILE_LENGTH_MM,
   operationMaking,
   replayHistory,
+  type Operation,
+  type ProfileValues,
 } from '../src/cad/history.ts';
+import { ofKind } from './support/lookups.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 
-const withProfiles = (count) => {
-  let history = [];
+const withProfiles = (count: number) => {
+  let history: Operation[] = [];
   for (let i = 0; i < count; i++) history = addAnchoredProfile(history).history;
   return history;
 };
-const boxesOf = (history) => [...resolveAssembly(replayHistory(history)).values()];
+const profile = (history: readonly Operation[]) => ofKind(history[0], 'add-anchored-profile');
+const boxesOf = (history: readonly Operation[]) => [
+  ...resolveAssembly(replayHistory(history)).values(),
+];
 
 test('the first operation adds an anchored 40 × 40 profile lying on the floor, front to back', () => {
   const { history, partId } = addAnchoredProfile([]);
@@ -56,7 +62,9 @@ test('replaying the history gives one anchored profile per operation, with its v
 test('a new profile lies beside the parts the design has, with the next identifiers and number', () => {
   const history = withProfiles(3);
   assert.deepEqual(
-    history.map((operation) => [operation.id, operation.partId, operation.name]),
+    history
+      .map((operation) => ofKind(operation, 'add-anchored-profile'))
+      .map((operation) => [operation.id, operation.partId, operation.name]),
     [
       ['op-1', 'part-1', '40 × 40 profile 1'],
       ['op-2', 'part-2', '40 × 40 profile 2'],
@@ -91,35 +99,40 @@ test('editing a profile changes the operation that made it, and nothing else', (
     lengthMm: 1200,
     startMm: { x: -280, y: 40, z: 0 },
   });
-  assert.equal(history[0].name, '40 × 40 profile 1', 'the history it was given is not changed');
+  assert.equal(
+    profile(history).name,
+    '40 × 40 profile 1',
+    'the history it was given is not changed',
+  );
   const [rail] = boxesOf(edited);
   assert.deepEqual(rail.box, { min: { x: -300, y: 0, z: 0 }, max: { x: -260, y: 80, z: 1200 } });
 });
 
 test('a typed name is cleaned, and an empty one keeps the name it had', () => {
   const history = withProfiles(1);
-  assert.equal(editProfile(history, 'part-1', { name: '  <b>Rail</b> ' })[0].name, 'bRail/b');
-  assert.equal(editProfile(history, 'part-1', { name: '   ' })[0].name, '40 × 40 profile 1');
+  assert.equal(profile(editProfile(history, 'part-1', { name: '  <b>Rail</b> ' })).name, 'bRail/b');
+  assert.equal(profile(editProfile(history, 'part-1', { name: '   ' })).name, '40 × 40 profile 1');
 });
 
 test('turning a profile to run along its section height turns the section with it', () => {
   const lying = editProfile(withProfiles(1), 'part-1', { sectionId: '40x80' });
   const upright = editProfile(lying, 'part-1', { axis: 'y' });
-  assert.equal(upright[0].axis, 'y');
-  assert.equal(upright[0].heightAxis, 'z');
+  assert.equal(profile(upright).axis, 'y');
+  assert.equal(profile(upright).heightAxis, 'z');
   const across = editProfile(lying, 'part-1', { axis: 'x' });
-  assert.equal(across[0].heightAxis, 'y', 'a height across the new axis stays');
+  assert.equal(profile(across).heightAxis, 'y', 'a height across the new axis stays');
 });
 
 test('values a profile cannot have are rejected, naming what is wrong', () => {
   const history = withProfiles(1);
-  const edit = (changes) => () => editProfile(history, 'part-1', changes);
+  const edit = (changes: Partial<ProfileValues>) => () => editProfile(history, 'part-1', changes);
   assert.throws(edit({ lengthMm: MIN_PROFILE_LENGTH_MM - 1 }), /length/);
   assert.throws(edit({ lengthMm: MAX_PROFILE_LENGTH_MM + 1 }), /length/);
   assert.throws(edit({ lengthMm: Number.NaN }), /length/);
   assert.throws(edit({ startMm: { x: MAX_POSITION_MM + 1, y: 20, z: 0 } }), /position/);
   assert.throws(edit({ startMm: { x: 0, y: Number.POSITIVE_INFINITY, z: 0 } }), /position/);
   assert.throws(edit({ sectionId: '45x45' }), /section/);
+  // @ts-expect-error: an axis there is not, as a file could hold, is rejected.
   assert.throws(edit({ axis: 'w' }), /axis/);
   assert.throws(edit({ heightAxis: 'z' }), /height/);
   assert.throws(() => editProfile(history, 'part-9', { lengthMm: 600 }), /part-9/);

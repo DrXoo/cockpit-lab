@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, sanitize } from '../src/model.ts';
 import { monitorGeometry, wrapAngle } from '../src/monitor-arm.ts';
+import type { PlanPoint } from '../src/geometry.ts';
+import type { RoomConfig } from '../src/config.ts';
 import {
   MAX_ARM_POSES,
   saveArmPose,
@@ -15,15 +17,15 @@ import {
 } from '../src/arm-poses.ts';
 
 const EPSILON = 1e-9;
-const close = (actual, expected, message) =>
+const close = (actual: number, expected: number, message: string) =>
   assert.ok(Math.abs(actual - expected) < EPSILON, `${message}: ${actual} vs ${expected}`);
-const samePoint = (actual, expected) => {
+const samePoint = (actual: PlanPoint, expected: PlanPoint) => {
   close(actual.x, expected.x, 'x');
   close(actual.z, expected.z, 'z');
 };
 
 test('saving a pose records the arm as it stands, even when an automatic mode placed it', () => {
-  const s = { ...defaults, monitorMode: 'cockpit' };
+  const s: RoomConfig = { ...defaults, monitorMode: 'vr' };
   const g = monitorGeometry(s);
   const saved = saveArmPose(s, 'Racing');
   // The arm now holds the saved pose: same place, joints kept by hand.
@@ -40,9 +42,9 @@ test('saving a pose records the arm as it stands, even when an automatic mode pl
 });
 
 test('a pose puts the monitor back where it was, without working out the angles again', () => {
-  const s = saveArmPose({ ...defaults, monitorMode: 'cockpit' }, 'Racing');
+  const s = saveArmPose({ ...defaults, monitorMode: 'vr' }, 'Racing');
   const recorded = monitorGeometry(s);
-  const elsewhere = { ...s, monitorMode: 'desk', cockpitX: s.cockpitX + 40, monitorH: 90 };
+  const elsewhere: RoomConfig = { ...s, monitorMode: 'desk', monitorH: 90 };
 
   const back = applyArmPose(elsewhere, s.armPoses[0].id);
   assert.equal(back.monitorMode, 'manual');
@@ -153,7 +155,7 @@ test('the monitor position shows the pose the arm is in, the automatic mode or a
 });
 
 test('choosing a monitor position applies a pose, an automatic mode or keeps the joints', () => {
-  const s = saveArmPose({ ...defaults, monitorMode: 'cockpit' }, 'Racing');
+  const s = saveArmPose({ ...defaults, monitorMode: 'vr' }, 'Racing');
   assert.equal(chooseMonitorPosition(s, 'auto:desk').monitorMode, 'desk');
   assert.equal(activeArmPose(chooseMonitorPosition(s, 'pose:pose-1'))?.id, 'pose-1');
   const custom = chooseMonitorPosition(s, 'custom');

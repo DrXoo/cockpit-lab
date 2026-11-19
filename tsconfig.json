@@ -20,15 +20,12 @@
   "include": ["src", "scripts", "tests", "e2e", "playwright.config.ts"],
   // Test files not type-checked yet, while the tests move to TypeScript.
   "exclude": [
-    "tests/arm-poses.test.ts",
     "tests/cad-adjustments.test.ts",
     "tests/cad-assembly.test.ts",
     "tests/cad-drafts.test.ts",
     "tests/cad-driver.test.ts",
     "tests/cad-feet.test.ts",
-    "tests/cad-growth.test.ts",
     "tests/cad-handles.test.ts",
-    "tests/cad-history.test.ts",
     "tests/cad-measure.test.ts",
     "tests/cad-parts-to-buy.test.ts",
     "tests/cad-peripherals.test.ts",
@@ -47,13 +44,10 @@
     "tests/render-cad.test.ts",
     "tests/render-desk.test.ts",
     "tests/render-handles.test.ts",
-    "tests/render-hover.test.ts",
-    "tests/render-measurement.test.ts",
     "tests/render-model.test.ts",
     "tests/render-room.test.ts",
     "tests/room.test.ts",
     "tests/undo.test.ts",
-    "tests/wall-shelf.test.ts",
     "tests/wardrobe-access.test.ts"
   ]
 }

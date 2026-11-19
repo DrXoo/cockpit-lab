@@ -6,11 +6,15 @@ import {
   growthAt,
   replayDesign,
   replayHistory,
+  type Operation,
 } from '../src/cad/history.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 import { railHistory, withGrowth } from './support/designs.ts';
+import { ofKind, present } from './support/lookups.ts';
 
-const boxOf = (history, partId) => resolveAssembly(replayHistory(history)).get(partId).box;
+const boxOf = (history: readonly Operation[], partId: string) =>
+  present(resolveAssembly(replayHistory(history)).get(partId), partId).box;
+const growth = (history: readonly Operation[]) => ofKind(history[1], 'grow-profile');
 
 test('a profile grows out of a face of another, perpendicular, where its distance puts it', () => {
   const history = withGrowth(railHistory(), 'part-1', {
@@ -114,10 +118,10 @@ test('a grown profile edits its place on the face rather than a position of its 
 test('moving a growth to another face turns its section when it has to', () => {
   let history = withGrowth(railHistory(), 'part-1', { sectionId: '40x80', heightAxis: 'x' });
   history = editProfile(history, 'part-2', { face: '+x' });
-  assert.equal(history[1].heightAxis, 'y');
+  assert.equal(growth(history).heightAxis, 'y');
   const onEnd = editProfile(history, 'part-2', { face: '-z' });
-  assert.equal(onEnd[1].alongMm, 0, 'an end face has a single place to grow from: its center');
-  assert.equal(onEnd[1].acrossMm, 0);
+  assert.equal(growth(onEnd).alongMm, 0, 'an end face has a single place to grow from: its center');
+  assert.equal(growth(onEnd).acrossMm, 0);
 });
 
 test('a growth must stay on its parent face, and fails when its parent leaves it hanging', () => {
@@ -126,7 +130,11 @@ test('a growth must stay on its parent face, and fails when its parent leaves it
   assert.throws(() => editProfile(history, 'part-2', { acrossMm: 21 }), /Rail/);
   assert.throws(() => editProfile(history, 'part-2', { alongMm: -1 }), /distance/);
   const shorter = editProfile(history, 'part-1', { lengthMm: 800 });
-  assert.match(replayDesign(shorter).failures.get('op-2'), /40 × 40 profile 2 would hang off Rail/);
+  assert.match(
+    present(replayDesign(shorter).failures.get('op-2'), 'failure of op-2'),
+    /40 × 40 profile 2 would hang off Rail/,
+  );
+  // @ts-expect-error: a face no part has, as a file could hold, is rejected.
   assert.throws(() => editProfile(history, 'part-2', { face: '+w' }), /face/);
   assert.throws(() => withGrowth(railHistory(), 'part-7'), /part-7/);
 });
@@ -153,7 +161,7 @@ test('a profile can lie along a face, running the way it is given from its place
     alongMm: 100,
     lengthMm: 300,
   });
-  assert.equal(forward[1].way, '+z');
+  assert.equal(growth(forward).way, '+z');
   assert.deepEqual(boxOf(forward, 'part-2'), {
     min: { x: -20, y: 40, z: 100 },
     max: { x: 20, y: 80, z: 400 },
@@ -184,6 +192,6 @@ test('a profile cannot lie towards the face it lies on, and a new face keeps it 
   const lying = withGrowth(railHistory(), 'part-1', { way: '+x' });
   assert.throws(() => editProfile(lying, 'part-2', { way: '+y' }), /way/);
   const moved = editProfile(lying, 'part-2', { face: '+x' });
-  assert.equal(moved[1].way, '+z', 'it turns to lie along the part it grows from');
-  assert.equal(editProfile(lying, 'part-2', { way: 'out' })[1].way, 'out');
+  assert.equal(growth(moved).way, '+z', 'it turns to lie along the part it grows from');
+  assert.equal(growth(editProfile(lying, 'part-2', { way: 'out' })).way, 'out');
 });
