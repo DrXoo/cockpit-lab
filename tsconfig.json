@@ -28,21 +28,15 @@
     "tests/cad-measure.test.ts",
     "tests/cad-parts-to-buy.test.ts",
     "tests/cad-peripherals.test.ts",
-    "tests/cad-picking.test.ts",
-    "tests/cad-replay.test.ts",
     "tests/cad-snapping.test.ts",
-    "tests/cockpit-design.test.ts",
     "tests/cockpit-editor-view.test.ts",
     "tests/layout-picking.test.ts",
     "tests/model.test.ts",
     "tests/project-storage.test.ts",
     "tests/project.test.ts",
-    "tests/render-annotations.test.ts",
     "tests/render-cad-dimensions.test.ts",
     "tests/render-cad.test.ts",
     "tests/render-desk.test.ts",
-    "tests/render-room.test.ts",
-    "tests/room.test.ts",
-    "tests/wardrobe-access.test.ts"
+    "tests/render-room.test.ts"
   ]
 }

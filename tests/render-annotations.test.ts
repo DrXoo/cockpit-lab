@@ -1,10 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
-import { drawDeskDimensions, drawLayoutSelection } from '../src/render-annotations.ts';
+import { createRenderList, ROOT, type RenderList } from '../src/render-list.ts';
+import type { RoomConfig } from '../src/config.ts';
+import type { CockpitEvaluation } from '../src/evaluate.ts';
+import { ofKind } from './support/lookups.ts';
+import {
+  drawDeskDimensions,
+  drawLayoutSelection,
+  type LayoutSelection,
+} from '../src/render-annotations.ts';
 import { defaults, evaluate } from '../src/model.ts';
 
-const annotate = (changes, drawing) => {
+type Drawing = (r: RenderList, s: RoomConfig, e: CockpitEvaluation) => void;
+
+const annotate = (changes: Partial<RoomConfig>, drawing: Drawing) => {
   const state = { ...defaults, ...changes };
   const evaluation = evaluate(state);
   const r = createRenderList();
@@ -21,10 +30,13 @@ test('the desk is measured and named in world coordinates', () => {
 });
 
 test('the selected item is outlined in the plan views while editing the layout', () => {
-  const select = (options) =>
+  const select = (options: LayoutSelection) =>
     annotate({}, (r, s, e) => drawLayoutSelection(r, ROOT, s, e, options));
   const desk = select({ view: 'top', layoutEditing: true, layoutTarget: 'desk' });
-  const line = desk.r.primitives.find((p) => p.kind === 'line');
+  const line = ofKind(
+    desk.r.primitives.find((p) => p.kind === 'line'),
+    'line',
+  );
   const polygon = desk.evaluation.deskPolygon;
   assert.equal(line.points.length, polygon.length + 1);
   assert.deepEqual(line.points[0], [polygon[0].x, 1.5, polygon[0].z]);

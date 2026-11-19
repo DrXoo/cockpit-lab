@@ -7,7 +7,26 @@ import {
   featureGeometry,
   evaluateRoom,
   moveRoomTarget,
+  type Door,
+  type DoorGeometry,
+  type FeatureGeometry,
+  type Obstacle,
+  type RoomFeature,
+  type WallId,
 } from '../src/room.ts';
+import { withId } from './support/lookups.ts';
+
+/** `feature`, failing the test unless it is a door. */
+function doorIn(feature: RoomFeature | undefined): Door {
+  assert.ok(feature?.type === 'door', 'Not a door.');
+  return feature;
+}
+
+/** `geometry`, failing the test unless it is a door's. */
+function doorGeometry(geometry: FeatureGeometry): DoorGeometry {
+  assert.ok(geometry.type === 'door', 'Not a door.');
+  return geometry;
+}
 const base = () => ({
   ...structuredClone(defaults),
   roomX: 0,
@@ -16,7 +35,7 @@ const base = () => ({
   roomD: 400,
   roomH: 250,
 });
-const door = (overrides = {}) => ({
+const door = (overrides: Partial<Door> = {}) => ({
   id: 'door',
   type: 'door',
   name: 'Entrada',
@@ -29,38 +48,38 @@ const door = (overrides = {}) => ({
   openAngle: 90,
   ...overrides,
 });
-const obstacle = (x, z, w = 8, d = 8, y0 = 0, y1 = 90) => ({
+const WALLS: readonly WallId[] = ['north', 'east', 'south', 'west'];
+const HINGES: readonly Door['hinge'][] = ['start', 'end'];
+const SWINGS: readonly Door['swing'][] = ['in', 'out'];
+const obstacle = (x: number, z: number, w = 8, d = 8, y0 = 0, y1 = 90): Obstacle => ({
   label: 'Prueba',
   polygon: rectangle(-w / 2, w / 2, -d / 2, d / 2, { x, z, angle: 0 }),
   y0,
   y1,
 });
 
-test('Old JSONs add an empty room while preserving all cockpit and desk positions', () => {
-  const old = { ...base() };
-  delete old.roomFeatures;
-  delete old.roomFurniture;
-  delete old.roomH;
+test('Old JSONs add an empty room while preserving the desk position', () => {
+  const { roomFeatures, roomFurniture, roomH, ...old } = base();
   const s = sanitize(old);
   assert.deepEqual(s.roomFeatures, []);
   assert.deepEqual(s.roomFurniture, []);
   assert.equal(s.roomH, 250);
   assert.equal(s.deskX, old.deskX);
-  assert.equal(s.cockpitZ, old.cockpitZ);
+  assert.equal(s.deskZ, old.deskZ);
 });
 test('The complete door swing catches an obstacle missed by the fully open leaf', () => {
   const s = normalizeRoom({ ...base(), roomFeatures: [door()] });
   const result = evaluateRoom(s, [obstacle(90, 40)]);
   assert.deepEqual(result.doorHits, ['door']);
-  assert.equal(result.checks.find((c) => c.id === 'room-door-door').level, 'error');
+  assert.equal(withId(result.checks, 'room-door-door').level, 'error');
   assert.equal(evaluateRoom(s, [obstacle(150, 100)]).doorHits.length, 0);
 });
 test('Door sweep follows all four walls, either hinge and inward or outward opening', () => {
-  for (const wall of ['north', 'east', 'south', 'west'])
-    for (const hinge of ['start', 'end'])
-      for (const swing of ['in', 'out']) {
+  for (const wall of WALLS)
+    for (const hinge of HINGES)
+      for (const swing of SWINGS) {
         const s = normalizeRoom({ ...base(), roomFeatures: [door({ wall, hinge, swing })] }),
-          g = featureGeometry(s, s.roomFeatures[0]),
+          g = doorGeometry(featureGeometry(s, doorIn(s.roomFeatures[0]))),
           f = wallFrame(s, wall),
           sign = hinge === 'start' ? 1 : -1,
           inside = swing === 'in' ? 1 : -1;
@@ -77,7 +96,7 @@ test('Door angle and obstacle height affect interference', () => {
   const hit = obstacle(90, 40),
     s = normalizeRoom({ ...base(), roomFeatures: [door({ openAngle: 20 })] });
   assert.equal(evaluateRoom(s, [hit]).doorHits.length, 0);
-  s.roomFeatures[0].openAngle = 90;
+  doorIn(s.roomFeatures[0]).openAngle = 90;
   assert.equal(evaluateRoom(s, [hit]).doorHits.length, 1);
   assert.equal(evaluateRoom(s, [obstacle(90, 40, 8, 8, 210, 230)]).doorHits.length, 0);
 });
@@ -121,7 +140,7 @@ test('Window clearance is an advisory reservation and can be disabled', () => {
   });
   const result = evaluateRoom(s, [obstacle(100, 40)]);
   assert.deepEqual(result.windowHits, ['window']);
-  assert.equal(result.checks.find((c) => c.id === 'room-window-window').level, 'warning');
+  assert.equal(withId(result.checks, 'room-window-window').level, 'warning');
   s.roomFeatures[0].clearance = 0;
   assert.equal(evaluateRoom(s, [obstacle(100, 40)]).windowHits.length, 0);
 });
@@ -196,9 +215,7 @@ test('furniture interference names the part that reaches into it and the way out
   });
   const pedals = { ...obstacle(200, 200, 10, 10, 0, 40), label: 'Cockpit', part: 'Pedals' };
   const monitor = { ...obstacle(200, 200, 10, 10, 45, 80), label: 'Monitor' };
-  const check = evaluateRoom(s, [monitor, pedals]).checks.find(
-    (c) => c.id === 'room-furniture-shelf',
-  );
+  const check = withId(evaluateRoom(s, [monitor, pedals]).checks, 'room-furniture-shelf');
   assert.equal(check.value, 'Interference');
   assert.equal(
     check.detail,
@@ -208,7 +225,7 @@ test('furniture interference names the part that reaches into it and the way out
 test('a blocked door names the group of the obstacle, not each part', () => {
   const s = normalizeRoom({ ...base(), roomFeatures: [door()] });
   const seat = { ...obstacle(90, 40, 30, 30), label: 'Cockpit', part: 'Cockpit seat' };
-  const check = evaluateRoom(s, [seat]).checks.find((c) => c.id === 'room-door-door');
+  const check = withId(evaluateRoom(s, [seat]).checks, 'room-door-door');
   assert.equal(check.value, 'Swing blocked');
   assert.equal(check.detail, 'Cockpit');
 });

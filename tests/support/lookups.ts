@@ -8,6 +8,13 @@ export function present<T>(value: T | undefined | null, what: string): NonNullab
   return value;
 }
 
+/** The value whose id is `id`, failing the test when there is none. */
+export const withId = <T extends { id: string }>(values: readonly T[], id: string): T =>
+  present(
+    values.find((value) => value.id === id),
+    id,
+  );
+
 type OfKind<T, K> = Extract<T, { kind: K }>;
 
 const isOfKind = <T extends { kind: string }, K extends T['kind']>(

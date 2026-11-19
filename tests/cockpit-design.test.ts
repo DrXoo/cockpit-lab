@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { designData, emptyDesign, readDesign } from '../src/cockpit-design.ts';
+import { designData, emptyDesign, readDesign, type CockpitDesign } from '../src/cockpit-design.ts';
+import { ofKind, present } from './support/lookups.ts';
 import {
   addAnchoredProfile,
   addOperation,
@@ -8,14 +9,19 @@ import {
   editDraft,
   editProfile,
   replayDesign,
+  type AddFoot,
+  type AddPlate,
+  type MountPeripheral,
+  type Operation,
+  type RemovePart,
 } from '../src/cad/history.ts';
 
-const designWith = (count) => {
-  let history = [];
+const designWith = (count: number): CockpitDesign => {
+  let history: Operation[] = [];
   for (let i = 0; i < count; i++) history = addAnchoredProfile(history).history;
   return { history, driver: { statureMm: 1750 } };
 };
-const stored = (design) => JSON.parse(JSON.stringify(designData(design)));
+const stored = (design: CockpitDesign) => JSON.parse(JSON.stringify(designData(design)));
 
 test('a new design starts with an empty history and a driver of 175 cm', () => {
   assert.deepEqual(emptyDesign(), { history: [], driver: { statureMm: 1750 } });
@@ -33,7 +39,7 @@ test('a design saved without a driver opens with one of 175 cm', () => {
 });
 
 test('a driver must have a stature from 140 to 210 cm, and nothing else', () => {
-  const withDriver = (driver) => () => readDesign({ units: 'mm', history: [], driver });
+  const withDriver = (driver: unknown) => () => readDesign({ units: 'mm', history: [], driver });
   assert.throws(withDriver({ statureMm: 1300 }), /stature/);
   assert.throws(withDriver({ statureMm: 2200 }), /stature/);
   assert.throws(withDriver({ statureMm: '1750' }), /stature/);
@@ -68,7 +74,10 @@ test('a history of anchored profiles reads back with the same values', () => {
 
 test('an anchored profile with values it cannot have is rejected', () => {
   const data = stored(designWith(1));
-  const withValues = (changes) => ({ ...data, history: [{ ...data.history[0], ...changes }] });
+  const withValues = (changes: object) => ({
+    ...data,
+    history: [{ ...data.history[0], ...changes }],
+  });
   assert.throws(() => readDesign(withValues({ lengthMm: 0 })), /length/);
   assert.throws(() => readDesign(withValues({ lengthMm: '500' })), /length/);
   assert.throws(() => readDesign(withValues({ startMm: { x: 0, y: 20 } })), /position/);
@@ -82,7 +91,7 @@ test('an anchored profile with values it cannot have is rejected', () => {
 test('a stored name is cleaned as a typed one is', () => {
   const data = stored(designWith(1));
   data.history[0].name = ' <i>Rail</i> ';
-  assert.equal(readDesign(data).history[0].name, 'iRail/i');
+  assert.equal(ofKind(readDesign(data).history[0], 'add-anchored-profile').name, 'iRail/i');
 });
 
 test('a history that repeats an identifier is rejected', () => {
@@ -112,9 +121,15 @@ test('a stored growth that no longer applies reads back as a failed operation', 
   const data = stored(withGrowth());
   const [rail, growth] = data.history;
   const reordered = readDesign({ ...data, history: [growth, rail] });
-  assert.match(replayDesign(reordered.history).failures.get('op-2'), /later step/);
+  assert.match(
+    present(replayDesign(reordered.history).failures.get('op-2'), 'failure of op-2'),
+    /later step/,
+  );
   const off = readDesign({ ...data, history: [rail, { ...growth, alongMm: 600 }] });
-  assert.match(replayDesign(off.history).failures.get('op-2'), /hang off/);
+  assert.match(
+    present(replayDesign(off.history).failures.get('op-2'), 'failure of op-2'),
+    /hang off/,
+  );
 });
 
 test('a stored growth holds the values of its kind, and nothing else', () => {
@@ -132,7 +147,7 @@ test('a profile lying on a face reads back, and one lying towards its face is re
   const data = stored(withGrowth());
   const [rail, growth] = data.history;
   const lying = { ...data, history: [rail, { ...growth, way: '+x' }] };
-  assert.equal(readDesign(lying).history[1].way, '+x');
+  assert.equal(ofKind(readDesign(lying).history[1], 'grow-profile').way, '+x');
   assert.throws(() => readDesign({ ...data, history: [rail, { ...growth, way: '-y' }] }), /way/);
 });
 
@@ -148,14 +163,17 @@ test('a span reads back with the part it reaches, or with an open end once it is
   assert.deepEqual(readDesign(data), { ...designWith(0), history });
   const lost = { ...data.history[2], reachesId: 'part-8' };
   const read = readDesign({ ...data, history: [data.history[0], data.history[1], lost] });
-  assert.equal(replayDesign(read.history).resolved.get('part-3').openEnd, true);
+  assert.equal(present(replayDesign(read.history).resolved.get('part-3'), 'part-3').openEnd, true);
 });
 
 test('a removal reads back, and must name the part it removes', () => {
   const { history } = designWith(1);
-  const removal = { kind: 'remove-part', id: 'op-2', removedId: 'part-1' };
-  assert.deepEqual(readDesign(stored({ history: [...history, removal] })).history[1], removal);
-  const data = stored({ history: [...history, removal] });
+  const removal: RemovePart = { kind: 'remove-part', id: 'op-2', removedId: 'part-1' };
+  assert.deepEqual(
+    readDesign(stored({ ...emptyDesign(), history: [...history, removal] })).history[1],
+    removal,
+  );
+  const data = stored({ ...emptyDesign(), history: [...history, removal] });
   assert.throws(
     () => readDesign({ ...data, history: [data.history[0], { ...removal, removedId: 7 }] }),
     /identifier/,
@@ -168,7 +186,7 @@ test('a removal reads back, and must name the part it removes', () => {
 
 test('a mounted peripheral reads back with the values copied from its type and its place', () => {
   const { history } = designWith(1);
-  const pedals = {
+  const pedals: MountPeripheral = {
     kind: 'mount-peripheral',
     id: 'op-2',
     partId: 'part-2',
@@ -186,7 +204,7 @@ test('a mounted peripheral reads back with the values copied from its type and i
     acrossMm: 0,
     facing: '+z',
   };
-  const seat = {
+  const seat: MountPeripheral = {
     ...pedals,
     id: 'op-3',
     partId: 'part-3',
@@ -197,15 +215,16 @@ test('a mounted peripheral reads back with the values copied from its type and i
     backrestDeg: 25,
     fromEnd: 'start',
   };
-  const data = stored({ history: [...history, pedals, seat] });
+  const data = stored({ ...emptyDesign(), history: [...history, pedals, seat] });
   assert.deepEqual(readDesign(data).history.slice(1), [pedals, seat]);
-  const withPedals = (changes) => ({
+  const withPedals = (changes: object) => ({
     ...data,
     history: [data.history[0], { ...pedals, ...changes }],
   });
   // A type the catalog no longer has still opens: its values are in the step.
   assert.equal(
-    readDesign(withPedals({ typeId: 'retired-pedals' })).history[1].typeId,
+    ofKind(readDesign(withPedals({ typeId: 'retired-pedals' })).history[1], 'mount-peripheral')
+      .typeId,
     'retired-pedals',
   );
   assert.throws(() => readDesign(withPedals({ category: 'shifter' })), /shifter/);
@@ -242,7 +261,7 @@ test('a mounted peripheral reads back with the values copied from its type and i
 
 test('a foot reads back with its type and its place under the profile', () => {
   const { history } = designWith(1);
-  const foot = {
+  const foot: AddFoot = {
     kind: 'add-foot',
     id: 'op-2',
     partId: 'part-2',
@@ -252,9 +271,12 @@ test('a foot reads back with its type and its place under the profile', () => {
     fromEnd: 'start',
     alongMm: 36,
   };
-  const data = stored({ history: [...history, foot] });
+  const data = stored({ ...emptyDesign(), history: [...history, foot] });
   assert.deepEqual(readDesign(data).history[1], foot);
-  const withFoot = (changes) => ({ ...data, history: [data.history[0], { ...foot, ...changes }] });
+  const withFoot = (changes: object) => ({
+    ...data,
+    history: [data.history[0], { ...foot, ...changes }],
+  });
   assert.throws(() => readDesign(withFoot({ footTypeId: 'wheel' })), /wheel/);
   assert.throws(() => readDesign(withFoot({ alongMm: '36' })), /number/);
   assert.throws(() => readDesign(withFoot({ face: '-y' })), /face/);
@@ -262,7 +284,7 @@ test('a foot reads back with its type and its place under the profile', () => {
 
 test('a plate reads back with its sheet, its size and its place on the profile', () => {
   const { history } = designWith(1);
-  const plate = {
+  const plate: AddPlate = {
     kind: 'add-plate',
     id: 'op-2',
     partId: 'part-2',
@@ -277,9 +299,9 @@ test('a plate reads back with its sheet, its size and its place on the profile',
     alongMm: 120,
     acrossMm: 15,
   };
-  const data = stored({ history: [...history, plate] });
+  const data = stored({ ...emptyDesign(), history: [...history, plate] });
   assert.deepEqual(readDesign(data).history[1], plate);
-  const withPlate = (changes) => ({
+  const withPlate = (changes: object) => ({
     ...data,
     history: [data.history[0], { ...plate, ...changes }],
   });
@@ -295,10 +317,10 @@ test('a fastening reads back with its connectors, once per joint', async () => {
   const base = editProfile(addAnchoredProfile([]).history, 'part-1', { lengthMm: 1000 });
   const grown = addOperation(base, editDraft(base, draftGrowth(base, 'part-1'), {}));
   const history = fastenWithBrackets(grown, 'part-2@part-1');
-  const data = stored({ history });
+  const data = stored({ ...emptyDesign(), history });
   assert.deepEqual(readDesign(data).history, history);
   const fastening = data.history[2];
-  const withFastening = (changes) => ({
+  const withFastening = (changes: object) => ({
     ...data,
     history: [data.history[0], data.history[1], { ...fastening, ...changes }],
   });
@@ -322,9 +344,9 @@ test('a plate fastened with bolts reads back with the bolts in each slot', async
   const base = editProfile(addAnchoredProfile([]).history, 'part-1', { lengthMm: 1000 });
   const plated = addOperation(base, draftPlate(base, 'part-1'));
   const history = fastenWithBolts(plated, 'part-2@part-1', 2);
-  const data = stored({ history });
+  const data = stored({ ...emptyDesign(), history });
   assert.deepEqual(readDesign(data).history, history);
-  const withBolts = (bolts) => ({
+  const withBolts = (bolts: object) => ({
     ...data,
     history: [data.history[0], data.history[1], { ...data.history[2], connectors: [bolts] }],
   });

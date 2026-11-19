@@ -1,7 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, rectangle, evaluate } from '../src/model.ts';
-import { normalizeRoom, evaluateRoom, moveRoomTarget, wallFrame } from '../src/room.ts';
+import {
+  normalizeRoom,
+  evaluateRoom,
+  moveRoomTarget,
+  wallFrame,
+  type Obstacle,
+  type WallId,
+} from '../src/room.ts';
+import { withId } from './support/lookups.ts';
+
+const WALLS: readonly WallId[] = ['north', 'east', 'south', 'west'];
+const ACCESS = 'room-access-armario';
 import { roomControls, roomItems } from '../src/room-editor.ts';
 import {
   createProject,
@@ -33,7 +44,7 @@ const room = (more = {}) =>
     roomFeatures: [access()],
     ...more,
   });
-const obstacle = (x, z, label = 'Mueble', y0 = 0, y1 = 100) => ({
+const obstacle = (x: number, z: number, label = 'Mueble', y0 = 0, y1 = 100): Obstacle => ({
   label,
   polygon: rectangle(-10, 10, -10, 10, { x, z, angle: 0 }),
   y0,
@@ -41,22 +52,23 @@ const obstacle = (x, z, label = 'Mueble', y0 = 0, y1 = 100) => ({
 });
 
 test('a built-in wardrobe keeps access clear inwards from each wall, without an inside or a swing', () => {
-  for (const wall of ['north', 'east', 'south', 'west']) {
+  for (const wall of WALLS) {
     const s = room({ roomFeatures: [access({ wall })] }),
       e = evaluateRoom(s, []),
       item = e.features[0],
       f = wallFrame(s, wall);
     assert.deepEqual(e.furniture, []);
+    assert.equal(item.type, 'wardrobeAccess');
     assert.deepEqual(item.sectors, []);
-    assert.equal(item.leaf, undefined);
-    assert.equal(item.arc, undefined);
+    assert.ok(!('leaf' in item));
+    assert.ok(!('arc' in item));
     const normal = item.reserve.map((p) => (p.x - f.x) * f.nx + (p.z - f.z) * f.nz),
       along = item.reserve.map((p) => (p.x - f.x) * f.tx + (p.z - f.z) * f.tz);
     assert.ok(Math.abs(Math.min(...normal)) < 1e-8);
     assert.ok(Math.abs(Math.max(...normal) - 80) < 1e-8);
     assert.ok(Math.abs(Math.min(...along) - 50) < 1e-8);
     assert.ok(Math.abs(Math.max(...along) - 230) < 1e-8);
-    assert.equal(e.checks.find((c) => c.id === 'room-access-armario').value, 'Access clear');
+    assert.equal(withId(e.checks, ACCESS).value, 'Access clear');
     const inward = obstacle(item.center.x + f.nx * 30, item.center.z + f.nz * 30),
       behind = obstacle(item.center.x - f.nx * 30, item.center.z - f.nz * 30);
     assert.deepEqual(evaluateRoom(s, [inward]).accessHits, ['armario']);
@@ -71,7 +83,7 @@ test('blocked access warns without inventing a physical collision or a window', 
       obstacle(120, 40, 'Cockpit'),
       obstacle(130, 40, 'Escritorio'),
     ]),
-    check = e.checks.find((c) => c.id === 'room-access-armario');
+    check = withId(e.checks, ACCESS);
   assert.equal(check.value, 'Access blocked');
   assert.equal(check.level, 'warning');
   assert.ok(check.detail.includes('Escritorio · Cockpit'));
@@ -110,7 +122,7 @@ test('the full evaluation takes in furniture and the desk in front of sliding do
   for (const extra of cases) {
     const e = evaluate(room(extra));
     assert.deepEqual(e.room.accessHits, ['armario']);
-    assert.equal(e.room.checks.find((c) => c.id === 'room-access-armario').level, 'warning');
+    assert.equal(withId(e.room.checks, ACCESS).level, 'warning');
   }
   const e = evaluate(room());
   assert.deepEqual(e.accessories, []);
@@ -126,16 +138,13 @@ test('dragging keeps the wall and allows wide fronts without inside measurements
   const disabled = evaluateRoom(room({ roomFeatures: [access({ clearance: 0 })] }), [
     obstacle(100, 10),
   ]);
-  assert.equal(disabled.checks.find((c) => c.id === 'room-access-armario').value, 'Clearance off');
+  assert.equal(withId(disabled.checks, ACCESS).value, 'Clearance off');
   assert.deepEqual(disabled.accessHits, []);
   const outside = evaluateRoom(
     room({ roomD: 120, roomFeatures: [access({ clearance: 200 })] }),
     [],
   );
-  assert.equal(
-    outside.checks.find((c) => c.id === 'room-access-armario').value,
-    'Clearance outside the room',
-  );
+  assert.equal(withId(outside.checks, ACCESS).value, 'Clearance outside the room');
   assert.deepEqual(evaluateRoom({ ...s, roomEnabled: false }, [obstacle(100, 40)]).checks, []);
 });
 
@@ -201,7 +210,7 @@ test('it is added and selected in Furniture with wall, width, height, position a
   assert.deepEqual(roomItems(s, 'openings'), []);
   const html = roomControls(
     s,
-    evaluateRoom(s, []),
+    evaluate(s),
     'feature:armario',
     () => '',
     () => '',

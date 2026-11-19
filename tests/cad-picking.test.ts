@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
-import { hitAlongRay } from '../src/cad/picking.ts';
+import {
+  resolveAssembly,
+  type Anchor,
+  type ProfilePart,
+  type ResolvedPart,
+  type Vec3Mm,
+} from '../src/cad/assembly.ts';
+import { present } from './support/lookups.ts';
+import { hitAlongRay, type RayMm } from '../src/cad/picking.ts';
 
-const partAlongRay = (resolved, ray) => hitAlongRay(resolved, ray)?.partId ?? null;
+const partAlongRay = (resolved: ReadonlyMap<string, ResolvedPart>, ray: RayMm) =>
+  hitAlongRay(resolved, ray)?.partId ?? null;
 
-const profile = (id, startMm, placement = {}) => ({
+const profile = (id: string, startMm: Vec3Mm, placement: Partial<Anchor> = {}): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -16,7 +24,10 @@ const profile = (id, startMm, placement = {}) => ({
   lengthMm: 500,
   placement: { kind: 'anchor', startMm, ...placement },
 });
-const down = (x, z) => ({ originMm: { x, y: 5000, z }, directionMm: { x: 0, y: -1, z: 0 } });
+const down = (x: number, z: number): RayMm => ({
+  originMm: { x, y: 5000, z },
+  directionMm: { x: 0, y: -1, z: 0 },
+});
 
 test('a ray picks the part it meets first', () => {
   const lower = profile('lower', { x: 0, y: 20, z: 0 });
@@ -39,7 +50,10 @@ test('a tilted part is picked where it is drawn, not where its untilted box woul
   // Tilted 30° about X, the front end of a profile starting at the origin rises to y = 250.
   const tilted = profile('deck', { x: 0, y: 0, z: 0 }, { tiltDeg: 30 });
   const resolved = resolveAssembly([tilted]);
-  const sideways = (y, z) => ({ originMm: { x: -1000, y, z }, directionMm: { x: 1, y: 0, z: 0 } });
+  const sideways = (y: number, z: number): RayMm => ({
+    originMm: { x: -1000, y, z },
+    directionMm: { x: 1, y: 0, z: 0 },
+  });
   assert.equal(partAlongRay(resolved, sideways(240, 425)), 'deck');
   assert.equal(partAlongRay(resolved, sideways(10, 490)), null);
 });
@@ -52,10 +66,10 @@ test("a hit names the face the ray enters and the point there, in the part's own
     pointMm: { x: 5, y: 40, z: 250 },
   });
   const fromTheBack = { originMm: { x: 0, y: 20, z: -900 }, directionMm: { x: 0, y: 0, z: 2 } };
-  assert.equal(hitAlongRay(resolved, fromTheBack).face, '-z');
+  assert.equal(present(hitAlongRay(resolved, fromTheBack), 'hit').face, '-z');
   const tilted = resolveAssembly([profile('deck', { x: 0, y: 0, z: 0 }, { tiltDeg: 30 })]);
   const sideways = { originMm: { x: -1000, y: 240, z: 425 }, directionMm: { x: 1, y: 0, z: 0 } };
-  const hit = hitAlongRay(tilted, sideways);
+  const hit = present(hitAlongRay(tilted, sideways), 'hit');
   assert.equal(hit.face, '-x');
   assert.equal(hit.pointMm.x, -20);
   assert.ok(Math.abs(hit.pointMm.z - 488) < 1, 'measured along the tilted profile');
