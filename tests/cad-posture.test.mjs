@@ -29,24 +29,24 @@ const wheel = peripheral('wheel', [{ role: 'hands', offsetMm: { x: 0, y: 0, z: 0
 
 const contactsOf = (parts) => cadContacts(resolveAssembly(parts));
 
-test('the contacts are where the peripherals carry them, in cm on the side plane', () => {
-  const contacts = contactsOf([seat(), pedals, wheel]);
-  const atSeat = contacts.hip;
-  assert.equal(contacts.heel.z - atSeat.z, 100);
-  assert.equal(contacts.hands.z - atSeat.z, 60);
-  assert.equal(contacts.heel.y, atSeat.y);
+test('the contacts are where the peripherals carry them, in mm', () => {
+  const { contacts } = contactsOf([seat(), pedals, wheel]);
+  assert.equal(contacts.heel.z - contacts.hip.z, 1000);
+  assert.equal(contacts.hands.z - contacts.hip.z, 600);
+  assert.equal(contacts.heel.y, contacts.hip.y);
   assert.equal(contacts.reclineDeg, 20);
+  assert.equal(contacts.facing, '+z');
 });
 
 test('without a part for the hands, the hands have no contact', () => {
-  assert.equal(contactsOf([seat(), pedals]).hands, null);
+  assert.equal(contactsOf([seat(), pedals]).contacts.hands, null);
 });
 
-test('a design without a seat or pedals cannot seat the driver', () => {
-  assert.throws(() => contactsOf([pedals]), /hip/);
-  assert.throws(() => contactsOf([seat()]), /heel/);
+test('a design without a seat or pedals cannot seat the driver, and says what to mount', () => {
+  assert.equal(contactsOf([pedals]).reason, "Mount a seat: it carries the driver's hip.");
+  assert.equal(contactsOf([seat()]).reason, "Mount pedals: they carry the driver's heels.");
 });
 
-test('two parts that seat the driver are an error', () => {
-  assert.throws(() => contactsOf([seat(), seat({ id: 'second-seat' }), pedals]), /hip/);
+test('two parts that seat the driver cannot seat one', () => {
+  assert.match(contactsOf([seat(), seat({ id: 'second-seat' }), pedals]).reason, /hip/);
 });
