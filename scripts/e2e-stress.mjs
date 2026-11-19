@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { failuresOf, summarizeFailures } from './e2e-failures.mjs';
+import { failuresOf, summarizeFailures } from './e2e-failures.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 // Apart from test-results, which every normal run empties, so a later run keeps these.

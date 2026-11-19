@@ -6,14 +6,46 @@ const ANSI_CODES = /\u001b\[[0-9;]*m/g;
 
 const FAILED_STATUSES = new Set(['failed', 'timedOut']);
 
-const firstLine = (text) =>
+/** The parts of a Playwright JSON report read here; Playwright writes more. */
+export interface Report {
+  suites?: ReportSuite[];
+}
+
+interface ReportSuite {
+  title?: string;
+  specs?: ReportSpec[];
+  suites?: ReportSuite[];
+}
+
+interface ReportSpec {
+  title: string;
+  tests?: { results?: ReportResult[] }[];
+}
+
+interface ReportResult {
+  status?: string;
+  errors?: { message?: string }[];
+  attachments?: { name: string; path?: string }[];
+}
+
+export interface FailureKind {
+  kind: string;
+  detail: string;
+}
+
+export interface Failure extends FailureKind {
+  title: string;
+  diff?: string;
+}
+
+const firstLine = (text: string): string =>
   text
     .split('\n')
     .find((line) => line.trim() !== '')
     ?.trim() ?? '';
 
 /** What went wrong in one failed run, from its error message. */
-export function classifyFailure(rawMessage) {
+export function classifyFailure(rawMessage: string): FailureKind {
   const message = rawMessage.replace(ANSI_CODES, '');
   const pixels = /(\d+) pixels \(ratio/.exec(message);
   if (pixels) return { kind: 'screenshot differs', detail: `${pixels[1]} pixels` };
@@ -29,23 +61,26 @@ export function classifyFailure(rawMessage) {
   return { kind: 'other', detail: firstLine(message) };
 }
 
-function* specsOf(suite, titles) {
+function* specsOf(
+  suite: ReportSuite,
+  titles: string[],
+): Generator<{ spec: ReportSpec; titles: string[] }> {
   const path = suite.title ? [...titles, suite.title] : titles;
   for (const spec of suite.specs ?? []) yield { spec, titles: [...path, spec.title] };
   for (const child of suite.suites ?? []) yield* specsOf(child, path);
 }
 
-const diffOf = (result) =>
+const diffOf = (result: ReportResult): string | undefined =>
   (result.attachments ?? []).find((attachment) => attachment.name.endsWith('-diff.png'))?.path;
 
 /** Every failed run in a Playwright JSON report, with its test, kind and diff image if any. */
-export function failuresOf(report) {
-  const failures = [];
+export function failuresOf(report: Report): Failure[] {
+  const failures: Failure[] = [];
   for (const suite of report.suites ?? [])
     for (const { spec, titles } of specsOf(suite, []))
       for (const test of spec.tests ?? [])
         for (const result of test.results ?? []) {
-          if (!FAILED_STATUSES.has(result.status)) continue;
+          if (result.status === undefined || !FAILED_STATUSES.has(result.status)) continue;
           const message = (result.errors ?? []).map((error) => error.message ?? '').join('\n');
           const diff = diffOf(result);
           failures.push({
@@ -58,14 +93,14 @@ export function failuresOf(report) {
 }
 
 /** One line per test and detail of each kind of failure, with how many runs it hit. */
-export function summarizeFailures(failures, runCount) {
+export function summarizeFailures(failures: readonly Failure[], runCount: number): string {
   if (failures.length === 0) return `All ${runCount} runs passed.`;
   const lines = [`${failures.length} of ${runCount} runs failed.`];
   const kinds = [...new Set(failures.map((failure) => failure.kind))].sort();
   for (const kind of kinds) {
     const ofKind = failures.filter((failure) => failure.kind === kind);
     lines.push('', `${kind} (${ofKind.length})`);
-    const groups = new Map();
+    const groups = new Map<string, { count: number; diff: string | undefined }>();
     for (const failure of ofKind) {
       const key = `${failure.title} · ${failure.detail}`;
       const group = groups.get(key) ?? { count: 0, diff: failure.diff };

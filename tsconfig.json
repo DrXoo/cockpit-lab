@@ -17,5 +17,5 @@
     "strict": true,
     "allowJs": false
   },
-  "include": ["src", "e2e", "playwright.config.ts"]
+  "include": ["src", "scripts", "e2e", "playwright.config.ts"]
 }

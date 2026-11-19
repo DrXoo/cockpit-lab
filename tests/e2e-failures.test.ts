@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyFailure, failuresOf, summarizeFailures } from '../scripts/e2e-failures.mjs';
+import { classifyFailure, failuresOf, summarizeFailures } from '../scripts/e2e-failures.ts';
 
 const ESC = '\u001b';
 

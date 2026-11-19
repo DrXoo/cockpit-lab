@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "look": "node scripts/look.mjs",
     "test": "node --test",
-    "check": "node scripts/check.mjs && node scripts/check-casts.mjs && npm run typecheck && prettier --check .",
+    "check": "node scripts/check.mjs && node scripts/check-casts.ts && npm run typecheck && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc -p .",
     "prepare": "git config core.hooksPath scripts/hooks",
