@@ -1,20 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
+import { createRenderList, ROOT, type LinePrimitive, type RenderList } from '../src/render-list.ts';
+import type { RoomConfig } from '../src/config.ts';
+import type { CockpitEvaluation } from '../src/evaluate.ts';
+import { allOfKind, ofKind, present } from './support/lookups.ts';
 import { drawDesk, drawMonitor, drawArmReach } from '../src/render-desk.ts';
 import { defaults, evaluate } from '../src/model.ts';
 
-const render = (changes, drawing) => {
+const render = <T>(
+  changes: Partial<RoomConfig>,
+  drawing: (r: RenderList, s: RoomConfig, e: CockpitEvaluation) => T,
+) => {
   const state = { ...defaults, ...changes };
   const evaluation = evaluate(state);
   const r = createRenderList();
   const result = drawing(r, state, evaluation);
   return { state, evaluation, r, result };
 };
-const desk = (changes = {}) => render(changes, (r, s, e) => drawDesk(r, ROOT, s, e));
-const monitor = (changes = {}, options = { showHandles: false }) =>
+const desk = (changes: Partial<RoomConfig> = {}) =>
+  render(changes, (r, s, e) => drawDesk(r, ROOT, s, e));
+const monitor = (changes: Partial<RoomConfig> = {}, options = { showHandles: false }) =>
   render(changes, (r, s, e) => drawMonitor(r, ROOT, s, e, options));
-const boxes = (r) => r.primitives.filter((p) => p.kind === 'box');
+const boxes = (r: RenderList) => allOfKind(r.primitives, 'box');
 
 test('without a desk nothing is drawn', () => {
   assert.deepEqual(desk({ deskEnabled: false }).r.primitives, []);
@@ -57,7 +64,8 @@ test('objects on the mat sit on its surface', () => {
 });
 
 test('disabled desktop objects are not drawn', () => {
-  const groups = (changes) => desk(changes).r.primitives.filter((p) => p.kind === 'group').length;
+  const groups = (changes: Partial<RoomConfig>) =>
+    allOfKind(desk(changes).r.primitives, 'group').length;
   const all = { keyboardEnabled: true, mouseEnabled: true, pcEnabled: true, matEnabled: true };
   assert.equal(groups(all), 4);
   assert.equal(groups({ ...all, pcEnabled: false }), 3);
@@ -73,16 +81,22 @@ test('a clamp grips the desk edge and a grommet goes through it', () => {
 
 test('the screen faces the monitor angle', () => {
   const { evaluation, r } = monitor();
-  const screen = boxes(r).find((p) => p.material === 'screen');
-  const holder = r.primitives.find((p) => p.kind === 'group' && p.id === screen.parent);
+  const screen = present(
+    boxes(r).find((p) => p.material === 'screen'),
+    'screen',
+  );
+  const holder = present(
+    allOfKind(r.primitives, 'group').find((p) => p.id === screen.parent),
+    'screen holder',
+  );
   assert.ok(Math.abs(holder.rotation[1] - (evaluation.monitorAngle * Math.PI) / 180) < 1e-12);
 });
 
 test('an arm that cannot reach the monitor shows the gap as an orange dashed line', () => {
-  const warningSpec = (r, line) =>
-    r.primitives.find((p) => p.kind === 'material' && p.id === line.material)?.spec;
-  const gaps = (r) =>
-    r.primitives.filter((p) => p.kind === 'line' && warningSpec(r, p)?.kind === 'dashed');
+  const warningSpec = (r: RenderList, line: LinePrimitive) =>
+    allOfKind(r.primitives, 'material').find((p) => p.id === line.material)?.spec;
+  const gaps = (r: RenderList) =>
+    allOfKind(r.primitives, 'line').filter((p) => warningSpec(r, p)?.kind === 'dashed');
   const far = monitor({ armFirstSegment: 20, armSecondSegment: 20, clampZ: defaults.clampZ + 80 });
   assert.equal(far.evaluation.armPose.reachable, false);
   const [gap] = gaps(far.r);
@@ -114,13 +128,13 @@ test('the arm joints become handles only while editing the arm', () => {
 });
 
 test('the reach circle around the anchor is only shown in the top view', () => {
-  const reach = (view) =>
+  const reach = (view: string) =>
     render({}, (r, s, e) => drawArmReach(r, ROOT, s, e, { visible: view === 'top' })).r;
   const top = reach('top');
-  const [group] = top.primitives;
+  const group = ofKind(top.primitives[0], 'group');
   assert.equal(group.visible, true);
-  assert.equal(reach('iso').primitives[0].visible, false);
-  const circle = top.primitives.filter((p) => p.kind === 'line')[1];
+  assert.equal(ofKind(reach('iso').primitives[0], 'group').visible, false);
+  const circle = present(allOfKind(top.primitives, 'line')[1], 'reach circle');
   assert.equal(circle.points.length, 65);
   assert.equal(circle.material, 'dashed');
 });

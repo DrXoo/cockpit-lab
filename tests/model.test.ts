@@ -24,6 +24,16 @@ import {
   moveArmJoint,
 } from '../src/model.ts';
 import { solveJoint } from '../src/anatomy.ts';
+import type { ArmBend, MonitorMode, RoomConfig } from '../src/config.ts';
+import type { DesktopItemId } from '../src/desk.ts';
+import { present, withId } from './support/lookups.ts';
+
+/** `config` as an older file stored it, without `keys`. */
+const without = (config: RoomConfig, keys: readonly string[]): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(config).filter(([key]) => !keys.includes(key)));
+
+type ClampCase = [x: number, z: number, side: string];
+const ARM_BENDS: readonly ArmBend[] = ['positive', 'negative'];
 
 test('The default room has a reachable monitor, nothing to fix and room to walk', () => {
   const e = evaluate(defaults);
@@ -33,34 +43,33 @@ test('The default room has a reachable monitor, nothing to fix and room to walk'
 });
 test('Room and arm problems are actionable errors', () => {
   assert.equal(
-    evaluate({ ...defaults, armFirstSegment: 20, armSecondSegment: 20, clampZ: -64 }).checks.find(
-      (c) => c.id === 'arm',
+    withId(
+      evaluate({ ...defaults, armFirstSegment: 20, armSecondSegment: 20, clampZ: -64 }).checks,
+      'arm',
     ).level,
     'error',
   );
+  assert.equal(withId(evaluate({ ...defaults, deskH: 131 }).checks, 'lift').level, 'error');
   assert.equal(
-    evaluate({ ...defaults, deskH: 131 }).checks.find((c) => c.id === 'lift').level,
-    'error',
-  );
-  assert.equal(
-    evaluate({ ...defaults, roomW: 160, roomD: 180, deskX: 220 }).checks.find(
-      (c) => c.id === 'room',
-    ).level,
+    withId(evaluate({ ...defaults, roomW: 160, roomD: 180, deskX: 220 }).checks, 'room').level,
     'error',
   );
 });
 test('VR parks over the desk but still validates the actual parked arm', () => {
   const e = evaluate({ ...defaults, monitorMode: 'vr', armFirstSegment: 20, armSecondSegment: 20 });
-  assert.equal(e.checks.find((c) => c.id === 'arm').level, 'ok');
-  assert.equal(e.checks.find((c) => c.id === 'vr').level, 'ok');
+  assert.equal(withId(e.checks, 'arm').level, 'ok');
+  assert.equal(withId(e.checks, 'vr').level, 'ok');
   assert.equal(
-    evaluate({
-      ...defaults,
-      monitorMode: 'vr',
-      armFirstSegment: 20,
-      armSecondSegment: 20,
-      clampZ: 60,
-    }).checks.find((c) => c.id === 'arm').level,
+    withId(
+      evaluate({
+        ...defaults,
+        monitorMode: 'vr',
+        armFirstSegment: 20,
+        armSecondSegment: 20,
+        clampZ: 60,
+      }).checks,
+      'arm',
+    ).level,
     'error',
   );
 });
@@ -143,12 +152,11 @@ test('Room placement remains fixed when moving objects out of its boundaries', (
   const s = { ...defaults, deskX: 352 },
     e = evaluate(s);
   assert.equal(e.roomFits, false);
-  assert.equal(e.checks.find((c) => c.id === 'room').level, 'error');
+  assert.equal(withId(e.checks, 'room').level, 'error');
 });
 test('Old saved configurations migrate their implicit desktop position', () => {
-  const old = { ...defaults, width: 70, deskGap: 18, deskZ: 120 };
-  delete old.deskX;
-  delete old.deskAngle;
+  const old = without({ ...defaults, deskGap: 18, deskZ: 120 }, ['deskX', 'deskAngle']);
+  old.width = 70;
   const s = sanitize(old);
   assert.equal(s.deskX, 93);
   assert.equal(s.deskZ, 120);
@@ -180,17 +188,18 @@ test('Every desktop object follows the desktop translation and rotation', () => 
     assert.ok(Math.abs(back.x - item.local.x) < 1e-8);
     assert.ok(Math.abs(back.z - item.local.z) < 1e-8);
   }
-  const anchor = items.find((i) => i.id === 'arm');
+  const anchor = withId(items, 'arm');
   const e = evaluate(s);
   assert.ok(Math.abs(anchor.world.x - e.clampPoint.x) < 1e-8);
   assert.ok(Math.abs(anchor.world.z - e.clampPoint.z) < 1e-8);
 });
 test('Peripheral movement and rotation stay inside the tabletop when the item fits', () => {
-  for (const id of ['keyboard', 'pc', 'mouse', 'mat'])
+  const ids: DesktopItemId[] = ['keyboard', 'pc', 'mouse', 'mat'];
+  for (const id of ids)
     for (const angle of [0, 30, 90, 180, 270]) {
       const s = { ...defaults, [id + 'Angle']: angle },
         moved = placeDeskItem(s, id, 999, -999),
-        item = getDesktopItems(moved).find((i) => i.id === id);
+        item = withId(getDesktopItems(moved), id);
       if (item.sizeX <= 40 && item.sizeZ <= 60)
         assert.equal(item.outside, false, `${id} at ${angle}`);
       assert.equal(moved.deskAngle, defaults.deskAngle);
@@ -202,12 +211,13 @@ test('Peripheral movement and rotation stay inside the tabletop when the item fi
   assert.equal(moved.keyboardZ, 20);
 });
 test('Clamp snaps to all four edges; through-bolt mounting allows an interior point', () => {
-  for (const [x, z, side] of [
+  const cases: ClampCase[] = [
     [-30, 0, 'xmin'],
     [30, 0, 'xmax'],
     [0, -60, 'zmin'],
     [0, 60, 'zmax'],
-  ]) {
+  ];
+  for (const [x, z, side] of cases) {
     const s = placeDeskItem(defaults, 'arm', x, z);
     assert.equal(clampEdge(s), side);
     assert.ok(Math.abs(s.clampX) === 34 || Math.abs(s.clampZ) === 64);
@@ -228,14 +238,11 @@ test('Moving the clamp changes reach without moving the screen or the keyboard',
 });
 test('Hard object overlaps and mouse mat coverage are checked separately', () => {
   const overlap = evaluate({ ...defaults, pcX: defaults.keyboardX, pcZ: defaults.keyboardZ });
-  assert.equal(overlap.desktopChecks.find((c) => c.id === 'desktop-overlap').level, 'warning');
+  assert.equal(withId(overlap.desktopChecks, 'desktop-overlap').level, 'warning');
   const uncovered = evaluate({ ...defaults, mouseZ: 60 });
   assert.equal(uncovered.mouseOnMat, false);
-  assert.equal(uncovered.desktopChecks.find((c) => c.id === 'mouse-mat').level, 'warning');
-  assert.equal(
-    evaluate(defaults).desktopChecks.find((c) => c.id === 'desktop-overlap').level,
-    'ok',
-  );
+  assert.equal(withId(uncovered.desktopChecks, 'mouse-mat').level, 'warning');
+  assert.equal(withId(evaluate(defaults).desktopChecks, 'desktop-overlap').level, 'ok');
 });
 test('Sizing, saved state migration and JSON round trips preserve accessory parameters', () => {
   const updated = updateDeskItem({ ...defaults, keyboardX: 0, keyboardZ: 0 }, 'keyboardAngle', 90);
@@ -243,8 +250,7 @@ test('Sizing, saved state migration and JSON round trips preserve accessory para
   const wide = updateDeskItem(defaults, 'matWidth', 120);
   assert.equal(wide.matWidth, 120);
   assert.ok(deskAccessories(wide).some((i) => i.name === 'XL desk mat' && i.note.includes('120')));
-  const old = { ...defaults };
-  for (const k of [
+  const old = without(defaults, [
     'clampX',
     'clampMount',
     'clampSide',
@@ -254,8 +260,7 @@ test('Sizing, saved state migration and JSON round trips preserve accessory para
     'pcX',
     'mouseX',
     'matWidth',
-  ])
-    delete old[k];
+  ]);
   const restored = sanitize(old);
   assert.equal(restored.clampX, -34);
   assert.equal(restored.clampZ, old.clampZ);
@@ -298,19 +303,20 @@ test('Oversize mats remain their real size and trigger a tabletop warning', () =
     e = evaluate(s);
   assert.equal(s.matWidth, 140);
   assert.equal(s.matDepth, 80);
-  assert.ok(e.desktopItems.find((i) => i.id === 'mat').outside);
-  assert.equal(e.desktopChecks.find((c) => c.id === 'desktop-fit').level, 'warning');
+  assert.ok(withId(e.desktopItems, 'mat').outside);
+  assert.equal(withId(e.desktopChecks, 'desktop-fit').level, 'warning');
 });
 test('Clamps and movement limits follow the current tabletop rather than the original 140 by 80', () => {
   const s = resizeDesk(defaults, 120, 60);
   assert.deepEqual(fieldSpec('clampZ', s), [-54, 54, 0.1]);
   assert.deepEqual(fieldSpec('keyboardZ', s), [-60, 60, 0.1]);
-  for (const [x, z, side] of [
+  const cases: ClampCase[] = [
     [-23, 0, 'xmin'],
     [23, 0, 'xmax'],
     [0, -53, 'zmin'],
     [0, 53, 'zmax'],
-  ]) {
+  ];
+  for (const [x, z, side] of cases) {
     const next = placeDeskItem(s, 'arm', x, z);
     assert.equal(clampEdge(next), side);
     assert.ok(Math.abs(next.clampX) === 24 || Math.abs(next.clampZ) === 54);
@@ -325,9 +331,7 @@ test('The 66 cm reference feet remain in the floor footprint of a 60 cm deep boa
   assert.equal(e.deskRight - e.deskLeft, 60);
 });
 test('Table size changes persist and old configurations keep the initial tabletop', () => {
-  const old = { ...defaults };
-  delete old.deskWidth;
-  delete old.deskDepth;
+  const old = without(defaults, ['deskWidth', 'deskDepth']);
   const restored = sanitize(old);
   assert.equal(restored.deskWidth, 140);
   assert.equal(restored.deskDepth, 80);
@@ -340,7 +344,7 @@ test('Table size changes persist and old configurations keep the initial tableto
 
 test('Two-link arm keeps both segment lengths and reaches the automatic desk target', () => {
   for (const armFirstSegment of [17, 42.5, 68])
-    for (const armBend of ['positive', 'negative']) {
+    for (const armBend of ARM_BENDS) {
       // Mounted at the end of the desk, the target is within reach of every pair of segments.
       const armSecondSegment = 85 - armFirstSegment;
       const s = { ...defaults, clampZ: -64, armFirstSegment, armSecondSegment, armBend },
@@ -353,9 +357,10 @@ test('Two-link arm keeps both segment lengths and reaches the automatic desk tar
     }
 });
 test('Switching to manual seeds the current joints and VESA angle without moving the monitor', () => {
-  for (const monitorMode of ['desk', 'vr'])
+  const modes: MonitorMode[] = ['desk', 'vr'];
+  for (const monitorMode of modes)
     for (const deskAngle of [0, 90, 225]) {
-      const s = { ...defaults, monitorMode, deskAngle },
+      const s: RoomConfig = { ...defaults, monitorMode, deskAngle },
         g = monitorGeometry(s),
         manual = setMonitorMode(s, 'manual'),
         after = monitorGeometry(manual);
@@ -399,7 +404,7 @@ test('Dragging VESA solves a reachable endpoint and clamps distant or over-folde
     }
 });
 test('Unequal segments detect the minimum reach and both elbow branches keep the same target', () => {
-  const s = {
+  const s: RoomConfig = {
       ...defaults,
       monitorMode: 'desk',
       armFirstSegment: 68,
@@ -409,7 +414,7 @@ test('Unequal segments detect the minimum reach and both elbow branches keep the
     },
     e = evaluate(s);
   assert.equal(e.armPose.reachable, false);
-  assert.equal(e.checks.find((c) => c.id === 'arm').level, 'error');
+  assert.equal(withId(e.checks, 'arm').level, 'error');
   assert.ok(e.armPose.minReach > 0);
   const a = evaluate(defaults),
     b = evaluate({ ...defaults, armBend: 'negative' });
@@ -421,7 +426,7 @@ test('Unequal segments detect the minimum reach and both elbow branches keep the
   );
 });
 test('Manual arm follows its desk and anchor, returns to the desk, and persists through old/new JSON', () => {
-  const manual = {
+  const manual: RoomConfig = {
       ...defaults,
       monitorMode: 'manual',
       armBaseAngle: 25,
@@ -438,9 +443,13 @@ test('Manual arm follows its desk and anchor, returns to the desk, and persists 
   assert.equal(onDesk.monitorPoint.x, expected.x);
   assert.equal(onDesk.monitorPoint.z, expected.z);
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(manual))), manual);
-  const old = { ...defaults };
-  for (const key of ['armFirstSegment', 'armBaseAngle', 'armElbowAngle', 'monitorYaw', 'armBend'])
-    delete old[key];
+  const old = without(defaults, [
+    'armFirstSegment',
+    'armBaseAngle',
+    'armElbowAngle',
+    'monitorYaw',
+    'armBend',
+  ]);
   const restored = sanitize(old);
   assert.equal(restored.armFirstSegment, 42.5);
   assert.equal(restored.monitorMode, 'desk');
