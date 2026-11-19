@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { plateHoles } from '../src/cad/plate.ts';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { resolveAssembly, type PeripheralPart, type PlatePart } from '../src/cad/assembly.ts';
 import { holesOfPlate } from '../src/cad/mounting.ts';
 
 // Reference case from docs/mini-cad.md: a test case, not a manufacturer's pattern.
@@ -43,7 +43,7 @@ test('the plate keeps its own holes beside those of mounted peripherals', () => 
 });
 
 test('in a design, a plate gets the holes of the peripherals mounted on it', () => {
-  const plate = {
+  const plate: PlatePart = {
     kind: 'plate',
     id: 'plate',
     name: 'Reference plate',
@@ -55,10 +55,11 @@ test('in a design, a plate gets the holes of the peripherals mounted on it', () 
     ownHoles: [],
     placement: { kind: 'anchor', startMm: { x: 300, y: 200, z: 500 } },
   };
-  const mountedAt = (alongMm, acrossMm) => ({
+  const mountedAt = (alongMm: number, acrossMm: number): PeripheralPart => ({
     kind: 'peripheral',
     id: `device-${alongMm}`,
     name: 'Device',
+    category: 'wheel-base',
     envelope: { widthMm: 150, heightMm: 60, depthMm: 100 },
     mountingPattern: referencePattern,
     contactPoints: [],

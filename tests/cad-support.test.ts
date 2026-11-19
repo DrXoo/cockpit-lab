@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import {
+  resolveAssembly,
+  type FootPart,
+  type Part,
+  type PeripheralPart,
+  type PlatePart,
+  type ProfilePart,
+} from '../src/cad/assembly.ts';
 import { unsupportedParts } from '../src/cad/support.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const rail = (id, xMm) => ({
+const rail = (id: string, xMm: number): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -15,7 +22,7 @@ const rail = (id, xMm) => ({
   lengthMm: 1200,
   placement: { kind: 'anchor', startMm: { x: xMm, y: 100, z: 0 } },
 });
-const crossmember = {
+const crossmember: ProfilePart = {
   ...rail('rear', 0),
   axis: 'x',
   lengthMm: 0,
@@ -28,7 +35,7 @@ const crossmember = {
     reachesId: 'right-rail',
   },
 };
-const footUnder = (parentId) => ({
+const footUnder = (parentId: string): FootPart => ({
   kind: 'foot',
   id: `foot-${parentId}`,
   name: `Foot under ${parentId}`,
@@ -36,7 +43,7 @@ const footUnder = (parentId) => ({
   placement: { kind: 'attachment', parentId, face: '-y', alongMm: 0, fromEnd: 'start' },
 });
 
-const unsupported = (parts) => unsupportedParts(resolveAssembly(parts));
+const unsupported = (parts: readonly Part[]) => unsupportedParts(resolveAssembly(parts));
 
 test('a frame on feet has every part supported', () => {
   const parts = [
@@ -60,7 +67,7 @@ test('support reaches through joints, from a part on feet to the parts joined to
 });
 
 test('parts that no joint connects to a part on feet are unsupported, in design order', () => {
-  const floating = {
+  const floating: ProfilePart = {
     ...rail('floating', 0),
     placement: { kind: 'anchor', startMm: { x: 0, y: 400, z: 0 } },
   };
@@ -69,7 +76,7 @@ test('parts that no joint connects to a part on feet are unsupported, in design 
 });
 
 test('a peripheral on a plate is supported through the plate', () => {
-  const plate = {
+  const plate: PlatePart = {
     kind: 'plate',
     id: 'plate',
     name: 'Plate',
@@ -87,10 +94,11 @@ test('a peripheral on a plate is supported through the plate', () => {
       fromEnd: 'start',
     },
   };
-  const wheelBase = {
+  const wheelBase: PeripheralPart = {
     kind: 'peripheral',
     id: 'wheel-base',
     name: 'Wheel base',
+    category: 'wheel-base',
     envelope: { widthMm: 150, heightMm: 120, depthMm: 180 },
     mountingPattern: { holes: [] },
     contactPoints: [],

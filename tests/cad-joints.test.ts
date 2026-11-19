@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import {
+  resolveAssembly,
+  type FootPart,
+  type Part,
+  type PeripheralPart,
+  type PlatePart,
+  type ProfilePart,
+} from '../src/cad/assembly.ts';
 import { jointsOf } from '../src/cad/joints.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const rail = (id, xMm, lengthMm = 1200) => ({
+const rail = (id: string, xMm: number, lengthMm = 1200): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -15,7 +22,7 @@ const rail = (id, xMm, lengthMm = 1200) => ({
   lengthMm,
   placement: { kind: 'anchor', startMm: { x: xMm, y: 100, z: 0 } },
 });
-const crossmember = {
+const crossmember: ProfilePart = {
   ...rail('rear', 0),
   axis: 'x',
   lengthMm: 0,
@@ -28,14 +35,14 @@ const crossmember = {
     reachesId: 'right-rail',
   },
 };
-const post = {
+const post: ProfilePart = {
   ...rail('post', 0, 300),
   sectionId: '40x40',
   axis: 'y',
   heightAxis: 'z',
   placement: { kind: 'attachment', parentId: 'rear', face: '+y', alongMm: 60, fromEnd: 'start' },
 };
-const foot = {
+const foot: FootPart = {
   kind: 'foot',
   id: 'foot',
   name: 'Foot',
@@ -49,7 +56,7 @@ const foot = {
   },
 };
 
-const jointsFor = (parts) => jointsOf(resolveAssembly(parts));
+const jointsFor = (parts: readonly Part[]) => jointsOf(resolveAssembly(parts));
 
 test('anchored parts make no joints', () => {
   assert.deepEqual(jointsFor([rail('left-rail', -280), rail('right-rail', 280)]), []);
@@ -84,7 +91,7 @@ test('a foot is fastened by its own adapter, so it makes no joint', () => {
   assert.deepEqual(jointsFor([rail('left-rail', -280), foot]), []);
 });
 
-const plateOn = (parentId) => ({
+const plateOn = (parentId: string): PlatePart => ({
   kind: 'plate',
   id: 'plate',
   name: 'Plate',
@@ -96,10 +103,11 @@ const plateOn = (parentId) => ({
   ownHoles: [],
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 200, fromEnd: 'start' },
 });
-const peripheralOn = (parentId) => ({
+const peripheralOn = (parentId: string): PeripheralPart => ({
   kind: 'peripheral',
   id: 'wheel-base',
   name: 'Wheel base',
+  category: 'wheel-base',
   envelope: { widthMm: 150, heightMm: 120, depthMm: 180 },
   mountingPattern: { holes: [] },
   contactPoints: [],

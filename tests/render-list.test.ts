@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, labelShownIn } from '../src/render-list.ts';
+import { createRenderList, ROOT, labelShownIn, type SceneLabel } from '../src/render-list.ts';
+import { ofKind } from './support/lookups.ts';
 
 test('primitives keep the order in which they were drawn, materials included', () => {
   const r = createRenderList();
@@ -18,7 +19,7 @@ test('primitives keep the order in which they were drawn, materials included', (
     r.primitives.map((p) => p.kind),
     ['material', 'box', 'line'],
   );
-  assert.equal(r.primitives[1].material, wall);
+  assert.equal(ofKind(r.primitives[1], 'box').material, wall);
 });
 
 test('groups nest drawings and carry their own placement', () => {
@@ -27,7 +28,10 @@ test('groups nest drawings and carry their own placement', () => {
   const pedal = r.box(7, 2, 22, 0, 2, 0, 'dark', pedals);
   assert.notEqual(pedals, ROOT);
   assert.equal(pedal.parent, pedals);
-  const group = r.primitives.find((p) => p.kind === 'group');
+  const group = ofKind(
+    r.primitives.find((p) => p.kind === 'group'),
+    'group',
+  );
   assert.deepEqual(group.position, [0, 30, 90]);
   assert.equal(group.visible, true);
 });
@@ -36,7 +40,7 @@ test('a drawing can be adjusted after it is placed, like a rotated wheel', () =>
   const r = createRenderList();
   const wheel = r.cylinder(3.3, 3.5, 0, 3.4, 10, 'rubber', ROOT);
   wheel.rotation = [0, 0, Math.PI / 2];
-  assert.deepEqual(r.primitives[0].rotation, [0, 0, Math.PI / 2]);
+  assert.deepEqual(ofKind(r.primitives[0], 'cylinder').rotation, [0, 0, Math.PI / 2]);
 });
 
 test('a dimension draws its line, a tick at each end and a centred label', () => {
@@ -63,7 +67,12 @@ test('labels for objects are told apart from measurements', () => {
 });
 
 test('each label belongs to the views it describes', () => {
-  const label = (flags) => ({ text: 'x', position: { x: 0, y: 0, z: 0 }, object: false, ...flags });
+  const label = (flags: Partial<SceneLabel>): SceneLabel => ({
+    text: 'x',
+    position: { x: 0, y: 0, z: 0 },
+    object: false,
+    ...flags,
+  });
   assert.equal(labelShownIn(label({}), 'iso'), true);
   assert.equal(labelShownIn(label({ object: true }), 'desk'), true);
   assert.equal(labelShownIn(label({ topOnly: true }), 'top'), true);

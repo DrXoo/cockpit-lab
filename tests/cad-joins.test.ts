@@ -9,10 +9,12 @@ import {
   editProfile,
   removePart,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
 import { fastenWithBrackets, joinParts, touchingParts } from '../src/cad/fastening.ts';
 import { unsupportedParts } from '../src/cad/support.ts';
-import { readDesign, designData } from '../src/cockpit-design.ts';
+import { readDesign, designData, emptyDesign } from '../src/cockpit-design.ts';
+import { present } from './support/lookups.ts';
 
 /**
  * A: a 40 × 40 rail front to back, 1000 mm long, on the floor. D: an upright made on its own,
@@ -31,7 +33,7 @@ function ad() {
   });
   return history;
 }
-const jointsOf = (history) => replayDesign(history).joints;
+const jointsOf = (history: readonly Operation[]) => replayDesign(history).joints;
 
 test('parts that touch can be joined, from either of them', () => {
   assert.deepEqual(touchingParts(ad(), 'part-1'), ['part-2']);
@@ -66,8 +68,8 @@ test('parts moved apart fail their join, and the fastening of that joint with it
   const joined = fastenWithBrackets(joinParts(ad(), 'part-1', 'part-2'), 'part-2@part-1');
   const apart = editProfile(joined, 'part-2', { startMm: { x: 0, y: 100, z: 500 } });
   const design = replayDesign(apart);
-  assert.match(design.failures.get('op-3'), /D no longer touches A/);
-  assert.match(design.failures.get('op-4'), /not joined/);
+  assert.match(present(design.failures.get('op-3'), 'failure of op-3'), /D no longer touches A/);
+  assert.match(present(design.failures.get('op-4'), 'failure of op-4'), /not joined/);
   assert.deepEqual(design.joints, []);
 });
 
@@ -92,7 +94,7 @@ test('a join goes with a part that is removed', () => {
 
 test('a join reads back, holding its two parts and nothing else', () => {
   const history = joinParts(ad(), 'part-1', 'part-2');
-  const data = JSON.parse(JSON.stringify(designData({ history })));
+  const data = JSON.parse(JSON.stringify(designData({ ...emptyDesign(), history })));
   assert.deepEqual(readDesign(data).history, history);
   const extra = {
     ...data,

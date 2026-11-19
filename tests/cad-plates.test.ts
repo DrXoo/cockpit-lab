@@ -7,13 +7,16 @@ import {
   editProfile,
   removePart,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from '../src/cad/plates.ts';
 import { cockpitInterferences } from '../src/cad/interference.ts';
 import { railHistory, withPlate } from './support/designs.ts';
+import { ofKind, present } from './support/lookups.ts';
 
 /** The rail with a plate on it, part-2, changed as given before it is added. */
-const boxOf = (history, partId) => replayDesign(history).resolved.get(partId).box;
+const boxOf = (history: readonly Operation[], partId: string) =>
+  present(replayDesign(history).resolved.get(partId), partId).box;
 
 test('a new plate rests on top of a profile, centered on its length, its depth along it', () => {
   const history = railHistory();
@@ -57,12 +60,15 @@ test('its size, its sheet and the way its depth runs are edited as values of its
     sheetId: 'aluminium-4',
     depthAxis: 'x',
   });
-  assert.equal(history[1].name, 'Pedal plate');
+  assert.equal(ofKind(history[1], 'add-plate').name, 'Pedal plate');
   assert.deepEqual(boxOf(history, 'part-2'), {
     min: { x: -200, y: 40, z: 400 },
     max: { x: 200, y: 44, z: 600 },
   });
-  assert.equal(editPlate(history, 'part-2', { name: '  ' })[1].name, 'Pedal plate');
+  assert.equal(
+    ofKind(editPlate(history, 'part-2', { name: '  ' })[1], 'add-plate').name,
+    'Pedal plate',
+  );
 });
 
 test('a plate may reach beyond its face, but it must rest on part of it', () => {
@@ -111,7 +117,7 @@ test('a click on a face moves the plate there, from the nearer end and centered 
 test('a plate fails when its profile turns so that it would rest on its end', () => {
   const turned = editProfile(withPlate(railHistory(), 'part-1'), 'part-1', { axis: 'y' });
   assert.match(
-    replayDesign(turned).failures.get('op-2'),
+    present(replayDesign(turned).failures.get('op-2'), 'failure of op-2'),
     /rests on a side of Rail, not on its end/,
   );
 });

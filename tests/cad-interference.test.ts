@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { resolveAssembly, type Part, type ProfilePart, type Vec3Mm } from '../src/cad/assembly.ts';
 import { CAD_CONTACT_MM, cockpitInterferences } from '../src/cad/interference.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const bar = (id, startMm, changes = {}) => ({
+const bar = (id: string, startMm: Vec3Mm, changes: Partial<ProfilePart> = {}): ProfilePart => ({
   kind: 'profile',
   id,
   name: `Bar ${id}`,
@@ -16,9 +16,9 @@ const bar = (id, startMm, changes = {}) => ({
   placement: { kind: 'anchor', startMm },
   ...changes,
 });
-const across = (id, startMm) => bar(id, startMm, { axis: 'x' });
+const across = (id: string, startMm: Vec3Mm) => bar(id, startMm, { axis: 'x' });
 
-const found = (parts) =>
+const found = (parts: readonly Part[]) =>
   cockpitInterferences(resolveAssembly(parts)).map(({ partName, otherName, depthMm, axis }) => ({
     partName,
     otherName,

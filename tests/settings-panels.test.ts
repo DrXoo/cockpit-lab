@@ -2,13 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deskPanelHTML } from '../src/settings-panels.ts';
 import { defaults, evaluate } from '../src/model.ts';
+import type { RoomConfig } from '../src/config.ts';
+import { present } from './support/lookups.ts';
 import { saveArmPose, applyArmPose } from '../src/arm-poses.ts';
 
-const viewOf = (overrides = {}) => {
+const viewOf = (overrides: Partial<RoomConfig> = {}) => {
   const state = { ...defaults, ...overrides };
   return { state, evaluation: evaluate(state) };
 };
-const keysIn = (html) => [...html.matchAll(/id="([a-zA-Z]+)-range"/g)].map((match) => match[1]);
+const keysIn = (html: string) =>
+  [...html.matchAll(/id="([a-zA-Z]+)-range"/g)].map((match) => match[1]);
 
 test('the desk panel includes the monitor arm only when there is a monitor', () => {
   const withMonitor = deskPanelHTML(viewOf(), 'desk');
@@ -35,10 +38,10 @@ test('the desk panel places the desk and its items, and nothing else in the room
   assert.doesNotMatch(html, /id="layoutPreset"/);
 });
 
-const panelWith = (state, selectedPose = '') =>
+const panelWith = (state: RoomConfig, selectedPose = '') =>
   deskPanelHTML({ state, evaluation: evaluate(state) }, 'desk', selectedPose);
 /** An option of the monitor position select, ignoring the other selects of the panel. */
-const optionOf = (html, value) =>
+const optionOf = (html: string, value: string) =>
   html
     .match(/<select id="monitorPosition">.*?<\/select>/)?.[0]
     .match(new RegExp(`<option value="${value}"[^>]*>[^<]*</option>`))?.[0];
@@ -92,8 +95,8 @@ test('joints that match no pose show as a custom position, without pose actions'
 
 test('an automatic position is chosen when the arm follows it', () => {
   const html = panelWith({ ...twoPoses(), monitorMode: 'desk' }, 'pose-1');
-  assert.match(optionOf(html, 'auto:desk'), / selected>/);
-  assert.doesNotMatch(optionOf(html, 'pose:pose-1'), /selected/);
+  assert.match(present(optionOf(html, 'auto:desk'), 'auto:desk'), / selected>/);
+  assert.doesNotMatch(present(optionOf(html, 'pose:pose-1'), 'pose:pose-1'), /selected/);
 });
 
 test('without saved poses the monitor position offers the automatic positions and a hint', () => {

@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { partsToBuyHTML } from '../src/cockpit-parts-view.ts';
+import type { Cut } from '../src/cad/cuts.ts';
+import type { PartsToBuy } from '../src/cad/parts-to-buy.ts';
 
-const cut = (sectionId, lengthMm, names) => ({
+const cut = (sectionId: string, lengthMm: number, names: string[]): Cut => ({
   systemId: 'motedis-40-i-slot-8',
   sectionId,
   lengthMm,
   quantity: names.length,
   names,
 });
-const nothing = {
+const nothing: PartsToBuy = {
   cuts: [],
   plates: [],
   connectors: [],
@@ -17,7 +19,7 @@ const nothing = {
   feet: [],
   pendingJoints: [],
 };
-const textOf = (html) =>
+const textOf = (html: string) =>
   html
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')

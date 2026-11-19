@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, sanitize, rectangle, inversePoint } from '../src/model.ts';
-import { officeChairPlacement, normalizeRoom, evaluateRoom } from '../src/room.ts';
+import { officeChairPlacement, normalizeRoom, evaluateRoom, type Chair } from '../src/room.ts';
+import type { RoomConfig } from '../src/config.ts';
+import { present } from './support/lookups.ts';
 const room = () => ({
   ...structuredClone(defaults),
   roomX: -200,
@@ -10,7 +12,7 @@ const room = () => ({
   roomD: 600,
   roomH: 250,
 });
-const chair = (more = {}) => ({
+const chair = (more: Partial<Chair> = {}): Chair => ({
   id: 'chair',
   type: 'chair',
   name: 'Silla de PC',
@@ -24,6 +26,18 @@ const chair = (more = {}) => ({
   angle: 0,
   ...more,
 });
+
+/** The first furniture item of `s`, which the test made a chair. */
+function firstChair(s: RoomConfig): Chair {
+  const item = s.roomFurniture[0];
+  assert.ok(item?.type === 'chair', 'The first furniture item is not a chair.');
+  return item;
+}
+const chairCheck = (s: RoomConfig) =>
+  present(
+    evaluateRoom(s, []).checks.find((c) => c.id === 'room-chair-chair'),
+    'chair check',
+  );
 
 test('Chair is placed in front of the working edge and faces the desk at every desk rotation', () => {
   for (const angle of [0, 45, 90, 180, 270, 355]) {
@@ -49,7 +63,7 @@ test('A low chair can fit partly under a desktop, while high armrests collide', 
       y1: 75,
     };
   assert.equal(evaluateRoom(s, [desktop]).collisions.length, 0);
-  s.roomFurniture[0].seatHeight = 58;
+  firstChair(s).seatHeight = 58;
   assert.deepEqual(evaluateRoom(s, [desktop]).collisions, ['chair']);
 });
 test('A chair in the door sweep blocks opening even though its seat is above the floor', () => {
@@ -91,15 +105,18 @@ test('Chair pull-back is a warning for furniture or walls, distinct from actual 
     }),
     e = evaluateRoom(s, []);
   assert.equal(e.collisions.length, 0);
-  assert.equal(e.checks.find((c) => c.id === 'room-chair-chair').level, 'warning');
-  s.roomFurniture[1].x = 300;
-  assert.equal(evaluateRoom(s, []).checks.find((c) => c.id === 'room-chair-chair').level, 'ok');
-  s.roomFurniture[0].z = 350;
   assert.equal(
-    evaluateRoom(s, []).checks.find((c) => c.id === 'room-chair-chair').level,
+    present(
+      e.checks.find((c) => c.id === 'room-chair-chair'),
+      'chair check',
+    ).level,
     'warning',
   );
-  s.roomFurniture[0].pullback = 0;
+  s.roomFurniture[1].x = 300;
+  assert.equal(chairCheck(s).level, 'ok');
+  s.roomFurniture[0].z = 350;
+  assert.equal(chairCheck(s).level, 'warning');
+  firstChair(s).pullback = 0;
   assert.ok(!evaluateRoom(s, []).checks.some((c) => c.id === 'room-chair-chair'));
 });
 test('Chair dimensions and pull-back round-trip in the existing JSON format', () => {
@@ -114,5 +131,5 @@ test('Chair dimensions and pull-back round-trip in the existing JSON format', ()
   assert.equal(s.roomFurniture[0].pullback, 65);
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(s))), s);
   const limited = sanitize({ ...room(), roomFurniture: [chair({ height: 70, seatHeight: 90 })] });
-  assert.equal(limited.roomFurniture[0].seatHeight, 50);
+  assert.equal(firstChair(limited).seatHeight, 50);
 });

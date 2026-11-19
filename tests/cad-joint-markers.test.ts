@@ -8,7 +8,7 @@ import {
   editProfile,
 } from '../src/cad/history.ts';
 import { fastenWithBrackets, joinParts } from '../src/cad/fastening.ts';
-import { jointMarkers } from '../src/cad/joint-markers.ts';
+import { jointMarkers, type JointMarker } from '../src/cad/joint-markers.ts';
 import { draftPlate } from '../src/cad/plates.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 
@@ -41,7 +41,8 @@ function besideA() {
     startMm: { x: 40, y: 20, z: 0 },
   });
 }
-const summary = (markers) => markers.map(({ id, state, pointMm }) => [id, state, pointMm]);
+const summary = (markers: readonly JointMarker[]) =>
+  markers.map(({ id, state, pointMm }) => [id, state, pointMm]);
 
 test('a joint without connectors is marked where its parts meet, selected or not', () => {
   const expected = [[JOINT, 'pending', { x: 0, y: 40, z: 500 }]];

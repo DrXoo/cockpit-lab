@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8');
 
 /** The `--token: #hex` pairs of the block that starts with `opening`. */
-function tokensOf(opening) {
+function tokensOf(opening: string): Record<string, string> {
   const start = css.indexOf(opening);
   assert.notEqual(start, -1, `theme.css has no ${opening} block`);
   const body = css.slice(start + opening.length, css.indexOf('}', start));
@@ -19,22 +19,24 @@ const light = tokensOf(':root {');
 const dark = tokensOf(":root[data-theme='dark'] {");
 const THEMES = { light, dark };
 
-function luminance(hex) {
-  const channel = (i) => {
+function luminance(hex: string): number {
+  const channel = (i: number) => {
     const c = parseInt(hex.slice(i, i + 2), 16) / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
   return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
 }
-function contrast(a, b) {
+function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
   return (x + 0.05) / (y + 0.05);
 }
 
 const PANELS = ['--surface', '--surface-page', '--surface-subtle', '--surface-sunken'];
-const TEXT = [
+type Pair = [front: string, back: string];
+
+const TEXT: Pair[] = [
   ...['--text', '--text-secondary', '--text-muted'].flatMap((text) =>
-    PANELS.map((panel) => [text, panel]),
+    PANELS.map((panel): Pair => [text, panel]),
   ),
   ['--text', '--surface-strong'],
   ['--text-inverse', '--surface-inverse'],
@@ -51,7 +53,7 @@ const TEXT = [
   ['--opening', '--surface-sunken'],
   ['--text-muted', '--scene-background'],
 ];
-const GRAPHICS = [
+const GRAPHICS: Pair[] = [
   ['--accent', '--surface'],
   ['--accent-fill', '--surface-strong'],
   ['--ok-fill', '--surface-strong'],
@@ -64,10 +66,11 @@ test('the dark theme redefines every color token', () => {
 });
 
 for (const [name, tokens] of Object.entries(THEMES)) {
-  for (const [minimum, pairs] of [
+  const requirements: [minimum: number, pairs: Pair[]][] = [
     [4.5, TEXT],
     [3, GRAPHICS],
-  ])
+  ];
+  for (const [minimum, pairs] of requirements)
     test(`${name} theme: ${minimum}:1 contrast for ${minimum === 3 ? 'graphics' : 'text'}`, () => {
       for (const [front, back] of pairs) {
         const ratio = contrast(tokens[front], tokens[back]);

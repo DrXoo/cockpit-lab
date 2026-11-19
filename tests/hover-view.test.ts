@@ -1,9 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import {
+  resolveAssembly,
+  type FootPart,
+  type PlatePart,
+  type ProfilePart,
+} from '../src/cad/assembly.ts';
 import { hoverLabel } from '../src/hover-view.ts';
+import { present } from './support/lookups.ts';
 
-const rail = {
+const rail: ProfilePart = {
   kind: 'profile',
   id: 'rail',
   name: 'Left rail',
@@ -14,7 +20,7 @@ const rail = {
   lengthMm: 1200,
   placement: { kind: 'anchor', startMm: { x: 0, y: 40, z: 0 } },
 };
-const plate = {
+const plate: PlatePart = {
   kind: 'plate',
   id: 'plate',
   name: 'Plate 6',
@@ -26,7 +32,7 @@ const plate = {
   ownHoles: [],
   placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 600, fromEnd: 'start' },
 };
-const foot = {
+const foot: FootPart = {
   kind: 'foot',
   id: 'foot',
   name: 'Leveling foot 3',
@@ -36,10 +42,13 @@ const foot = {
 const resolved = resolveAssembly([rail, plate, foot]);
 
 test('a profile is named with its section and length', () => {
-  assert.equal(hoverLabel(resolved.get('rail')), 'Left rail · 40 × 80 · 1200 mm');
+  assert.equal(hoverLabel(present(resolved.get('rail'), 'rail')), 'Left rail · 40 × 80 · 1200 mm');
 });
 
 test('a plate is named with its size and thickness, and a foot by its name', () => {
-  assert.equal(hoverLabel(resolved.get('plate')), 'Plate 6 · 300 × 250 mm · 8 mm');
-  assert.equal(hoverLabel(resolved.get('foot')), 'Leveling foot 3');
+  assert.equal(
+    hoverLabel(present(resolved.get('plate'), 'plate')),
+    'Plate 6 · 300 × 250 mm · 8 mm',
+  );
+  assert.equal(hoverLabel(present(resolved.get('foot'), 'foot')), 'Leveling foot 3');
 });

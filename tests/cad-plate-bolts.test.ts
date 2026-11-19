@@ -6,6 +6,7 @@ import {
   draftGrowth,
   editProfile,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
 import { draftPlate, editPlate, editPlateDraft } from '../src/cad/plates.ts';
 import {
@@ -17,6 +18,8 @@ import {
 } from '../src/cad/fastening.ts';
 import { cockpitInterferences } from '../src/cad/interference.ts';
 import { partsToBuy } from '../src/cad/parts-to-buy.ts';
+import type { Axis } from '../src/cad/assembly.ts';
+import { ofKind, present } from './support/lookups.ts';
 
 /**
  * Two 40 × 40 rails front to back, 1000 mm long and 200 mm apart, and a 300 × 300 × 8 mm plate
@@ -41,9 +44,10 @@ function railsAndPlate({ leftRail = {}, acrossMm = 100 } = {}) {
   );
 }
 const LEFT = 'part-3@part-1';
-const centersOf = (history) =>
+const AXES: readonly Axis[] = ['x', 'y', 'z'];
+const centersOf = (history: readonly Operation[]) =>
   replayDesign(history).connectors.map(({ box }) =>
-    ['x', 'y', 'z'].map((axis) => (box.min[axis] + box.max[axis]) / 2),
+    AXES.map((axis) => (box.min[axis] + box.max[axis]) / 2),
   );
 
 test('a plate is joined to the other profiles it touches, the plate first', () => {
@@ -101,14 +105,19 @@ test('a plate that covers no slot takes no bolts, and moving it off its slots fa
   );
   const bolted = fastenWithBolts(railsAndPlate(), LEFT, 2);
   const moved = editPlate(bolted, 'part-3', { acrossMm: 150 });
-  assert.match(replayDesign(moved).failures.get('op-4'), /covers no slot of Left rail/);
+  assert.match(
+    present(replayDesign(moved).failures.get('op-4'), 'failure of op-4'),
+    /covers no slot of Left rail/,
+  );
 });
 
 test('the bolts in each slot are set on the joint, in its one step, and none takes it away', () => {
   const three = fastenWithBolts(railsAndPlate(), LEFT, 3);
   const one = fastenWithBolts(three, LEFT, 1);
   assert.equal(one.length, 4);
-  assert.deepEqual(one.at(-1).connectors, [{ typeId: 'plate-bolt-m8', perSlot: 1 }]);
+  assert.deepEqual(ofKind(one.at(-1), 'fasten-joint').connectors, [
+    { typeId: 'plate-bolt-m8', perSlot: 1 },
+  ]);
   assert.equal(fastenWithBolts(one, LEFT, 0).length, 3);
   assert.throws(() => fastenWithBolts(one, LEFT, 11), /between 1 and 10/);
   assert.throws(() => fastenWithBolts(one, LEFT, 1.5), /whole number/);
@@ -130,7 +139,7 @@ test('the joints of a plate say how many bolts each slot has, and how many slots
   const profileJoint = jointsOfPart(grown, 'part-1').find(
     (found) => found.jointId === 'part-4@part-1',
   );
-  assert.equal(profileJoint.bolts, null);
+  assert.equal(present(profileJoint, 'joint part-4@part-1').bolts, null);
 });
 
 test('bolt heads stand on the plate without reaching into it', () => {
