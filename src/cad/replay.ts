@@ -2,6 +2,7 @@
 // operation that no longer applies, because the part it refers to is gone or it no longer fits
 // there, is a failed operation: it adds nothing, so what depends on it fails too, and the rest
 // still applies. Replaying can stop at the history marker, to show the design at that step.
+// Every part is replayed at the center of its travel; the fitted pose moves it along it.
 import {
   anchorWhereItIs,
   faceAxis,
@@ -16,7 +17,9 @@ import {
 } from './assembly.ts';
 import { CAD_CONTACT_MM } from './interference.ts';
 import {
+  adjustmentOf,
   AXES,
+  isAdjustable,
   isBolts,
   makesAPart,
   makesAProfile,
@@ -25,6 +28,8 @@ import {
   operationMaking,
   partMadeBy,
   type AddPlate,
+  type Adjustment,
+  type AdjustableOperation,
   type FastenJoint,
   type JoinParts,
   type MakingOperation,
@@ -41,6 +46,7 @@ import {
   touchingFace,
   type Joint,
 } from './joints.ts';
+import { fittedPose, slidOperation, type FittedPose } from './travel.ts';
 
 export interface ReplayedDesign {
   /** The parts the replayed steps leave, in the order they were made. */
@@ -51,7 +57,12 @@ export interface ReplayedDesign {
   joints: Joint[];
   /** The connectors on the joints, from the fastenings that apply. */
   connectors: PlacedConnector[];
+  /** The design as fitted: each adjusted part where it is along its travel. */
+  fitted: FittedPose;
 }
+
+/** A design replayed with its parts at the centers of their travels, before it is fitted. */
+type DesignAtCenter = Omit<ReplayedDesign, 'fitted'>;
 
 /** Replays the first `upTo` operations: all of them unless the history marker is back. */
 export function replayDesign(
@@ -69,7 +80,12 @@ export function replayDesign(
     if (found.size === 0) {
       // Connectors fit or not once every part is where it ends up, as spans do.
       const connectors = placedConnectors(steps, design);
-      if (connectors.misfits.size === 0) return { ...design, connectors: connectors.placed };
+      if (connectors.misfits.size === 0)
+        return {
+          ...design,
+          connectors: connectors.placed,
+          fitted: fittedPose(steps, design.resolved, connectors.placed),
+        };
       for (const [id, reason] of connectors.misfits) lateFailures.set(id, reason);
       continue;
     }
@@ -84,7 +100,7 @@ function replaySteps(
   history: readonly Operation[],
   steps: readonly Operation[],
   lateFailures: ReadonlyMap<string, string>,
-): ReplayedDesign {
+): DesignAtCenter {
   let parts: Part[] = [];
   const joins: JoinParts[] = [];
   const failures = new Map(lateFailures);
@@ -162,7 +178,7 @@ function missingJoint(operation: FastenJoint, context: StepContext): string | nu
  */
 function placedConnectors(
   steps: readonly Operation[],
-  design: ReplayedDesign,
+  design: DesignAtCenter,
 ): { placed: PlacedConnector[]; misfits: Map<string, string> } {
   const placed: PlacedConnector[] = [];
   const misfits = new Map<string, string>();
@@ -207,8 +223,62 @@ const HANGING_FROM: Record<Exclude<MakingOperation['kind'], 'add-anchored-profil
   'mount-peripheral': ['It is mounted on', 'a peripheral is mounted on a profile or a plate'],
 };
 
-/** The parts with the one the operation makes, or why it cannot make it at this step. */
+/**
+ * The parts with the one the operation makes, or why it cannot make it at this step: at the
+ * center of its travel or at either end of it.
+ */
 function making(operation: MakingOperation, context: StepContext): Part[] | string {
+  const parts = placing(operation, context);
+  const adjustment = adjustmentOf(operation);
+  if (typeof parts === 'string' || adjustment === undefined || !isAdjustable(operation))
+    return parts;
+  return misfitTravel(operation, adjustment, context) ?? parts;
+}
+
+/**
+ * Why the travel of a part takes it somewhere it cannot be: along an end of a profile, which
+ * has a single place, or off its parent at either end.
+ */
+function misfitTravel(
+  operation: AdjustableOperation,
+  adjustment: Adjustment,
+  context: StepContext,
+): string | null {
+  const parent = context.parts.find((part) => part.id === operation.parentId);
+  const along =
+    parent?.kind === 'profile' ? parent.axis : parent?.kind === 'plate' ? parent.depthAxis : null;
+  if (!parent || along === null) return null;
+  if (along === faceAxis(operation.face))
+    return `${operation.name} is on an end of ${parent.name}, which has a single place for it: it cannot slide there.`;
+  const { axis, travelMm } = adjustment;
+  for (const endMm of [-travelMm / 2, travelMm / 2]) {
+    const slid = slidOperation(operation, along, axis, endMm);
+    const misfit =
+      slid.kind === 'mount-peripheral'
+        ? peripheralOffItsPart(slid, context)
+        : placing(slid, context);
+    if (typeof misfit === 'string') return `At one end of its ${travelMm} mm travel, ${misfit}`;
+  }
+  return null;
+}
+
+/**
+ * Why a peripheral slid along its travel no longer sits over the part it is mounted on, or
+ * null. Its mounting stays bolted where it is attached and the peripheral slides on it, as a
+ * seat on its rails, so it only has to stay over part of the face, as a plate does; its origin
+ * may leave a profile narrower than its travel.
+ */
+function peripheralOffItsPart(operation: MountPeripheral, context: StepContext): string | null {
+  const resolved = resolveAssembly([...context.parts, partMadeBy(operation)]);
+  const peripheral = resolved.get(operation.partId);
+  const parent = resolved.get(operation.parentId);
+  if (!peripheral || !parent) return null;
+  if (overlapsAcross(peripheral.box, parent.box, faceAxis(operation.face))) return null;
+  return `${operation.name} would no longer sit over ${parent.part.name}.`;
+}
+
+/** The parts with the one the operation makes where its values place it, or why it cannot. */
+function placing(operation: MakingOperation, context: StepContext): Part[] | string {
   if (operation.kind === 'add-anchored-profile') return [...context.parts, partMadeBy(operation)];
   const [refers, needsAProfile] = HANGING_FROM[operation.kind];
   const missing = missingPart(operation.parentId, context, refers);
@@ -364,6 +434,8 @@ function misfitOnItsFace(
   const faceWidthMm = parent.box.max[across] - parent.box.min[across];
   const extentMm = parent.box.max[along] - parent.box.min[along];
   const extent = parentPart.kind === 'plate' ? 'depth' : 'length';
+  if (operation.alongMm < 0)
+    return `${operation.name} would hang off ${parentPart.name}: ${-operation.alongMm} mm before the end it is measured from.`;
   if (operation.alongMm > extentMm)
     return `${operation.name} would hang off ${parentPart.name}: ${operation.alongMm} mm along it is more than its ${Math.round(extentMm)} mm ${extent}.`;
   if (Math.abs(operation.acrossMm) > faceWidthMm / 2)
@@ -372,7 +444,7 @@ function misfitOnItsFace(
 }
 
 /** The spans that meet their part at a length no profile can have, with why. */
-function misfitSpans(history: readonly Operation[], design: ReplayedDesign): Map<string, string> {
+function misfitSpans(history: readonly Operation[], design: DesignAtCenter): Map<string, string> {
   const found = new Map<string, string>();
   for (const operation of history.filter(makesAPart)) {
     if (operation.kind !== 'grow-profile' || operation.reachesId === undefined) continue;

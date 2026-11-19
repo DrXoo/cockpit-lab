@@ -23,6 +23,7 @@ import {
   FACES,
   makesAPart,
   MAX_PART_NAME_LENGTH,
+  type Adjustment,
   type ConnectorChoice,
   type Operation,
   type ParentEnd,
@@ -197,6 +198,7 @@ function readPlate(data: Record<string, unknown>): Operation {
     'fromEnd',
     'alongMm',
     'acrossMm',
+    'adjustment',
   ]);
   if (typeof data.name !== 'string') throw new Error('A part name must be text');
   return {
@@ -213,6 +215,7 @@ function readPlate(data: Record<string, unknown>): Operation {
     fromEnd: parentEnd(data.fromEnd),
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
+    ...optionalAdjustment(data.adjustment),
   };
 }
 
@@ -239,6 +242,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     'alongMm',
     'acrossMm',
     'facing',
+    'adjustment',
   ]);
   if (typeof data.name !== 'string') throw new Error('A part name must be text');
   if (!Array.isArray(data.contactPoints)) throw new Error('A peripheral needs its contact points');
@@ -262,6 +266,20 @@ function readMounting(data: Record<string, unknown>): Operation {
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
     facing: face(data.facing),
+    ...optionalAdjustment(data.adjustment),
+  };
+}
+
+/** An adjustment, stored only on a part that has one; its operation checks its values. */
+function optionalAdjustment(value: unknown): { adjustment?: Adjustment } {
+  if (value === undefined) return {};
+  const data = recordOf(value, 'adjustment', ['axis', 'travelMm', 'positionMm']);
+  return {
+    adjustment: {
+      axis: axis(data.axis),
+      travelMm: millimetres(data.travelMm, 'travel'),
+      positionMm: millimetres(data.positionMm, 'position along a travel'),
+    },
   };
 }
 
@@ -340,6 +358,7 @@ function readGrowth(data: Record<string, unknown>): Operation {
     'acrossMm',
     'way',
     'reachesId',
+    'adjustment',
   ]);
   return {
     kind: 'grow-profile',
@@ -351,6 +370,7 @@ function readGrowth(data: Record<string, unknown>): Operation {
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
     way: data.way === 'out' ? 'out' : wayAlongAFace(data.way),
     ...(data.reachesId === undefined ? {} : { reachesId: identifier(data.reachesId) }),
+    ...optionalAdjustment(data.adjustment),
   };
 }
 

@@ -38,6 +38,20 @@ export interface ProfileShape {
   lengthMm: number;
 }
 
+/**
+ * A travel along which a part slides without changing any part or cut, as a seat on its rails or
+ * a plate in its slots (CONTEXT.md). Its operation still places the part at the center of the
+ * travel, where its joints and cuts are.
+ */
+export interface Adjustment {
+  /** The axis of the face its part hangs from that it slides along. */
+  axis: Axis;
+  /** The whole travel, end to end, centered where the part is attached. */
+  travelMm: number;
+  /** Where the part is along it: from its center, towards + on its axis. */
+  positionMm: number;
+}
+
 /** Adds a profile placed on its own, hanging from no other part. */
 export interface AddAnchoredProfile extends ProfileShape {
   kind: 'add-anchored-profile';
@@ -78,6 +92,8 @@ export interface GrowProfile extends ProfileShape {
    * and `lengthMm` the length it last took, kept when the faces stop facing each other.
    */
   reachesId?: string;
+  /** Never on a span, whose length depends on the part it reaches. */
+  adjustment?: Adjustment;
 }
 
 export type GrowthWay = 'out' | Face;
@@ -130,6 +146,7 @@ export interface AddPlate {
   alongMm: number;
   /** From the center of the face, towards + on the axis across it, to the plate's center. */
   acrossMm: number;
+  adjustment?: Adjustment;
 }
 
 /** What a peripheral is made of: the values of the type it was mounted from, as copied. */
@@ -165,6 +182,7 @@ export interface MountPeripheral extends PeripheralShape {
   acrossMm: number;
   /** The way the driver faces when using it, along the face: +Z as usually mounted. */
   facing: Face;
+  adjustment?: Adjustment;
 }
 
 /** A corner bracket a fastening puts on its joint, on one side of the joined part. */
@@ -233,6 +251,18 @@ export const makesAPart = (operation: Operation): operation is MakingOperation =
 
 export const makesAProfile = (operation: Operation): operation is ProfileOperation =>
   operation.kind === 'add-anchored-profile' || operation.kind === 'grow-profile';
+
+/** An operation that attaches a part that can slide along an adjustment. */
+export type AdjustableOperation = GrowProfile | AddPlate | MountPeripheral;
+
+export const isAdjustable = (operation: Operation): operation is AdjustableOperation =>
+  operation.kind === 'grow-profile' ||
+  operation.kind === 'add-plate' ||
+  operation.kind === 'mount-peripheral';
+
+/** The adjustment of the part an operation makes, if it has one. */
+export const adjustmentOf = (operation: Operation): Adjustment | undefined =>
+  isAdjustable(operation) ? operation.adjustment : undefined;
 
 /** The values the inspector edits on a foot. */
 export interface FootValues {
@@ -307,6 +337,8 @@ export const MAX_ENVELOPE_SIDE_MM = 2000;
 export const MAX_HOLE_DIAMETER_MM = 30;
 /** A backrest leans back from upright at most this far, lying flat. */
 export const MAX_BACKREST_DEG = 90;
+/** Longer travels than this are more than a compact cockpit needs, so mistyped. */
+export const MAX_TRAVEL_MM = 1000;
 
 export const AXES: readonly Axis[] = ['x', 'y', 'z'];
 export const FACES: readonly Face[] = ['+y', '-y', '+x', '-x', '+z', '-z'];
@@ -564,6 +596,7 @@ function checkPlate(operation: AddPlate) {
   checkPlaceAlong(operation);
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
+  checkAdjustment(operation);
 }
 
 function checkPeripheral(operation: MountPeripheral) {
@@ -598,6 +631,7 @@ function checkPeripheral(operation: MountPeripheral) {
   checkPlaceAlong(operation);
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
+  checkAdjustment(operation);
 }
 
 function checkEnvelope({ widthMm, heightMm, depthMm }: Envelope) {
@@ -649,6 +683,28 @@ function checkGrowth(operation: GrowProfile) {
     throw new Error('A profile lying on a face cannot reach another part: it lies along the face.');
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
+  if (operation.reachesId !== undefined && operation.adjustment !== undefined)
+    throw new Error('A span has no adjustment: its length comes from the part it reaches.');
+  checkAdjustment(operation);
+}
+
+/**
+ * An adjustment runs along the face its part hangs from, and its part is somewhere along its
+ * travel. Whether the travel keeps the part on its parent is known only once it is replayed.
+ */
+function checkAdjustment({ adjustment, face }: AdjustableOperation) {
+  if (adjustment === undefined) return;
+  const { axis, travelMm, positionMm } = adjustment;
+  if (!AXES.includes(axis)) throw new Error(`Unknown axis: ${axis}`);
+  if (axis === faceAxis(face))
+    throw new Error('An adjustment runs along the face its part hangs from, not out of it.');
+  if (!Number.isFinite(travelMm) || travelMm <= 0 || travelMm > MAX_TRAVEL_MM)
+    throw new Error(`A travel must be more than 0 and at most ${MAX_TRAVEL_MM} mm.`);
+  const halfMm = travelMm / 2;
+  if (!Number.isFinite(positionMm) || Math.abs(positionMm) > halfMm)
+    throw new Error(
+      `A position along a ${travelMm} mm travel is between ${-halfMm} and ${halfMm} mm.`,
+    );
 }
 
 /** How a step is named in the history: the part it makes, or the part a removal takes away. */

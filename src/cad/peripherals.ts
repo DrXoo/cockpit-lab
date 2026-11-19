@@ -11,7 +11,12 @@ import {
   type ResolvedPart,
   type Vec3Mm,
 } from './assembly.ts';
-import { M8_CLEARANCE_MM, peripheralType, peripheralTypes } from './catalog.ts';
+import {
+  M8_CLEARANCE_MM,
+  peripheralType,
+  peripheralTypes,
+  type PeripheralType,
+} from './catalog.ts';
 import {
   changeOperation,
   checkedOperation,
@@ -27,8 +32,10 @@ import {
   type ParentEnd,
   type PeripheralValues,
   type PeripheralShape,
+  type Adjustment,
 } from './history.ts';
 import type { Hole, MountingPattern } from './plate.ts';
+import { adjustmentTurnedWith, withinTravel } from './travel.ts';
 
 /** A peripheral faces the front of the cockpit, as the driver does, unless it cannot. */
 const USUAL_FACING: Face = '+z';
@@ -49,6 +56,8 @@ export function draftPeripheral(
   const { part } = parent;
   const onAnUpright = alongAxisOf(parent) === 'y';
   const face: Face = part.kind === 'plate' ? part.normal : onAnUpright ? '+z' : '+y';
+  const facing = facingAlong(face, USUAL_FACING);
+  const adjustment = railsOf(type, facing, undefined);
   return checkedOperation({
     kind: 'mount-peripheral',
     ...nextIdentifiers(history),
@@ -61,8 +70,26 @@ export function draftPeripheral(
     fromEnd: 'start',
     alongMm: Math.round(extentAlong(parent) / 2),
     acrossMm: 0,
-    facing: facingAlong(face, USUAL_FACING),
+    facing,
+    ...(adjustment === undefined ? {} : { adjustment }),
   });
+}
+
+/**
+ * The adjustment a peripheral of `type` takes: a seat's along its rails, the way it faces, at
+ * the position it had, brought within them; for a type without rails, the one it had.
+ */
+function railsOf(
+  type: PeripheralType,
+  facing: Face,
+  had: Adjustment | undefined,
+): Adjustment | undefined {
+  if (type.railTravelMm === undefined) return had;
+  return {
+    axis: had?.axis ?? faceAxis(facing),
+    travelMm: type.railTravelMm,
+    positionMm: withinTravel(had?.positionMm ?? 0, type.railTravelMm),
+  };
 }
 
 /**
@@ -102,6 +129,8 @@ export function editPeripheralDraft(
   changes: Partial<PeripheralValues>,
 ): MountPeripheral {
   const face = changes.face ?? draft.face;
+  const facing = changes.facing ?? facingAlong(face, draft.facing);
+  const adjustment = adjustmentTurnedWith(draft.adjustment, draft.facing, face, facing);
   const backrestDeg = changes.backrestDeg ?? draft.backrestDeg;
   const edited: MountPeripheral = {
     ...draft,
@@ -117,7 +146,8 @@ export function editPeripheralDraft(
     alongMm: changes.alongMm ?? draft.alongMm,
     acrossMm: changes.acrossMm ?? draft.acrossMm,
     name: cleanUserText(changes.name, draft.name, MAX_PART_NAME_LENGTH),
-    facing: changes.facing ?? facingAlong(face, draft.facing),
+    facing,
+    ...(adjustment === undefined ? {} : { adjustment }),
   };
   return checkedOperation(onAnEndAtItsCenter(history, edited));
 }
@@ -169,6 +199,7 @@ export function swapPeripheralType(
 ): Operation[] {
   const operation = peripheralStep(history, partId);
   const type = peripheralType(typeId);
+  const adjustment = railsOf(type, operation.facing, operation.adjustment);
   const swapped: MountPeripheral = {
     kind: 'mount-peripheral',
     id: operation.id,
@@ -183,6 +214,7 @@ export function swapPeripheralType(
     alongMm: operation.alongMm,
     acrossMm: operation.acrossMm,
     facing: operation.facing,
+    ...(adjustment === undefined ? {} : { adjustment }),
   };
   return changeOperation(history, checkedOperation(swapped));
 }

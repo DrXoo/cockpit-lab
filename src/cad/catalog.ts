@@ -167,6 +167,8 @@ export interface PeripheralType {
   contactPoints: readonly ContactPoint[];
   /** For a seat, the backrest's angle back from upright. */
   backrestDeg?: number;
+  /** For a seat on sliders, how far its rails let it slide, end to end, the way it faces. */
+  railTravelMm?: number;
   source: DataSource;
 }
 
@@ -205,6 +207,7 @@ const PERIPHERAL_TYPES: readonly PeripheralType[] = [
     mountingPattern: holesAtCorners(360, 320, M8_CLEARANCE_MM),
     contactPoints: [{ role: 'hip', offsetMm: { x: 0, y: 110, z: -170 } }],
     backrestDeg: 25,
+    railTravelMm: 200,
     source: GENERIC_PERIPHERAL,
   },
   {

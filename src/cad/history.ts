@@ -14,6 +14,7 @@ import {
 } from './assembly.ts';
 import { footType, MOTEDIS_SERIES_40_SLOT_8, profileSection } from './catalog.ts';
 import { replayDesign } from './replay.ts';
+import { adjustmentOnFace } from './travel.ts';
 import {
   AXES,
   checkedOperation,
@@ -374,6 +375,9 @@ function editedGrowth(
   if (typeof changes.reachesId === 'string' && changes.reachesId !== operation.reachesId)
     checkReach(history, operation, changes.reachesId);
   const face = changes.face ?? operation.face;
+  const parent = operationMaking(history, operation.parentId);
+  const parentAxis = parent && makesAProfile(parent) ? lengthAxisOf(parent) : faceAxis(face);
+  const adjustment = adjustmentOnFace(operation.adjustment, face, parentAxis);
   const edited = onItsFace(history, {
     kind: operation.kind,
     id: operation.id,
@@ -385,6 +389,7 @@ function editedGrowth(
     alongMm: changes.alongMm ?? operation.alongMm,
     acrossMm: changes.acrossMm ?? operation.acrossMm,
     way: changes.way ?? keptLying(history, operation, face),
+    ...(adjustment === undefined ? {} : { adjustment }),
   });
   return reachesId === undefined ? edited : { ...edited, reachesId };
 }

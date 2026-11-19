@@ -2,6 +2,7 @@
 // plate moved to a face clicked in the view, and the edits of a plate's step. Lengths are in mm.
 import { cleanUserText } from '../user-text.ts';
 import { faceAxis, type Axis, type Face, type Vec3Mm } from './assembly.ts';
+import { adjustmentOnFace } from './travel.ts';
 import {
   AXES,
   changeOperation,
@@ -84,6 +85,7 @@ export function editPlateDraft(
   changes: Partial<PlateValues>,
 ): AddPlate {
   const face = changes.face ?? draft.face;
+  const adjustment = adjustmentOnFace(draft.adjustment, face, profileAxisOf(history, draft));
   return checkedOperation({
     ...draft,
     ...changes,
@@ -92,7 +94,14 @@ export function editPlateDraft(
     depthAxis:
       changes.depthAxis ??
       (face === draft.face ? draft.depthAxis : keptDepthAxis(history, draft, face)),
+    ...(adjustment === undefined ? {} : { adjustment }),
   });
+}
+
+/** The axis the profile a plate rests on runs along; its depth's for a plate without one. */
+function profileAxisOf(history: readonly Operation[], plate: AddPlate): Axis {
+  const parent = operationMaking(history, plate.parentId);
+  return parent && makesAProfile(parent) ? lengthAxisOf(parent) : plate.depthAxis;
 }
 
 /** Changes the values of the step that rests a plate on a profile. */
