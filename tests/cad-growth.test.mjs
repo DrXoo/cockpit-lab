@@ -1,30 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addAnchoredProfile,
-  addOperation,
   draftGrowth,
-  editDraft,
   editProfile,
   growthAt,
   replayDesign,
   replayHistory,
 } from '../src/cad/history.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
+import { railHistory, withGrowth } from './support/designs.mjs';
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
-const grow = (history, parentId, changes = {}) => {
-  const draft = editDraft(history, draftGrowth(history, parentId), changes);
-  return addOperation(history, draft);
-};
 const boxOf = (history, partId) => resolveAssembly(replayHistory(history)).get(partId).box;
 
 test('a profile grows out of a face of another, perpendicular, where its distance puts it', () => {
-  const history = grow(railHistory(), 'part-1', {
+  const history = withGrowth(railHistory(), 'part-1', {
     face: '+y',
     fromEnd: 'start',
     alongMm: 100,
@@ -39,7 +28,7 @@ test('a profile grows out of a face of another, perpendicular, where its distanc
 });
 
 test('the distance is measured from either end, and the offset moves it across the face', () => {
-  const history = grow(railHistory(), 'part-1', {
+  const history = withGrowth(railHistory(), 'part-1', {
     face: '+x',
     fromEnd: 'end',
     alongMm: 200,
@@ -53,10 +42,10 @@ test('the distance is measured from either end, and the offset moves it across t
 });
 
 test('a profile grown out of an underside hangs down, and out of an end it carries on', () => {
-  const down = grow(railHistory(), 'part-1', { face: '-y', alongMm: 500, lengthMm: 100 });
+  const down = withGrowth(railHistory(), 'part-1', { face: '-y', alongMm: 500, lengthMm: 100 });
   assert.deepEqual(boxOf(down, 'part-2').min.y, -100);
   assert.deepEqual(boxOf(down, 'part-2').max.y, 0);
-  const onwards = grow(railHistory(), 'part-1', { face: '+z', lengthMm: 200 });
+  const onwards = withGrowth(railHistory(), 'part-1', { face: '+z', lengthMm: 200 });
   assert.deepEqual(boxOf(onwards, 'part-2'), {
     min: { x: -20, y: 0, z: 1000 },
     max: { x: 20, y: 40, z: 1200 },
@@ -100,7 +89,11 @@ test('a new growth starts from the middle of the top, or of the front of an upri
 });
 
 test('moving or lengthening a part carries along what grows out of it', () => {
-  const history = grow(railHistory(), 'part-1', { fromEnd: 'end', alongMm: 100, lengthMm: 300 });
+  const history = withGrowth(railHistory(), 'part-1', {
+    fromEnd: 'end',
+    alongMm: 100,
+    lengthMm: 300,
+  });
   const moved = editProfile(history, 'part-1', { startMm: { x: 100, y: 20, z: 50 } });
   assert.deepEqual(boxOf(moved, 'part-2').min, { x: 80, y: 40, z: 930 });
   const longer = editProfile(history, 'part-1', { lengthMm: 1500 });
@@ -108,7 +101,7 @@ test('moving or lengthening a part carries along what grows out of it', () => {
 });
 
 test('a grown profile edits its place on the face rather than a position of its own', () => {
-  const history = grow(railHistory(), 'part-1', { lengthMm: 300 });
+  const history = withGrowth(railHistory(), 'part-1', { lengthMm: 300 });
   const edited = editProfile(history, 'part-2', { alongMm: 250, acrossMm: -5, lengthMm: 400 });
   assert.deepEqual(boxOf(edited, 'part-2'), {
     min: { x: -25, y: 40, z: 230 },
@@ -119,7 +112,7 @@ test('a grown profile edits its place on the face rather than a position of its 
 });
 
 test('moving a growth to another face turns its section when it has to', () => {
-  let history = grow(railHistory(), 'part-1', { sectionId: '40x80', heightAxis: 'x' });
+  let history = withGrowth(railHistory(), 'part-1', { sectionId: '40x80', heightAxis: 'x' });
   history = editProfile(history, 'part-2', { face: '+x' });
   assert.equal(history[1].heightAxis, 'y');
   const onEnd = editProfile(history, 'part-2', { face: '-z' });
@@ -128,14 +121,14 @@ test('moving a growth to another face turns its section when it has to', () => {
 });
 
 test('a growth must stay on its parent face, and fails when its parent leaves it hanging', () => {
-  const history = grow(railHistory(), 'part-1', { fromEnd: 'start', alongMm: 900 });
+  const history = withGrowth(railHistory(), 'part-1', { fromEnd: 'start', alongMm: 900 });
   assert.throws(() => editProfile(history, 'part-2', { alongMm: 1001 }), /Rail/);
   assert.throws(() => editProfile(history, 'part-2', { acrossMm: 21 }), /Rail/);
   assert.throws(() => editProfile(history, 'part-2', { alongMm: -1 }), /distance/);
   const shorter = editProfile(history, 'part-1', { lengthMm: 800 });
   assert.match(replayDesign(shorter).failures.get('op-2'), /40 × 40 profile 2 would hang off Rail/);
   assert.throws(() => editProfile(history, 'part-2', { face: '+w' }), /face/);
-  assert.throws(() => grow(railHistory(), 'part-7'), /part-7/);
+  assert.throws(() => withGrowth(railHistory(), 'part-7'), /part-7/);
 });
 
 test('a click on a face of the parent puts the growth there, measured from the nearer end', () => {
@@ -153,7 +146,7 @@ test('a click on a face of the parent puts the growth there, measured from the n
 });
 
 test('a profile can lie along a face, running the way it is given from its place there', () => {
-  const forward = grow(railHistory(), 'part-1', {
+  const forward = withGrowth(railHistory(), 'part-1', {
     face: '+y',
     way: '+z',
     fromEnd: 'start',
@@ -165,7 +158,7 @@ test('a profile can lie along a face, running the way it is given from its place
     min: { x: -20, y: 40, z: 100 },
     max: { x: 20, y: 80, z: 400 },
   });
-  const sideways = grow(railHistory(), 'part-1', { way: '-x', lengthMm: 300 });
+  const sideways = withGrowth(railHistory(), 'part-1', { way: '-x', lengthMm: 300 });
   assert.deepEqual(boxOf(sideways, 'part-2'), {
     min: { x: -300, y: 40, z: 480 },
     max: { x: 0, y: 80, z: 520 },
@@ -173,7 +166,7 @@ test('a profile can lie along a face, running the way it is given from its place
 });
 
 test('a profile lying on a face rests its whole section on it', () => {
-  const history = grow(railHistory(), 'part-1', {
+  const history = withGrowth(railHistory(), 'part-1', {
     face: '+x',
     way: '+z',
     sectionId: '40x80',
@@ -188,7 +181,7 @@ test('a profile lying on a face rests its whole section on it', () => {
 });
 
 test('a profile cannot lie towards the face it lies on, and a new face keeps it lying', () => {
-  const lying = grow(railHistory(), 'part-1', { way: '+x' });
+  const lying = withGrowth(railHistory(), 'part-1', { way: '+x' });
   assert.throws(() => editProfile(lying, 'part-2', { way: '+y' }), /way/);
   const moved = editProfile(lying, 'part-2', { face: '+x' });
   assert.equal(moved[1].way, '+z', 'it turns to lie along the part it grows from');

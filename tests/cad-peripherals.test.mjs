@@ -1,14 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  addAnchoredProfile,
-  addFoot,
-  addOperation,
-  editProfile,
-  removePart,
-  replayDesign,
-} from '../src/cad/history.ts';
-import { draftPlate } from '../src/cad/plates.ts';
+import { addFoot, addOperation, removePart, replayDesign } from '../src/cad/history.ts';
 import {
   addMountingHole,
   differsFromItsType,
@@ -21,23 +13,8 @@ import {
 } from '../src/cad/peripherals.ts';
 import { peripheralType, peripheralTypes } from '../src/cad/catalog.ts';
 import { jointsOf } from '../src/cad/joints.ts';
+import { plateHistory, railHistory, withPeripheral } from './support/designs.mjs';
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
-/** The rail with a 300 × 300 × 8 mm plate on the middle of its top, part-2. */
-const plateHistory = () => {
-  const history = railHistory();
-  return addOperation(history, draftPlate(history, 'part-1'));
-};
-/** The history with a peripheral mounted on `parentId`, changed as given before it is added. */
-const withPeripheral = (history, parentId, typeId = 'generic-pedals', changes = {}) =>
-  addOperation(
-    history,
-    editPeripheralDraft(history, draftPeripheral(history, parentId, typeId), changes),
-  );
 const boxOf = (history, partId) => replayDesign(history).resolved.get(partId).box;
 
 test('the catalog has a generic seat, wheel base and pedal set, with estimated values', () => {
@@ -75,7 +52,7 @@ test('a new peripheral goes on top of a profile, centered and facing the front, 
   // The values are copies: a design never changes with the catalog.
   assert.notEqual(draft.envelope, type.envelope);
   const { widthMm, heightMm, depthMm } = type.envelope;
-  assert.deepEqual(boxOf(withPeripheral(history, 'part-1'), 'part-2'), {
+  assert.deepEqual(boxOf(withPeripheral(history, 'part-1', 'generic-pedals'), 'part-2'), {
     min: { x: -widthMm / 2, y: 40, z: 500 - depthMm / 2 },
     max: { x: widthMm / 2, y: 40 + heightMm, z: 500 + depthMm / 2 },
   });
@@ -115,12 +92,16 @@ test('a click on a face moves the peripheral there, from the nearer end and cent
 });
 
 test('its name, its place and the way it faces are edited as values of its step', () => {
-  const history = editPeripheral(withPeripheral(railHistory(), 'part-1'), 'part-2', {
-    name: 'Pedals',
-    facing: '-x',
-    fromEnd: 'end',
-    alongMm: 300,
-  });
+  const history = editPeripheral(
+    withPeripheral(railHistory(), 'part-1', 'generic-pedals'),
+    'part-2',
+    {
+      name: 'Pedals',
+      facing: '-x',
+      fromEnd: 'end',
+      alongMm: 300,
+    },
+  );
   assert.equal(history[1].name, 'Pedals');
   const { widthMm, depthMm } = peripheralType('generic-pedals').envelope;
   assert.deepEqual(boxOf(history, 'part-2'), {
@@ -159,21 +140,21 @@ test('only a profile or a plate carries a peripheral', () => {
     () => addOperation(withFoot, { ...draft, parentId: 'part-2' }),
     /It is mounted on Leveling foot 2, and a peripheral is mounted on a profile or a plate/,
   );
-  const mounted = withPeripheral(railHistory(), 'part-1');
+  const mounted = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
   assert.throws(() => draftPeripheral(mounted, 'part-2', 'generic-seat'), /profile or a plate/);
 });
 
 test('a peripheral goes with the part it is mounted on, and stays on a plate whose profile goes', () => {
-  const onRail = withPeripheral(railHistory(), 'part-1');
+  const onRail = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
   assert.equal(replayDesign(removePart(onRail, 'part-1')).resolved.has('part-2'), false);
-  const onPlate = withPeripheral(plateHistory(), 'part-2');
+  const onPlate = withPeripheral(plateHistory(), 'part-2', 'generic-pedals');
   const railRemoved = removePart(onPlate, 'part-1');
   assert.deepEqual(boxOf(railRemoved, 'part-3'), boxOf(onPlate, 'part-3'));
   assert.equal(replayDesign(removePart(onPlate, 'part-2')).resolved.has('part-3'), false);
 });
 
 test('a peripheral makes no joint with the part it is mounted on', () => {
-  const design = replayDesign(withPeripheral(plateHistory(), 'part-2'));
+  const design = replayDesign(withPeripheral(plateHistory(), 'part-2', 'generic-pedals'));
   assert.deepEqual(
     jointsOf(design.resolved).map((joint) => joint.partId),
     ['part-2'],
@@ -217,7 +198,7 @@ test('resizing a peripheral never moves its mounting holes or contact points', (
 });
 
 test('a peripheral refuses values it cannot have, and only a seat has a backrest', () => {
-  const pedals = withPeripheral(railHistory(), 'part-1');
+  const pedals = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
   const envelope = { widthMm: 5, heightMm: 200, depthMm: 320 };
   assert.throws(() => editPeripheral(pedals, 'part-2', { envelope }), /between 10 and 2000 mm/);
   const holes = [{ xMm: 0, yMm: 0, diameterMm: 0 }];
@@ -258,13 +239,17 @@ test('a peripheral differs from its type once its envelope, holes, contact point
 });
 
 test('swapping its type keeps where it is mounted and replaces the values of its type', () => {
-  const pedals = editPeripheral(withPeripheral(railHistory(), 'part-1'), 'part-2', {
-    alongMm: 300,
-    fromEnd: 'end',
-    acrossMm: 5,
-    facing: '-x',
-    envelope: { widthMm: 420, heightMm: 210, depthMm: 330 },
-  });
+  const pedals = editPeripheral(
+    withPeripheral(railHistory(), 'part-1', 'generic-pedals'),
+    'part-2',
+    {
+      alongMm: 300,
+      fromEnd: 'end',
+      acrossMm: 5,
+      facing: '-x',
+      envelope: { widthMm: 420, heightMm: 210, depthMm: 330 },
+    },
+  );
   const history = swapPeripheralType(pedals, 'part-2', 'generic-seat');
   const seat = peripheralType('generic-seat');
   const swapped = history[1];
@@ -293,9 +278,13 @@ test('swapping its type keeps where it is mounted and replaces the values of its
 });
 
 test('a peripheral swapped for another type keeps a name the user gave it', () => {
-  const named = editPeripheral(withPeripheral(railHistory(), 'part-1'), 'part-2', {
-    name: 'Clutch side',
-  });
+  const named = editPeripheral(
+    withPeripheral(railHistory(), 'part-1', 'generic-pedals'),
+    'part-2',
+    {
+      name: 'Clutch side',
+    },
+  );
   assert.equal(swapPeripheralType(named, 'part-2', 'generic-seat')[1].name, 'Clutch side');
   assert.throws(() => swapPeripheralType(named, 'part-1', 'generic-seat'), /not a peripheral/);
   assert.throws(() => swapPeripheralType(named, 'part-2', 'generic-shifter'), /not in the catalog/);

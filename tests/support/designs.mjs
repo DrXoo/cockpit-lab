@@ -1,0 +1,39 @@
+// Design histories built through the history's public operations, so each is a design the
+// editor could make. A span is not built here: it is a grown profile edited with
+// `editProfile(history, partId, { reachesId })`, once the part it reaches exists.
+import {
+  addAnchoredProfile,
+  addOperation,
+  draftGrowth,
+  editDraft,
+  editProfile,
+} from '../../src/cad/history.ts';
+import { draftPeripheral, editPeripheralDraft } from '../../src/cad/peripherals.ts';
+import { draftPlate, editPlateDraft } from '../../src/cad/plates.ts';
+
+/** A 40 × 40 rail named Rail, 1000 mm long, running along z from the origin: part-1. */
+export function railHistory() {
+  const { history, partId } = addAnchoredProfile([]);
+  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
+}
+
+/** The rail with a 300 × 300 × 8 mm plate on the middle of its top: part-2. */
+export function plateHistory() {
+  return withPlate(railHistory(), 'part-1');
+}
+
+/** The history with a profile grown out of `parentId`, changed as given before it is added. */
+export function withGrowth(history, parentId, changes = {}) {
+  return addOperation(history, editDraft(history, draftGrowth(history, parentId), changes));
+}
+
+/** The history with a plate on `parentId`, changed as given before it is added. */
+export function withPlate(history, parentId, changes = {}) {
+  return addOperation(history, editPlateDraft(history, draftPlate(history, parentId), changes));
+}
+
+/** The history with a peripheral of `typeId` mounted on `parentId`, changed as given. */
+export function withPeripheral(history, parentId, typeId, changes = {}) {
+  const draft = draftPeripheral(history, parentId, typeId);
+  return addOperation(history, editPeripheralDraft(history, draft, changes));
+}

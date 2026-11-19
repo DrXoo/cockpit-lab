@@ -8,7 +8,7 @@ import {
   editDraft,
   editProfile,
 } from '../src/cad/history.ts';
-import { draftPlate, editPlateDraft } from '../src/cad/plates.ts';
+import { draftPlate } from '../src/cad/plates.ts';
 import { draftPeripheral } from '../src/cad/peripherals.ts';
 import { operationMaking } from '../src/cad/operations.ts';
 import {
@@ -24,17 +24,8 @@ import {
 } from '../src/cad/handles.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
+import { railHistory, withGrowth, withPlate } from './support/designs.mjs';
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
-/** The rail with a profile grown out of it, part-2, changed as given. */
-const withGrowth = (changes) => {
-  const history = railHistory();
-  return addOperation(history, editDraft(history, draftGrowth(history, 'part-1'), changes));
-};
 const ends = (handles) =>
   handles.map(({ id, end, pointMm, outwardMm }) => [id, end, pointMm, outwardMm]);
 const endHandles = (history, partId) =>
@@ -57,16 +48,21 @@ test('an anchored profile has a handle at each end, pointing out of it', () => {
 });
 
 test('a profile grown out of a face has a handle only at its free end', () => {
-  const up = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
+  const up = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
   assert.deepEqual(ends(endHandles(up, 'part-2')), [
     ['part-2:end', 'end', { x: 0, y: 340, z: 500 }, { x: 0, y: 1, z: 0 }],
   ]);
-  const down = withGrowth({ face: '-y', alongMm: 500, lengthMm: 300 });
+  const down = withGrowth(railHistory(), 'part-1', { face: '-y', alongMm: 500, lengthMm: 300 });
   assert.deepEqual(
     endHandles(down, 'part-2').map(({ end }) => end),
     ['start'],
   );
-  const lying = withGrowth({ face: '+y', alongMm: 500, way: '-x', lengthMm: 300 });
+  const lying = withGrowth(railHistory(), 'part-1', {
+    face: '+y',
+    alongMm: 500,
+    way: '-x',
+    lengthMm: 300,
+  });
   assert.deepEqual(
     endHandles(lying, 'part-2').map(({ end }) => end),
     ['start'],
@@ -101,7 +97,7 @@ test('dragging an end changes the length, and the start too when it is the start
     lengthMm: 1120,
     startMm: { x: 0, y: 20, z: -60 },
   });
-  const grown = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
+  const grown = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
   assert.equal(dragged(grown, 'part-2:end', -50, true).lengthMm, 250, 'one end only');
 });
 
@@ -171,11 +167,6 @@ const moves = (history, partId) =>
   partHandles(history, partId)
     .filter(({ kind }) => kind === 'move')
     .map(({ id, pointMm, outwardMm }) => [id, pointMm, outwardMm]);
-/** The rail with a plate on it, part-2, changed as given before it is added. */
-const withPlate = (changes = {}) => {
-  const history = railHistory();
-  return addOperation(history, editPlateDraft(history, draftPlate(history, 'part-1'), changes));
-};
 
 test('an anchored part moves along the three axes, from its center', () => {
   assert.deepEqual(moves(railHistory(), 'part-1'), [
@@ -186,13 +177,13 @@ test('an anchored part moves along the three axes, from its center', () => {
 });
 
 test('a part that hangs from another moves along and across the face it hangs from', () => {
-  const up = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
+  const up = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
   assert.deepEqual(moves(up, 'part-2'), [
     ['part-2:move:z', { x: 0, y: 190, z: 500 }, { x: 0, y: 0, z: 1 }],
     ['part-2:move:x', { x: 0, y: 190, z: 500 }, { x: 1, y: 0, z: 0 }],
   ]);
   assert.deepEqual(
-    moves(withPlate(), 'part-2').map(([id]) => id),
+    moves(withPlate(railHistory(), 'part-1'), 'part-2').map(([id]) => id),
     ['part-2:move:z', 'part-2:move:x'],
   );
   const { history: footed } = addFoot(railHistory(), 'part-1');
@@ -204,7 +195,7 @@ test('a part that hangs from another moves along and across the face it hangs fr
 });
 
 test('a part grown out of an end has nowhere to move on it', () => {
-  const onTheEnd = withGrowth({ face: '+z', alongMm: 0, lengthMm: 300 });
+  const onTheEnd = withGrowth(railHistory(), 'part-1', { face: '+z', alongMm: 0, lengthMm: 300 });
   assert.deepEqual(moves(onTheEnd, 'part-2'), []);
 });
 
@@ -217,28 +208,42 @@ test('moving an anchored part changes its start', () => {
 });
 
 test('moving a hanging part changes how far along and across its parent it is', () => {
-  const fromStart = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
+  const fromStart = withGrowth(railHistory(), 'part-1', {
+    face: '+y',
+    alongMm: 500,
+    lengthMm: 300,
+  });
   assert.equal(dragged(fromStart, 'part-2:move:z', 100).alongMm, 600);
   assert.equal(dragged(fromStart, 'part-2:move:x', -10).acrossMm, -10);
-  const fromEnd = withGrowth({ face: '+y', fromEnd: 'end', alongMm: 500, lengthMm: 300 });
+  const fromEnd = withGrowth(railHistory(), 'part-1', {
+    face: '+y',
+    fromEnd: 'end',
+    alongMm: 500,
+    lengthMm: 300,
+  });
   assert.equal(dragged(fromEnd, 'part-2:move:z', 100).alongMm, 400, 'measured from the far end');
-  assert.equal(dragged(withPlate(), 'part-2:move:x', 60).acrossMm, 60);
+  assert.equal(dragged(withPlate(railHistory(), 'part-1'), 'part-2:move:x', 60).acrossMm, 60);
 });
 
 test('a move that would take a part off its parent is refused', () => {
-  const up = withGrowth({ face: '+y', alongMm: 500, lengthMm: 300 });
+  const up = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
   const along = partHandles(up, 'part-2').find(({ id }) => id === 'part-2:move:z');
   assert.throws(() => draggedHistory(up, along, { changeMm: 600, symmetric: false }));
 });
 
 test('a move lands on positions in steps of 10 mm, or to the millimetre when free', () => {
-  const up = withGrowth({ face: '+y', alongMm: 505, lengthMm: 300 });
+  const up = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 505, lengthMm: 300 });
   const along = handleOf(up, 'part-2:move:z');
   const snapped = (changeMm, free = false) =>
     snappedDrag(up, along, { changeMm, symmetric: false }, free).changeMm;
   assert.equal(snapped(123), 125, 'to 630 mm along');
   assert.equal(snapped(123.4, true), 123);
-  const fromEnd = withGrowth({ face: '+y', fromEnd: 'end', alongMm: 505, lengthMm: 300 });
+  const fromEnd = withGrowth(railHistory(), 'part-1', {
+    face: '+y',
+    fromEnd: 'end',
+    alongMm: 505,
+    lengthMm: 300,
+  });
   assert.equal(
     snappedDrag(
       fromEnd,
@@ -271,7 +276,7 @@ const edges = (history, partId) =>
 
 test('a plate has a handle at the middle of each edge, pointing out across it', () => {
   // 300 × 300 × 8 mm on top of the rail, centered 500 mm along it.
-  assert.deepEqual(edges(withPlate(), 'part-2'), [
+  assert.deepEqual(edges(withPlate(railHistory(), 'part-1'), 'part-2'), [
     ['part-2:edge:-x', { x: -150, y: 44, z: 500 }, { x: -1, y: 0, z: 0 }],
     ['part-2:edge:+x', { x: 150, y: 44, z: 500 }, { x: 1, y: 0, z: 0 }],
     ['part-2:edge:-z', { x: 0, y: 44, z: 350 }, { x: 0, y: 0, z: -1 }],
@@ -281,7 +286,7 @@ test('a plate has a handle at the middle of each edge, pointing out across it', 
 });
 
 test('dragging an edge of a plate changes that side, keeping the far edge where it was', () => {
-  const plate = withPlate();
+  const plate = withPlate(railHistory(), 'part-1');
   const sides = ({ widthMm, depthMm, alongMm, acrossMm }) => ({
     widthMm,
     depthMm,
@@ -306,12 +311,12 @@ test('dragging an edge of a plate changes that side, keeping the far edge where 
     alongMm: 500,
     acrossMm: 0,
   });
-  const fromEnd = withPlate({ fromEnd: 'end' });
+  const fromEnd = withPlate(railHistory(), 'part-1', { fromEnd: 'end' });
   assert.equal(dragged(fromEnd, 'part-2:edge:+z', 40).alongMm, 480, 'measured from the far end');
 });
 
 test('an edge lands on sides in steps of 10 mm, within the sides a plate can have', () => {
-  const plate = withPlate();
+  const plate = withPlate(railHistory(), 'part-1');
   const snapped = (id, changeMm, symmetric = false) =>
     snappedDrag(plate, handleOf(plate, id), { changeMm, symmetric }, false).changeMm;
   assert.equal(snapped('part-2:edge:+x', 23), 20);
@@ -320,7 +325,7 @@ test('an edge lands on sides in steps of 10 mm, within the sides a plate can hav
 });
 
 test('the box shows the change of one edge, or the whole width or depth of a symmetric one', () => {
-  const plate = withPlate();
+  const plate = withPlate(railHistory(), 'part-1');
   const across = handleOf(plate, 'part-2:edge:+x');
   const along = handleOf(plate, 'part-2:edge:-z');
   assert.deepEqual(dragReadout(plate, across, { changeMm: 20, symmetric: false }), {
@@ -339,7 +344,7 @@ test('the box shows the change of one edge, or the whole width or depth of a sym
 });
 
 test('a plate grows on both sides of its center, and Shift moves only the dragged edge', () => {
-  const plate = handleOf(withPlate(), 'part-2:edge:+x');
+  const plate = handleOf(withPlate(railHistory(), 'part-1'), 'part-2:edge:+x');
   assert.equal(symmetricDrag(plate, false), true);
   assert.equal(symmetricDrag(plate, true), false);
   const end = handleOf(railHistory(), 'part-1:end');
@@ -348,7 +353,7 @@ test('a plate grows on both sides of its center, and Shift moves only the dragge
 });
 
 test('a peripheral moves along and across the face it is mounted on, along the depth of a plate', () => {
-  const plated = withPlate({ depthAxis: 'x' });
+  const plated = withPlate(railHistory(), 'part-1', { depthAxis: 'x' });
   const history = addOperation(plated, draftPeripheral(plated, 'part-2', 'generic-pedals'));
   assert.deepEqual(
     moves(history, 'part-3').map(([id]) => id),

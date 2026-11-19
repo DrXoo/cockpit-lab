@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addAnchoredProfile,
   addFoot,
   addOperation,
   draftGrowth,
@@ -11,15 +10,9 @@ import {
 } from '../src/cad/history.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from '../src/cad/plates.ts';
 import { cockpitInterferences } from '../src/cad/interference.ts';
+import { railHistory, withPlate } from './support/designs.mjs';
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
 /** The rail with a plate on it, part-2, changed as given before it is added. */
-const withPlate = (changes = {}, history = railHistory()) =>
-  addOperation(history, editPlateDraft(history, draftPlate(history, 'part-1'), changes));
 const boxOf = (history, partId) => replayDesign(history).resolved.get(partId).box;
 
 test('a new plate rests on top of a profile, centered on its length, its depth along it', () => {
@@ -39,7 +32,7 @@ test('a new plate rests on top of a profile, centered on its length, its depth a
     alongMm: 500,
     acrossMm: 0,
   });
-  assert.deepEqual(boxOf(withPlate(), 'part-2'), {
+  assert.deepEqual(boxOf(withPlate(railHistory(), 'part-1'), 'part-2'), {
     min: { x: -150, y: 40, z: 350 },
     max: { x: 150, y: 48, z: 650 },
   });
@@ -50,14 +43,14 @@ test('on an upright, a new plate goes on its front', () => {
   const draft = draftPlate(upright, 'part-1');
   assert.equal(draft.face, '+z');
   assert.equal(draft.depthAxis, 'y');
-  assert.deepEqual(boxOf(withPlate({}, upright), 'part-2'), {
+  assert.deepEqual(boxOf(withPlate(upright, 'part-1'), 'part-2'), {
     min: { x: -150, y: 370, z: 20 },
     max: { x: 150, y: 670, z: 28 },
   });
 });
 
 test('its size, its sheet and the way its depth runs are edited as values of its step', () => {
-  const history = editPlate(withPlate(), 'part-2', {
+  const history = editPlate(withPlate(railHistory(), 'part-1'), 'part-2', {
     name: 'Pedal plate',
     widthMm: 200,
     depthMm: 400,
@@ -73,19 +66,34 @@ test('its size, its sheet and the way its depth runs are edited as values of its
 });
 
 test('a plate may reach beyond its face, but it must rest on part of it', () => {
-  assert.equal(boxOf(withPlate({ acrossMm: 160 }), 'part-2').min.x, 10);
-  assert.equal(boxOf(withPlate({ alongMm: 1100 }), 'part-2').min.z, 950);
-  assert.throws(() => withPlate({ acrossMm: 200 }), /Plate 2 would not rest on Rail/);
-  assert.throws(() => withPlate({ alongMm: 1200 }), /Plate 2 would not rest on Rail/);
-  const history = withPlate();
+  assert.equal(boxOf(withPlate(railHistory(), 'part-1', { acrossMm: 160 }), 'part-2').min.x, 10);
+  assert.equal(boxOf(withPlate(railHistory(), 'part-1', { alongMm: 1100 }), 'part-2').min.z, 950);
+  assert.throws(
+    () => withPlate(railHistory(), 'part-1', { acrossMm: 200 }),
+    /Plate 2 would not rest on Rail/,
+  );
+  assert.throws(
+    () => withPlate(railHistory(), 'part-1', { alongMm: 1200 }),
+    /Plate 2 would not rest on Rail/,
+  );
+  const history = withPlate(railHistory(), 'part-1');
   assert.throws(() => editPlate(history, 'part-2', { acrossMm: -200 }), /would not rest on/);
 });
 
 test('a plate takes only sizes and sheets the catalog has, its depth along its face', () => {
-  assert.throws(() => withPlate({ widthMm: 40 }), /between 50 and 1500 mm/);
-  assert.throws(() => withPlate({ depthMm: 1600 }), /between 50 and 1500 mm/);
-  assert.throws(() => withPlate({ sheetId: 'steel-8' }), /not in the catalog/);
-  assert.throws(() => withPlate({ depthAxis: 'y' }), /depth/);
+  assert.throws(
+    () => withPlate(railHistory(), 'part-1', { widthMm: 40 }),
+    /between 50 and 1500 mm/,
+  );
+  assert.throws(
+    () => withPlate(railHistory(), 'part-1', { depthMm: 1600 }),
+    /between 50 and 1500 mm/,
+  );
+  assert.throws(
+    () => withPlate(railHistory(), 'part-1', { sheetId: 'steel-8' }),
+    /not in the catalog/,
+  );
+  assert.throws(() => withPlate(railHistory(), 'part-1', { depthAxis: 'y' }), /depth/);
 });
 
 test('a click on a face moves the plate there, from the nearer end and centered across it', () => {
@@ -101,7 +109,7 @@ test('a click on a face moves the plate there, from the nearer end and centered 
 });
 
 test('a plate fails when its profile turns so that it would rest on its end', () => {
-  const turned = editProfile(withPlate(), 'part-1', { axis: 'y' });
+  const turned = editProfile(withPlate(railHistory(), 'part-1'), 'part-1', { axis: 'y' });
   assert.match(
     replayDesign(turned).failures.get('op-2'),
     /rests on a side of Rail, not on its end/,
@@ -109,13 +117,13 @@ test('a plate fails when its profile turns so that it would rest on its end', ()
 });
 
 test('a plate whose profile is removed stays where it is', () => {
-  const history = withPlate({ acrossMm: 30 });
+  const history = withPlate(railHistory(), 'part-1', { acrossMm: 30 });
   const removed = removePart(history, 'part-1');
   assert.deepEqual(boxOf(removed, 'part-2'), boxOf(history, 'part-2'));
 });
 
 test('nothing grows out of a plate, no foot goes under one and no span reaches one', () => {
-  const history = withPlate();
+  const history = withPlate(railHistory(), 'part-1');
   assert.throws(() => draftGrowth(history, 'part-2'), /only grows out of a profile/);
   assert.throws(() => addFoot(history, 'part-2'), /goes under a profile/);
   const growth = draftGrowth(history, 'part-1');
@@ -130,7 +138,7 @@ test('nothing grows out of a plate, no foot goes under one and no span reaches o
 });
 
 test('a plate makes a joint with its profile, resting on it without reaching into it', () => {
-  const design = replayDesign(withPlate());
+  const design = replayDesign(withPlate(railHistory(), 'part-1'));
   assert.deepEqual(
     design.joints.map((joint) => [joint.id, joint.toFace]),
     [['part-2@part-1', '+y']],

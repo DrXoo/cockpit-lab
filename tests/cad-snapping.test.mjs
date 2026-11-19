@@ -1,13 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  addAnchoredProfile,
-  addOperation,
-  draftGrowth,
-  editDraft,
-  editProfile,
-} from '../src/cad/history.ts';
-import { draftPlate, editPlateDraft } from '../src/cad/plates.ts';
+import { addAnchoredProfile, editProfile } from '../src/cad/history.ts';
 import { operationMaking } from '../src/cad/operations.ts';
 import {
   draggedHandle,
@@ -17,26 +10,17 @@ import {
   partHandles,
 } from '../src/cad/handles.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
+import { railHistory, withGrowth, withPlate } from './support/designs.mjs';
 
 /** Snapping within 10 mm, as about 10 pixels on screen would be at a typical zoom. */
 const WITHIN_MM = 10;
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
 /** Another anchored 40 × 40 profile along Z, with the values given. */
 const withAnchored = (history, changes) => {
   const added = addAnchoredProfile(history);
   return editProfile(added.history, added.partId, changes);
 };
 /** A profile grown out of part-1 with the values given. */
-const withGrowth = (history, changes) =>
-  addOperation(history, editDraft(history, draftGrowth(history, 'part-1'), changes));
-/** A 300 × 300 plate on part-1 with the values given. */
-const withPlate = (history, changes) =>
-  addOperation(history, editPlateDraft(history, draftPlate(history, 'part-1'), changes));
 const handleOf = (history, id) =>
   partHandles(history, id.split(':')[0]).find((handle) => handle.id === id);
 /** Where the handle `id` snaps when dragged `changeMm`, or null when it snaps to no part. */
@@ -46,7 +30,7 @@ const snapped = (history, id, changeMm, symmetric = false) =>
 /** The rail, a second rail at x = 500 (its −x face at 480) and a profile out of the rail's +x face. */
 const facingRails = () => {
   let history = withAnchored(railHistory(), { startMm: { x: 500, y: 20, z: 0 } });
-  history = withGrowth(history, { face: '+x', alongMm: 250, lengthMm: 300 });
+  history = withGrowth(history, 'part-1', { face: '+x', alongMm: 250, lengthMm: 300 });
   return history;
 };
 
@@ -101,11 +85,11 @@ test('a moved part lines up either of its faces with those of another part', () 
 });
 
 test('a part moved on its parent snaps to the middle of its length and of the face across it', () => {
-  const growth = withGrowth(railHistory(), { face: '+y', alongMm: 493, lengthMm: 300 });
+  const growth = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 493, lengthMm: 300 });
   const along = snapped(growth, 'part-2:move:z', 2);
   assert.deepEqual(along.drag, { changeMm: 7, symmetric: false });
   assert.equal(along.snap.kind, 'centered');
-  const plate = withPlate(railHistory(), { acrossMm: 6 });
+  const plate = withPlate(railHistory(), 'part-1', { acrossMm: 6 });
   const across = snapped(plate, 'part-2:move:x', 0);
   assert.deepEqual(across.drag, { changeMm: -6, symmetric: false });
   assert.equal(across.snap.kind, 'centered');
@@ -113,12 +97,12 @@ test('a part moved on its parent snaps to the middle of its length and of the fa
 
 test('a part does not snap to the parts that hang from it, which move with it', () => {
   // The growth's faces are at z = 480 and 520; the rail's start would line up with 480.
-  const history = withGrowth(railHistory(), { face: '+y', alongMm: 500, lengthMm: 300 });
+  const history = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
   assert.equal(snapped(history, 'part-1:move:z', 476), null);
 });
 
 test('a snap that would take a part off its parent is left out', () => {
-  let history = withGrowth(railHistory(), { face: '+y', alongMm: 500, lengthMm: 300 });
+  let history = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
   history = withAnchored(history, { startMm: { x: 300, y: 20, z: 1100 }, lengthMm: 400 });
   // The −z face of part-3 at 1100 would put the growth's center at 1080, off the 1000 mm rail.
   assert.equal(snapped(history, 'part-2:move:z', 577), null);

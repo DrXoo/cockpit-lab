@@ -6,12 +6,8 @@ import { draggedHistory, partHandles } from '../src/cad/handles.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
 import { draftCornersMm, draftEditedBy, withDraft } from '../src/cad/drafts.ts';
 import { draftPeripheral } from '../src/cad/peripherals.ts';
+import { railHistory } from './support/designs.mjs';
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
 /** The rail and a second one at x = 800, its −x face at 780: part-2. */
 const twoRails = () => {
   const added = addAnchoredProfile(railHistory());

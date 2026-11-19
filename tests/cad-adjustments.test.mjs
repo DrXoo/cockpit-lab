@@ -9,7 +9,7 @@ import {
   editProfile,
   replayDesign,
 } from '../src/cad/history.ts';
-import { draftPlate, editPlate } from '../src/cad/plates.ts';
+import { editPlate } from '../src/cad/plates.ts';
 import {
   draftPeripheral,
   editPeripheral,
@@ -20,23 +20,8 @@ import { addAdjustment, editAdjustment, removeAdjustment } from '../src/cad/adju
 import { fastenWithBolts, fastenWithBrackets } from '../src/cad/fastening.ts';
 import { peripheralType } from '../src/cad/catalog.ts';
 import { designData, readDesign } from '../src/cockpit-design.ts';
+import { plateHistory, railHistory, withPeripheral } from './support/designs.mjs';
 
-/** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
-const railHistory = () => {
-  const { history, partId } = addAnchoredProfile([]);
-  return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
-};
-/** The rail with a 300 × 300 × 8 mm plate on the middle of its top: part-2. */
-const plateHistory = () => {
-  const history = railHistory();
-  return addOperation(history, draftPlate(history, 'part-1'));
-};
-/** The history with a peripheral of `typeId` mounted on `parentId`, changed as given. */
-const withPeripheral = (history, parentId, typeId, changes = {}) =>
-  addOperation(
-    history,
-    editPeripheralDraft(history, draftPeripheral(history, parentId, typeId), changes),
-  );
 /** The rail with a seat on the middle of its top: part-2. */
 const seatHistory = () => withPeripheral(railHistory(), 'part-1', 'generic-seat');
 const adjustmentOf = (history, partId) =>
