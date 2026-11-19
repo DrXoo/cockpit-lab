@@ -32,19 +32,8 @@ import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { Project } from './project.ts';
-import {
-  MAX_LAYOUTS,
-  MAX_LAYOUT_NAME_LENGTH,
-  activeLayout,
-  deleteLayout,
-  duplicateLayout,
-  hiddenFurnitureOf,
-  renameLayout,
-  selectLayout,
-  type LayoutLibrary,
-} from './layouts.ts';
+import { activeLayout, hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
 import { activeArmPose } from './arm-poses.ts';
-import { layoutOptionsHTML } from './layouts-view.ts';
 import { numericField } from './dom-input.ts';
 import { validationBanner, metricsView } from './inspector-view.ts';
 import { sectionOfStep, setupButtons } from './setup-actions.ts';
@@ -76,6 +65,7 @@ import type { RoomEditorHost } from './room-editing/host.ts';
 import { RoomItems } from './room-editing/room-items.ts';
 import { GuidedSetup } from './room-editing/guided-setup.ts';
 import { DeskControls } from './room-editing/desk-controls.ts';
+import { LayoutPicker } from './room-editing/layout-picker.ts';
 import { SettingControls } from './room-editing/settings-controls.ts';
 import { drawIcons } from './icons.ts';
 
@@ -212,6 +202,7 @@ const settingControls = new SettingControls(roomHost);
 const roomItemControls = new RoomItems(roomHost);
 const guidedSetup = new GuidedSetup(roomHost);
 const deskControls = new DeskControls(roomHost, settingControls);
+const layoutPicker = new LayoutPicker(roomHost);
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(message: string) {
   $('#toast').textContent = message;
@@ -277,7 +268,7 @@ function renderWorkflow() {
   $('#setupProgress').innerHTML = guided ? progressHTML(project.setup) : '';
   $('#setupActions').hidden = !guided;
   $('.config-tabs').hidden = guided || inCockpit;
-  renderLayoutPicker(guided || inCockpit);
+  layoutPicker.render(guided || inCockpit);
   $('.cockpit-area').hidden = !inCockpit;
   $('#exportCockpit').hidden = !cockpitEditor.hasDesign();
   const heading = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Settings';
@@ -338,17 +329,6 @@ function renderWorkflow() {
     !guided && !inCockpit && project.library.layouts.length > 1
       ? `${sceneTitle} · ${activeLayout(project.library).name}`
       : sceneTitle;
-}
-/** The layout picker appears in the room editor once the guided setup is done. */
-function renderLayoutPicker(hidden: boolean) {
-  $('#layoutArea').hidden = hidden;
-  const select = $<HTMLSelectElement>('#layoutSelect');
-  const options = layoutOptionsHTML(project.library);
-  if (select.innerHTML !== options) select.innerHTML = options;
-  select.value = project.library.activeLayoutId;
-  $('#layoutHint').hidden = project.library.layouts.length > 1;
-  $<HTMLButtonElement>('#deleteLayout').disabled = project.library.layouts.length === 1;
-  $<HTMLButtonElement>('#duplicateLayout').disabled = project.library.layouts.length >= MAX_LAYOUTS;
 }
 function renderControls() {
   const guided = editor() === 'room' && project.setup.step !== 'complete',
@@ -540,47 +520,6 @@ $('.config-tabs').addEventListener('keydown', (event) => {
     tabs[next].click();
     tabs[next].focus();
   }
-});
-const layoutSelect = $<HTMLSelectElement>('#layoutSelect');
-layoutSelect.addEventListener('change', () => {
-  const id = layoutSelect.value;
-  changeLayouts((layouts) => selectLayout(layouts, id));
-  toast(`Showing the layout ${activeLayout(project.library).name}`);
-});
-type LayoutNameAction = 'duplicate' | 'rename';
-let layoutNameAction: LayoutNameAction = 'duplicate';
-function askLayoutName(action: LayoutNameAction) {
-  layoutNameAction = action;
-  const current = activeLayout(project.library).name;
-  const input = $<HTMLInputElement>('#layoutName');
-  $('#layoutNameTitle').textContent = action === 'duplicate' ? 'Duplicate layout' : 'Rename layout';
-  $('#confirmLayoutName').textContent = action === 'duplicate' ? 'Duplicate' : 'Rename';
-  $('#layoutNameDescription').hidden = action !== 'duplicate';
-  input.value =
-    action === 'duplicate' ? `${current} (copy)`.slice(0, MAX_LAYOUT_NAME_LENGTH) : current;
-  $<HTMLDialogElement>('#layoutNameDialog').showModal();
-  input.select();
-}
-$('#duplicateLayout').addEventListener('click', () => askLayoutName('duplicate'));
-$('#renameLayout').addEventListener('click', () => askLayoutName('rename'));
-$('#layoutNameForm').addEventListener('submit', () => {
-  const name = $<HTMLInputElement>('#layoutName').value;
-  if (layoutNameAction === 'duplicate') {
-    changeLayouts((layouts) => duplicateLayout(layouts, name));
-    toast('Layout duplicated. Your changes now go to the copy.');
-  } else {
-    changeLayouts((layouts) => renameLayout(layouts, layouts.activeLayoutId, name));
-    toast('Layout renamed');
-  }
-});
-$('#deleteLayout').addEventListener('click', () =>
-  $<HTMLDialogElement>('#deleteLayoutDialog').showModal(),
-);
-$('#confirmDeleteLayout').addEventListener('click', () => {
-  const deleted = activeLayout(project.library).name;
-  changeLayouts((layouts) => deleteLayout(layouts, layouts.activeLayoutId));
-  $<HTMLDialogElement>('#deleteLayoutDialog').close();
-  toast(`Layout ${deleted} deleted`);
 });
 $('#resetBtn').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
 /** Opens a new, empty project where the user chose to start it: the cockpit or the room. */
