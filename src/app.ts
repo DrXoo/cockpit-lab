@@ -198,7 +198,7 @@ function workspaceOf(value: string): Workspace {
 }
 function stepOf(value: string): StepId {
   const step = steps.find((s) => s.id === value);
-  if (!step) throw new Error(`Unknown project.setup step: ${value}`);
+  if (!step) throw new Error(`Unknown setup step: ${value}`);
   return step.id;
 }
 const isRoomSection = (value: Section) => value === 'room' || value === 'furniture';
