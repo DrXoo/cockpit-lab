@@ -29,6 +29,7 @@ Implement behavior test-first, using red, green, refactor:
 - Test behavior through public module interfaces, not private details, so refactors do not break tests.
 - Keep domain logic in pure modules, without DOM or Three.js, so it can be tested in Node. Rendering and DOM wiring stay thin and are checked in the browser.
 - Build the designs a CAD test starts from with `tests/support/designs.ts`, and add the next common setup there, so each one is a design the editor could make.
+- A test reads a value it expects to be there (a part, a check, an operation of one kind) through `tests/support/lookups.ts`, which fails with a message when it is missing. A test that feeds a value the types forbid, to check it is rejected, marks that line with `// @ts-expect-error:` and the reason.
 - Use known reference cases (for example the 200 × 150 × 5 mm plate in `docs/mini-cad.md`) as acceptance tests.
 - A passing test of the approximate model is not a claim of structural validity.
 
@@ -60,7 +61,7 @@ These principles serve readability and change. Don't add abstractions, layers or
   - import local modules with their `.ts` extension;
   - use only erasable syntax: no `enum`, `namespace` or constructor parameter properties;
   - prefer `declare` for class fields that the constructor assigns.
-- Type checking is strict (`tsconfig.json`, `npm run typecheck`) for `src/`, `e2e/` and the Playwright configuration. Don't loosen compiler options, and don't silence an error with `any` or a cast: values from outside the code (DOM, files, storage) are validated where they enter, as `src/dom-input.ts` and `src/project.ts` do.
+- Type checking is strict (`tsconfig.json`, `npm run typecheck`) for `src/`, `tests/`, `e2e/`, `scripts/` and the Playwright configuration. Don't loosen compiler options, and don't silence an error with `any` or a cast: values from outside the code (DOM, files, storage) are validated where they enter, as `src/dom-input.ts` and `src/project.ts` do.
 - Lengths in the configurator model are cm; use the `Cm`/`Mm` types and the conversions in `src/units.ts` wherever both units meet.
 - There is no external deployment. The app runs locally and can be served by any static file server.
 
