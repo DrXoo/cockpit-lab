@@ -24,6 +24,8 @@ Every attachment and each end of a span make a joint, unresolved until it has co
 
 Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate in its slots; the editor shows the design's adjustments, and anything else about the posture changes by editing parts.
 
+A design is replayed with every part at the center of its travel, and the fitted pose then moves each adjusted part, and what hangs from it, to its position (`src/cad/travel.ts`). The design at the centers is what is built and bought: joints, connectors, cuts, parts to buy, the checks of every step, the drafts' parents and snapping. The fitted pose is what the driver sits in: the drawing, the handles, the joint markers' positions, measuring and interference. A new consumer of the geometry picks one of the two for that reason.
+
 A peripheral mounted on a plate puts its mounting pattern into the plate as holes that follow it, and slots that cover the travel of an adjustment. The plate can have holes and slots of its own as well.
 
 ## Catalog

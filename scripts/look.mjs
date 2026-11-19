@@ -3,7 +3,8 @@
 //
 //   npm run look -- <walk.mjs> [folder for the screenshots]
 //
-// The walk is a module whose default export receives `{ page, shot }`; `await shot('name')`
+// The walk is a module whose default export receives `{ page, shot }`, with the page already
+// open on the app, so a walk starts with its first click; `await shot('name')`
 // saves name.png in the folder (by default one in the system's temporary folder). Errors of the
 // page are printed as they happen.
 //
