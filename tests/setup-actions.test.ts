@@ -7,11 +7,11 @@ import {
   withRoomSize,
   withDesk,
 } from '../src/setup-actions.ts';
-import { createProject, projectConfig, steps } from '../src/project.ts';
+import { createProject, projectConfig, steps, type SetupStep } from '../src/project.ts';
 
 const fresh = createProject();
 const freshConfig = projectConfig(fresh);
-const atStep = (step, furthest = 3) => ({ step, furthest, deferred: [] });
+const atStep = (step: SetupStep, furthest = 3) => ({ step, furthest, deferred: [] });
 const withRoom = withRoomSize(freshConfig, 300, 400, 250);
 
 test('the room setup has four steps and does not design a cockpit', () => {

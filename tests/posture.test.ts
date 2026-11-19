@@ -22,6 +22,7 @@ test('without a contact for the hands, the posture has no arms and the rest is u
   const withHands = postureFrom(driver, contacts);
   const withoutHands = postureFrom(driver, { hip: contacts.hip, heel: contacts.heel });
   assert.equal(withoutHands.hands, null);
+  assert.ok(withHands.hands);
   assert.deepEqual(withHands.hands.point, contacts.hands);
   assert.deepEqual({ ...withoutHands, hands: null }, { ...withHands, hands: null });
 });

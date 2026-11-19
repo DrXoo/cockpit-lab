@@ -46,7 +46,7 @@ test('other toggles and choices are set as they are', () => {
 
 test('a choice outside its options fails loudly', () => {
   assert.throws(
-    () => applySetting(defaults, { kind: 'choice', key: 'feet', value: 'wheels' }),
-    /Invalid value for feet: wheels/,
+    () => applySetting(defaults, { kind: 'choice', key: 'monitorMode', value: 'wheels' }),
+    /Invalid value for monitorMode: wheels/,
   );
 });

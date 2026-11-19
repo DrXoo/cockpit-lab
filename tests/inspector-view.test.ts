@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validationBanner, metricsView } from '../src/inspector-view.ts';
 import { defaults, evaluate } from '../src/model.ts';
+import type { RoomConfig } from '../src/config.ts';
+import type { CockpitEvaluation } from '../src/evaluate.ts';
 
-const banner = (state, counts = {}) => validationBanner(state, { ...evaluate(state), ...counts });
+const banner = (state: RoomConfig, counts: Partial<CockpitEvaluation> = {}) =>
+  validationBanner(state, { ...evaluate(state), ...counts });
 
 test('the banner counts pending errors, with a symbol as well as a colour', () => {
   const one = banner(defaults, { errors: 1, warnings: 3 });

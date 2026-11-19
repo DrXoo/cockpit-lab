@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, evaluate } from '../src/model.ts';
+import type { RoomConfig } from '../src/config.ts';
 import { creationControls } from '../src/setup-editor.ts';
 import { saveArmPose } from '../src/arm-poses.ts';
 
 const controls = { range: () => '', toggle: () => '', select: () => '' };
-const render = (state, target) =>
-  creationControls(state, evaluate(state), { step: 'desk' }, target, controls);
+const render = (state: RoomConfig, target: string) =>
+  creationControls(
+    state,
+    evaluate(state),
+    { step: 'desk', furthest: 3, deferred: [] },
+    target,
+    controls,
+  );
 
 test('the Desk step offers the monitor position and the saved poses, whatever is selected', () => {
   const s = saveArmPose(defaults, 'Racing');

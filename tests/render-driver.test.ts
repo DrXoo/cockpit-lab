@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderList, ROOT } from '../src/render-list.ts';
 import { drawDriver } from '../src/render-driver.ts';
+import type { DriverFigure } from '../src/cad/driver.ts';
 
-const figure = {
+const figure: DriverFigure = {
   hip: { x: 0, y: 300, z: 0 },
   knee: { x: 0, y: 450, z: 400 },
   heel: { x: 0, y: 100, z: 800 },
@@ -12,7 +13,7 @@ const figure = {
   elbow: { x: 0, y: 600, z: 150 },
   hands: { x: 0, y: 650, z: 450 },
 };
-const drawn = (driverFigure) => {
+const drawn = (driverFigure: DriverFigure) => {
   const r = createRenderList();
   drawDriver(r, ROOT, driverFigure);
   return r.primitives.filter((primitive) => primitive.kind !== 'material');
@@ -70,5 +71,5 @@ test('the figure is drawn over the parts, so the seat it sits in does not hide i
   drawDriver(r, ROOT, figure);
   const materials = r.primitives.filter((primitive) => primitive.kind === 'material');
   assert.ok(materials.length > 0);
-  assert.ok(materials.every(({ spec }) => spec.onTop === true));
+  assert.ok(materials.every(({ spec }) => spec.kind === 'flat' && spec.onTop === true));
 });

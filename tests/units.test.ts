@@ -5,7 +5,9 @@ import { cmToMm, mmToCm, roundMm, MM_PER_CM } from '../src/units.ts';
 test('cm and mm convert explicitly in both directions', () => {
   assert.equal(MM_PER_CM, 10);
   assert.equal(cmToMm(12.5), 125);
-  assert.equal(mmToCm(65), 6.5);
+  const sixtyFiveMm = cmToMm(6.5);
+  assert.equal(sixtyFiveMm, 65);
+  assert.equal(mmToCm(sixtyFiveMm), 6.5);
   assert.equal(mmToCm(cmToMm(37.2)), 37.2);
 });
 

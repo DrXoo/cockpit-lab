@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { replayDesign } from '../src/cad/history.ts';
+import { replayDesign, type Operation } from '../src/cad/history.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import { travelInterferences } from '../src/cad/travel.ts';
 import { railHistory, withGrowth } from './support/designs.ts';
@@ -10,7 +10,7 @@ function twoPosts() {
   const posted = withGrowth(railHistory(), 'part-1', { name: 'Post', lengthMm: 200 });
   return withGrowth(posted, 'part-1', { name: 'Other post', alongMm: 560, lengthMm: 200 });
 }
-const found = (history) => {
+const found = (history: readonly Operation[]) => {
   const design = replayDesign(history);
   return travelInterferences(history, design.resolved, design.connectors).map(
     ({ movedId, endMm, interference }) => [

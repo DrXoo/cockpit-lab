@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, evaluate } from '../src/model.ts';
 import { creationControls } from '../src/setup-editor.ts';
+import type { RoomConfig } from '../src/config.ts';
 
 const controls = { range: () => '', toggle: () => '', select: () => '' };
-const roomStep = (state) =>
+const roomStep = (state: RoomConfig) =>
   creationControls(
     state,
     evaluate(state),

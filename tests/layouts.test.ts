@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, sanitize } from '../src/model.ts';
+import type { RoomConfig } from '../src/config.ts';
+import type { FurnitureItem, WallShelf } from '../src/room.ts';
 import { addRoomItem, deleteRoomItem, updateRoomItem } from '../src/room-actions.ts';
 import {
   createLayoutLibrary,
@@ -38,7 +40,19 @@ const room = sanitize({
   ],
 });
 
-const furniture = (config, id) => config.roomFurniture.find((item) => item.id === id);
+const furnitureIds = (config: RoomConfig) => config.roomFurniture.map((item) => item.id);
+
+function furniture(config: RoomConfig, id: string): FurnitureItem {
+  const item = config.roomFurniture.find((candidate) => candidate.id === id);
+  assert.ok(item, `No furniture ${id}`);
+  return item;
+}
+
+function shelf(config: RoomConfig): WallShelf {
+  const item = furniture(config, 'shelf');
+  assert.ok(item.type === 'wallShelf');
+  return item;
+}
 
 test('a new library has one layout that reproduces the configuration', () => {
   const library = createLayoutLibrary(room);
@@ -117,7 +131,7 @@ test('a wall shelf keeps its wall, offset and height per layout', () => {
   library = recordLayout(library, config);
   const original = furniture(layoutConfig(selectLayout(library, base.activeLayoutId)), 'shelf');
   assert.deepEqual(original, furniture(room, 'shelf'));
-  assert.equal(furniture(layoutConfig(library), 'shelf').mountWall, 'east');
+  assert.equal(shelf(layoutConfig(library)).mountWall, 'east');
 });
 
 test('the room and the furniture sizes are shared by every layout', () => {
@@ -151,14 +165,14 @@ test('furniture deleted in one layout is gone from every layout', () => {
   let library = duplicateLayout(base, 'Trial');
   library = recordLayout(library, deleteRoomItem(layoutConfig(library), 'furniture:bed'));
   const original = layoutConfig(selectLayout(library, base.activeLayoutId));
-  assert.equal(furniture(original, 'bed'), undefined);
+  assert.ok(!furnitureIds(original).includes('bed'));
 });
 
 test('hidden furniture leaves only the active layout and comes back where it was', () => {
   const base = createLayoutLibrary(room);
   let library = duplicateLayout(base, 'Without the bed');
   library = hideFurniture(library, 'bed');
-  assert.equal(furniture(layoutConfig(library), 'bed'), undefined);
+  assert.ok(!furnitureIds(layoutConfig(library)).includes('bed'));
   assert.deepEqual(library.layouts[1].hiddenFurniture, ['bed']);
 
   library = recordLayout(library, { ...layoutConfig(library), deskX: 120 });

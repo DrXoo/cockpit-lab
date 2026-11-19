@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readSceneTheme, SCENE_THEME_TOKENS } from '../src/scene-theme.ts';
 
-const tokens = {
+const tokens: Readonly<Record<string, string>> = {
   '--scene-background': ' #101010 ',
   '--scene-grid': '#202020',
   '--scene-grid-center': '#303030',
@@ -25,7 +25,7 @@ test('the scene theme comes from the CSS tokens, trimmed', () => {
 });
 
 test('a missing scene token fails loudly and names it', () => {
-  const read = (name) => (name === '--scene-grid' ? '' : (tokens[name] ?? ''));
+  const read = (name: string) => (name === '--scene-grid' ? '' : (tokens[name] ?? ''));
   assert.throws(() => readSceneTheme(read), /--scene-grid\b/);
 });
 
