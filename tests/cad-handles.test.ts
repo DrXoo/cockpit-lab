@@ -7,7 +7,10 @@ import {
   draftGrowth,
   editDraft,
   editProfile,
+  type MakingOperation,
+  type Operation,
 } from '../src/cad/history.ts';
+import { allOfKind, ofKind, present } from './support/lookups.ts';
 import { draftPlate } from '../src/cad/plates.ts';
 import { draftPeripheral } from '../src/cad/peripherals.ts';
 import { operationMaking } from '../src/cad/operations.ts';
@@ -21,23 +24,33 @@ import {
   snappedDrag,
   symmetricDrag,
   travelHandles,
+  type EndHandle,
 } from '../src/cad/handles.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
 import { railHistory, withGrowth, withPlate } from './support/designs.ts';
 
-const ends = (handles) =>
+const ends = (handles: readonly EndHandle[]) =>
   handles.map(({ id, end, pointMm, outwardMm }) => [id, end, pointMm, outwardMm]);
-const endHandles = (history, partId) =>
-  partHandles(history, partId).filter(({ kind }) => kind === 'end');
+const endHandles = (history: readonly Operation[], partId: string) =>
+  allOfKind(partHandles(history, partId), 'end');
 /** The handle with this id, as `part-1:end`. */
-const handleOf = (history, id) =>
-  partHandles(history, id.split(':')[0]).find((handle) => handle.id === id);
+const partOf = (handleId: string) => present(handleId.split(':')[0], `the part of ${handleId}`);
+const handleOf = (history: readonly Operation[], id: string) =>
+  present(
+    partHandles(history, partOf(id)).find((handle) => handle.id === id),
+    `handle ${id}`,
+  );
 /** The values of the part's operation once its handle `id` is dragged. */
-const dragged = (history, id, changeMm, symmetric = false) => {
-  const partId = id.split(':')[0];
+const dragged = (
+  history: readonly Operation[],
+  id: string,
+  changeMm: number,
+  symmetric = false,
+): MakingOperation => {
+  const partId = partOf(id);
   const changed = draggedHistory(history, handleOf(history, id), { changeMm, symmetric });
-  return operationMaking(changed, partId);
+  return present(operationMaking(changed, partId), partId);
 };
 
 test('an anchored profile has a handle at each end, pointing out of it', () => {
@@ -84,7 +97,10 @@ test('a span has no end handles, as its length is the gap it meets', () => {
 
 test('dragging an end changes the length, and the start too when it is the start', () => {
   const rail = railHistory();
-  const lengthAndStart = ({ lengthMm, startMm }) => ({ lengthMm, startMm });
+  const lengthAndStart = (operation: MakingOperation) => {
+    const { lengthMm, startMm } = ofKind(operation, 'add-anchored-profile');
+    return { lengthMm, startMm };
+  };
   assert.deepEqual(lengthAndStart(dragged(rail, 'part-1:end', 120)), {
     lengthMm: 1120,
     startMm: { x: 0, y: 20, z: 0 },
@@ -98,13 +114,22 @@ test('dragging an end changes the length, and the start too when it is the start
     startMm: { x: 0, y: 20, z: -60 },
   });
   const grown = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
-  assert.equal(dragged(grown, 'part-2:end', -50, true).lengthMm, 250, 'one end only');
+  assert.equal(
+    ofKind(dragged(grown, 'part-2:end', -50, true), 'grow-profile').lengthMm,
+    250,
+    'one end only',
+  );
 });
 
 test('a drag lands on lengths in steps of 10 mm, or to the millimetre when free', () => {
   const rail = railHistory();
   const short = editProfile(rail, 'part-1', { lengthMm: 495 });
-  const snapped = (history, changeMm, symmetric = false, free = false) =>
+  const snapped = (
+    history: readonly Operation[],
+    changeMm: number,
+    symmetric = false,
+    free = false,
+  ) =>
     snappedDrag(history, handleOf(history, 'part-1:end'), { symmetric, changeMm }, free).changeMm;
   assert.equal(snapped(rail, 123), 120);
   assert.equal(snapped(short, 7), 5);
@@ -114,7 +139,7 @@ test('a drag lands on lengths in steps of 10 mm, or to the millimetre when free'
 
 test('a drag keeps the length a profile can have', () => {
   const rail = railHistory();
-  const clamped = (changeMm) =>
+  const clamped = (changeMm: number) =>
     snappedDrag(rail, handleOf(rail, 'part-1:end'), { symmetric: false, changeMm }, false).changeMm;
   assert.equal(clamped(-1200), -990);
   assert.equal(clamped(2500), 2000);
@@ -131,7 +156,7 @@ test('the box shows the change of one end, or the whole length of a symmetric on
     kind: 'length',
     valueMm: 1070,
   });
-  const typed = (symmetric, valueMm) =>
+  const typed = (symmetric: boolean, valueMm: number) =>
     dragFromTyped(rail, end, { symmetric, changeMm: 0 }, valueMm).changeMm;
   assert.equal(typed(false, 75), 75);
   assert.equal(typed(true, 1200), 100);
@@ -163,10 +188,12 @@ test('a flat view leaves out the handles that point along its line of sight', ()
   assert.equal(handlesSeenAlong(endHandles(across, 'part-1'), 'x').length, 0);
 });
 
-const moves = (history, partId) =>
-  partHandles(history, partId)
-    .filter(({ kind }) => kind === 'move')
-    .map(({ id, pointMm, outwardMm }) => [id, pointMm, outwardMm]);
+const moves = (history: readonly Operation[], partId: string) =>
+  allOfKind(partHandles(history, partId), 'move').map(({ id, pointMm, outwardMm }) => [
+    id,
+    pointMm,
+    outwardMm,
+  ]);
 
 test('an anchored part moves along the three axes, from its center', () => {
   assert.deepEqual(moves(railHistory(), 'part-1'), [
@@ -200,11 +227,14 @@ test('a part grown out of an end has nowhere to move on it', () => {
 });
 
 test('moving an anchored part changes its start', () => {
-  assert.deepEqual(dragged(railHistory(), 'part-1:move:x', 120).startMm, {
-    x: 120,
-    y: 20,
-    z: 0,
-  });
+  assert.deepEqual(
+    ofKind(dragged(railHistory(), 'part-1:move:x', 120), 'add-anchored-profile').startMm,
+    {
+      x: 120,
+      y: 20,
+      z: 0,
+    },
+  );
 });
 
 test('moving a hanging part changes how far along and across its parent it is', () => {
@@ -213,28 +243,35 @@ test('moving a hanging part changes how far along and across its parent it is', 
     alongMm: 500,
     lengthMm: 300,
   });
-  assert.equal(dragged(fromStart, 'part-2:move:z', 100).alongMm, 600);
-  assert.equal(dragged(fromStart, 'part-2:move:x', -10).acrossMm, -10);
+  assert.equal(ofKind(dragged(fromStart, 'part-2:move:z', 100), 'grow-profile').alongMm, 600);
+  assert.equal(ofKind(dragged(fromStart, 'part-2:move:x', -10), 'grow-profile').acrossMm, -10);
   const fromEnd = withGrowth(railHistory(), 'part-1', {
     face: '+y',
     fromEnd: 'end',
     alongMm: 500,
     lengthMm: 300,
   });
-  assert.equal(dragged(fromEnd, 'part-2:move:z', 100).alongMm, 400, 'measured from the far end');
-  assert.equal(dragged(withPlate(railHistory(), 'part-1'), 'part-2:move:x', 60).acrossMm, 60);
+  assert.equal(
+    ofKind(dragged(fromEnd, 'part-2:move:z', 100), 'grow-profile').alongMm,
+    400,
+    'measured from the far end',
+  );
+  assert.equal(
+    ofKind(dragged(withPlate(railHistory(), 'part-1'), 'part-2:move:x', 60), 'add-plate').acrossMm,
+    60,
+  );
 });
 
 test('a move that would take a part off its parent is refused', () => {
   const up = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 500, lengthMm: 300 });
-  const along = partHandles(up, 'part-2').find(({ id }) => id === 'part-2:move:z');
+  const along = handleOf(up, 'part-2:move:z');
   assert.throws(() => draggedHistory(up, along, { changeMm: 600, symmetric: false }));
 });
 
 test('a move lands on positions in steps of 10 mm, or to the millimetre when free', () => {
   const up = withGrowth(railHistory(), 'part-1', { face: '+y', alongMm: 505, lengthMm: 300 });
   const along = handleOf(up, 'part-2:move:z');
-  const snapped = (changeMm, free = false) =>
+  const snapped = (changeMm: number, free = false) =>
     snappedDrag(up, along, { changeMm, symmetric: false }, free).changeMm;
   assert.equal(snapped(123), 125, 'to 630 mm along');
   assert.equal(snapped(123.4, true), 123);
@@ -269,10 +306,12 @@ test('the box shows how far a part moved, and a typed value moves it that far', 
   });
 });
 
-const edges = (history, partId) =>
-  partHandles(history, partId)
-    .filter(({ kind }) => kind === 'edge')
-    .map(({ id, pointMm, outwardMm }) => [id, pointMm, outwardMm]);
+const edges = (history: readonly Operation[], partId: string) =>
+  allOfKind(partHandles(history, partId), 'edge').map(({ id, pointMm, outwardMm }) => [
+    id,
+    pointMm,
+    outwardMm,
+  ]);
 
 test('a plate has a handle at the middle of each edge, pointing out across it', () => {
   // 300 × 300 × 8 mm on top of the rail, centered 500 mm along it.
@@ -287,12 +326,10 @@ test('a plate has a handle at the middle of each edge, pointing out across it', 
 
 test('dragging an edge of a plate changes that side, keeping the far edge where it was', () => {
   const plate = withPlate(railHistory(), 'part-1');
-  const sides = ({ widthMm, depthMm, alongMm, acrossMm }) => ({
-    widthMm,
-    depthMm,
-    alongMm,
-    acrossMm,
-  });
+  const sides = (operation: MakingOperation) => {
+    const { widthMm, depthMm, alongMm, acrossMm } = ofKind(operation, 'add-plate');
+    return { widthMm, depthMm, alongMm, acrossMm };
+  };
   assert.deepEqual(sides(dragged(plate, 'part-2:edge:+x', 50)), {
     widthMm: 350,
     depthMm: 300,
@@ -312,12 +349,16 @@ test('dragging an edge of a plate changes that side, keeping the far edge where 
     acrossMm: 0,
   });
   const fromEnd = withPlate(railHistory(), 'part-1', { fromEnd: 'end' });
-  assert.equal(dragged(fromEnd, 'part-2:edge:+z', 40).alongMm, 480, 'measured from the far end');
+  assert.equal(
+    ofKind(dragged(fromEnd, 'part-2:edge:+z', 40), 'add-plate').alongMm,
+    480,
+    'measured from the far end',
+  );
 });
 
 test('an edge lands on sides in steps of 10 mm, within the sides a plate can have', () => {
   const plate = withPlate(railHistory(), 'part-1');
-  const snapped = (id, changeMm, symmetric = false) =>
+  const snapped = (id: string, changeMm: number, symmetric = false) =>
     snappedDrag(plate, handleOf(plate, id), { changeMm, symmetric }, false).changeMm;
   assert.equal(snapped('part-2:edge:+x', 23), 20);
   assert.equal(snapped('part-2:edge:+x', 7, true), 5, 'symmetric: the whole side lands on a step');
@@ -359,8 +400,8 @@ test('a peripheral moves along and across the face it is mounted on, along the d
     moves(history, 'part-3').map(([id]) => id),
     ['part-3:move:x', 'part-3:move:z'],
   );
-  assert.equal(dragged(history, 'part-3:move:x', 40).alongMm, 190);
-  assert.equal(dragged(history, 'part-3:move:z', -30).acrossMm, -30);
+  assert.equal(ofKind(dragged(history, 'part-3:move:x', 40), 'mount-peripheral').alongMm, 190);
+  assert.equal(ofKind(dragged(history, 'part-3:move:z', -30), 'mount-peripheral').acrossMm, -30);
   assert.equal(partHandles(history, 'part-3').filter(({ kind }) => kind !== 'move').length, 0);
 });
 
@@ -387,14 +428,14 @@ test('a part with an adjustment has one arrow along its travel, which runs on th
   assert.equal(handle.pointMm.y, 44, 'the arrow at the center of the 8 mm plate');
   assert.equal(handle.travel.centerMm.y, 40, 'its travel on the top of the rail');
   assert.deepEqual(travelHandles(railHistory(), 'part-1'), [], 'a part that does not slide');
-  const moveArrow = partHandles(history, 'part-2').find(({ kind }) => kind === 'move');
+  const moveArrow = present(allOfKind(partHandles(history, 'part-2'), 'move')[0], 'move arrow');
   assert.equal(moveArrow.pointMm.z, 520, 'every handle is where the part is drawn');
 });
 
 test('dragging along a travel moves the part in steps, never past either end', () => {
   const history = slidPlate();
   const [handle] = travelHandles(history, 'part-2');
-  const drag = (changeMm, free = false) =>
+  const drag = (changeMm: number, free = false) =>
     snappedDrag(history, handle, { changeMm, symmetric: false }, free).changeMm;
   assert.equal(drag(13), 10);
   assert.equal(drag(13, true), 13);
@@ -404,7 +445,7 @@ test('dragging along a travel moves the part in steps, never past either end', (
   assert.deepEqual(dragReadout(history, handle, requested), { kind: 'position', valueMm: 50 });
   const dragged = draggedHistory(history, handle, requested);
   assert.equal(dragged.length, history.length, 'it adds no step');
-  assert.equal(dragged[1].adjustment.positionMm, 50);
+  assert.equal(present(ofKind(dragged[1], 'add-plate').adjustment, 'adjustment').positionMm, 50);
   assert.equal(dragFromTyped(history, handle, requested, -60).changeMm, -70);
   assert.equal(dragFromTyped(history, handle, requested, 5).changeMm, -15);
   assert.equal(snapToParts(history, handle, requested, 10), null, 'a travel does not snap');
