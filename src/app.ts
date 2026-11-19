@@ -24,10 +24,7 @@ import {
   evaluate,
   desktopTargets,
   placeDeskItem,
-  updateDeskItem,
   clampEdge,
-  deskBounds,
-  resizeDesk,
   moveArmJoint,
 } from './model.ts';
 import { CockpitScene } from './scene.ts';
@@ -46,22 +43,12 @@ import {
   selectLayout,
   type LayoutLibrary,
 } from './layouts.ts';
-import {
-  activeArmPose,
-  armPoseMountMoved,
-  chooseMonitorPosition,
-  deleteArmPose,
-  monitorPositionOf,
-  MAX_ARM_POSES,
-  saveArmPose,
-  updateArmPose,
-} from './arm-poses.ts';
+import { activeArmPose } from './arm-poses.ts';
 import { layoutOptionsHTML } from './layouts-view.ts';
 import { numericField } from './dom-input.ts';
 import { validationBanner, metricsView } from './inspector-view.ts';
 import { sectionOfStep, setupButtons } from './setup-actions.ts';
-import { armReachHint, deskPanelHTML } from './settings-panels.ts';
-import { monitorPositionHTML } from './desk-editor.ts';
+import { deskPanelHTML } from './settings-panels.ts';
 import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
 import { ProjectSession } from './project-session.ts';
 import {
@@ -88,7 +75,8 @@ import { noRoomSelection, type RoomSelection } from './room-editing/selection.ts
 import type { RoomEditorHost } from './room-editing/host.ts';
 import { RoomItems } from './room-editing/room-items.ts';
 import { GuidedSetup } from './room-editing/guided-setup.ts';
-import { controlsAll, SettingControls } from './room-editing/settings-controls.ts';
+import { DeskControls } from './room-editing/desk-controls.ts';
+import { SettingControls } from './room-editing/settings-controls.ts';
 import { drawIcons } from './icons.ts';
 
 drawIcons();
@@ -223,6 +211,7 @@ const roomHost: RoomEditorHost = {
 const settingControls = new SettingControls(roomHost);
 const roomItemControls = new RoomItems(roomHost);
 const guidedSetup = new GuidedSetup(roomHost);
+const deskControls = new DeskControls(roomHost, settingControls);
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(message: string) {
   $('#toast').textContent = message;
@@ -261,13 +250,6 @@ function syncSceneEditing() {
     roomSelection.target,
     isRoomSection(section),
   );
-}
-/** Applies a change to the monitor arm or its saved poses, and redraws the arm controls. */
-function changeArm(next: RoomConfig) {
-  project.state = next;
-  project.saveSoon();
-  renderControls();
-  refresh();
 }
 /** The inspector card that holds an element. */
 function inspectorSectionOf(selector: string): HTMLElement {
@@ -415,77 +397,7 @@ function renderControls() {
     setActiveView('top');
   });
   settingControls.bind();
-  const layoutTargetSelect = $optional<HTMLSelectElement>('#layoutTargetSelect');
-  layoutTargetSelect?.addEventListener('change', () => {
-    roomSelection.target = layoutTargetSelect.value;
-    roomSelection.editing = true;
-    renderControls();
-    renderWorkflow();
-    scene?.setLayoutEditing(true, roomSelection.target, false);
-    setActiveView(desktopTargets.some((t) => t.id === roomSelection.target) ? 'desk' : 'top');
-  });
-  controlsAll('[data-rotate]').forEach((button) =>
-    button.addEventListener('click', () => {
-      const key = numericField(roomSelection.target + 'Angle');
-      const value = (project.state[key] + Number(dataOf(button, 'rotate')) + 360) % 360;
-      settingControls.update({ kind: 'number', key, value });
-      renderControls();
-    }),
-  );
-  const armPoseName = $optional<HTMLInputElement>('#armPoseName');
-  const saveCurrentArmPose = () => {
-    try {
-      const next = saveArmPose(project.state, armPoseName?.value);
-      roomSelection.armPose = activeArmPose(next)?.id ?? '';
-      changeArm(next);
-      toast('Pose saved in this layout.');
-    } catch {
-      toast(
-        `A layout keeps up to ${MAX_ARM_POSES} poses. Delete one, or save under an existing name.`,
-      );
-    }
-  };
-  $optional('#saveArmPose')?.addEventListener('click', saveCurrentArmPose);
-  armPoseName?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') saveCurrentArmPose();
-  });
-  controlsAll('#armDragBtn,#armControlsDragBtn').forEach((button) =>
-    button.addEventListener('click', startArmEditing),
-  );
-  const clampEdgeSelect = $optional<HTMLSelectElement>('#clampEdgeSelect');
-  clampEdgeSelect?.addEventListener('change', () => {
-    const edge = clampEdgeSelect.value;
-    if (edge !== 'xmin' && edge !== 'xmax' && edge !== 'zmin' && edge !== 'zmax')
-      throw new Error(`Unknown desk edge: ${edge}`);
-    project.state.clampSide = edge;
-    const b = deskBounds(project.state);
-    if (edge === 'xmin' || edge === 'xmax')
-      project.state.clampX = edge === 'xmin' ? -b.anchorX : b.anchorX;
-    else project.state.clampZ = edge === 'zmin' ? -b.anchorZ : b.anchorZ;
-    project.saveNow();
-    renderControls();
-    refresh();
-  });
-  const deskSizePresetSelect = $optional<HTMLSelectElement>('#deskSizePreset');
-  deskSizePresetSelect?.addEventListener('change', () => {
-    if (deskSizePresetSelect.value === 'custom') return;
-    const [width, depth] = deskSizePresetSelect.value.split('x').map(Number);
-    project.state = resizeDesk(project.state, width, depth);
-    project.saveNow();
-    renderControls();
-    refresh();
-    setActiveView('desk');
-    toast(`${width} × ${depth} cm desktop applied`);
-  });
-  const matPresetSelect = $optional<HTMLSelectElement>('#matPreset');
-  matPresetSelect?.addEventListener('change', () => {
-    if (matPresetSelect.value === 'custom') return;
-    const [width, depth] = matPresetSelect.value.split('x').map(Number);
-    project.state = updateDeskItem({ ...project.state, matWidth: width }, 'matDepth', depth);
-    project.saveNow();
-    renderControls();
-    refresh();
-  });
+  deskControls.bind();
 }
 function switchSection(value: Section) {
   const editorChanged = editorOfSection(value) !== editor();
@@ -528,16 +440,6 @@ function showEditor(next: Editor, target: Section = lastSection[next]) {
 $$('.editor-switch button').forEach((button) =>
   button.addEventListener('click', () => showEditor(editorOf(dataOf(button, 'editor')))),
 );
-/** What each monitor position area shows, so it is only rewritten when that changes. */
-const shownMonitorPositions = new WeakMap<Element, string>();
-function refreshMonitorPosition() {
-  const area = $optional('#monitorPositionArea');
-  if (!area) return;
-  const html = monitorPositionHTML(project.state, roomSelection.armPose);
-  if (shownMonitorPositions.get(area) === html) return;
-  area.innerHTML = html;
-  shownMonitorPositions.set(area, html);
-}
 function refresh() {
   const shown = shownConfig();
   evaluation = evaluate(shown);
@@ -551,23 +453,9 @@ function refresh() {
   $('#desktopChecks').innerHTML = e.desktopChecks.map(checkRowHTML).join('');
   $('#matTag').textContent = `${project.state.matWidth} × ${project.state.matDepth}`;
   $('#deskSizeTag').textContent = `${project.state.deskWidth} × ${project.state.deskDepth}`;
-  const sizeSelect = $optional<HTMLSelectElement>('#deskSizePreset');
-  if (sizeSelect) {
-    const value = `${project.state.deskWidth}x${project.state.deskDepth}`;
-    sizeSelect.value = [...sizeSelect.options].some((o) => o.value === value) ? value : 'custom';
-  }
   settingControls.sync();
 
-  const mode = $optional<HTMLSelectElement>('#monitorMode');
-  if (mode) mode.value = project.state.monitorMode;
-  const bend = $optional<HTMLSelectElement>('#armBend');
-  if (bend) bend.value = project.state.armBend;
-  refreshMonitorPosition();
-  const lengths = $optional('#armLengths');
-  if (lengths) lengths.textContent = armReachHint(e.armPose);
-  const coordinateHint = $optional('[data-desktop-hint]');
-  if (coordinateHint)
-    coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${project.state.deskDepth} cm depth; Z along its ${project.state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
+  deskControls.sync();
   $('#spaceChecks').innerHTML = [
     ...e.spaceCheck,
     ...e.extra.filter((c) => c.id !== 'room' && c.level !== 'ok'),
@@ -760,11 +648,6 @@ $('#dimensionBtn').addEventListener('click', () => {
   scene?.setDimensions(on);
 });
 $('#fitBtn').addEventListener('click', () => scene?.setView(view));
-function focusArmControls() {
-  const panel = $('#controls'),
-    arm = $optional('#armControls') || $optional('#monitorPositionControls');
-  if (arm) panel.scrollTop += arm.getBoundingClientRect().top - panel.getBoundingClientRect().top;
-}
 function showWorkspace(next: Workspace) {
   document.body.dataset.workspace = next;
   $$('.studio-nav button').forEach((button) => {
@@ -777,19 +660,6 @@ $$('.studio-nav button').forEach((button) =>
   button.addEventListener('click', () => showWorkspace(workspaceOf(dataOf(button, 'workspace')))),
 );
 $('.skip-link').addEventListener('click', () => showWorkspace('config'));
-function startArmEditing() {
-  roomSelection.target = 'arm';
-  roomSelection.editing = true;
-  $('#layoutBtn').classList.add('active');
-  $('#layoutBtn').setAttribute('aria-pressed', 'true');
-  switchSection('desk');
-  showWorkspace('view');
-  scene?.setLayoutEditing(true, 'arm');
-  setActiveView('top');
-  focusArmControls();
-  toast('Drag ELBOW or VESA; you can also use their rotation controls.');
-}
-$('#editArmBtn').addEventListener('click', startArmEditing);
 $('#adjustRoom').addEventListener('click', () => {
   $('#tab-room').click();
   showWorkspace('config');
@@ -826,44 +696,6 @@ $$<HTMLDialogElement>('dialog').forEach((d) =>
 );
 $('#saveConfig').addEventListener('click', exportConfig);
 $('#printBtn').addEventListener('click', () => window.print());
-// The monitor position is redrawn as the arm moves, so its controls are handled here, once.
-$('#controls').addEventListener('change', (event) => {
-  if (event.target instanceof HTMLSelectElement && event.target.id === 'monitorPosition')
-    chooseMonitorPositionOf(event.target.value);
-});
-$('#controls').addEventListener('click', (event) => {
-  if (!(event.target instanceof Element)) return;
-  if (event.target.closest('#updateArmPose')) updateSelectedArmPose();
-  if (event.target.closest('#deleteArmPose')) deleteSelectedArmPose();
-});
-function chooseMonitorPositionOf(choice: string) {
-  const poseId = choice.startsWith('pose:') ? choice.slice('pose:'.length) : '';
-  roomSelection.armPose = poseId;
-  changeArm(chooseMonitorPosition(project.state, choice));
-  const pose = project.state.armPoses.find((candidate) => candidate.id === poseId);
-  if (pose && armPoseMountMoved(project.state, pose))
-    toast(
-      `${pose.name} was saved with the arm mounted elsewhere, so the monitor is not where it was.`,
-    );
-}
-/** The pose the monitor position shows, if it shows one. */
-function shownArmPose() {
-  const { choice } = monitorPositionOf(project.state, roomSelection.armPose);
-  return project.state.armPoses.find((pose) => choice === `pose:${pose.id}`);
-}
-function updateSelectedArmPose() {
-  const pose = shownArmPose();
-  if (!pose) return;
-  changeArm(updateArmPose(project.state, pose.id));
-  toast(`Pose ${pose.name} updated.`);
-}
-function deleteSelectedArmPose() {
-  const pose = shownArmPose();
-  if (!pose) return;
-  roomSelection.armPose = '';
-  changeArm(deleteArmPose(project.state, pose.id));
-  toast(`Pose ${pose.name} deleted.`);
-}
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
 $('#loadConfig').addEventListener('click', () => $('#importFile').click());
 /** Generous for a full project: 20 layouts of 30 pieces of furniture export to about 100 kB. */
