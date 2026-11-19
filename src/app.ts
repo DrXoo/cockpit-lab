@@ -12,18 +12,15 @@ import {
   readCockpitFile,
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
-import { jointCardHTML, NOTHING_AROUND } from './cockpit-editor-view.ts';
-import { operationMaking } from './cad/history.ts';
-import { MM_PER_CM } from './units.ts';
-import type { PartHit } from './cad/picking.ts';
-import { measureReadout } from './measure-view.ts';
+import { NOTHING_AROUND } from './cockpit-editor-view.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import { CockpitEditor } from './cockpit-editor/editor.ts';
-import { CockpitInspector, DRAFT_TITLES } from './cockpit-editor/inspector.ts';
+import { CockpitInspector } from './cockpit-editor/inspector.ts';
+import { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
+import { HandleDragging } from './cockpit-editor/handle-dragging.ts';
 import { CockpitToolbar } from './cockpit-editor/toolbar.ts';
 import { bindCockpitKeys } from './cockpit-editor/keys.ts';
 import { bindHistoryPanel, historyPanelHTML } from './cockpit-editor/history-panel.ts';
-import { bindJointActions } from './cockpit-editor/joint-actions.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
 import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
@@ -48,11 +45,7 @@ import {
   resizeDesk,
   moveArmJoint,
 } from './model.ts';
-import { CockpitScene, type PagePoint } from './scene.ts';
-import { dragReadout, type DragReadout, type Handle, type HandleModifiers } from './cad/handles.ts';
-import { draftCornersMm, type Draft } from './cad/drafts.ts';
-import { handleBallMm } from './render-handles.ts';
-import { hoverLabel } from './hover-view.ts';
+import { CockpitScene } from './scene.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
 import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
@@ -235,17 +228,13 @@ let library: LayoutLibrary = newProject.library,
    * The arm pose last chosen, saved or updated, or '' for none. A layout opens with the pose its
    * arm is in, so moving the arm afterwards shows that pose as changed.
    */
-  selectedArmPose = '',
-  /** How far the handle had been dragged when it was grabbed, to drag on from there. */
-  changeAtGrabMm = 0,
-  /** The part about to be added as it was when one of its handles was grabbed. */
-  draftAtGrab: Draft | null = null;
+  selectedArmPose = '';
 const cockpitEditor = new CockpitEditor(
   {
     refresh: () => refresh(),
     renderControls: () => renderControls(),
     renderInspector: () => cockpitInspector.render({ force: true }),
-    renderJointCard: () => renderJointCard(),
+    renderJointCard: () => cockpitOverlays.renderJointCard(),
     saveSoon: () => queueSave(),
     frameDesign: () => setActiveView(view),
     toast: (message) => toast(message),
@@ -256,6 +245,8 @@ const cockpitEditor = new CockpitEditor(
 const inCockpitEditor = () => editor() === 'cockpit';
 const cockpitInspector = new CockpitInspector(cockpitEditor, inCockpitEditor);
 const cockpitToolbar = new CockpitToolbar(cockpitEditor, inCockpitEditor);
+const cockpitOverlays = new CockpitViewOverlays(cockpitEditor, () => scene, inCockpitEditor);
+const handleDragging = new HandleDragging(cockpitEditor);
 bindCockpitKeys(cockpitEditor, inCockpitEditor);
 const loaded = store.load();
 if (loaded.status === 'loaded') {
@@ -283,180 +274,6 @@ const editor = (): Editor => editorOfSection(section);
 /** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
 const cockpitDrawing = (): CockpitDrawing | null =>
   editor() === 'cockpit' ? cockpitEditor.drawing() : null;
-let shownJointCard = '';
-function renderJointCard() {
-  const card = $('#jointCard');
-  const open = cockpitEditor.jointCard();
-  if (open === null) {
-    cockpitEditor.forgetJointCard();
-    shownJointCard = '';
-    card.hidden = true;
-    scene?.anchorElement(card, null);
-    return;
-  }
-  const { marker, card: content } = open;
-  const html = jointCardHTML(content);
-  if (html !== shownJointCard) {
-    shownJointCard = html;
-    replaceKeepingFocus(card, html);
-    bindJointActions(card, cockpitEditor);
-    card
-      .querySelectorAll<HTMLElement>('[data-joint-more]')
-      .forEach((button) =>
-        button.addEventListener('click', () => showJointInInspector(dataOf(button, 'jointMore'))),
-      );
-  }
-  const { pointMm } = marker;
-  scene?.anchorElement(card, {
-    x: pointMm.x / MM_PER_CM,
-    y: pointMm.y / MM_PER_CM,
-    z: pointMm.z / MM_PER_CM,
-  });
-  card.hidden = false;
-}
-/** Selects a part of the open joint and shows its joints in the inspector. */
-function showJointInInspector(partId: string) {
-  cockpitEditor.closeJointCard();
-  cockpitEditor.selectPart(partId);
-  $optional('#partJoints')?.scrollIntoView({ block: 'nearest' });
-}
-function grabHandle(handle: Handle) {
-  const { draft, pendingChange } = cockpitEditor.session;
-  if (draft?.partId === handle.partId) {
-    draftAtGrab = draft;
-    return;
-  }
-  // The box shows the value as the drag goes, which it keeps while its field has the focus.
-  $('#changeValue').blur();
-  changeAtGrabMm = pendingChange?.handle.id === handle.id ? pendingChange.drag.changeMm : 0;
-}
-/** A drag snaps to the parts around it when near them, and otherwise goes in steps. */
-function dragHandle(shown: Handle, movedMm: number, modifiers: HandleModifiers) {
-  if (draftAtGrab !== null) {
-    // A part no longer about to be added, as Escape left it mid-drag, is not brought back.
-    if (cockpitEditor.session.draft === null) draftAtGrab = null;
-    else cockpitEditor.dragDraft(draftAtGrab, shown, movedMm, modifiers);
-    return;
-  }
-  cockpitEditor.dragChange(shown, changeAtGrabMm, movedMm, modifiers);
-}
-/** Once a handle is let go, its value waits in the box, ready to be typed exactly. */
-function releaseHandle() {
-  if (draftAtGrab !== null) {
-    draftAtGrab = null;
-    return;
-  }
-  // The box stays where the view shows it: focusing it must not scroll the page.
-  if (cockpitEditor.session.pendingChange?.drag.reachesId !== undefined) {
-    $('#confirmChange').focus({ preventScroll: true });
-    return;
-  }
-  const input = $<HTMLInputElement>('#changeValue');
-  input.focus({ preventScroll: true });
-  input.select();
-}
-/** A value typed in the box sets the change exactly. */
-function typeChange() {
-  const typed = $<HTMLInputElement>('#changeValue').value;
-  if (typed.trim() === '' || !Number.isFinite(Number(typed))) return;
-  cockpitEditor.typeChange(Number(typed));
-}
-/** Far enough along a move arrow to tell which side of the screen it points to. */
-const ARROW_CLEARANCE_MM = 100;
-/** What the box of a waiting change calls its value. */
-const READOUT_LABELS: Record<DragReadout['kind'], string> = {
-  change: 'Change',
-  length: 'Length',
-  width: 'Width',
-  depth: 'Depth',
-  move: 'Move',
-  reach: 'Reaches',
-  position: 'Position',
-};
-/** The box of a waiting change, beside the handle that made it, with its value. */
-function renderChangeBox() {
-  const box = $('#changeBox');
-  const pending = cockpitEditor.session.pendingChange;
-  const [handle] = pending ? cockpitEditor.shownHandles() : [];
-  if (!pending || !handle) {
-    box.hidden = true;
-    scene?.anchorElement(box, null);
-    return;
-  }
-  const readout = dragReadout(cockpitEditor.history(), pending.handle, pending.drag);
-  box.dataset.kind = readout.kind;
-  const { reachesId } = pending.drag;
-  // An end that reaches a part takes its length from the gap: the box names the part instead.
-  $('#changeKind').textContent =
-    reachesId === undefined
-      ? READOUT_LABELS[readout.kind]
-      : `${READOUT_LABELS.reach} ${operationMaking(cockpitEditor.history(), reachesId)?.name ?? reachesId}`;
-  const input = $<HTMLInputElement>('#changeValue');
-  if (document.activeElement !== input) input.value = String(readout.valueMm);
-  const ball = handleBallMm(handle);
-  const inCm = (pointMm: { x: number; y: number; z: number }) => ({
-    x: pointMm.x / MM_PER_CM,
-    y: pointMm.y / MM_PER_CM,
-    z: pointMm.z / MM_PER_CM,
-  });
-  // The box keeps clear of the arrow being dragged, which starts where it is anchored.
-  const { outwardMm } = handle;
-  const arrowTip = {
-    x: ball.x + outwardMm.x * ARROW_CLEARANCE_MM,
-    y: ball.y + outwardMm.y * ARROW_CLEARANCE_MM,
-    z: ball.z + outwardMm.z * ARROW_CLEARANCE_MM,
-  };
-  const anArrow = handle.kind === 'move' || handle.kind === 'travel';
-  scene?.anchorElement(box, inCm(ball), anArrow ? inCm(arrowTip) : null);
-  box.hidden = false;
-}
-/** What ✓ in the box of a part about to be added does, as its panel's button says it. */
-const DRAFT_CONFIRM_LABELS: Record<Draft['kind'], string> = {
-  'grow-profile': 'Add the profile',
-  'add-plate': 'Add the plate',
-  'mount-peripheral': 'Mount it',
-};
-/**
- * The box of a part about to be added, above it in the view: ✓ adds it and ✗ drops it, as
- * the buttons of its panel do, so a part placed with its handles is added without leaving the view.
- */
-function renderDraftBox() {
-  const box = $('#draftBox');
-  const drafting = cockpitEditor.session.draft;
-  if (drafting === null || editor() !== 'cockpit') {
-    box.hidden = true;
-    scene?.anchorAbove(box, null);
-    return;
-  }
-  $('#draftKind').textContent = DRAFT_TITLES[drafting.kind];
-  const confirm = $('#confirmDraftInView');
-  const confirmLabel = DRAFT_CONFIRM_LABELS[drafting.kind];
-  confirm.title = `${confirmLabel} (Enter)`;
-  confirm.setAttribute('aria-label', confirmLabel);
-  const cornersCm = draftCornersMm(cockpitEditor.history(), drafting, cockpitEditor.at()).map(
-    (cornerMm) => ({
-      x: cornerMm.x / MM_PER_CM,
-      y: cornerMm.y / MM_PER_CM,
-      z: cornerMm.z / MM_PER_CM,
-    }),
-  );
-  scene?.anchorAbove(box, cornersCm);
-  box.hidden = false;
-}
-/** What the measure tool shows besides the view: its button, its readout and the cursor. */
-function renderMeasure() {
-  const { measurePicks } = cockpitEditor.session;
-  const on = measurePicks !== null;
-  $('#measureBtn').classList.toggle('active', on);
-  $('#measureBtn').setAttribute('aria-pressed', String(on));
-  $('#viewport').classList.toggle('measuring', on);
-  $('#measureReadout').hidden = !on;
-  if (measurePicks === null) return;
-  $('#measureReadout').textContent = measureReadout(
-    measurePicks.length,
-    cockpitEditor.measureDrawing()?.measurement ?? null,
-  );
-}
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
 const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
 let evaluation = evaluate(shownConfig());
@@ -522,33 +339,6 @@ function update(change: SettingChange) {
   if (change.key.startsWith('room')) state = normalizeRoom(state);
   queueSave();
   refresh();
-}
-/** The label by the pointer shows once the pointer has rested this long on a part. */
-const HOVER_LABEL_DELAY_MS = 500;
-/** How far the label stands from the pointer, so it does not hide what it names. */
-const HOVER_LABEL_OFFSET_PX = 14;
-let hoverLabelTimer: ReturnType<typeof setTimeout> | undefined;
-/**
- * Names the part under the pointer once it rests there. Any move hides the label and starts
- * the wait again, so it never trails the pointer.
- */
-function hoverInView(hit: PartHit | null, pointer: PagePoint) {
-  const label = $('#hoverLabel');
-  clearTimeout(hoverLabelTimer);
-  label.hidden = true;
-  if (hit === null) return;
-  hoverLabelTimer = setTimeout(() => {
-    const resolved = cockpitDrawing()?.resolved.get(hit.partId);
-    // A hidden label has no offset parent: it is placed in the view area that holds it.
-    const area = label.parentElement;
-    if (!resolved || !(area instanceof HTMLElement)) return;
-    const bounds = area.getBoundingClientRect();
-    label.textContent = hoverLabel(resolved);
-    label.dataset.part = hit.partId;
-    label.style.left = `${pointer.x - bounds.left + HOVER_LABEL_OFFSET_PX}px`;
-    label.style.top = `${pointer.y - bounds.top + HOVER_LABEL_OFFSET_PX}px`;
-    label.hidden = false;
-  }, HOVER_LABEL_DELAY_MS);
 }
 // Control templates read the current state and evaluation.
 const controlView = () => ({ state, evaluation });
@@ -1197,10 +987,7 @@ function refresh() {
   renderWorkflow();
   cockpitInspector.render();
   cockpitInspector.renderChecks();
-  renderMeasure();
-  renderChangeBox();
-  renderDraftBox();
-  renderJointCard();
+  cockpitOverlays.render();
   cockpitToolbar.render();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
@@ -1371,14 +1158,6 @@ $('#dimensionBtn').addEventListener('click', () => {
   $('#dimensionBtn').setAttribute('aria-label', on ? 'Hide dimensions' : 'Show dimensions');
   $('#dimensionBtn').classList.toggle('active', on);
   scene?.setDimensions(on);
-});
-$('#confirmDraftInView').addEventListener('click', () => cockpitEditor.confirmDraft());
-$('#cancelDraftInView').addEventListener('click', () => cockpitEditor.cancelDraft());
-$('#confirmChange').addEventListener('click', () => cockpitEditor.confirmChange());
-$('#cancelChange').addEventListener('click', () => cockpitEditor.cancelChange());
-$('#changeValue').addEventListener('input', typeChange);
-$('#changeValue').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') cockpitEditor.confirmChange();
 });
 $('#fitBtn').addEventListener('click', () => scene?.setView(view));
 function focusArmControls() {
@@ -1605,10 +1384,11 @@ try {
   setActiveView(view);
   syncSceneEditing();
   scene.onPartPick = (hit) => cockpitEditor.pickInView(hit);
-  scene.onPartHover = hoverInView;
-  scene.onHandleGrab = grabHandle;
-  scene.onHandleDrag = dragHandle;
-  scene.onHandleRelease = releaseHandle;
+  scene.onPartHover = (hit, pointer) => cockpitOverlays.hover(hit, pointer);
+  scene.onHandleGrab = (handle) => handleDragging.grab(handle);
+  scene.onHandleDrag = (handle, movedMm, modifiers) =>
+    handleDragging.drag(handle, movedMm, modifiers);
+  scene.onHandleRelease = () => handleDragging.release();
   scene.onJointMarkerPick = (marker) => cockpitEditor.openJointCard(marker);
   scene.onArmMove = (joint, x, z) => {
     state = moveArmJoint(state, joint, x, z);
