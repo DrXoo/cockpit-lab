@@ -12,10 +12,11 @@ import {
   type Vec3Mm,
 } from './assembly.ts';
 import type { PlacedConnector } from './connectors.ts';
-import { CAD_CONTACT_MM } from './interference.ts';
+import { CAD_CONTACT_MM, cockpitInterferences, type CadInterference } from './interference.ts';
 import {
   adjustmentOf,
   AXES,
+  isAdjustable,
   makesAPart,
   type Adjustment,
   type AdjustableOperation,
@@ -79,6 +80,54 @@ export function fittedPose(
     })),
     changedSpans: changedSpans(resolved, shiftOf),
   };
+}
+
+/** Two parts that would reach into each other with one adjusted part at an end of its travel. */
+export interface TravelInterference {
+  /** The part at the end of its travel. */
+  movedId: string;
+  /** The position of that end, from the center of the travel, towards + on its axis. */
+  endMm: number;
+  axis: Axis;
+  interference: CadInterference;
+}
+
+/**
+ * What would interfere with each adjusted part at either end of its travel, one travel at a
+ * time with every other part where its position puts it. A pair that already interferes as
+ * fitted is listed by the fitted design, so it is left out here.
+ */
+export function travelInterferences(
+  history: readonly Operation[],
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  connectors: readonly PlacedConnector[],
+): TravelInterference[] {
+  const fitted = fittedPose(history, resolved, connectors);
+  const meetingNow = new Set(cockpitInterferences(fitted.resolved, fitted.connectors).map(pairKey));
+  const found: TravelInterference[] = [];
+  for (const operation of history.filter(makesAPart)) {
+    const adjustment = adjustmentOf(operation);
+    if (adjustment === undefined || !resolved.has(operation.partId)) continue;
+    for (const endMm of [-adjustment.travelMm / 2, adjustment.travelMm / 2]) {
+      if (endMm === adjustment.positionMm) continue;
+      const atEnd = history.map((step) =>
+        step.id === operation.id ? withPosition(step, endMm) : step,
+      );
+      const pose = fittedPose(atEnd, resolved, connectors);
+      for (const interference of cockpitInterferences(pose.resolved, pose.connectors))
+        if (!meetingNow.has(pairKey(interference)))
+          found.push({ movedId: operation.partId, endMm, axis: adjustment.axis, interference });
+    }
+  }
+  return found;
+}
+
+const pairKey = ({ partId, otherId }: CadInterference): string => `${partId}|${otherId}`;
+
+/** The step with its part at `positionMm` along its travel; a step without one unchanged. */
+function withPosition(operation: Operation, positionMm: number): Operation {
+  if (!isAdjustable(operation) || operation.adjustment === undefined) return operation;
+  return { ...operation, adjustment: { ...operation.adjustment, positionMm } };
 }
 
 /** The part a connector moves with: a plate's profile for its bolts, else the part it fastens. */
