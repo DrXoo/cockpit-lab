@@ -83,7 +83,7 @@ The part under the pointer is outlined, and its label shows after half a second 
 
 ## Fit mode
 
-**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. Until adjustments come in slice 3, a selected peripheral has the move handles of a part that hangs from another. Its type is swapped in its inspector, as a foot's is; when its own values were edited, a confirmation says the new type's values take their place first.
+**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. A selected part with an adjustment, of the frame or a peripheral, has only the arrow along its travel; a peripheral without one has the move handles of a part that hangs from another. Its type is swapped in its inspector, as a foot's is; when its own values were edited, a confirmation says the new type's values take their place first.
 
 | | Designing (Fit off) | Fit on |
 | --- | --- | --- |
@@ -92,10 +92,10 @@ The part under the pointer is outlined, and its label shows after half a second 
 | Toolbar of a selected plate or profile | Grow a profile, put a plate, add a foot, remove | Mount a seat, a wheel base or pedals, as a preview with handles |
 | Toolbar of a selected peripheral | — | Remove it |
 | Inspector of a selected attached part | Its values | Its adjustment: axis and travel; a peripheral's type and own values |
-| Handles | Move, end and edge handles | One arrow along each part's travel, kept within it, with its center marked |
+| Handles | Move, end and edge handles | One arrow along the selected part's travel, kept within it, on a bar from end to end with its center marked; a peripheral without an adjustment, its move handles |
 | Driver | — | The figure on the seat, the stature, the knee, hip and elbow angles and the reach warnings |
 
-Moving a part along its travel changes no part and no cut: it is saved with the design and undone with Ctrl+Z, but adds no step to the design history.
+Moving a part along its travel changes no part and no cut: it is saved with the design and undone with Ctrl+Z, but adds no step to the design history. The arrow moves it in steps of 10 mm, which Alt turns off, and lines up with nothing; its box shows the position from the center of the travel, waiting for ✓ as any other handle's change. The view, the joint markers and interference show every part where it is along its travel; the joints, connectors and parts to buy are those at the centers.
 
 ## Keyboard
 
