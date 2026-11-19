@@ -24,7 +24,7 @@ import {
 } from '../src/cad/handles.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
-import { railHistory, withGrowth, withPlate } from './support/designs.mjs';
+import { railHistory, withGrowth, withPlate } from './support/designs.ts';
 
 const ends = (handles) =>
   handles.map(({ id, end, pointMm, outwardMm }) => [id, end, pointMm, outwardMm]);

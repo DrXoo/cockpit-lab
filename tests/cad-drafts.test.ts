@@ -6,7 +6,7 @@ import { draggedHistory, partHandles } from '../src/cad/handles.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
 import { draftCornersMm, draftEditedBy, withDraft } from '../src/cad/drafts.ts';
 import { draftPeripheral } from '../src/cad/peripherals.ts';
-import { railHistory } from './support/designs.mjs';
+import { railHistory } from './support/designs.ts';
 
 /** The rail and a second one at x = 800, its −x face at 780: part-2. */
 const twoRails = () => {

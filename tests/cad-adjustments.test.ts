@@ -20,7 +20,7 @@ import { addAdjustment, editAdjustment, removeAdjustment } from '../src/cad/adju
 import { fastenWithBolts, fastenWithBrackets } from '../src/cad/fastening.ts';
 import { peripheralType } from '../src/cad/catalog.ts';
 import { designData, readDesign } from '../src/cockpit-design.ts';
-import { plateHistory, railHistory, withPeripheral } from './support/designs.mjs';
+import { plateHistory, railHistory, withPeripheral } from './support/designs.ts';
 
 /** The rail with a seat on the middle of its top: part-2. */
 const seatHistory = () => withPeripheral(railHistory(), 'part-1', 'generic-seat');

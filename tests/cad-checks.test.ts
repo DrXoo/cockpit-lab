@@ -12,7 +12,7 @@ import {
 } from '../src/cad/history.ts';
 import { cadChecks } from '../src/cad-checks.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
-import { railHistory, withGrowth } from './support/designs.mjs';
+import { railHistory, withGrowth } from './support/designs.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const bar = (id, name, startMm, changes = {}) => ({

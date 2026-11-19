@@ -28,7 +28,7 @@ Implement behavior test-first, using red, green, refactor:
 - Fix a bug by first writing a test that reproduces it.
 - Test behavior through public module interfaces, not private details, so refactors do not break tests.
 - Keep domain logic in pure modules, without DOM or Three.js, so it can be tested in Node. Rendering and DOM wiring stay thin and are checked in the browser.
-- Build the designs a CAD test starts from with `tests/support/designs.mjs`, and add the next common setup there, so each one is a design the editor could make.
+- Build the designs a CAD test starts from with `tests/support/designs.ts`, and add the next common setup there, so each one is a design the editor could make.
 - Use known reference cases (for example the 200 × 150 × 5 mm plate in `docs/mini-cad.md`) as acceptance tests.
 - A passing test of the approximate model is not a claim of structural validity.
 

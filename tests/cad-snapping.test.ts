@@ -10,7 +10,7 @@ import {
   partHandles,
 } from '../src/cad/handles.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
-import { railHistory, withGrowth, withPlate } from './support/designs.mjs';
+import { railHistory, withGrowth, withPlate } from './support/designs.ts';
 
 /** Snapping within 10 mm, as about 10 pixels on screen would be at a typical zoom. */
 const WITHIN_MM = 10;

@@ -10,7 +10,7 @@ import {
 } from '../src/cad/history.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from '../src/cad/plates.ts';
 import { cockpitInterferences } from '../src/cad/interference.ts';
-import { railHistory, withPlate } from './support/designs.mjs';
+import { railHistory, withPlate } from './support/designs.ts';
 
 /** The rail with a plate on it, part-2, changed as given before it is added. */
 const boxOf = (history, partId) => replayDesign(history).resolved.get(partId).box;

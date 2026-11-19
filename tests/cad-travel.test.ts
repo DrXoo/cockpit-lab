@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { replayDesign } from '../src/cad/history.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import { travelInterferences } from '../src/cad/travel.ts';
-import { railHistory, withGrowth } from './support/designs.mjs';
+import { railHistory, withGrowth } from './support/designs.ts';
 
 /** The rail with Post halfway along its top, part-2, and Other post 60 mm in front, part-3. */
 function twoPosts() {

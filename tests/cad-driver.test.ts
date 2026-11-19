@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 import { seatedDriver } from '../src/cad/driver.ts';
 import { replayDesign } from '../src/cad/history.ts';
-import { railHistory, withGrowth, withPeripheral } from './support/designs.mjs';
+import { railHistory, withGrowth, withPeripheral } from './support/designs.ts';
 
 /** A peripheral anchored with its mounting origin at `startMm`, its one contact point there. */
 const peripheral = (id, role, startMm, changes = {}) => ({

@@ -8,7 +8,7 @@ import {
   replayHistory,
 } from '../src/cad/history.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
-import { railHistory, withGrowth } from './support/designs.mjs';
+import { railHistory, withGrowth } from './support/designs.ts';
 
 const boxOf = (history, partId) => resolveAssembly(replayHistory(history)).get(partId).box;
 

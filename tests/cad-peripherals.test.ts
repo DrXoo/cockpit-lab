@@ -13,7 +13,7 @@ import {
 } from '../src/cad/peripherals.ts';
 import { peripheralType, peripheralTypes } from '../src/cad/catalog.ts';
 import { jointsOf } from '../src/cad/joints.ts';
-import { plateHistory, railHistory, withPeripheral } from './support/designs.mjs';
+import { plateHistory, railHistory, withPeripheral } from './support/designs.ts';
 
 const boxOf = (history, partId) => replayDesign(history).resolved.get(partId).box;
 
