@@ -19,5 +19,5 @@
   },
   "include": ["src", "scripts", "tests", "e2e", "playwright.config.ts"],
   // Test files not type-checked yet, while the tests move to TypeScript.
-  "exclude": ["tests/cad-assembly.test.ts", "tests/cad-handles.test.ts", "tests/render-cad.test.ts"]
+  "exclude": ["tests/cad-assembly.test.ts", "tests/cad-handles.test.ts"]
 }

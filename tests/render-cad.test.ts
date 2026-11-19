@@ -1,13 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { createRenderList, ROOT, type Primitive } from '../src/render-list.ts';
+import { allOfKind, present } from './support/lookups.ts';
+import {
+  resolveAssembly,
+  type FootPart,
+  type Part,
+  type PeripheralPart,
+  type PlatePart,
+  type ProfilePart,
+} from '../src/cad/assembly.ts';
 import { drawCadProfiles, drawConnectors } from '../src/render-cad.ts';
 import { degToRad } from '../src/geometry.ts';
 import { peripheralType } from '../src/cad/catalog.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const profile = (id, changes) => ({
+const profile = (id: string, changes: Partial<ProfilePart> = {}): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -20,17 +28,20 @@ const profile = (id, changes) => ({
   ...changes,
 });
 
-const draw = (parts, selectedId = null, previewId = null) => {
+const draw = (
+  parts: readonly Part[],
+  selectedId: string | null = null,
+  previewId: string | null = null,
+) => {
   const r = createRenderList();
   drawCadProfiles(r, ROOT, resolveAssembly(parts), selectedId, previewId);
   return r.primitives;
 };
-const bars = (primitives) =>
-  primitives.filter(
-    (p) => p.kind === 'box' && ['silver', 'selected', 'preview'].includes(p.material),
-  );
-const groovesOf = (primitives, bar) =>
-  primitives.filter((p) => p.kind === 'box' && p.material === 'groove' && p.parent === bar.id);
+const BAR_MATERIALS: readonly unknown[] = ['silver', 'selected', 'preview'];
+const bars = (primitives: readonly Primitive[]) =>
+  allOfKind(primitives, 'box').filter((p) => BAR_MATERIALS.includes(p.material));
+const groovesOf = (primitives: readonly Primitive[], bar: { id: number }) =>
+  allOfKind(primitives, 'box').filter((p) => p.material === 'groove' && p.parent === bar.id);
 
 test('a profile is drawn as an outlined bar centered on its box, in cm', () => {
   const [bar] = bars(draw([profile('rail')]));
@@ -79,21 +90,21 @@ test('the selected profile is drawn apart from the others', () => {
 });
 
 test('tilted profiles are drawn in one group turned by their tilt about the origin', () => {
-  const tilted = (id, x) =>
+  const tilted = (id: string, x: number) =>
     profile(id, {
       sectionId: '40x40',
       lengthMm: 380,
       placement: { kind: 'anchor', startMm: { x, y: 200, z: 500 }, tiltDeg: 15 },
     });
   const primitives = draw([tilted('a', -100), tilted('b', 100)]);
-  const groups = primitives.filter((p) => p.kind === 'group');
+  const groups = allOfKind(primitives, 'group');
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0].position, [0, 0, 0]);
   assert.deepEqual(groups[0].rotation, [-degToRad(15), 0, 0]);
   assert.ok(bars(primitives).every((bar) => bar.parent === groups[0].id));
 });
 
-const foot = {
+const foot: FootPart = {
   kind: 'foot',
   id: 'foot',
   name: 'Foot',
@@ -107,15 +118,18 @@ test('feet are not drawn as profiles', () => {
 
 test('a foot is drawn as a rubber pad and a threaded stem up to the underside', () => {
   const primitives = draw([profile('rail'), foot]);
-  const pad = primitives.find((p) => p.kind === 'box' && p.material === 'rubber');
-  const near = (actual, expected, message) =>
+  const pad = present(
+    allOfKind(primitives, 'box').find((p) => p.material === 'rubber'),
+    'rubber pad',
+  );
+  const near = (actual: number, expected: number, message: string) =>
     assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} is not ${expected}`);
   // The rail's underside is 6 cm up, and a leveling foot is 6 cm tall.
   assert.deepEqual(pad.size, [7.2, 1.5, 7.2]);
   near(pad.position[0], -28, 'under the rail');
   near(pad.position[1], 0.75, 'on the floor');
   near(pad.position[2], 3.6, 'flush with the start');
-  const stem = primitives.find((p) => p.kind === 'cylinder');
+  const stem = present(allOfKind(primitives, 'cylinder')[0], 'stem');
   assert.equal(stem.material, 'silver');
   near(stem.position[1] + stem.length / 2, 6, 'the stem reaches the underside');
   near(stem.position[1] - stem.length / 2, 1.5, 'and stands on the pad');
@@ -124,7 +138,7 @@ test('a foot is drawn as a rubber pad and a threaded stem up to the underside', 
 test('a selected foot is drawn in the accent color', () => {
   const primitives = draw([profile('rail'), foot], 'foot');
   assert.ok(primitives.some((p) => p.kind === 'box' && p.material === 'selected'));
-  assert.ok(!primitives.some((p) => p.material === 'rubber'));
+  assert.ok(!primitives.some((p) => 'material' in p && p.material === 'rubber'));
 });
 
 test('a part about to be added is drawn as a preview', () => {
@@ -136,7 +150,7 @@ test('a part about to be added is drawn as a preview', () => {
   );
 });
 
-const plateOn = (parentId) => ({
+const plateOn = (parentId: string): PlatePart => ({
   kind: 'plate',
   id: 'plate',
   name: 'Plate',
@@ -181,8 +195,9 @@ test('a corner bracket is drawn as an L: a plate against the part, one on the fa
       tiltDeg: 0,
     },
   ]);
-  const plates = r.primitives.filter((p) => p.kind === 'box');
-  const rounded = (values) => values.map((value) => Math.round(value * 1000) / 1000);
+  const plates = allOfKind(r.primitives, 'box');
+  const rounded = (values: readonly number[]) =>
+    values.map((value) => Math.round(value * 1000) / 1000);
   assert.deepEqual(
     plates.map((plate) => [rounded(plate.size), rounded(plate.position), plate.material]),
     [
@@ -206,19 +221,18 @@ test('a plate bolt is drawn as its head, standing on the plate', () => {
       tiltDeg: 0,
     },
   ]);
-  const rounded = (values) => values.map((value) => Math.round(value * 1000) / 1000);
+  const rounded = (values: readonly number[]) =>
+    values.map((value) => Math.round(value * 1000) / 1000);
   assert.deepEqual(
-    r.primitives.map((head) => [
-      head.kind,
-      rounded(head.size),
-      rounded(head.position),
-      head.material,
-    ]),
+    r.primitives.map((head) => {
+      assert.equal(head.kind, 'box');
+      return [head.kind, rounded(head.size), rounded(head.position), head.material];
+    }),
     [['box', [1.3, 0.8, 1.3], [-10, 5.2, 42.5], 'dark']],
   );
 });
 
-const peripheralOf = (typeId, changes = {}) => {
+const peripheralOf = (typeId: string, changes: Partial<PeripheralPart> = {}): PeripheralPart => {
   const type = peripheralType(typeId);
   return {
     kind: 'peripheral',
@@ -234,16 +248,24 @@ const peripheralOf = (typeId, changes = {}) => {
     ...changes,
   };
 };
-const drawFitting = (parts, { fitting = true, selectedId = null, previewId = null } = {}) => {
+interface FittingOptions {
+  fitting?: boolean;
+  selectedId?: string | null;
+  previewId?: string | null;
+}
+const drawFitting = (
+  parts: readonly Part[],
+  { fitting = true, selectedId = null, previewId = null }: FittingOptions = {},
+) => {
   const r = createRenderList();
   drawCadProfiles(r, ROOT, resolveAssembly(parts), selectedId, previewId, { fitting });
   return r.primitives.filter((p) => p.kind === 'box' || p.kind === 'tube');
 };
 /** The bounds of the boxes drawn, in mm. */
-const boundsMm = (primitives) => {
-  const boxes = primitives.filter((p) => p.kind === 'box');
-  const low = (i) => Math.min(...boxes.map((b) => (b.position[i] - b.size[i] / 2) * 10));
-  const high = (i) => Math.max(...boxes.map((b) => (b.position[i] + b.size[i] / 2) * 10));
+const boundsMm = (primitives: readonly Primitive[]) => {
+  const boxes = allOfKind(primitives, 'box');
+  const low = (i: number) => Math.min(...boxes.map((b) => (b.position[i] - b.size[i] / 2) * 10));
+  const high = (i: number) => Math.max(...boxes.map((b) => (b.position[i] + b.size[i] / 2) * 10));
   return [0, 1, 2].map((i) => [Math.round(low(i)), Math.round(high(i))]);
 };
 
@@ -258,7 +280,7 @@ test('in Fit, a seat is drawn as a base and a backrest that fill its envelope', 
     [-depthMm / 2, depthMm / 2],
   ]);
   // The backrest is at the back, where the driver leans.
-  const tallest = primitives.reduce((a, b) => (b.size[1] > a.size[1] ? b : a));
+  const tallest = allOfKind(primitives, 'box').reduce((a, b) => (b.size[1] > a.size[1] ? b : a));
   assert.ok(tallest.position[2] < 0);
 });
 
@@ -283,7 +305,8 @@ test('a peripheral turned on its face is drawn turned', () => {
 
 test('out of Fit a peripheral is drawn grey, as a reference; in Fit selected or previewed as a part', () => {
   const pedals = peripheralOf('generic-pedals');
-  const materials = (options) => new Set(drawFitting([pedals], options).map((p) => p.material));
+  const materials = (options: FittingOptions) =>
+    new Set(drawFitting([pedals], options).map((p) => p.material));
   assert.deepEqual(materials({ fitting: false }), new Set(['reference']));
   assert.deepEqual(
     materials({ fitting: false, selectedId: 'generic-pedals' }),
