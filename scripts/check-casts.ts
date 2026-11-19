@@ -1,6 +1,7 @@
-// Finds type assertions (`value as Type`) in src/. A cast silences the type checker instead of
-// validating a value where it enters (AGENTS.md), so each one left must say why it is safe in a
-// comment that starts with `Cast:` on its line or the line above. `as const` is not a cast.
+// Finds type assertions (`value as Type`) in the TypeScript of src/, tests/ and scripts/. A cast
+// silences the type checker instead of validating a value where it enters (AGENTS.md), so each one
+// left must say why it is safe in a comment that starts with `Cast:` on its line or the line above.
+// `as const` is not a cast.
 //
 // The casts of the earlier configurator are counted per file in casts-baseline.json until they are
 // replaced by validation. A file may not go over its count, and a file that goes under it must
@@ -14,6 +15,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const CHECKED_DIRECTORIES = ['src', 'tests', 'scripts'];
 const JUSTIFIED = /\/\/\s*Cast:|\/\*\s*Cast:/;
 const ASSERTION = /\bas\s+(?!const\b)[A-Za-z_$({[]/g;
 const RENAMES = [
@@ -141,7 +143,10 @@ function parseBaseline(text: string): Record<string, number> {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const found: Record<string, number[]> = {};
-  for (const file of await sourceFiles(join(root, 'src'))) {
+  const files: string[] = [];
+  for (const directory of CHECKED_DIRECTORIES)
+    files.push(...(await sourceFiles(join(root, directory))));
+  for (const file of files) {
     const lines = unexplainedCasts(await readFile(file, 'utf8'));
     if (lines.length > 0) found[relative(root, file).replaceAll(sep, '/')] = lines;
   }
