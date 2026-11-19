@@ -13,7 +13,6 @@ import {
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
 import {
-  DEFAULT_DRIVER,
   driverOfStature,
   seatedDriver,
   type Driver,
@@ -49,7 +48,6 @@ import {
   addAnchoredProfile,
   addFoot,
   addOperation,
-  deleteOperation,
   draftGrowth,
   editDraft,
   editFoot,
@@ -59,14 +57,11 @@ import {
   makesAPart,
   makesAProfile,
   operationMaking,
-  removePart,
   replayDesign,
-  type AddPlate,
   type GrowProfile,
   type MakingOperation,
   type MountPeripheral,
   type Operation,
-  type ProfileOperation,
   type ProfileValues,
   unknownOperation,
 } from './cad/history.ts';
@@ -85,11 +80,12 @@ import {
 } from './cad/peripherals.ts';
 import { peripheralType } from './cad/catalog.ts';
 import type { PartHit } from './cad/picking.ts';
-import { measureBetween, nextMeasurePicks, pickInCockpit } from './cad/measure.ts';
+import { measureBetween, pickInCockpit } from './cad/measure.ts';
 import { measureReadout } from './measure-view.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
 import type { CockpitDrawing } from './render-cad.ts';
-import { canRedo, canUndo, noEdits, recordEdit, redo, undo, type Edits } from './undo.ts';
+import { canRedo, canUndo } from './undo.ts';
+import * as editing from './cockpit-session.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
 import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
@@ -116,14 +112,10 @@ import {
 } from './model.ts';
 import { CockpitScene, type HandleModifiers, type PagePoint } from './scene.ts';
 import {
-  draggedHandle,
   draggedHistory,
   dragFromTyped,
   dragReadout,
-  handlesSeenAlong,
-  partHandles,
   snappedDrag,
-  travelHandles,
   symmetricDrag,
   type Drag,
   type DragReadout,
@@ -131,7 +123,7 @@ import {
 } from './cad/handles.ts';
 import { snapToParts, type Snap } from './cad/snapping.ts';
 import { draftCornersMm, draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
-import { jointMarkers, type JointMarker } from './cad/joint-markers.ts';
+import type { JointMarker } from './cad/joint-markers.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
@@ -376,10 +368,11 @@ function stepOf(value: string): StepId {
 const isRoomSection = (value: Section) => value === 'room' || value === 'furniture';
 
 const newProject = createProject();
-// `state` is the active layout as it is being edited; `cockpit` and `library` keep the cockpit
-// design and every layout as last recorded. Saving and exporting record `state` into them first.
+// `state` is the active layout as it is being edited; `library` keeps every layout as last
+// recorded. Saving and exporting record `state` into it first. `session` holds the cockpit
+// design and what the cockpit editor is doing with it.
 let library: LayoutLibrary = newProject.library,
-  cockpit: CockpitDesign | null = newProject.cockpit,
+  session: editing.CockpitSession = editing.newSession(newProject.cockpit),
   state: RoomConfig = layoutConfig(library),
   setup: SetupProgress = newProject.setup,
   section: Section = 'room',
@@ -394,46 +387,10 @@ let library: LayoutLibrary = newProject.library,
    * arm is in, so moving the arm afterwards shows that pose as changed.
    */
   selectedArmPose = '',
-  /** The step selected in the cockpit editor's history, or null. */
-  selectedOperationId: string | null = null,
-  /** The history marker: how many steps the view shows, or null to follow the last step. */
-  marker: number | null = null,
-  /** The edits made to the cockpit design since the project was opened, to undo and redo. */
-  designEdits: Edits<CockpitDesign | null> = noEdits(),
-  /** A part about to be added to the selected one, shown as a preview until it is added. */
-  draftPart: Draft | null = null,
-  /**
-   * Whether the cockpit editor is in Fit mode, fitting the design to the driver: peripherals are
-   * mounted and moved, and the frame is locked. It belongs to the session.
-   */
-  fitting = false,
-  /**
-   * The points clicked so far with the measure tool, or null when it is off. Measurements belong
-   * to the session and are never saved.
-   */
-  measurePicks: PartHit[] | null = null,
-  /**
-   * A change of the selected part dragged in the view with one of its handles, with the history
-   * it would give, shown as a preview until it is confirmed.
-   */
-  pendingChange: PendingChange | null = null,
   /** How far the handle had been dragged when it was grabbed, to drag on from there. */
   changeAtGrabMm = 0,
   /** The part about to be added as it was when one of its handles was grabbed. */
-  draftAtGrab: Draft | null = null,
-  /** What a handle of the part about to be added last snapped to, shown with a guide. */
-  draftSnap: Snap | null = null,
-  /** The joint marker whose card is open, or null. */
-  openJointMarker: JointMarker | null = null;
-/** A change made with a handle, waiting to be confirmed. */
-interface PendingChange {
-  partId: string;
-  handle: Handle;
-  drag: Drag;
-  /** What the drag snapped to, shown with a guide, or null. */
-  snap: Snap | null;
-  history: Operation[];
-}
+  draftAtGrab: Draft | null = null;
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -452,89 +409,64 @@ if (setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(setup.step);
 if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
 // A project with a cockpit design and no room yet opens where the design is edited.
-if (!state.roomEnabled && cockpit !== null) {
+if (!state.roomEnabled && session.design !== null) {
   section = 'design';
   view = 'iso';
 }
 const editor = (): Editor => editorOfSection(section);
 /** Whether the project has a cockpit design. */
-const hasDesign = (): boolean => cockpit !== null;
+const hasDesign = (): boolean => session.design !== null;
 /** Whether the cockpit design has parts to show. */
-const designHasParts = (): boolean => (cockpit?.history.length ?? 0) > 0;
+const designHasParts = (): boolean => editing.designHasParts(session);
+/** The design history, empty without a design. */
+const designHistory = (): readonly Operation[] => editing.designHistory(session);
+/** How many steps the view shows: all of them unless the history marker was moved back. */
+const markerIndex = (): number => editing.markerIndex(session);
+/** The selected step, if it is still in the history. */
+const selectedOperation = (): Operation | undefined => editing.selectedOperation(session);
+/** The part the selected step made, when the view shows it. */
+const selectedPartId = (): string | null => editing.selectedPartId(session);
 /** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
 function cockpitDrawing(): CockpitDrawing | null {
   if (editor() !== 'cockpit' || !designHasParts()) return null;
+  const { draft, draftSnap, pendingChange, fitting } = session;
   const history = pendingChange?.history ?? designHistory();
   const at = markerIndex();
-  const shown = draftPart ? withDraft(history, draftPart, at) : history;
+  const shown = draft ? withDraft(history, draft, at) : history;
   // The view shows the cockpit as fitted, each part where it is along its travel.
-  const { fitted } = replayDesign(shown, draftPart ? at + 1 : at);
+  const { fitted } = replayDesign(shown, draft ? at + 1 : at);
   return {
     resolved: fitted.resolved,
     connectors: fitted.connectors,
     selectedPartId: selectedPartId(),
-    previewPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
-    choosingFaceOf: draftPart?.parentId ?? null,
+    previewPartId: draft?.partId ?? pendingChange?.partId ?? null,
+    choosingFaceOf: draft?.parentId ?? null,
     measure: measureDrawing(),
-    driver: fitting ? figureShown(shown, draftPart ? at + 1 : at) : null,
+    driver: fitting ? figureShown(shown, draft ? at + 1 : at) : null,
     handles: shownHandles(),
-    snapGuide: (pendingChange?.snap ?? (draftPart ? draftSnap : null))?.guide ?? null,
-    placedPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
-    jointMarkers: shownJointMarkers(),
+    snapGuide: (pendingChange?.snap ?? (draft ? draftSnap : null))?.guide ?? null,
+    placedPartId: draft?.partId ?? pendingChange?.partId ?? null,
+    jointMarkers: editing.shownJointMarkers(session),
     fitting,
   };
 }
-/**
- * The handles of the selected part, when nothing else is being added or measured; while a
- * change waits, only the handle that made it.
- */
-function shownHandles(): Handle[] {
-  if (measurePicks !== null) return [];
-  if (pendingChange) return [draggedHandle(pendingChange.handle, pendingChange.drag)];
-  const at = markerIndex();
-  const handles = draftPart
-    ? partHandles(withDraft(designHistory(), draftPart, at), draftPart.partId, at + 1)
-    : handlesOfSelected(at);
-  // A flat view cannot drag a handle that points at it.
-  return handlesSeenAlong(handles, SIGHT_AXIS[view]);
-}
-/**
- * The joint markers of the design at the marker. They are left out while a part is about to be
- * added, measured or changed by a handle, where a click in the view does something else, and
- * while fitting, which leaves the joints of the frame alone.
- */
-function shownJointMarkers(): JointMarker[] {
-  if (!jointMarkersShown()) return [];
-  return jointMarkers(designHistory(), selectedPartId(), markerIndex());
-}
-const jointMarkersShown = (): boolean =>
-  !fitting && draftPart === null && measurePicks === null && pendingChange === null;
-/** Whether a step is one the mode of the view changes: a peripheral's while fitting, else the frame's. */
-const changeableInMode = (operation: Operation): boolean =>
-  fitting === (operation.kind === 'mount-peripheral');
-/**
- * Turns Fit on or off. What was about to be added or changed is dropped, and a peripheral
- * selected while fitting is left unselected, as designing cannot change it.
- */
+/** The handles the view shows, of the selected part or the part about to be added. */
+const shownHandles = (): Handle[] => editing.shownHandles(session, SIGHT_AXIS[view]);
+/** Turns Fit on or off; what was about to be added or changed is dropped. */
 function setFitting(on: boolean) {
-  if (fitting === on) return;
-  fitting = on;
-  draftPart = null;
-  pendingChange = null;
-  closeJointCard();
-  const selected = selectedOperation();
-  if (!on && selected?.kind === 'mount-peripheral') selectedOperationId = null;
+  if (session.fitting === on) return;
+  session = editing.setFitting(session, on);
   renderControls();
   refresh();
 }
 /** Opens the card of a joint marker beside it, closing any other. */
 function openJointCard(marker: JointMarker) {
-  openJointMarker = marker;
+  session = { ...session, openJointMarker: marker };
   renderJointCard();
 }
 function closeJointCard() {
-  if (openJointMarker === null) return;
-  openJointMarker = null;
+  if (session.openJointMarker === null) return;
+  session = { ...session, openJointMarker: null };
   renderJointCard();
 }
 /**
@@ -564,10 +496,10 @@ function jointCardOf(marker: JointMarker): JointCard | null {
 let shownJointCard = '';
 function renderJointCard() {
   const card = $('#jointCard');
-  const marker = jointMarkersShown() ? openJointMarker : null;
+  const marker = editing.jointMarkersShown(session) ? session.openJointMarker : null;
   const content = marker ? jointCardOf(marker) : null;
   if (!marker || !content) {
-    openJointMarker = null;
+    if (session.openJointMarker !== null) session = { ...session, openJointMarker: null };
     shownJointCard = '';
     card.hidden = true;
     scene?.anchorElement(card, null);
@@ -598,32 +530,17 @@ function showJointInInspector(partId: string) {
   selectOperation(operationMaking(designHistory(), partId)?.id ?? null);
   $optional('#partJoints')?.scrollIntoView({ block: 'nearest' });
 }
-/**
- * The handles of the selected part, when the mode of the view lets it change. Fitting, a part
- * with an adjustment has only the arrow along its travel, frame or peripheral.
- */
-function handlesOfSelected(at: number): Handle[] {
-  const partId = selectedPartId();
-  const operation = selectedOperation();
-  if (partId === null || !operation) return [];
-  const travel = fitting ? travelHandles(designHistory(), partId, at) : [];
-  if (travel.length > 0) return travel;
-  if (!changeableInMode(operation)) return [];
-  return partHandles(designHistory(), partId, at);
-}
 /** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
 function changeInView(handle: Handle, drag: Drag, snap: Snap | null = null) {
-  try {
-    const history = draggedHistory(designHistory(), handle, drag);
-    pendingChange = { partId: handle.partId, handle, drag, snap, history };
-  } catch {
-    return;
-  }
+  const dragged = editing.changeInView(session, handle, drag, snap);
+  if (dragged === null) return;
+  session = dragged;
   refresh();
 }
 function grabHandle(handle: Handle) {
-  if (draftPart?.partId === handle.partId) {
-    draftAtGrab = draftPart;
+  const { draft, pendingChange } = session;
+  if (draft?.partId === handle.partId) {
+    draftAtGrab = draft;
     return;
   }
   // The box shows the value as the drag goes, which it keeps while its field has the focus.
@@ -634,12 +551,13 @@ function grabHandle(handle: Handle) {
 function dragHandle(shown: Handle, movedMm: number, modifiers: HandleModifiers) {
   if (draftAtGrab !== null) {
     // A part no longer about to be added, as Escape left it mid-drag, is not brought back.
-    if (draftPart === null) draftAtGrab = null;
+    if (session.draft === null) draftAtGrab = null;
     else dragDraft(draftAtGrab, shown, movedMm, modifiers);
     return;
   }
   // A waiting change shows its handle where it was let go: the drag goes on from the handle
   // as it was before the change.
+  const { pendingChange } = session;
   const handle = pendingChange?.handle.id === shown.id ? pendingChange.handle : shown;
   const history = designHistory();
   const { shiftHeld, free, snapWithinMm } = modifiers;
@@ -667,15 +585,14 @@ function dragDraft(
   const dragged = { symmetric: symmetricDrag(handle, shiftHeld), changeMm: movedMm };
   const toParts = free ? null : snapToParts(shown, handle, dragged, snapWithinMm, at + 1);
   const drag = toParts?.drag ?? snappedDrag(shown, handle, dragged, free);
+  let placed: Draft;
   try {
-    draftPart = draftEditedBy(history, draft, at, (showing) =>
-      draggedHistory(showing, handle, drag),
-    );
+    placed = draftEditedBy(history, draft, at, (showing) => draggedHistory(showing, handle, drag));
   } catch {
     // A place the part cannot take keeps it where it last fitted.
     return;
   }
-  draftSnap = toParts?.snap ?? null;
+  session = editing.placeDraft(session, placed, toParts?.snap ?? null);
   renderPartInspector({ force: true });
   refresh();
 }
@@ -686,7 +603,7 @@ function releaseHandle() {
     return;
   }
   // The box stays where the view shows it: focusing it must not scroll the page.
-  if (pendingChange?.drag.reachesId !== undefined) {
+  if (session.pendingChange?.drag.reachesId !== undefined) {
     $('#confirmChange').focus({ preventScroll: true });
     return;
   }
@@ -697,26 +614,30 @@ function releaseHandle() {
 /** A value typed in the box sets the change exactly. */
 function typeChange() {
   const typed = $<HTMLInputElement>('#changeValue').value;
+  const { pendingChange } = session;
   if (!pendingChange || typed.trim() === '' || !Number.isFinite(Number(typed))) return;
   const { handle, drag } = pendingChange;
   changeInView(handle, dragFromTyped(designHistory(), handle, drag, Number(typed)));
 }
 /** Makes the waiting change an edit of the design, which undo takes back in one step. */
 function confirmChange() {
-  const pending = pendingChange;
-  if (!pending) return;
-  pendingChange = null;
-  if (pending.drag.changeMm === 0) refresh();
-  else setHistory(pending.history);
+  if (!session.pendingChange) return;
+  const confirmed = editing.confirmChange(session);
+  if (confirmed.design !== session.design) {
+    showDesignChange(confirmed);
+    return;
+  }
+  session = confirmed;
+  refresh();
 }
 function cancelChange() {
-  if (!pendingChange) return;
-  pendingChange = null;
+  if (!session.pendingChange) return;
+  session = editing.cancelChange(session);
   refresh();
 }
 /** Before another edit, a waiting change is confirmed, so the edit builds on what the view shows. */
 function settleChange() {
-  if (pendingChange) confirmChange();
+  if (session.pendingChange) confirmChange();
 }
 /** Far enough along a move arrow to tell which side of the screen it points to. */
 const ARROW_CLEARANCE_MM = 100;
@@ -733,7 +654,7 @@ const READOUT_LABELS: Record<DragReadout['kind'], string> = {
 /** The box of a waiting change, beside the handle that made it, with its value. */
 function renderChangeBox() {
   const box = $('#changeBox');
-  const pending = pendingChange;
+  const pending = session.pendingChange;
   const [handle] = pending ? shownHandles() : [];
   if (!pending || !handle) {
     box.hidden = true;
@@ -779,7 +700,7 @@ const DRAFT_CONFIRM_LABELS: Record<Draft['kind'], string> = {
  */
 function renderDraftBox() {
   const box = $('#draftBox');
-  const drafting = draftPart;
+  const drafting = session.draft;
   if (drafting === null || editor() !== 'cockpit') {
     box.hidden = true;
     scene?.anchorAbove(box, null);
@@ -800,6 +721,7 @@ function renderDraftBox() {
 }
 /** The measurement being taken, in the design the view shows at the history marker. */
 function measureDrawing(): MeasureDrawing | null {
+  const { measurePicks } = session;
   if (measurePicks === null) return null;
   const { resolved } = replayDesign(designHistory(), markerIndex()).fitted;
   const [first, second] = measurePicks;
@@ -810,16 +732,13 @@ function measureDrawing(): MeasureDrawing | null {
 }
 /** Turns the measure tool on, with no points yet, or off. */
 function setMeasuring(on: boolean) {
-  measurePicks = on ? [] : null;
-  if (on) {
-    draftPart = null;
-    pendingChange = null;
-  }
+  session = editing.setMeasuring(session, on);
   renderControls();
   refresh();
 }
 /** What the measure tool shows besides the view: its button, its readout and the cursor. */
 function renderMeasure() {
+  const { measurePicks } = session;
   const on = measurePicks !== null;
   $('#measureBtn').classList.toggle('active', on);
   $('#measureBtn').setAttribute('aria-pressed', String(on));
@@ -849,20 +768,15 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
 /** Makes `project` the open one, editing its active layout. */
 function openProject(project: Project) {
   library = project.library;
-  cockpit = project.cockpit;
-  selectedOperationId = null;
-  marker = null;
-  designEdits = noEdits();
-  measurePicks = null;
-  draftPart = null;
-  pendingChange = null;
+  session = editing.reopened(session, project.cockpit);
   state = layoutConfig(library);
   selectedArmPose = activeArmPose(state)?.id ?? '';
   setup = project.setup;
 }
 /** The open project, with the edits to the active layout recorded. */
 function recordedProject(): Project {
-  ({ cockpit, library } = recordProject({ cockpit, library, setup }, state));
+  const cockpit = session.design;
+  ({ library } = recordProject({ cockpit, library, setup }, state));
   return { cockpit, library, setup };
 }
 /** Records the edits, applies `change` to the layouts and opens the resulting active layout. */
@@ -902,71 +816,39 @@ function update(change: SettingChange) {
   queueSave();
   refresh();
 }
-/** The design history, empty without a design. */
-const designHistory = (): readonly Operation[] => cockpit?.history ?? [];
-/** How many steps the view shows: all of them unless the history marker was moved back. */
-const markerIndex = (): number =>
-  Math.min(marker ?? designHistory().length, designHistory().length);
-/** The selected step, if it is still in the history. */
-const selectedOperation = (): Operation | undefined =>
-  designHistory().find((operation) => operation.id === selectedOperationId);
-/** The part the selected step made, when the view shows it. */
-function selectedPartId(): string | null {
-  const operation = selectedOperation();
-  if (!operation || !makesAPart(operation)) return null;
-  const shown = replayDesign(designHistory(), markerIndex()).resolved.has(operation.partId);
-  return shown ? operation.partId : null;
-}
-/** Steps added at the marker push it on, so it stays after them. */
-function stepAddedAtMarker() {
-  if (marker !== null) marker += 1;
-}
-/** Makes `history` the design history, keeping the driver, as an edit that can be undone. */
-function setHistory(history: readonly Operation[]) {
-  changeDesign({ history, driver: cockpit?.driver ?? DEFAULT_DRIVER });
-}
-/** Makes `next` the cockpit design, as an edit that can be undone, and shows it. */
-function changeDesign(next: CockpitDesign) {
+/** Makes `next` the session after its design changed: saves and shows it, framing the first part. */
+function showDesignChange(next: editing.CockpitSession) {
   const hadParts = designHasParts();
-  designEdits = recordEdit(designEdits, cockpit);
-  cockpit = next;
-  showChangedDesign(hadParts);
-}
-/** Shows the design after it changed, framing it when its first part appears. */
-function showChangedDesign(hadParts: boolean) {
-  draftPart = null;
-  pendingChange = null;
-  // The parts measured may have moved or gone.
-  if (measurePicks !== null) measurePicks = designHasParts() ? [] : null;
-  if (!selectedOperation()) selectedOperationId = null;
-  if (marker !== null && marker >= designHistory().length) marker = null;
+  session = next;
   queueSave();
   renderControls();
   refresh();
   if (!hadParts && designHasParts()) setActiveView(view);
 }
+/** Makes `next` the cockpit design, as an edit that can be undone, and shows it. */
+function changeDesign(next: CockpitDesign) {
+  showDesignChange(editing.changeDesign(session, next));
+}
 function addProfile() {
   const added = addAnchoredProfile(designHistory(), markerIndex());
-  selectedOperationId = operationMaking(added.history, added.partId)?.id ?? null;
-  stepAddedAtMarker();
-  setHistory(added.history);
+  showDesignChange(editing.withAddedPart(session, added));
+}
+/**
+ * Shows what a change of the history gave. One the design refuses is explained; when nothing
+ * changed, the inspector shows the values the step still has. Whether the design changed.
+ */
+function showHistoryChange(result: editing.HistoryChange): boolean {
+  if (result.kind === 'changed') {
+    showDesignChange(result.session);
+    return true;
+  }
+  if (result.kind === 'refused') toast(result.message);
+  renderPartInspector({ force: true });
+  return false;
 }
 /** Applies a change to the history; one it refuses is explained and nothing changes. */
-function changeHistory(change: (history: readonly Operation[]) => Operation[]): boolean {
-  let history: Operation[];
-  try {
-    history = change(designHistory());
-  } catch (error) {
-    toast(error instanceof Error ? error.message : String(error));
-    renderPartInspector({ force: true });
-    return false;
-  }
-  if (JSON.stringify(history) === JSON.stringify(designHistory())) {
-    renderPartInspector({ force: true });
-    return false;
-  }
-  setHistory(history);
-  return true;
+function changeHistory(change: (history: readonly Operation[]) => Operation[]) {
+  showHistoryChange(editing.historyChange(session, change));
 }
 /** Changes the operation of the selected step; values it cannot have are explained. */
 function editSelectedPart(changes: Partial<ProfileValues>) {
@@ -995,110 +877,72 @@ function jointsOfSelected(): JointOfPart[] {
  */
 function changeJoints(change: (history: readonly Operation[], at: number) => Operation[]) {
   settleChange();
-  const history = designHistory();
-  const at = markerIndex();
-  let next: Operation[];
+  let next: editing.CockpitSession;
   try {
-    next = change(history, at);
+    next = editing.jointChange(session, change);
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
     renderPartInspector({ force: true });
     return;
   }
-  if (marker !== null) {
-    const before = new Set(history.slice(0, at).map((operation) => operation.id));
-    const known = new Set(history.map((operation) => operation.id));
-    marker = next.filter((step) => before.has(step.id) || !known.has(step.id)).length;
-  }
-  setHistory(next);
+  showDesignChange(next);
 }
 /** Puts a foot under the selected profile, at the marker, and selects it. */
 function addFootUnderSelected() {
   settleChange();
   const partId = selectedPartId();
   if (partId === null) return;
+  let added: editing.CockpitSession;
   try {
-    const added = addFoot(designHistory(), partId, markerIndex());
-    selectedOperationId = operationMaking(added.history, added.partId)?.id ?? null;
-    stepAddedAtMarker();
-    setHistory(added.history);
+    added = editing.withAddedPart(session, addFoot(designHistory(), partId, markerIndex()));
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
+    return;
   }
+  showDesignChange(added);
 }
 /** Removes the selected part from the marker on, as a step of its own. */
 function removeSelectedPart() {
   settleChange();
-  const partId = selectedPartId();
-  if (partId === null) return;
-  const at = markerIndex();
-  const removed = changeHistory((history) => removePart(history, partId, at));
-  if (!removed) return;
-  stepAddedAtMarker();
-  selectedOperationId = null;
-  renderControls();
-  refresh();
+  if (selectedPartId() === null) return;
+  if (!showHistoryChange(editing.removeSelectedPart(session))) return;
   toast('Part removed from this step on. Delete the step to bring it back.');
 }
 /** Takes the selected step out of the whole history; what relied on it fails. */
 function deleteSelectedStep() {
   settleChange();
-  const operation = selectedOperation();
-  if (!operation) return;
-  const index = designHistory().indexOf(operation);
-  const at = markerIndex();
-  if (!changeHistory((history) => deleteOperation(history, operation.id))) return;
-  if (marker !== null && index < at) marker -= 1;
-  selectedOperationId = null;
-  renderControls();
-  refresh();
+  if (!selectedOperation()) return;
+  showHistoryChange(editing.deleteSelectedStep(session));
 }
 /** Moves the history marker, to show the design at another step. */
 function moveMarker(to: number | null) {
-  draftPart = null;
-  pendingChange = null;
-  if (measurePicks !== null) measurePicks = [];
-  marker = to === null || to >= designHistory().length ? null : Math.max(0, to);
-  const selected = selectedOperation();
-  if (selected && designHistory().indexOf(selected) >= markerIndex()) selectedOperationId = null;
+  session = editing.moveMarker(session, to);
   renderControls();
   refresh();
 }
 function undoDesignEdit() {
-  if (pendingChange) {
+  if (session.pendingChange) {
     cancelChange();
     return;
   }
-  if (draftPart !== null) {
+  if (session.draft !== null) {
     cancelDraft();
     return;
   }
-  const hadParts = designHasParts();
-  const step = undo(designEdits, cockpit);
-  if (!step) return;
-  designEdits = step.edits;
-  cockpit = step.value;
-  showChangedDesign(hadParts);
+  const undone = editing.undoEdit(session);
+  if (undone) showDesignChange(undone);
 }
 function redoDesignEdit() {
-  if (pendingChange) {
+  if (session.pendingChange) {
     cancelChange();
     return;
   }
-  const hadParts = designHasParts();
-  const step = redo(designEdits, cockpit);
-  if (!step) return;
-  designEdits = step.edits;
-  cockpit = step.value;
-  showChangedDesign(hadParts);
+  const redone = editing.redoEdit(session);
+  if (redone) showDesignChange(redone);
 }
 /** Selects a step. A peripheral's turns Fit on, as peripherals are only changed while fitting. */
 function selectOperation(operationId: string | null) {
-  const operation = designHistory().find((step) => step.id === operationId);
-  if (operation?.kind === 'mount-peripheral') setFitting(true);
-  pendingChange = null;
-  selectedOperationId = operationId;
-  draftPart = null;
+  session = editing.selectStep(session, operationId);
   renderControls();
   refresh();
 }
@@ -1108,50 +952,46 @@ function selectOperation(operationId: string | null) {
  */
 function pickInView(hit: PartHit | null) {
   // While a change waits, a click elsewhere in the view does nothing.
-  if (pendingChange) return;
+  if (session.pendingChange) return;
   // A click elsewhere closes the card of a joint, without selecting anything.
-  if (openJointMarker !== null) {
+  if (session.openJointMarker !== null) {
     closeJointCard();
     return;
   }
-  if (measurePicks !== null) {
-    measurePicks = nextMeasurePicks(measurePicks, hit);
+  if (session.measurePicks !== null) {
+    session = editing.measureAt(session, hit);
     refresh();
     return;
   }
-  if (draftPart === null) {
+  const { draft } = session;
+  if (draft === null) {
     const maker = hit === null ? undefined : operationMaking(designHistory(), hit.partId);
     selectOperation(maker?.id ?? null);
     return;
   }
-  if (hit === null || hit.partId !== draftPart.parentId) return;
+  if (hit === null || hit.partId !== draft.parentId) return;
   const at = markerIndex();
   changeDraft((history) => {
-    const current = draftOrFail();
-    switch (current.kind) {
+    switch (draft.kind) {
       case 'grow-profile':
-        return growthAt(history, current, hit.face, hit.pointMm, at);
+        return growthAt(history, draft, hit.face, hit.pointMm, at);
       case 'add-plate':
-        return plateAt(history, current, hit.face, hit.pointMm, at);
+        return plateAt(history, draft, hit.face, hit.pointMm, at);
       case 'mount-peripheral':
-        return peripheralAt(history, current, hit.face, hit.pointMm, at);
+        return peripheralAt(history, draft, hit.face, hit.pointMm, at);
     }
   });
 }
-const draftOrFail = (): Draft => {
-  if (draftPart === null) throw new Error('No part is being added');
-  return draftPart;
-};
-/** Starts a profile growing out of the selected part, shown as a preview until it is added. */
-function startGrowth() {
+/** Starts a part on the selected one, made by `draftOn`, shown as a preview until it is added. */
+function startDraft(draftOn: (history: readonly Operation[], partId: string, at: number) => Draft) {
   settleChange();
   const partId = selectedPartId();
   if (partId === null) return;
-  measurePicks = null;
-  draftPart = draftGrowth(designHistory(), partId, markerIndex());
-  draftSnap = null;
+  session = editing.startDraft(session, draftOn(designHistory(), partId, markerIndex()));
   refresh();
 }
+/** Starts a profile growing out of the selected part. */
+const startGrowth = () => startDraft(draftGrowth);
 /** The label by the pointer shows once the pointer has rested this long on a part. */
 const HOVER_LABEL_DELAY_MS = 500;
 /** How far the label stands from the pointer, so it does not hide what it names. */
@@ -1179,34 +1019,18 @@ function hoverInView(hit: PartHit | null, pointer: PagePoint) {
     label.hidden = false;
   }, HOVER_LABEL_DELAY_MS);
 }
-/** Starts a plate resting on the selected profile, shown as a preview until it is added. */
-function startPlate() {
-  settleChange();
-  const partId = selectedPartId();
-  if (partId === null) return;
-  measurePicks = null;
-  draftPart = draftPlate(designHistory(), partId, markerIndex());
-  draftSnap = null;
-  refresh();
-}
-/** Starts mounting a peripheral of a catalog type on the selected part, shown as a preview. */
-function startMounting(typeId: string) {
-  settleChange();
-  const partId = selectedPartId();
-  if (partId === null) return;
-  measurePicks = null;
-  draftPart = draftPeripheral(designHistory(), partId, typeId, markerIndex());
-  draftSnap = null;
-  refresh();
-}
+/** Starts a plate resting on the selected profile. */
+const startPlate = () => startDraft(draftPlate);
+/** Starts mounting a peripheral of a catalog type on the selected part. */
+const startMounting = (typeId: string) =>
+  startDraft((history, partId, at) => draftPeripheral(history, partId, typeId, at));
 /** Changes the part about to be added; values it cannot have, or a place off its face, are explained. */
 function changeDraft(next: (history: readonly Operation[]) => Draft) {
   const history = designHistory();
   try {
     const changed = next(history);
     addOperation(history, changed, markerIndex());
-    draftPart = changed;
-    draftSnap = null;
+    session = editing.placeDraft(session, changed);
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
@@ -1214,15 +1038,11 @@ function changeDraft(next: (history: readonly Operation[]) => Draft) {
   refresh();
 }
 function confirmDraft() {
-  if (draftPart === null) return;
-  const added = draftPart;
-  const at = markerIndex();
-  selectedOperationId = added.id;
-  stepAddedAtMarker();
-  setHistory(addOperation(designHistory(), added, at));
+  if (session.draft === null) return;
+  showDesignChange(editing.confirmDraft(session));
 }
 function cancelDraft() {
-  draftPart = null;
+  session = editing.cancelDraft(session);
   refresh();
 }
 /**
@@ -1375,10 +1195,11 @@ function editPartField(
 }
 function renderPartInspector({ force = false } = {}) {
   const body = $('#partInspectorBody');
+  const { pendingChange, selectedOperationId, fitting } = session;
   // A change waiting in the view shows its values here before it is confirmed.
   const history = pendingChange?.history ?? designHistory();
   const operation = history.find((step) => step.id === selectedOperationId);
-  const drafting = draftPart;
+  const drafting = session.draft;
   // Fitting with nothing selected, the panel is the driver's.
   const showsDriver = fitting && drafting === null && !operation;
   $('#partInspectorTitle').textContent = showsDriver
@@ -1416,7 +1237,7 @@ function renderPartInspector({ force = false } = {}) {
   if (operation && fitting && isAdjustable(operation))
     bindAdjustmentActions(body, operation.partId);
   // A step the mode of the view locks has nothing else to change.
-  if (!operation || !changeableInMode(operation)) return;
+  if (!operation || !editing.changeableInMode(session, operation)) return;
   $('#deleteStep').addEventListener('click', deleteSelectedStep);
   if (!makesAPart(operation)) return;
   fields.forEach((el) => {
@@ -1428,7 +1249,7 @@ function renderPartInspector({ force = false } = {}) {
   if (operation.kind === 'mount-peripheral') bindMountingHoleActions(body, operation.partId);
   bindJointActions(body);
 }
-const currentDriver = (): Driver => cockpit?.driver ?? DEFAULT_DRIVER;
+const currentDriver = (): Driver => editing.currentDriver(session);
 /** The driver's figure in the design drawn, when it seats one. */
 function figureShown(history: readonly Operation[], at: number): DriverFigure | null {
   const seated = seatedDriver(replayDesign(history, at).fitted.resolved, currentDriver());
@@ -1518,8 +1339,8 @@ const PART_TOOL_BUTTONS: Record<PartTool, string> = {
 function renderPartTools() {
   const operation = selectedOperation();
   const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
-  const offered = editor() === 'cockpit' && draftPart === null;
-  const tools = offered ? partToolsOf(operation, failure, { fitting }) : [];
+  const offered = editor() === 'cockpit' && session.draft === null;
+  const tools = offered ? partToolsOf(operation, failure, { fitting: session.fitting }) : [];
   for (const [tool, selector] of Object.entries(PART_TOOL_BUTTONS))
     $(selector).hidden = !tools.some((offeredTool) => offeredTool === tool);
   $('#partTools').hidden = tools.length === 0;
@@ -1573,10 +1394,10 @@ function bindJointActions(container: HTMLElement) {
  * of its inspector do. A part about to be added is left alone: Escape cancels it.
  */
 function deleteWithKey(event: KeyboardEvent) {
-  if (draftPart !== null || pendingChange) return;
+  if (session.draft !== null || session.pendingChange) return;
   const operation = selectedOperation();
   const failure = operation ? replayDesign(designHistory()).failures.get(operation.id) : undefined;
-  const action = deleteKeyAction(operation, failure, { fitting });
+  const action = deleteKeyAction(operation, failure, { fitting: session.fitting });
   if (action === null) return;
   event.preventDefault();
   if (action === 'remove-part') removeSelectedPart();
@@ -1587,7 +1408,7 @@ function deleteWithKey(event: KeyboardEvent) {
  * and Delete removes the selected part. In a text field they keep editing its text.
  */
 document.addEventListener('keydown', (event) => {
-  if (pendingChange && !document.querySelector('dialog[open]')) {
+  if (session.pendingChange && !document.querySelector('dialog[open]')) {
     if (event.key === 'Escape') {
       cancelChange();
       return;
@@ -1602,15 +1423,16 @@ document.addEventListener('keydown', (event) => {
       return;
     }
   }
-  if (event.key === 'Escape' && openJointMarker !== null) {
+  if (event.key === 'Escape' && session.openJointMarker !== null) {
     closeJointCard();
     return;
   }
-  if (event.key === 'Escape' && measurePicks !== null && !document.querySelector('dialog[open]')) {
+  const dialogOpen = document.querySelector('dialog[open]') !== null;
+  if (event.key === 'Escape' && session.measurePicks !== null && !dialogOpen) {
     setMeasuring(false);
     return;
   }
-  if (event.key === 'Escape' && draftPart !== null && !document.querySelector('dialog[open]')) {
+  if (event.key === 'Escape' && session.draft !== null && !dialogOpen) {
     cancelDraft();
     return;
   }
@@ -1626,7 +1448,8 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   // A focused button takes Enter as its own click.
-  if (event.key === 'Enter' && draftPart !== null && !(event.target instanceof HTMLButtonElement)) {
+  const onAButton = event.target instanceof HTMLButtonElement;
+  if (event.key === 'Enter' && session.draft !== null && !onAButton) {
     event.preventDefault();
     confirmDraft();
     return;
@@ -1961,8 +1784,8 @@ function renderWorkflow() {
   $('#layoutBtn').hidden = inCockpit;
   $('#measureBtn').hidden = !inCockpit || !designHasParts();
   $('#fitModeBtn').hidden = !inCockpit || !designHasParts();
-  $('#fitModeBtn').classList.toggle('active', fitting);
-  $('#fitModeBtn').setAttribute('aria-pressed', String(fitting));
+  $('#fitModeBtn').classList.toggle('active', session.fitting);
+  $('#fitModeBtn').setAttribute('aria-pressed', String(session.fitting));
   $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
   $('#layoutBtn').classList.toggle('active', layoutEditing);
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
@@ -2020,11 +1843,11 @@ function renderControls() {
     html = designPanelHTML({
       history: designHistory(),
       marker: markerIndex(),
-      selectedOperationId,
+      selectedOperationId: session.selectedOperationId,
       failures: replayDesign(designHistory()).failures,
-      canUndo: canUndo(designEdits),
-      canRedo: canRedo(designEdits),
-      fitting,
+      canUndo: canUndo(session.edits),
+      canRedo: canRedo(session.edits),
+      fitting: session.fitting,
     });
   } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
     html = creationControls(
@@ -2186,7 +2009,7 @@ function renderControls() {
 }
 function switchSection(value: Section) {
   const editorChanged = editorOfSection(value) !== editor();
-  if (editorChanged) measurePicks = null;
+  if (editorChanged) session = editing.setMeasuring(session, false);
   section = value;
   lastSection[editor()] = value;
   // The other editor shows another configuration, so the panels need its evaluation.
@@ -2471,13 +2294,13 @@ $('#dimensionBtn').addEventListener('click', () => {
   $('#dimensionBtn').classList.toggle('active', on);
   scene?.setDimensions(on);
 });
-$('#measureBtn').addEventListener('click', () => setMeasuring(measurePicks === null));
+$('#measureBtn').addEventListener('click', () => setMeasuring(session.measurePicks === null));
 $('#growProfile').addEventListener('click', startGrowth);
 $('#putPlate').addEventListener('click', startPlate);
 $('#mountSeat').addEventListener('click', () => startMounting('generic-seat'));
 $('#mountWheelBase').addEventListener('click', () => startMounting('generic-wheel-base'));
 $('#mountPedals').addEventListener('click', () => startMounting('generic-pedals'));
-$('#fitModeBtn').addEventListener('click', () => setFitting(!fitting));
+$('#fitModeBtn').addEventListener('click', () => setFitting(!session.fitting));
 $('#addFoot').addEventListener('click', addFootUnderSelected);
 $('#removePart').addEventListener('click', removeSelectedPart);
 $('#confirmDraftInView').addEventListener('click', confirmDraft);
@@ -2632,10 +2455,10 @@ importFile.addEventListener('change', async () => {
 const isCockpitFile = (data: unknown): boolean =>
   typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'cockpit';
 $('#exportCockpit').addEventListener('click', () => {
-  if (cockpit === null) return;
+  if (session.design === null) return;
   download(
     'cockpit-lab-cockpit.json',
-    JSON.stringify(cockpitFileData(cockpit), null, 2),
+    JSON.stringify(cockpitFileData(session.design), null, 2),
     'application/json',
   );
   toast('Cockpit file exported. Import it from the Cockpit editor of another project.');
