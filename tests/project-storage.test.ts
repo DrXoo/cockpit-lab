@@ -9,24 +9,32 @@ import {
   projectFromConfig,
 } from '../src/project.ts';
 import { defaults, sanitize } from '../src/model.ts';
+import type { Project } from '../src/project.ts';
+import { present } from './support/lookups.ts';
 
 const [V4_STORAGE_KEY, V3_STORAGE_KEY, V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
 
-function memoryStorage(entries = {}) {
+function memoryStorage(entries: Record<string, string> = {}) {
   const data = new Map(Object.entries(entries));
   return {
     data,
-    getItem: (key) => (data.has(key) ? data.get(key) : null),
-    setItem: (key, value) => data.set(key, String(value)),
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      data.set(key, String(value));
+    },
   };
 }
+type MemoryStorage = ReturnType<typeof memoryStorage>;
+/** The text saved under `key`, failing the test when there is none. */
+const savedText = (storage: MemoryStorage, key: string) =>
+  present(storage.data.get(key), `the save under ${key}`);
 
 test('an empty browser storage has no project', () => {
   assert.deepEqual(createProjectStore(() => memoryStorage()).load(), { status: 'empty' });
 });
 
 // Reading a file always yields a drafts object, empty when there were none.
-const asLoaded = (project) => ({ ...project, setup: { drafts: {}, ...project.setup } });
+const asLoaded = (project: Project) => ({ ...project, setup: { drafts: {}, ...project.setup } });
 
 test('a saved project loads back unchanged', () => {
   const storage = memoryStorage();
@@ -43,7 +51,7 @@ test('a saved project loads back unchanged', () => {
 test('the project is saved as a v5 file under the current key', () => {
   const storage = memoryStorage();
   createProjectStore(() => storage).save(createProject());
-  const saved = JSON.parse(storage.data.get(STORAGE_KEY));
+  const saved = JSON.parse(savedText(storage, STORAGE_KEY));
   assert.equal(STORAGE_KEY, 'cockpit-lab-v5');
   assert.deepEqual(LEGACY_STORAGE_KEYS, [
     'cockpit-lab-v4',
@@ -69,26 +77,26 @@ test('rooms saved by earlier versions are recovered from their keys, without the
     projectFromConfig(sanitize({ ...defaults, deskH: 72 }), completeSetup()),
   );
   // As the v3 writer stored it: the parametric cockpit among the room's shared settings.
+  const { room, cockpit, ...rest } = current;
   const v3 = {
-    ...current,
-    ...current.room,
+    ...rest,
+    ...room,
     version: 3,
-    shared: { ...current.room.shared, seatH: 32, cockpitEnabled: true },
+    shared: { ...room.shared, seatH: 32, cockpitEnabled: true },
   };
-  delete v3.room;
-  delete v3.cockpit;
   const v4 = {
     ...current,
     version: 4,
     cockpit: { seatH: 32 },
     room: { ...current.room, shared: { ...current.room.shared, deskH: 73 } },
   };
-  for (const [key, file, deskH] of [
+  const files: [key: string, file: object, deskH: number][] = [
     [V1_STORAGE_KEY, v1, 70],
     [V2_STORAGE_KEY, v2, 71],
     [V3_STORAGE_KEY, v3, 72],
     [V4_STORAGE_KEY, v4, 73],
-  ]) {
+  ];
+  for (const [key, file, deskH] of files) {
     const result = createProjectStore(() => memoryStorage({ [key]: JSON.stringify(file) })).load();
     assert.equal(result.status, 'loaded', key);
     assert.equal(projectConfig(result.project).deskH, deskH, key);
@@ -110,8 +118,9 @@ test('the first save over a v4 project leaves the v4 copy untouched', () => {
   assert.equal(loaded.status, 'loaded');
   assert.equal(store.save(loaded.project), true);
   assert.equal(storage.data.get(V4_STORAGE_KEY), v4);
-  assert.equal(JSON.parse(storage.data.get(STORAGE_KEY)).version, 5);
+  assert.equal(JSON.parse(savedText(storage, STORAGE_KEY)).version, 5);
   const reloaded = createProjectStore(() => storage).load();
+  assert.equal(reloaded.status, 'loaded');
   assert.equal(reloaded.parametricCockpitLeftOut, false);
 });
 
@@ -130,7 +139,7 @@ test('the newest key takes precedence and older keys are left untouched', () => 
 
 const NOW = new Date('2026-11-12T16:52:03.120Z');
 const BACKUP_KEY = 'cockpit-lab-unreadable-2026-11-12T16-52-03-120Z';
-const storeAt = (storage) => createProjectStore(() => storage, { now: () => NOW });
+const storeAt = (storage: MemoryStorage) => createProjectStore(() => storage, { now: () => NOW });
 
 test('an unreadable save is set aside before anything is saved over it', () => {
   for (const text of ['{not json', JSON.stringify({ version: 9, config: {} })]) {
@@ -159,7 +168,7 @@ test('when the unreadable save cannot be copied, automatic saving pauses instead
   // Full storage: a new key fails, but overwriting the current one would still succeed.
   const full = {
     getItem: storage.getItem,
-    setItem: (key, value) => {
+    setItem: (key: string, value: string) => {
       if (key !== STORAGE_KEY) throw new Error('QuotaExceededError');
       storage.setItem(key, value);
     },

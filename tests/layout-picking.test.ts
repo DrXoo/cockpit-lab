@@ -2,23 +2,37 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pickLayoutItem, draggedPosition } from '../src/layout-picking.ts';
 import { defaults, evaluate, sanitize, transformPoint } from '../src/model.ts';
+import type { RoomConfig } from '../src/config.ts';
+import type { CockpitEvaluation } from '../src/evaluate.ts';
+import type { PlanPoint } from '../src/geometry.ts';
+import type { PickOptions } from '../src/layout-picking.ts';
+import { present, withId } from './support/lookups.ts';
 
-const setup = (changes = {}) => {
+interface World {
+  state: RoomConfig;
+  evaluation: CockpitEvaluation;
+}
+
+const setup = (changes: object = {}): World => {
   const state = sanitize({ ...defaults, ...changes });
   return { state, evaluation: evaluate(state) };
 };
-const pick = ({ state, evaluation }, floor, options = {}) =>
+const pick = ({ state, evaluation }: World, floor: PlanPoint, options: Partial<PickOptions> = {}) =>
   pickLayoutItem(floor, { ...floor, y: state.deskH }, state, evaluation, {
     layoutTarget: 'desk',
     roomEditing: false,
     ...options,
   });
-const onDesk = ({ state, evaluation }, local) => transformPoint(local, evaluation.deskPose);
+/** What `pick` finds, failing the test when it finds nothing. */
+const grabbed = (world: World, floor: PlanPoint, options: Partial<PickOptions> = {}) =>
+  present(pick(world, floor, options), 'a grabbed item');
+const onDesk = ({ evaluation }: World, local: PlanPoint) =>
+  transformPoint(local, evaluation.deskPose);
 
 test('a desktop object is picked before the desk under it, in desk coordinates', () => {
   const world = setup({ keyboardEnabled: true });
   const { state } = world;
-  const grab = pick(world, onDesk(world, { x: state.keyboardX, z: state.keyboardZ }));
+  const grab = grabbed(world, onDesk(world, { x: state.keyboardX, z: state.keyboardZ }));
   assert.equal(grab.target, 'keyboard');
   assert.equal(grab.desktop, true);
   assert.deepEqual([grab.x, grab.z], [state.keyboardX, state.keyboardZ]);
@@ -27,10 +41,10 @@ test('a desktop object is picked before the desk under it, in desk coordinates',
 test('the taller object wins where two desktop objects overlap', () => {
   const world = setup({ keyboardEnabled: true, matEnabled: true });
   const { state } = world;
-  const mat = world.evaluation.desktopItems.find((item) => item.id === 'mat');
+  const mat = withId(world.evaluation.desktopItems, 'mat');
   const local = { x: state.keyboardX - mat.local.x, z: state.keyboardZ - mat.local.z };
   assert.ok(Math.abs(local.x) < mat.sizeX / 2 && Math.abs(local.z) < mat.sizeZ / 2, 'on the mat');
-  const grab = pick(world, onDesk(world, { x: state.keyboardX, z: state.keyboardZ }));
+  const grab = grabbed(world, onDesk(world, { x: state.keyboardX, z: state.keyboardZ }));
   assert.equal(grab.target, 'keyboard');
 });
 
@@ -43,7 +57,7 @@ test('an empty spot on the desk picks the desk in world coordinates', () => {
   });
   const { state } = world;
   const corner = onDesk(world, { x: state.deskDepth / 2 - 2, z: -state.deskWidth / 2 + 2 });
-  const grab = pick(world, corner);
+  const grab = grabbed(world, corner);
   assert.equal(grab.target, 'desk');
   assert.equal(grab.desktop, false);
   assert.deepEqual([grab.x, grab.z], [state.deskX, state.deskZ]);
@@ -69,13 +83,13 @@ test('while editing the room, furniture and openings are picked by their outline
     roomFurniture: [{ type: 'cabinet', id: 'box', x: 10, z: 20 }],
     roomFeatures: [{ type: 'window', id: 'win', wall: 'north', offset: 40, width: 80 }],
   });
-  const furniture = pick(world, { x: 10, z: 20 }, { roomEditing: true });
+  const furniture = grabbed(world, { x: 10, z: 20 }, { roomEditing: true });
   assert.deepEqual(
     [furniture.target, furniture.x, furniture.z, furniture.desktop],
     ['furniture:box', 10, 20, false],
   );
   const window = world.evaluation.room.features[0];
-  const opening = pick(world, window.center, { roomEditing: true });
+  const opening = grabbed(world, window.center, { roomEditing: true });
   assert.equal(opening.target, 'feature:win');
   assert.deepEqual([opening.x, opening.z], [window.center.x, window.center.z]);
 });
