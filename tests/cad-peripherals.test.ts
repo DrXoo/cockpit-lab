@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addFoot, addOperation, removePart, replayDesign } from '../src/cad/history.ts';
+import {
+  addFoot,
+  addOperation,
+  removePart,
+  replayDesign,
+  type Operation,
+} from '../src/cad/history.ts';
+import type { ContactPoint } from '../src/cad/assembly.ts';
+import { ofKind, present } from './support/lookups.ts';
 import {
   addMountingHole,
   differsFromItsType,
@@ -15,7 +23,10 @@ import { peripheralType, peripheralTypes } from '../src/cad/catalog.ts';
 import { jointsOf } from '../src/cad/joints.ts';
 import { plateHistory, railHistory, withPeripheral } from './support/designs.ts';
 
-const boxOf = (history, partId) => replayDesign(history).resolved.get(partId).box;
+const boxOf = (history: readonly Operation[], partId: string) =>
+  present(replayDesign(history).resolved.get(partId), partId).box;
+/** The peripheral the history mounts at its second step. */
+const mounted = (history: readonly Operation[]) => ofKind(history[1], 'mount-peripheral');
 
 test('the catalog has a generic seat, wheel base and pedal set, with estimated values', () => {
   assert.deepEqual(
@@ -102,7 +113,7 @@ test('its name, its place and the way it faces are edited as values of its step'
       alongMm: 300,
     },
   );
-  assert.equal(history[1].name, 'Pedals');
+  assert.equal(mounted(history).name, 'Pedals');
   const { widthMm, depthMm } = peripheralType('generic-pedals').envelope;
   assert.deepEqual(boxOf(history, 'part-2'), {
     min: { x: -depthMm / 2, y: 40, z: 700 - widthMm / 2 },
@@ -173,17 +184,17 @@ test('its envelope, mounting pattern, contact points and backrest are edited as 
     contactPoints: [{ role: 'hip', offsetMm: { x: 0, y: 120, z: -160 } }],
     backrestDeg: 30,
   });
-  assert.deepEqual(history[1].envelope, { widthMm: 500, heightMm: 950, depthMm: 680 });
-  assert.deepEqual(history[1].mountingPattern.holes, holes);
-  assert.deepEqual(history[1].contactPoints[0].offsetMm, { x: 0, y: 120, z: -160 });
-  assert.equal(history[1].backrestDeg, 30);
+  assert.deepEqual(mounted(history).envelope, { widthMm: 500, heightMm: 950, depthMm: 680 });
+  assert.deepEqual(mounted(history).mountingPattern.holes, holes);
+  assert.deepEqual(mounted(history).contactPoints[0].offsetMm, { x: 0, y: 120, z: -160 });
+  assert.equal(mounted(history).backrestDeg, 30);
   assert.deepEqual(boxOf(history, 'part-2'), {
     min: { x: -250, y: 40, z: 160 },
     max: { x: 250, y: 990, z: 840 },
   });
   assert.deepEqual(
     peripheralType('generic-seat').envelope,
-    seat[1].envelope,
+    mounted(seat).envelope,
     'the catalog keeps its values',
   );
 });
@@ -193,8 +204,8 @@ test('resizing a peripheral never moves its mounting holes or contact points', (
   const history = editPeripheral(seat, 'part-2', {
     envelope: { widthMm: 400, heightMm: 800, depthMm: 600 },
   });
-  assert.deepEqual(history[1].mountingPattern, seat[1].mountingPattern);
-  assert.deepEqual(history[1].contactPoints, seat[1].contactPoints);
+  assert.deepEqual(mounted(history).mountingPattern, mounted(seat).mountingPattern);
+  assert.deepEqual(mounted(history).contactPoints, mounted(seat).contactPoints);
 });
 
 test('a peripheral refuses values it cannot have, and only a seat has a backrest', () => {
@@ -203,7 +214,7 @@ test('a peripheral refuses values it cannot have, and only a seat has a backrest
   assert.throws(() => editPeripheral(pedals, 'part-2', { envelope }), /between 10 and 2000 mm/);
   const holes = [{ xMm: 0, yMm: 0, diameterMm: 0 }];
   assert.throws(() => editPeripheral(pedals, 'part-2', { mountingPattern: { holes } }), /diameter/);
-  const contactPoints = [{ role: 'heel', offsetMm: { x: 0, y: Number.NaN, z: 0 } }];
+  const contactPoints: ContactPoint[] = [{ role: 'heel', offsetMm: { x: 0, y: Number.NaN, z: 0 } }];
   assert.throws(() => editPeripheral(pedals, 'part-2', { contactPoints }), /contact point/);
   assert.throws(() => editPeripheral(pedals, 'part-2', { backrestDeg: 20 }), /Only a seat/);
   const seat = withPeripheral(railHistory(), 'part-1', 'generic-seat');
@@ -213,29 +224,36 @@ test('a peripheral refuses values it cannot have, and only a seat has a backrest
 test('a hole added to a mounting pattern goes at its origin, as wide as the last one', () => {
   const pedals = withPeripheral(railHistory(), 'part-1', 'generic-wheel-base');
   const added = addMountingHole(pedals, 'part-2');
-  assert.equal(added[1].mountingPattern.holes.length, 5);
-  assert.deepEqual(added[1].mountingPattern.holes.at(-1), { xMm: 0, yMm: 0, diameterMm: 6.5 });
+  assert.equal(mounted(added).mountingPattern.holes.length, 5);
+  assert.deepEqual(mounted(added).mountingPattern.holes.at(-1), {
+    xMm: 0,
+    yMm: 0,
+    diameterMm: 6.5,
+  });
   const emptied = [3, 2, 1, 0].reduce(
     (history, index) => removeMountingHole(history, 'part-2', index),
     pedals,
   );
-  assert.deepEqual(emptied[1].mountingPattern.holes, []);
+  assert.deepEqual(mounted(emptied).mountingPattern.holes, []);
   const first = addMountingHole(emptied, 'part-2');
-  assert.deepEqual(first[1].mountingPattern.holes, [{ xMm: 0, yMm: 0, diameterMm: 8.5 }]);
+  assert.deepEqual(mounted(first).mountingPattern.holes, [{ xMm: 0, yMm: 0, diameterMm: 8.5 }]);
   assert.throws(() => removeMountingHole(emptied, 'part-2', 0), /no hole 1/);
 });
 
 test('a peripheral differs from its type once its envelope, holes, contact points or backrest are edited', () => {
   const seat = withPeripheral(railHistory(), 'part-1', 'generic-seat');
-  assert.equal(differsFromItsType(seat[1]), false);
+  assert.equal(differsFromItsType(mounted(seat)), false);
   const moved = editPeripheral(seat, 'part-2', { name: 'My seat', alongMm: 300, facing: '-x' });
-  assert.equal(differsFromItsType(moved[1]), false, 'its name and place are not its type');
-  assert.equal(differsFromItsType(editPeripheral(seat, 'part-2', { backrestDeg: 20 })[1]), true);
-  assert.equal(differsFromItsType(addMountingHole(seat, 'part-2')[1]), true);
+  assert.equal(differsFromItsType(mounted(moved)), false, 'its name and place are not its type');
+  assert.equal(
+    differsFromItsType(mounted(editPeripheral(seat, 'part-2', { backrestDeg: 20 }))),
+    true,
+  );
+  assert.equal(differsFromItsType(mounted(addMountingHole(seat, 'part-2'))), true);
   const envelope = { widthMm: 541, heightMm: 900, depthMm: 700 };
-  assert.equal(differsFromItsType(editPeripheral(seat, 'part-2', { envelope })[1]), true);
+  assert.equal(differsFromItsType(mounted(editPeripheral(seat, 'part-2', { envelope }))), true);
   // A type that has left the catalog cannot give its values back.
-  assert.equal(differsFromItsType({ ...seat[1], typeId: 'retired-seat' }), true);
+  assert.equal(differsFromItsType({ ...mounted(seat), typeId: 'retired-seat' }), true);
 });
 
 test('swapping its type keeps where it is mounted and replaces the values of its type', () => {
@@ -252,7 +270,7 @@ test('swapping its type keeps where it is mounted and replaces the values of its
   );
   const history = swapPeripheralType(pedals, 'part-2', 'generic-seat');
   const seat = peripheralType('generic-seat');
-  const swapped = history[1];
+  const swapped = mounted(history);
   assert.deepEqual(
     [
       swapped.parentId,
@@ -273,7 +291,7 @@ test('swapping its type keeps where it is mounted and replaces the values of its
     [seat.envelope, seat.mountingPattern, seat.contactPoints, seat.source],
   );
   assert.equal(differsFromItsType(swapped), false);
-  const back = swapPeripheralType(history, 'part-2', 'generic-pedals')[1];
+  const back = mounted(swapPeripheralType(history, 'part-2', 'generic-pedals'));
   assert.equal('backrestDeg' in back, false, 'only a seat has a backrest');
 });
 
@@ -285,7 +303,7 @@ test('a peripheral swapped for another type keeps a name the user gave it', () =
       name: 'Clutch side',
     },
   );
-  assert.equal(swapPeripheralType(named, 'part-2', 'generic-seat')[1].name, 'Clutch side');
+  assert.equal(mounted(swapPeripheralType(named, 'part-2', 'generic-seat')).name, 'Clutch side');
   assert.throws(() => swapPeripheralType(named, 'part-1', 'generic-seat'), /not a peripheral/);
   assert.throws(() => swapPeripheralType(named, 'part-2', 'generic-shifter'), /not in the catalog/);
 });

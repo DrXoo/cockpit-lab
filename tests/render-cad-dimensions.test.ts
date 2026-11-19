@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { createRenderList, ROOT, type RenderList } from '../src/render-list.ts';
+import type { SceneView } from '../src/scene-camera.ts';
+import { allOfKind, ofKind } from './support/lookups.ts';
+import {
+  resolveAssembly,
+  type FootPart,
+  type Part,
+  type PlatePart,
+  type ProfilePart,
+} from '../src/cad/assembly.ts';
 import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../src/render-cad-dimensions.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 // A 40 × 80 rail from front to back: x −300…−260, y 60…140, z 0…1200 mm.
-const profile = (id, changes) => ({
+const profile = (id: string, changes: Partial<ProfilePart> = {}): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -18,7 +26,7 @@ const profile = (id, changes) => ({
   placement: { kind: 'anchor', startMm: { x: -280, y: 100, z: 0 } },
   ...changes,
 });
-const foot = {
+const foot: FootPart = {
   kind: 'foot',
   id: 'foot',
   name: 'Foot',
@@ -26,14 +34,18 @@ const foot = {
   placement: { kind: 'attachment', parentId: 'rail', face: '-y', alongMm: 36, fromEnd: 'start' },
 };
 
-const draw = (parts, selectedId, view = 'iso') => {
+const draw = (parts: readonly Part[], selectedId: string | null, view: SceneView = 'iso') => {
   const r = createRenderList();
   drawPartLength(r, ROOT, resolveAssembly(parts), selectedId, view);
   return r;
 };
-const rounded = (point) => point.map((value) => Math.round(value * 1000) / 1000);
+const rounded = (point: readonly number[]) => point.map((value) => Math.round(value * 1000) / 1000);
 /** The measured line: the first line drawn, between the two ends of the part. */
-const measuredLine = (r) => r.primitives.find((p) => p.kind === 'line').points.map(rounded);
+const measuredLine = (r: RenderList) =>
+  ofKind(
+    r.primitives.find((p) => p.kind === 'line'),
+    'line',
+  ).points.map(rounded);
 
 test('the selected profile shows its length in mm, along it and above it in 3D', () => {
   const r = draw([profile('rail')], 'rail');
@@ -114,14 +126,13 @@ const post = profile('post', {
   lengthMm: 300,
   placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 300, fromEnd: 'start' },
 });
-const placed = (parts, partId, view = 'iso') => {
+const placed = (parts: readonly Part[], partId: string | null, view: SceneView = 'iso') => {
   const r = createRenderList();
   drawPlacementAlong(r, ROOT, resolveAssembly(parts), partId, view);
   return r;
 };
-const lines = (r) =>
-  r.primitives
-    .filter((p) => p.kind === 'line')
+const lines = (r: RenderList) =>
+  allOfKind(r.primitives, 'line')
     .map((p) => p.points.map(rounded))
     .filter(([a, b]) => a[0] === b[0] && a[1] === b[1]);
 
@@ -161,7 +172,7 @@ test('an anchored part, or none, is not measured along a parent', () => {
 });
 
 /** A 400 × 300 × 5 mm plate on top of the rail, centered 600 mm along it: x −480…−80, z 450…750. */
-const plate = {
+const plate: PlatePart = {
   kind: 'plate',
   id: 'plate',
   name: 'Plate',
@@ -173,14 +184,13 @@ const plate = {
   ownHoles: [],
   placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 600, fromEnd: 'start' },
 };
-const sized = (view = 'iso', plateId = 'plate') => {
+const sized = (view: SceneView = 'iso', plateId: string | null = 'plate') => {
   const r = createRenderList();
   drawPlateSize(r, ROOT, resolveAssembly([profile('rail'), plate]), plateId, view);
   return r;
 };
-const straightLines = (r) =>
-  r.primitives
-    .filter((p) => p.kind === 'line')
+const straightLines = (r: RenderList) =>
+  allOfKind(r.primitives, 'line')
     .map((p) => p.points.map(rounded))
     .filter(([a, b]) => [0, 1, 2].filter((i) => a[i] !== b[i]).length === 1)
     .filter(([a, b]) => Math.abs(a[0] - b[0]) + Math.abs(a[2] - b[2]) > 5);
