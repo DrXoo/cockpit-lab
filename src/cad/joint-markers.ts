@@ -19,13 +19,30 @@ export interface JointMarker {
 
 const ORIGIN: Vec3Mm = { x: 0, y: 0, z: 0 };
 
-/** The joint markers of the design at step `at`, with `selectedPartId` selected. */
+/**
+ * The joint markers of the design at step `at`, with `selectedPartId` selected. Which parts
+ * are joined or touch is the design's, at the centers of the travels; each marker sits where
+ * its two parts are drawn, as fitted.
+ */
 export function jointMarkers(
   history: readonly Operation[],
   selectedPartId: string | null,
   at: number = history.length,
 ): JointMarker[] {
-  const { resolved, joints, connectors } = replayDesign(history, at);
+  const { resolved, joints, connectors, fitted } = replayDesign(history, at);
+  return markersAt(resolved, joints, connectors, selectedPartId).map((marker) => {
+    const part = fitted.resolved.get(marker.partId);
+    const other = fitted.resolved.get(marker.toPartId);
+    return part && other ? { ...marker, pointMm: contactMiddle(part, other) } : marker;
+  });
+}
+
+function markersAt(
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  joints: readonly Joint[],
+  connectors: readonly { jointId: string }[],
+  selectedPartId: string | null,
+): JointMarker[] {
   const fastened = new Set(connectors.map(({ jointId }) => jointId));
   const markers: JointMarker[] = [];
   for (const joint of joints) {

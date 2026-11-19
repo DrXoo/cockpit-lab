@@ -98,6 +98,7 @@ const HANDLE_TITLES: Record<Handle['kind'], string> = {
   end: 'Drag to lengthen or shorten · Shift: both ends · Alt: to the millimetre',
   edge: 'Drag to widen or narrow on both sides · Shift: this edge only · Alt: to the millimetre',
   move: 'Drag to move along this axis · Alt: to the millimetre',
+  travel: 'Drag to move it along its travel · Alt: to the millimetre',
 };
 
 /**
@@ -554,10 +555,11 @@ export class CockpitScene {
   /** Frees what the previous drawing created; the palette is shared and kept. */
   /**
    * An element over the view for each handle, which a press grabs: a ball for an end, an arrow
-   * out of a dot at the part's center for each axis it moves along.
+   * out of a dot at the part's center for each axis it moves along, or along its travel.
    */
   private addHandles(handles: readonly Handle[]) {
-    const center = handles.find((handle) => handle.kind === 'move');
+    const isArrow = (handle: Handle) => handle.kind === 'move' || handle.kind === 'travel';
+    const center = handles.find(isArrow);
     if (center) {
       const dot = document.createElement('span');
       dot.className = 'move-center';
@@ -566,14 +568,14 @@ export class CockpitScene {
     }
     for (const handle of handles) {
       const el = document.createElement('span');
-      el.className = handle.kind === 'move' ? 'move-arrow' : 'part-handle';
+      el.className = isArrow(handle) ? 'move-arrow' : 'part-handle';
       el.dataset.handle = handle.id;
       el.dataset.handleKind = handle.kind;
       el.title = HANDLE_TITLES[handle.kind];
       el.addEventListener('pointerdown', (event) => this.grabHandle(event, handle));
       this.labels.append(el);
       const position = this.handleBall(handle);
-      if (handle.kind !== 'move') {
+      if (handle.kind !== 'move' && handle.kind !== 'travel') {
         this.handleItems.push({ kind: 'ball', el, position });
         continue;
       }

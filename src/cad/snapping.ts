@@ -63,6 +63,8 @@ export function snapToParts(
   withinMm: number,
   at: number = history.length,
 ): SnappedDrag | null {
+  // A part moves along its travel as on the built cockpit, in steps, lining up with nothing.
+  if (handle.kind === 'travel') return null;
   const { resolved } = replayDesign(history, at);
   const part = resolved.get(handle.partId);
   if (!part) return null;
@@ -97,7 +99,7 @@ function takes(history: readonly Operation[], handle: Handle, drag: Drag): boole
 
 /** The direction a handle drags its end, edge or part, in the frame of the part's tilt. */
 function directionOf(handle: Handle, part: ResolvedPart): Direction {
-  if (handle.kind === 'move') return { axis: handle.axis, sign: 1 };
+  if (handle.kind === 'move' || handle.kind === 'travel') return { axis: handle.axis, sign: 1 };
   if (handle.kind === 'edge')
     return { axis: faceAxis(handle.side), sign: handle.side[0] === '+' ? 1 : -1 };
   if (part.part.kind !== 'profile') throw new Error(`${part.part.name} has no ends to drag.`);

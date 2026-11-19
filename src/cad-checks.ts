@@ -1,6 +1,6 @@
 // The checks a CAD cockpit design gets on its own: interference between its parts, the parts
-// that nothing supports, the joints still without connectors and the steps of its history that
-// failed. Each is one check that lists what it found, so a design with many problems still
+// that nothing supports, the joints still without connectors, the steps of its history that
+// failed and, once a part slides, the spans its adjustments would stretch or squeeze. Each is one check that lists what it found, so a design with many problems still
 // reads at a glance.
 import type { Check } from './checks.ts';
 import { round } from './geometry.ts';
@@ -8,8 +8,9 @@ import type { Axis, ResolvedPart } from './cad/assembly.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import { cockpitInterferences } from './cad/interference.ts';
 import { jointsOf, type Joint } from './cad/joints.ts';
-import { stepTitle, type Operation } from './cad/operations.ts';
+import { adjustmentOf, stepTitle, type Operation } from './cad/operations.ts';
 import { unsupportedParts } from './cad/support.ts';
+import type { FittedPose } from './cad/travel.ts';
 
 /** A design replayed from its history, with the steps that failed. */
 export interface DesignToCheck {
@@ -20,6 +21,8 @@ export interface DesignToCheck {
   connectors?: readonly PlacedConnector[];
   /** Its joints; when left out, those its attachments and spans make. */
   joints?: readonly Joint[];
+  /** The design as fitted; when left out, every part is at the center of its travel. */
+  fitted?: FittedPose;
 }
 
 /** The shortest way out, in the frame of the part it was measured on. */
@@ -49,8 +52,13 @@ function listCheck(
 }
 
 export function cadChecks(design: DesignToCheck): Check[] {
+  // Parts reach into each other where the driver has them, along their travels.
+  const shown = design.fitted ?? design;
+  const fitted = design.history.some((operation) => adjustmentOf(operation) !== undefined)
+    ? [fittedSpansCheck(design)]
+    : [];
   return [
-    interferenceCheck(design.resolved, design.connectors ?? []),
+    interferenceCheck(shown.resolved, shown.connectors ?? []),
     supportCheck(design.resolved, design.joints ?? jointsOf(design.resolved)),
     pendingJointsCheck(
       design.resolved,
@@ -58,7 +66,22 @@ export function cadChecks(design: DesignToCheck): Check[] {
       design.connectors ?? [],
     ),
     failedStepsCheck(design),
+    ...fitted,
   ];
+}
+
+/** The spans that would no longer meet their part with the adjusted parts where they are. */
+function fittedSpansCheck({ resolved, fitted }: DesignToCheck): Check {
+  const nameOf = (id: string) => resolved.get(id)?.part.name ?? id;
+  const items = (fitted?.changedSpans ?? []).map(({ partId, reachesId, changeMm }) => {
+    const way = changeMm > 0 ? 'longer' : 'shorter';
+    return `${nameOf(partId)} would have to be ${round(Math.abs(changeMm), 1)} mm ${way} to meet ${nameOf(reachesId)}`;
+  });
+  return listCheck('cad-fitted-spans', 'Spans the adjustments move', items, {
+    found:
+      'A span is cut to its length, so the part it reaches no longer meets it as fitted. Move the parts back along their travels, or adjust a part the span does not depend on.',
+    none: 'No adjustment moves a span away from the part it reaches.',
+  });
 }
 
 function interferenceCheck(

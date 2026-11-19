@@ -950,6 +950,51 @@ test("a peripheral's inspector edits its own values, and swapping its type warns
   await expect(page.locator('#part-widthMm')).toHaveValue('540');
 });
 
+test('fitting, a part slides along its adjustment, saved with the design without a step', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-view="top"]').click();
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountSeat').click();
+  await page.locator('#confirmPeripheral').click();
+  const seat = async () => (await savedHistory(page))?.[1];
+  await expect(page.locator('#adjustmentTravel')).toHaveValue('200');
+  await expect(page.locator('#adjustmentAxis')).toHaveValue('z');
+  // Fitting, a part that slides has only the arrow along its travel.
+  await expect(page.locator('[data-handle]')).toHaveCount(1);
+  await expect(page.locator('[data-handle-kind="travel"]')).toHaveCount(1);
+
+  await page.locator('#adjustmentPosition').fill('-40');
+  await page.locator('#adjustmentPosition').press('Enter');
+  await expect.poll(async () => (await seat())?.adjustment).toMatchObject({ positionMm: -40 });
+  expect(await savedHistory(page)).toHaveLength(2);
+
+  // In the top view, the front (+Z) is towards the bottom of the screen.
+  await dragHandle(page, 'part-2:travel', 0, 400);
+  await expect(page.locator('#changeBox')).toHaveAttribute('data-kind', 'position');
+  await expect(page.locator('#changeValue')).toHaveValue('100');
+  await page.locator('#confirmChange').click();
+  await expect.poll(async () => (await seat())?.adjustment).toMatchObject({ positionMm: 100 });
+  expect(await savedHistory(page)).toHaveLength(2);
+  await page.locator('#viewport canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await seat())?.adjustment).toMatchObject({ positionMm: -40 });
+
+  await page.locator('#removeAdjustment').click();
+  await expect.poll(async () => (await seat())?.adjustment).toBeUndefined();
+  await expect(page.locator('[data-handle-kind="move"]')).toHaveCount(2);
+  await page.locator('#addAdjustment').click();
+  await expect
+    .poll(async () => (await seat())?.adjustment)
+    .toEqual({ axis: 'z', travelMm: 100, positionMm: 0 });
+
+  // The frame stays locked, but a part that hangs from another can slide.
+  await page.locator('[data-part="part-1"]').click();
+  await expect(page.locator('#lockedPart')).toBeVisible();
+  await expect(page.locator('#addAdjustment')).toHaveCount(0);
+});
+
 test('a part about to be added is added or dropped from its box in the view, or with Enter', async ({
   page,
 }) => {

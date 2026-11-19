@@ -40,7 +40,9 @@ export function draftEditedBy(
  * or drops it keeps clear of them, and so of the handles that start at its center.
  */
 export function draftCornersMm(history: readonly Operation[], draft: Draft, at: number): Vec3Mm[] {
-  const shown = replayDesign(withDraft(history, draft, at), at + 1).resolved.get(draft.partId);
+  const shown = replayDesign(withDraft(history, draft, at), at + 1).fitted.resolved.get(
+    draft.partId,
+  );
   if (!shown) throw new Error(`${draft.name} does not fit where it is about to be added.`);
   return cornersMm(shown);
 }

@@ -45,3 +45,38 @@ test('a move handle sits at the center of its part, with no stem', () => {
   drawHandleStems(r, ROOT, [move]);
   assert.equal(r.primitives.length, 0);
 });
+
+test('a travel handle sits at the center of its part, on a line along its travel with its center marked', () => {
+  const travel = {
+    kind: 'travel',
+    id: 'part-2:travel',
+    partId: 'part-2',
+    axis: 'z',
+    pointMm: { x: 0, y: 50, z: 520 },
+    outwardMm: { x: 0, y: 0, z: 1 },
+    travel: {
+      centerMm: { x: 0, y: 50, z: 500 },
+      fromMm: { x: 0, y: 50, z: 450 },
+      toMm: { x: 0, y: 50, z: 550 },
+    },
+  };
+  assert.deepEqual(handleBallMm(travel), travel.pointMm);
+  const r = createRenderList();
+  drawHandleStems(r, ROOT, [travel]);
+  const lines = r.primitives.filter((shape) => shape.kind === 'line');
+  assert.deepEqual(
+    lines.map((line) => line.points),
+    [
+      [
+        [0, 5, 45],
+        [0, 5, 55],
+      ],
+      [
+        [0, 3.5, 50],
+        [0, 6.5, 50],
+      ],
+    ],
+  );
+  const material = r.primitives.find((shape) => shape.kind === 'material');
+  assert.equal(material.spec.onTop, true, 'drawn over the parts it lies in');
+});

@@ -33,6 +33,8 @@ import {
   type PartField,
   type TouchingPart,
   type JointCard,
+  adjustmentChange,
+  adjustmentField,
 } from './cockpit-editor-view.ts';
 import {
   addAnchoredProfile,
@@ -44,6 +46,7 @@ import {
   editFoot,
   editProfile,
   growthAt,
+  isAdjustable,
   makesAPart,
   makesAProfile,
   operationMaking,
@@ -60,6 +63,7 @@ import {
 } from './cad/history.ts';
 import { MM_PER_CM } from './units.ts';
 import { draftPlate, editPlate, editPlateDraft, plateAt } from './cad/plates.ts';
+import { addAdjustment, editAdjustment, removeAdjustment } from './cad/adjustments.ts';
 import {
   addMountingHole,
   differsFromItsType,
@@ -110,6 +114,7 @@ import {
   handlesSeenAlong,
   partHandles,
   snappedDrag,
+  travelHandles,
   symmetricDrag,
   type Drag,
   type DragReadout,
@@ -453,10 +458,11 @@ function cockpitDrawing(): CockpitDrawing | null {
   const history = pendingChange?.history ?? designHistory();
   const at = markerIndex();
   const shown = draftPart ? withDraft(history, draftPart, at) : history;
-  const design = replayDesign(shown, draftPart ? at + 1 : at);
+  // The view shows the cockpit as fitted, each part where it is along its travel.
+  const { fitted } = replayDesign(shown, draftPart ? at + 1 : at);
   return {
-    resolved: design.resolved,
-    connectors: design.connectors,
+    resolved: fitted.resolved,
+    connectors: fitted.connectors,
     selectedPartId: selectedPartId(),
     previewPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
     choosingFaceOf: draftPart?.parentId ?? null,
@@ -582,11 +588,17 @@ function showJointInInspector(partId: string) {
   selectOperation(operationMaking(designHistory(), partId)?.id ?? null);
   $optional('#partJoints')?.scrollIntoView({ block: 'nearest' });
 }
-/** The handles of the selected part, when the mode of the view lets it change. */
+/**
+ * The handles of the selected part, when the mode of the view lets it change. Fitting, a part
+ * with an adjustment has only the arrow along its travel, frame or peripheral.
+ */
 function handlesOfSelected(at: number): Handle[] {
   const partId = selectedPartId();
   const operation = selectedOperation();
-  if (partId === null || !operation || !changeableInMode(operation)) return [];
+  if (partId === null || !operation) return [];
+  const travel = fitting ? travelHandles(designHistory(), partId, at) : [];
+  if (travel.length > 0) return travel;
+  if (!changeableInMode(operation)) return [];
   return partHandles(designHistory(), partId, at);
 }
 /** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
@@ -706,6 +718,7 @@ const READOUT_LABELS: Record<DragReadout['kind'], string> = {
   depth: 'Depth',
   move: 'Move',
   reach: 'Reaches',
+  position: 'Position',
 };
 /** The box of a waiting change, beside the handle that made it, with its value. */
 function renderChangeBox() {
@@ -740,7 +753,8 @@ function renderChangeBox() {
     y: ball.y + outwardMm.y * ARROW_CLEARANCE_MM,
     z: ball.z + outwardMm.z * ARROW_CLEARANCE_MM,
   };
-  scene?.anchorElement(box, inCm(ball), handle.kind === 'move' ? inCm(arrowTip) : null);
+  const anArrow = handle.kind === 'move' || handle.kind === 'travel';
+  scene?.anchorElement(box, inCm(ball), anArrow ? inCm(arrowTip) : null);
   box.hidden = false;
 }
 /** What ✓ in the box of a part about to be added does, as its panel's button says it. */
@@ -777,7 +791,7 @@ function renderDraftBox() {
 /** The measurement being taken, in the design the view shows at the history marker. */
 function measureDrawing(): MeasureDrawing | null {
   if (measurePicks === null) return null;
-  const { resolved } = replayDesign(designHistory(), markerIndex());
+  const { resolved } = replayDesign(designHistory(), markerIndex()).fitted;
   const [first, second] = measurePicks;
   return {
     points: measurePicks.map((pick) => pickInCockpit(resolved, pick)),
@@ -1375,7 +1389,10 @@ function renderPartInspector({ force = false } = {}) {
     $(cancel).addEventListener('click', cancelDraft);
     return;
   }
-  // A step the mode of the view locks has nothing to change.
+  // Fitting, any part that hangs from another can slide, the frame's as well.
+  if (operation && fitting && isAdjustable(operation))
+    bindAdjustmentActions(body, operation.partId);
+  // A step the mode of the view locks has nothing else to change.
   if (!operation || !changeableInMode(operation)) return;
   $('#deleteStep').addEventListener('click', deleteSelectedStep);
   if (!makesAPart(operation)) return;
@@ -1387,6 +1404,28 @@ function renderPartInspector({ force = false } = {}) {
   });
   if (operation.kind === 'mount-peripheral') bindMountingHoleActions(body, operation.partId);
   bindJointActions(body);
+}
+/** The fields of a part's adjustment, and the buttons that give it one or take it away. */
+function bindAdjustmentActions(container: HTMLElement, partId: string) {
+  container
+    .querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-adjustment-field]')
+    .forEach((el) => {
+      const field = adjustmentField(el.dataset.adjustmentField);
+      el.addEventListener('change', () => {
+        settleChange();
+        changeHistory((history) =>
+          editAdjustment(history, partId, adjustmentChange(field, el.value)),
+        );
+      });
+    });
+  container.querySelector('#addAdjustment')?.addEventListener('click', () => {
+    settleChange();
+    changeHistory((history) => addAdjustment(history, partId));
+  });
+  container.querySelector('#removeAdjustment')?.addEventListener('click', () => {
+    settleChange();
+    changeHistory((history) => removeAdjustment(history, partId));
+  });
 }
 /** The buttons that add a hole to a peripheral's mounting pattern, or take one out. */
 function bindMountingHoleActions(container: HTMLElement, partId: string) {

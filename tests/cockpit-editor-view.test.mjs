@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  adjustmentChange,
+  adjustmentField,
   deleteKeyAction,
   designPanelHTML,
   footChange,
@@ -17,6 +19,7 @@ import {
 } from '../src/cockpit-editor-view.ts';
 import { draftPlate } from '../src/cad/plates.ts';
 import { draftPeripheral, editPeripheral } from '../src/cad/peripherals.ts';
+import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import {
   addAnchoredProfile,
   addFoot,
@@ -647,4 +650,65 @@ test('in Fit, the history adds no profile, as the frame is locked', () => {
   const history = railWithPedals();
   assert.match(panel({ history, fitting: true }), /id="addProfile"[^>]*disabled/);
   assert.doesNotMatch(panel({ history }), /id="addProfile"[^>]*disabled/);
+});
+
+const selectNamed = (html, id) =>
+  html.match(new RegExp(`<select id="${id}".*?</select>`, 's'))?.[0];
+
+test('in Fit, an attached part of the frame stays locked but gets an adjustment', () => {
+  const history = railAndPlate();
+  const fitting = { fitting: true };
+  const fixed = partInspectorHTML(history, history[1], undefined, [], [], fitting);
+  assert.match(fixed, /id="lockedPart"/);
+  assert.match(fixed, /id="addAdjustment"/);
+  assert.doesNotMatch(fixed, /data-part-field|id="adjustmentTravel"/);
+  const adjusted = editAdjustment(addAdjustment(history, 'part-2'), 'part-2', { positionMm: 20 });
+  const html = partInspectorHTML(adjusted, adjusted[1], undefined, [], [], fitting);
+  const axis = selectNamed(html, 'adjustmentAxis');
+  assert.match(axis, /data-adjustment-field="axis"/);
+  assert.deepEqual(
+    [...axis.matchAll(/value="(\w)"/g)].map(([, value]) => value),
+    ['x', 'z'],
+    'the two axes of the face it rests on',
+  );
+  assert.match(axis, /value="z" selected/);
+  assert.match(html, /id="adjustmentTravel"[^>]*min="1" max="1000"[^>]*value="100"/);
+  assert.match(html, /id="adjustmentPosition"[^>]*min="-50" max="50"[^>]*value="20"/);
+  assert.match(html, /id="removeAdjustment"/);
+  assert.doesNotMatch(html, /id="addAdjustment"/);
+  const designing = partInspectorHTML(adjusted, adjusted[1]);
+  assert.doesNotMatch(designing, /data-adjustment-field|id="addAdjustment"/, 'only in Fit');
+  const rail = partInspectorHTML(history, history[0], undefined, [], [], fitting);
+  assert.doesNotMatch(rail, /id="addAdjustment"/, 'an anchored part does not slide');
+});
+
+test('in Fit, a seat shows the travel of its rails, and a span says why it has none', () => {
+  const rail = editProfile(historyWith(1), 'part-1', { name: 'Rail', lengthMm: 1000 });
+  const seat = addOperation(rail, draftPeripheral(rail, 'part-1', 'generic-seat'));
+  const html = partInspectorHTML(seat, seat[1], undefined, [], [], { fitting: true });
+  assert.match(html, /id="adjustmentTravel"[^>]*value="200"/);
+  assert.match(html, /id="part-facing"/, 'with its own values');
+  let history = editProfile(addAnchoredProfile(rail).history, 'part-2', {
+    name: 'Other rail',
+    lengthMm: 1000,
+    startMm: { x: 500, y: 20, z: 0 },
+  });
+  const crossing = editDraft(history, draftGrowth(history, 'part-1'), {
+    face: '+x',
+    lengthMm: 200,
+  });
+  history = editProfile(addOperation(history, crossing), 'part-3', { reachesId: 'part-2' });
+  const span = partInspectorHTML(history, history[2], undefined, [], [], { fitting: true });
+  assert.match(span, /id="adjustmentNone"/);
+  assert.doesNotMatch(span, /id="addAdjustment"/);
+});
+
+test('a value typed in the adjustment changes its axis, travel or position', () => {
+  assert.deepEqual(adjustmentChange('axis', 'x'), { axis: 'x' });
+  assert.deepEqual(adjustmentChange('travelMm', '150'), { travelMm: 150 });
+  assert.deepEqual(adjustmentChange('positionMm', '-20'), { positionMm: -20 });
+  assert.ok(Number.isNaN(adjustmentChange('positionMm', ' ').positionMm));
+  assert.throws(() => adjustmentChange('axis', 'w'), /w/);
+  assert.equal(adjustmentField('travelMm'), 'travelMm');
+  assert.throws(() => adjustmentField('lengthMm'), /lengthMm/);
 });

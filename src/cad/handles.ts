@@ -1,6 +1,7 @@
 // The handles that change a part by dragging in the view (docs/cockpit-editor-interactions.md):
 // where they are, and the history a drag gives. Every handle changes the values of the operation
-// that made its part along one direction, as the inspector would. Lengths are in mm, positions
+// that made its part along one direction, as the inspector would. Handles sit where the part is
+// drawn, as fitted; a drag changes a value, so it does not matter where along its travel. Lengths are in mm, positions
 // in cockpit coordinates.
 import {
   faceAxis,
@@ -15,6 +16,7 @@ import {
   AXES,
   editFoot,
   editProfile,
+  isAdjustable,
   lengthAxisOf,
   makesAProfile,
   MAX_PLATE_SIDE_MM,
@@ -35,6 +37,8 @@ import {
 import type { RayMm } from './picking.ts';
 import { editPlate } from './plates.ts';
 import { editPeripheral } from './peripherals.ts';
+import { editAdjustment } from './adjustments.ts';
+import { withinTravel } from './travel.ts';
 
 /** A handle at an end of a profile, dragged along its length. */
 export interface EndHandle {
@@ -75,8 +79,29 @@ export interface EdgeHandle {
   outwardMm: Vec3Mm;
 }
 
+/**
+ * A handle at the center of a part with an adjustment, dragged along its travel to fit the
+ * driver: it moves the part without changing it, within the ends of the travel.
+ */
+export interface TravelHandle {
+  kind: 'travel';
+  /** The part, as `part-2:travel`. */
+  id: string;
+  partId: string;
+  axis: Axis;
+  /** The center of the part, where it is along its travel. */
+  pointMm: Vec3Mm;
+  /** One mm towards + on the axis, in the part's frame. */
+  outwardMm: Vec3Mm;
+  /**
+   * The center of its travel and its ends, on the face the part hangs from, below the part's
+   * center where it is along it.
+   */
+  travel: { centerMm: Vec3Mm; fromMm: Vec3Mm; toMm: Vec3Mm };
+}
+
 /** A control on the selected part, dragged along `outwardMm` from `pointMm`. */
-export type Handle = EndHandle | MoveHandle | EdgeHandle;
+export type Handle = EndHandle | MoveHandle | EdgeHandle | TravelHandle;
 
 /**
  * How far a handle was dragged out along its direction, whether Shift made it symmetric, and the
@@ -94,7 +119,7 @@ export interface Drag {
  * makes by reaching a part.
  */
 export interface DragReadout {
-  kind: 'change' | 'length' | 'width' | 'depth' | 'move' | 'reach';
+  kind: 'change' | 'length' | 'width' | 'depth' | 'move' | 'reach' | 'position';
   valueMm: number;
 }
 
@@ -121,13 +146,65 @@ export function partHandles(
   at: number = history.length,
 ): Handle[] {
   const operation = operationMaking(history, partId);
-  const resolved = replayDesign(history, at).resolved.get(partId);
+  const resolved = replayDesign(history, at).fitted.resolved.get(partId);
   if (!operation || !resolved) return [];
   return [
     ...endHandles(operation, resolved),
     ...edgeHandles(operation, resolved),
     ...moveHandles(history, operation, resolved),
   ];
+}
+
+/** The arrow along the travel of a part, at step `at`; none for a part that does not slide. */
+export function travelHandles(
+  history: readonly Operation[],
+  partId: string,
+  at: number = history.length,
+): TravelHandle[] {
+  const operation = operationMaking(history, partId);
+  const adjustment = adjustmentOf(history, partId);
+  const resolved = replayDesign(history, at).fitted.resolved.get(partId);
+  if (!operation || !isAdjustable(operation) || !adjustment || !resolved) return [];
+  const { axis, travelMm, positionMm } = adjustment;
+  const { box, tiltDeg } = resolved;
+  const pointInFrame = centerOf(box);
+  // The travel runs where the part meets its parent, as rails and slots do, clear of the arrow.
+  const onFace = { ...pointInFrame };
+  const normal = faceAxis(operation.face);
+  onFace[normal] = operation.face[0] === '+' ? box.min[normal] : box.max[normal];
+  const alongTravel = (offsetMm: number) => {
+    const point = { ...onFace };
+    point[axis] += offsetMm - positionMm;
+    return outOfFrame(point, tiltDeg);
+  };
+  return [
+    {
+      kind: 'travel',
+      id: `${partId}:travel`,
+      partId,
+      axis,
+      pointMm: outOfFrame(pointInFrame, tiltDeg),
+      outwardMm: outOfFrame(unitAlong(axis), tiltDeg),
+      travel: {
+        centerMm: alongTravel(0),
+        fromMm: alongTravel(-travelMm / 2),
+        toMm: alongTravel(travelMm / 2),
+      },
+    },
+  ];
+}
+
+/** The adjustment of the part a handle moves, if it has one. */
+function adjustmentOf(history: readonly Operation[], partId: string) {
+  const operation = operationMaking(history, partId);
+  return operation && isAdjustable(operation) ? operation.adjustment : undefined;
+}
+
+/** Where a travel handle's part is along its travel before the drag. */
+function travelPosition(history: readonly Operation[], handle: TravelHandle) {
+  const adjustment = adjustmentOf(history, handle.partId);
+  if (!adjustment) throw new Error(`Part ${handle.partId} has no travel to move along.`);
+  return adjustment;
 }
 
 /**
@@ -140,6 +217,10 @@ export function draggedHistory(
   handle: Handle,
   drag: Drag,
 ): Operation[] {
+  if (handle.kind === 'travel') {
+    const { positionMm } = travelPosition(history, handle);
+    return editAdjustment(history, handle.partId, { positionMm: positionMm + drag.changeMm });
+  }
   if (handle.kind === 'move') {
     const operation = makingOperation(history, handle);
     return editPart(history, operation, movedValues(history, operation, handle, drag.changeMm));
@@ -192,6 +273,11 @@ export function snappedDrag(
   free: boolean,
 ): Drag {
   const step = free ? FREE_STEP_MM : DRAG_STEP_MM;
+  if (handle.kind === 'travel') {
+    const { positionMm, travelMm } = travelPosition(history, handle);
+    const steppedMm = Math.round((positionMm + requested.changeMm) / step) * step;
+    return { changeMm: withinTravel(steppedMm, travelMm) - positionMm, symmetric: false };
+  }
   if (handle.kind === 'move') {
     const operation = makingOperation(history, handle);
     const { valueMm, sign } = positionMoved(history, operation, handle);
@@ -219,6 +305,11 @@ export function dragReadout(
   requested: Drag,
 ): DragReadout {
   if (handle.kind === 'move') return { kind: 'move', valueMm: requested.changeMm };
+  if (handle.kind === 'travel')
+    return {
+      kind: 'position',
+      valueMm: travelPosition(history, handle).positionMm + requested.changeMm,
+    };
   const sizing = sizingOf(history, handle);
   if (requested.reachesId !== undefined)
     return { kind: 'reach', valueMm: sizing.sizeMm + requested.changeMm };
@@ -238,6 +329,10 @@ export function dragFromTyped(
   if (handle.kind === 'move') {
     const changeMm = Math.round(valueMm / FREE_STEP_MM) * FREE_STEP_MM;
     return { changeMm, symmetric: false };
+  }
+  if (handle.kind === 'travel') {
+    const { positionMm } = travelPosition(history, handle);
+    return snappedDrag(history, handle, { changeMm: valueMm - positionMm, symmetric: false }, true);
   }
   const sizing = sizingOf(history, handle);
   const drag = asItCan(sizing, requested);

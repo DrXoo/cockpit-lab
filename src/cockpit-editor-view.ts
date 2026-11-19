@@ -24,6 +24,7 @@ import type { JointOfPart } from './cad/fastening.ts';
 import {
   FACES,
   facingParts,
+  isAdjustable,
   isBolts,
   lengthAxisOf,
   makesAPart,
@@ -36,6 +37,7 @@ import {
   MAX_PLATE_SIDE_MM,
   MAX_POSITION_MM,
   MAX_PROFILE_LENGTH_MM,
+  MAX_TRAVEL_MM,
   MIN_ENVELOPE_SIDE_MM,
   MIN_PLATE_SIDE_MM,
   MIN_PROFILE_LENGTH_MM,
@@ -45,6 +47,8 @@ import {
   type AddAnchoredProfile,
   type AddFoot,
   type AddPlate,
+  type Adjustment,
+  type AdjustableOperation,
   type FastenJoint,
   type FootValues,
   type GrowProfile,
@@ -302,7 +306,7 @@ export function partInspectorHTML(
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
-  if (fitting && !isAPeripheral(operation)) return lockedStepHTML(history, operation);
+  if (fitting && !isAPeripheral(operation)) return lockedStepHTML(history, operation, failure);
   const deleteStep = `<button class="button button-light" id="deleteStep" title="Take this step out of the whole history"><i data-icon="trash"></i>Delete this step</button>`;
   const failed =
     failure === undefined
@@ -316,7 +320,7 @@ export function partInspectorHTML(
     case 'join-parts':
       return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
     case 'mount-peripheral':
-      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}<div class="part-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(operation) : ''}<div class="part-actions">${deleteStep}</div></div>`;
     case 'add-foot':
       return partFieldsHTML(footFieldsHTML(history, operation));
     case 'add-plate':
@@ -365,9 +369,78 @@ export function partToolsOf(
   return makesAProfile(operation) ? ['grow', 'plate', 'foot', 'remove'] : ['remove'];
 }
 
-/** A step of the frame while fitting: it can be selected, but not changed. */
-function lockedStepHTML(history: readonly Operation[], operation: Operation): string {
-  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p></div>`;
+/**
+ * A step of the frame while fitting: it can be selected, but not changed, other than moving its
+ * part along an adjustment.
+ */
+function lockedStepHTML(
+  history: readonly Operation[],
+  operation: Operation,
+  failure: string | undefined,
+): string {
+  const failed =
+    failure === undefined
+      ? ''
+      : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)}</p>`;
+  const adjustment = isAdjustable(operation) ? adjustmentHTML(operation) : '';
+  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p>${failed}${adjustment}</div>`;
+}
+
+/** The values of an adjustment, as the markup names them in `data-adjustment-field`. */
+const ADJUSTMENT_FIELDS = ['axis', 'travelMm', 'positionMm'] as const;
+export type AdjustmentField = (typeof ADJUSTMENT_FIELDS)[number];
+
+/**
+ * A part's adjustment while fitting: the axis of its face it slides along, its travel and where
+ * it is along it; or a button to give it one. A span takes its length from the part it reaches,
+ * so it has none.
+ */
+function adjustmentHTML(operation: AdjustableOperation): string {
+  const heading = '<h4 class="buy-group">Adjustment</h4>';
+  if (operation.kind === 'grow-profile' && operation.reachesId !== undefined)
+    return `${heading}<p class="layout-hint" id="adjustmentNone">A span takes its length from the part it reaches, so it does not slide.</p>`;
+  const { adjustment } = operation;
+  if (adjustment === undefined)
+    return `${heading}<p class="layout-hint">Fixed where it is attached.</p><div class="part-actions"><button class="button button-light" id="addAdjustment" title="Let it slide along the face it hangs from, as a seat on its rails"><i data-icon="plus"></i>Add an adjustment</button></div>`;
+  const normal = faceAxis(operation.face);
+  const axes = AXES.filter((axis) => axis !== normal)
+    .map(
+      (axis) =>
+        `<option value="${axis}"${axis === adjustment.axis ? ' selected' : ''}>${AXIS_NAMES[axis]}</option>`,
+    )
+    .join('');
+  const halfMm = adjustment.travelMm / 2;
+  return `${heading}<div class="select-control"><label for="adjustmentAxis">Slides along</label><select id="adjustmentAxis" data-adjustment-field="axis">${axes}</select></div>${adjustmentNumberHTML('adjustmentTravel', 'travelMm', 'Travel', adjustment.travelMm, 1, MAX_TRAVEL_MM)}${adjustmentNumberHTML('adjustmentPosition', 'positionMm', 'Position', adjustment.positionMm, -halfMm, halfMm)}<p class="layout-hint">Centered where it is attached, towards + on its axis. Moving it along its travel changes no part or cut.</p><div class="part-actions"><button class="button button-light" id="removeAdjustment" title="Fix it at the center of its travel"><i data-icon="trash"></i>Remove the adjustment</button></div>`;
+}
+
+function adjustmentNumberHTML(
+  id: string,
+  field: AdjustmentField,
+  label: string,
+  valueMm: number,
+  min: number,
+  max: number,
+): string {
+  return `<div class="control"><div class="control-top"><label for="${id}">${label}</label><div class="number-wrap"><input id="${id}" type="number" data-adjustment-field="${field}" min="${round(min, 1)}" max="${round(max, 1)}" step="1" value="${round(valueMm, 1)}"><span>mm</span></div></div></div>`;
+}
+
+/** The adjustment value a `data-adjustment-field` names. The markup is the app's. */
+export function adjustmentField(value: string | undefined): AdjustmentField {
+  const field = ADJUSTMENT_FIELDS.find((known) => known === value);
+  if (!field) throw new Error(`Unknown adjustment field: ${value}`);
+  return field;
+}
+
+/** The change a value typed in an adjustment field makes. */
+export function adjustmentChange(field: AdjustmentField, value: string): Partial<Adjustment> {
+  switch (field) {
+    case 'axis':
+      return { axis: axisOf(value) };
+    case 'travelMm':
+      return { travelMm: typedNumber(value) };
+    case 'positionMm':
+      return { positionMm: typedNumber(value) };
+  }
 }
 
 /**

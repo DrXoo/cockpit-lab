@@ -20,7 +20,10 @@ import {
   partHandles,
   snappedDrag,
   symmetricDrag,
+  travelHandles,
 } from '../src/cad/handles.ts';
+import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
+import { snapToParts } from '../src/cad/snapping.ts';
 
 /** A 40 × 40 rail along Z from the origin, 1000 mm long, lying on the floor: part-1. */
 const railHistory = () => {
@@ -354,4 +357,50 @@ test('a peripheral moves along and across the face it is mounted on, along the d
   assert.equal(dragged(history, 'part-3:move:x', 40).alongMm, 190);
   assert.equal(dragged(history, 'part-3:move:z', -30).acrossMm, -30);
   assert.equal(partHandles(history, 'part-3').filter(({ kind }) => kind !== 'move').length, 0);
+});
+
+/** The rail with a plate on the middle of its top, part-2, 20 mm along a 100 mm travel. */
+const slidPlate = () => {
+  const history = railHistory();
+  const plated = addAdjustment(addOperation(history, draftPlate(history, 'part-1')), 'part-2');
+  return editAdjustment(plated, 'part-2', { positionMm: 20 });
+};
+
+test('a part with an adjustment has one arrow along its travel, which runs on the face it hangs from', () => {
+  const history = slidPlate();
+  const [handle, ...others] = travelHandles(history, 'part-2');
+  assert.equal(others.length, 0);
+  assert.deepEqual(
+    [handle.kind, handle.id, handle.axis, handle.outwardMm],
+    ['travel', 'part-2:travel', 'z', { x: 0, y: 0, z: 1 }],
+  );
+  assert.equal(handle.pointMm.z, 520, 'where the part is');
+  assert.deepEqual(
+    [handle.travel.centerMm.z, handle.travel.fromMm.z, handle.travel.toMm.z],
+    [500, 450, 550],
+  );
+  assert.equal(handle.pointMm.y, 44, 'the arrow at the center of the 8 mm plate');
+  assert.equal(handle.travel.centerMm.y, 40, 'its travel on the top of the rail');
+  assert.deepEqual(travelHandles(railHistory(), 'part-1'), [], 'a part that does not slide');
+  const moveArrow = partHandles(history, 'part-2').find(({ kind }) => kind === 'move');
+  assert.equal(moveArrow.pointMm.z, 520, 'every handle is where the part is drawn');
+});
+
+test('dragging along a travel moves the part in steps, never past either end', () => {
+  const history = slidPlate();
+  const [handle] = travelHandles(history, 'part-2');
+  const drag = (changeMm, free = false) =>
+    snappedDrag(history, handle, { changeMm, symmetric: false }, free).changeMm;
+  assert.equal(drag(13), 10);
+  assert.equal(drag(13, true), 13);
+  assert.equal(drag(100), 30);
+  assert.equal(drag(-100), -70);
+  const requested = { changeMm: 30, symmetric: false };
+  assert.deepEqual(dragReadout(history, handle, requested), { kind: 'position', valueMm: 50 });
+  const dragged = draggedHistory(history, handle, requested);
+  assert.equal(dragged.length, history.length, 'it adds no step');
+  assert.equal(dragged[1].adjustment.positionMm, 50);
+  assert.equal(dragFromTyped(history, handle, requested, -60).changeMm, -70);
+  assert.equal(dragFromTyped(history, handle, requested, 5).changeMm, -15);
+  assert.equal(snapToParts(history, handle, requested, 10), null, 'a travel does not snap');
 });

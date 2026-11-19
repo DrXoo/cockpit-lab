@@ -9,6 +9,8 @@ import {
 } from '../src/cad/history.ts';
 import { fastenWithBrackets, joinParts } from '../src/cad/fastening.ts';
 import { jointMarkers } from '../src/cad/joint-markers.ts';
+import { draftPlate } from '../src/cad/plates.ts';
+import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 
 const JOINT = 'part-2@part-1';
 
@@ -70,4 +72,16 @@ test('two parts that touch without a joint are marked in the middle of where the
 
 test('the markers are those of the design at the history marker', () => {
   assert.deepEqual(jointMarkers(ab(), null, 1), []);
+});
+
+test('a marker sits where its parts are drawn, along the travel of an adjusted part', () => {
+  const rail = editProfile(addAnchoredProfile([]).history, 'part-1', {
+    name: 'Rail',
+    lengthMm: 1000,
+  });
+  const plated = addAdjustment(addOperation(rail, draftPlate(rail, 'part-1')), 'part-2');
+  const slid = editAdjustment(plated, 'part-2', { positionMm: 20 });
+  const [marker] = jointMarkers(slid, null);
+  assert.equal(marker.id, 'part-2@part-1');
+  assert.equal(marker.pointMm.z, 520);
 });

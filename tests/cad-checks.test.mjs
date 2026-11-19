@@ -11,6 +11,7 @@ import {
   replayDesign,
 } from '../src/cad/history.ts';
 import { cadChecks } from '../src/cad-checks.ts';
+import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const bar = (id, name, startMm, changes = {}) => ({
@@ -108,4 +109,54 @@ test('failed steps are listed with their number, their part and why they fail', 
   assert.equal(check.level, 'warning');
   assert.equal(check.value, '1');
   assert.deepEqual(check.items, ['Step 1, B: It grows out of a part that was deleted.']);
+});
+
+test('interference is checked with each part where its adjustment puts it', () => {
+  const history = editProfile(addAnchoredProfile([]).history, 'part-1', {
+    name: 'Rail',
+    lengthMm: 1000,
+  });
+  const post = editDraft(history, draftGrowth(history, 'part-1'), { name: 'Post', lengthMm: 200 });
+  let posted = addOperation(history, post);
+  const other = editDraft(posted, draftGrowth(posted, 'part-1'), {
+    name: 'Other post',
+    alongMm: 560,
+    lengthMm: 200,
+  });
+  posted = addAdjustment(addOperation(posted, other), 'part-2');
+  assert.deepEqual(checksOfHistory(posted)['cad-interference'].items, []);
+  const slid = editAdjustment(posted, 'part-2', { positionMm: 40 });
+  assert.deepEqual(checksOfHistory(slid)['cad-interference'].items, [
+    'Post into Other post: 20 mm front to back',
+  ]);
+});
+
+test('a span that an adjustment would stretch or squeeze is listed once a part has one', () => {
+  assert.equal(checksOfHistory(ab())['cad-fitted-spans'], undefined, 'no part slides');
+  let history = editProfile(addAnchoredProfile([]).history, 'part-1', {
+    name: 'Rail',
+    lengthMm: 1000,
+  });
+  history = editProfile(addAnchoredProfile(history).history, 'part-2', {
+    name: 'High rail',
+    lengthMm: 1000,
+    startMm: { x: 500, y: 140, z: 0 },
+  });
+  history = addOperation(
+    history,
+    editDraft(history, draftGrowth(history, 'part-1'), { name: 'Post', lengthMm: 200 }),
+  );
+  const crossing = editDraft(history, draftGrowth(history, 'part-3'), {
+    name: 'Crossing',
+    face: '+x',
+    fromEnd: 'start',
+    alongMm: 100,
+  });
+  history = editProfile(addOperation(history, crossing), 'part-4', { reachesId: 'part-2' });
+  history = addAdjustment(history, 'part-3');
+  assert.equal(checksOfHistory(history)['cad-fitted-spans'].level, 'ok');
+  const slid = editAdjustment(history, 'part-3', { axis: 'x', travelMm: 40, positionMm: 10 });
+  const check = checksOfHistory(slid)['cad-fitted-spans'];
+  assert.equal(check.level, 'warning');
+  assert.deepEqual(check.items, ['Crossing would have to be 10 mm shorter to meet High rail']);
 });
