@@ -107,6 +107,17 @@ export class CockpitEditor {
     return editing.selectedPartId(this.current);
   }
 
+  /** Why the selected step fails, in the whole design, or undefined when it applies. */
+  selectedFailure(): string | undefined {
+    const operation = this.selectedOperation();
+    return operation ? replayDesign(this.history()).failures.get(operation.id) : undefined;
+  }
+
+  /** Whether a step is one the mode of the view changes: a peripheral's while fitting, else the frame's. */
+  changeableInMode(operation: Operation): boolean {
+    return editing.changeableInMode(this.current, operation);
+  }
+
   /** The handles the view shows, of the selected part or the part about to be added. */
   shownHandles(): Handle[] {
     return editing.shownHandles(this.current, this.host.sightAxis());

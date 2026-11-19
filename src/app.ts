@@ -12,63 +12,18 @@ import {
   readCockpitFile,
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
-import { seatedDriver, type Driver } from './cad/driver.ts';
-import { driverHTML } from './driver-view.ts';
-import {
-  deleteKeyAction,
-  designPanelHTML,
-  growPanelHTML,
-  jointCardHTML,
-  partToolsOf,
-  type PartTool,
-  NOTHING_AROUND,
-  faceOf,
-  footChange,
-  partChange,
-  partField,
-  partInspectorHTML,
-  peripheralChange,
-  peripheralPanelHTML,
-  plateChange,
-  platePanelHTML,
-  QUICK_BOLTS_PER_SLOT,
-  type PartField,
-  adjustmentChange,
-  adjustmentField,
-} from './cockpit-editor-view.ts';
-import {
-  addFoot,
-  editDraft,
-  editFoot,
-  editProfile,
-  isAdjustable,
-  makesAPart,
-  operationMaking,
-  replayDesign,
-  type GrowProfile,
-  type MakingOperation,
-  type MountPeripheral,
-  type Operation,
-  unknownOperation,
-} from './cad/history.ts';
+import { jointCardHTML, NOTHING_AROUND } from './cockpit-editor-view.ts';
+import { operationMaking } from './cad/history.ts';
 import { MM_PER_CM } from './units.ts';
-import { editPlate, editPlateDraft } from './cad/plates.ts';
-import { addAdjustment, editAdjustment, removeAdjustment } from './cad/adjustments.ts';
-import {
-  addMountingHole,
-  differsFromItsType,
-  editPeripheral,
-  editPeripheralDraft,
-  removeMountingHole,
-  swapPeripheralType,
-} from './cad/peripherals.ts';
-import { peripheralType } from './cad/catalog.ts';
 import type { PartHit } from './cad/picking.ts';
 import { measureReadout } from './measure-view.ts';
 import type { CockpitDrawing } from './render-cad.ts';
-import { canRedo, canUndo } from './undo.ts';
-import * as editing from './cockpit-editor/session.ts';
 import { CockpitEditor } from './cockpit-editor/editor.ts';
+import { CockpitInspector, DRAFT_TITLES } from './cockpit-editor/inspector.ts';
+import { CockpitToolbar } from './cockpit-editor/toolbar.ts';
+import { bindCockpitKeys } from './cockpit-editor/keys.ts';
+import { bindHistoryPanel, historyPanelHTML } from './cockpit-editor/history-panel.ts';
+import { bindJointActions } from './cockpit-editor/joint-actions.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
 import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
@@ -95,7 +50,7 @@ import {
 } from './model.ts';
 import { CockpitScene, type PagePoint } from './scene.ts';
 import { dragReadout, type DragReadout, type Handle, type HandleModifiers } from './cad/handles.ts';
-import { draftCornersMm, draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
+import { draftCornersMm, type Draft } from './cad/drafts.ts';
 import { handleBallMm } from './render-handles.ts';
 import { hoverLabel } from './hover-view.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
@@ -159,10 +114,6 @@ import {
   type ThemePreference,
 } from './theme-preference.ts';
 import { checkRowHTML } from './check-view.ts';
-import { cadChecks } from './cad-checks.ts';
-import { partsToBuy } from './cad/parts-to-buy.ts';
-import { fastenWithBolts, fastenWithBrackets, joinParts, setConnector } from './cad/fastening.ts';
-import { partsToBuyHTML } from './cockpit-parts-view.ts';
 import {
   unitFor,
   controlValue as controlValueOf,
@@ -293,7 +244,7 @@ const cockpitEditor = new CockpitEditor(
   {
     refresh: () => refresh(),
     renderControls: () => renderControls(),
-    renderInspector: () => renderPartInspector({ force: true }),
+    renderInspector: () => cockpitInspector.render({ force: true }),
     renderJointCard: () => renderJointCard(),
     saveSoon: () => queueSave(),
     frameDesign: () => setActiveView(view),
@@ -302,6 +253,10 @@ const cockpitEditor = new CockpitEditor(
   },
   newProject.cockpit,
 );
+const inCockpitEditor = () => editor() === 'cockpit';
+const cockpitInspector = new CockpitInspector(cockpitEditor, inCockpitEditor);
+const cockpitToolbar = new CockpitToolbar(cockpitEditor, inCockpitEditor);
+bindCockpitKeys(cockpitEditor, inCockpitEditor);
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
@@ -344,7 +299,7 @@ function renderJointCard() {
   if (html !== shownJointCard) {
     shownJointCard = html;
     replaceKeepingFocus(card, html);
-    bindJointActions(card);
+    bindJointActions(card, cockpitEditor);
     card
       .querySelectorAll<HTMLElement>('[data-joint-more]')
       .forEach((button) =>
@@ -595,419 +550,6 @@ function hoverInView(hit: PartHit | null, pointer: PagePoint) {
     label.hidden = false;
   }, HOVER_LABEL_DELAY_MS);
 }
-function bindDesignPanel() {
-  $optional('#addProfile')?.addEventListener('click', () => cockpitEditor.addProfile());
-  $optional('#undoEdit')?.addEventListener('click', () => cockpitEditor.undo());
-  $optional('#redoEdit')?.addEventListener('click', () => cockpitEditor.redo());
-  $optional('#markerBack')?.addEventListener('click', () =>
-    cockpitEditor.moveMarker(cockpitEditor.at() - 1),
-  );
-  $optional('#markerForward')?.addEventListener('click', () =>
-    cockpitEditor.moveMarker(cockpitEditor.at() + 1),
-  );
-  $optional('#markerEnd')?.addEventListener('click', () => cockpitEditor.moveMarker(null));
-  controlsAll('[data-operation]').forEach((step) =>
-    step.addEventListener('click', () => cockpitEditor.select(dataOf(step, 'operation'))),
-  );
-}
-/** The inspector HTML last shown, so it is only rebuilt when it changes. */
-let shownPartInspector = '';
-/** What the checks and the parts to buy last showed, so an open list of items stays open. */
-const shownCockpitLists = new Map<HTMLElement, string>();
-function showCockpitList(container: HTMLElement, html: string) {
-  if (shownCockpitLists.get(container) === html) return;
-  container.innerHTML = html;
-  shownCockpitLists.set(container, html);
-}
-/** The checks and the parts to buy of the whole design, wherever the history marker is. */
-function renderCockpitChecks() {
-  const shown = editor() === 'cockpit' && cockpitEditor.hasParts();
-  $('#cockpitChecksNote').hidden = editor() !== 'cockpit' || cockpitEditor.hasParts();
-  $('#cockpitChecksSection').hidden = !shown;
-  $('#partsToBuySection').hidden = !shown;
-  if (!shown) return;
-  const history = cockpitEditor.history();
-  const design = replayDesign(history);
-  $('#wholeDesignNote').hidden = cockpitEditor.at() === history.length;
-  showCockpitList(
-    $('#cockpitChecks'),
-    cadChecks({ history, ...design })
-      .map(checkRowHTML)
-      .join(''),
-  );
-  showCockpitList(
-    $('#partsToBuy'),
-    partsToBuyHTML(partsToBuy(design.resolved, design.connectors, design.joints)),
-  );
-}
-/** The inspector's title: the step selected, or the kind of part about to be added. */
-const DRAFT_TITLES: Record<'none' | Draft['kind'], string> = {
-  none: 'Selected step',
-  'grow-profile': 'New profile',
-  'add-plate': 'New plate',
-  'mount-peripheral': 'New peripheral',
-};
-/** The buttons that add or cancel the part about to be added, in its panel. */
-const DRAFT_BUTTONS: Record<Draft['kind'], [confirm: string, cancel: string]> = {
-  'grow-profile': ['#confirmGrowth', '#cancelGrowth'],
-  'add-plate': ['#confirmPlate', '#cancelPlate'],
-  'mount-peripheral': ['#confirmPeripheral', '#cancelPeripheral'],
-};
-/** The panel of the part about to be added, each kind its own. */
-function draftPanelHTML(history: readonly Operation[], drafting: Draft): string {
-  switch (drafting.kind) {
-    case 'grow-profile':
-      return growPanelHTML(withDraft(history, drafting, cockpitEditor.at()), drafting);
-    case 'add-plate':
-      return platePanelHTML(history, drafting);
-    case 'mount-peripheral':
-      return peripheralPanelHTML(history, drafting);
-  }
-}
-/** The part about to be added, with the value of one field of its panel changed. */
-function editedDraft(
-  history: readonly Operation[],
-  drafting: Draft,
-  field: PartField,
-  value: string,
-): Draft {
-  switch (drafting.kind) {
-    case 'add-plate':
-      return editPlateDraft(history, drafting, plateChange(field, value));
-    case 'mount-peripheral':
-      return editPeripheralDraft(history, drafting, peripheralChange(drafting, field, value));
-    case 'grow-profile':
-      return editedGrowthDraft(history, drafting, field, value);
-  }
-}
-/** The profile about to grow, with the value of one field of its panel changed. */
-function editedGrowthDraft(
-  history: readonly Operation[],
-  drafting: GrowProfile,
-  field: PartField,
-  value: string,
-): Draft {
-  const change = partChange(drafting, field, value);
-  // The parts a profile can reach are those in front of it, in the design as the view shows it.
-  if (field === 'reachesId')
-    return draftEditedBy(history, drafting, cockpitEditor.at(), (shown) =>
-      editProfile(shown, drafting.partId, change),
-    );
-  return editDraft(history, drafting, change);
-}
-/**
- * Changes one value of the step that made the selected part, each kind of part its own way. A
- * field of an item in a list, such as a peripheral's hole, names the item.
- */
-function editPartField(
-  operation: MakingOperation,
-  field: PartField,
-  value: string,
-  item: string | undefined,
-) {
-  cockpitEditor.settleChange();
-  const { partId } = operation;
-  switch (operation.kind) {
-    case 'add-foot':
-      cockpitEditor.changeHistory((history) => editFoot(history, partId, footChange(field, value)));
-      return;
-    case 'add-plate':
-      cockpitEditor.changeHistory((history) =>
-        editPlate(history, partId, plateChange(field, value)),
-      );
-      return;
-    case 'mount-peripheral':
-      if (field === 'typeId') {
-        swapPeripheral(operation, value);
-        return;
-      }
-      cockpitEditor.changeHistory((history) =>
-        editPeripheral(history, partId, peripheralChange(operation, field, value, item)),
-      );
-      return;
-    case 'add-anchored-profile':
-    case 'grow-profile':
-      cockpitEditor.editSelectedProfile(partChange(operation, field, value));
-      return;
-    default:
-      unknownOperation(operation);
-  }
-}
-function renderPartInspector({ force = false } = {}) {
-  const body = $('#partInspectorBody');
-  const { pendingChange, selectedOperationId, fitting } = cockpitEditor.session;
-  // A change waiting in the view shows its values here before it is confirmed.
-  const history = pendingChange?.history ?? cockpitEditor.history();
-  const operation = history.find((step) => step.id === selectedOperationId);
-  const drafting = cockpitEditor.session.draft;
-  // Fitting with nothing selected, the panel is the driver's.
-  const showsDriver = fitting && drafting === null && !operation;
-  $('#partInspectorTitle').textContent = showsDriver
-    ? 'Driver'
-    : DRAFT_TITLES[drafting?.kind ?? 'none'];
-  const failure = operation ? replayDesign(history).failures.get(operation.id) : undefined;
-  const html = showsDriver
-    ? driverHTML(cockpitEditor.driver(), cockpitEditor.seatedDriver())
-    : drafting === null
-      ? partInspectorHTML(
-          history,
-          operation,
-          failure,
-          cockpitEditor.jointsOfSelected(),
-          cockpitEditor.touchingSelected(),
-          {
-            fitting,
-          },
-        )
-      : draftPanelHTML(history, drafting);
-  if (!force && html === shownPartInspector) return;
-  shownPartInspector = html;
-  replaceKeepingFocus(body, html);
-  if (showsDriver) {
-    bindDriverActions(body);
-    return;
-  }
-  const fields = body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-part-field]');
-  if (drafting) {
-    fields.forEach((el) => {
-      const field = partField(el.dataset.partField);
-      el.addEventListener('change', () =>
-        cockpitEditor.changeDraft((current) => editedDraft(current, drafting, field, el.value)),
-      );
-    });
-    const [confirm, cancel] = DRAFT_BUTTONS[drafting.kind];
-    $(confirm).addEventListener('click', () => cockpitEditor.confirmDraft());
-    $(cancel).addEventListener('click', () => cockpitEditor.cancelDraft());
-    return;
-  }
-  // Fitting, any part that hangs from another can slide, the frame's as well.
-  if (operation && fitting && isAdjustable(operation))
-    bindAdjustmentActions(body, operation.partId);
-  // A step the mode of the view locks has nothing else to change.
-  if (!operation || !editing.changeableInMode(cockpitEditor.session, operation)) return;
-  $('#deleteStep').addEventListener('click', () => cockpitEditor.deleteSelectedStep());
-  if (!makesAPart(operation)) return;
-  fields.forEach((el) => {
-    const field = partField(el.dataset.partField);
-    el.addEventListener('change', () =>
-      editPartField(operation, field, el.value, el.dataset.partItem),
-    );
-  });
-  if (operation.kind === 'mount-peripheral') bindMountingHoleActions(body, operation.partId);
-  bindJointActions(body);
-}
-/** The stature typed in cm; one the driver cannot have is explained and nothing changes. */
-function bindDriverActions(container: HTMLElement) {
-  const stature = container.querySelector<HTMLInputElement>('#driverStature');
-  stature?.addEventListener('change', () =>
-    cockpitEditor.setStature(Number(stature.value) * MM_PER_CM),
-  );
-}
-/** The fields of a part's adjustment, and the buttons that give it one or take it away. */
-function bindAdjustmentActions(container: HTMLElement, partId: string) {
-  container
-    .querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-adjustment-field]')
-    .forEach((el) => {
-      const field = adjustmentField(el.dataset.adjustmentField);
-      el.addEventListener('change', () => {
-        cockpitEditor.settleChange();
-        cockpitEditor.changeHistory((history) =>
-          editAdjustment(history, partId, adjustmentChange(field, el.value)),
-        );
-      });
-    });
-  container.querySelector('#addAdjustment')?.addEventListener('click', () => {
-    cockpitEditor.settleChange();
-    cockpitEditor.changeHistory((history) => addAdjustment(history, partId));
-  });
-  container.querySelector('#removeAdjustment')?.addEventListener('click', () => {
-    cockpitEditor.settleChange();
-    cockpitEditor.changeHistory((history) => removeAdjustment(history, partId));
-  });
-}
-/** The buttons that add a hole to a peripheral's mounting pattern, or take one out. */
-function bindMountingHoleActions(container: HTMLElement, partId: string) {
-  container
-    .querySelector('#addHole')
-    ?.addEventListener('click', () =>
-      cockpitEditor.changeHistory((history) => addMountingHole(history, partId)),
-    );
-  container.querySelectorAll<HTMLElement>('[data-remove-hole]').forEach((button) =>
-    button.addEventListener('click', () => {
-      const index = Number(dataOf(button, 'removeHole'));
-      cockpitEditor.changeHistory((history) => removeMountingHole(history, partId, index));
-    }),
-  );
-}
-/** The peripheral and the type it waits to be swapped for, while the swap is being confirmed. */
-let pendingSwap: { partId: string; typeId: string } | null = null;
-/**
- * Swaps a peripheral's type. When its own values were edited, which the swap replaces, the
- * swap waits for a confirmation first.
- */
-function swapPeripheral(peripheral: MountPeripheral, typeId: string) {
-  if (!differsFromItsType(peripheral)) {
-    cockpitEditor.changeHistory((history) =>
-      swapPeripheralType(history, peripheral.partId, typeId),
-    );
-    return;
-  }
-  pendingSwap = { partId: peripheral.partId, typeId };
-  $('#swapPeripheralName').textContent = peripheral.name;
-  $('#swapPeripheralType').textContent = peripheralType(typeId).name;
-  $<HTMLDialogElement>('#swapPeripheralDialog').showModal();
-}
-const PART_TOOL_BUTTONS: Record<PartTool, string> = {
-  grow: '#growProfile',
-  plate: '#putPlate',
-  foot: '#addFoot',
-  remove: '#removePart',
-  'mount-seat': '#mountSeat',
-  'mount-wheel-base': '#mountWheelBase',
-  'mount-pedals': '#mountPedals',
-};
-/**
- * The toolbar of the view offers the actions on the selected part, in the cockpit editor and
- * while no part is being added.
- */
-function renderPartTools() {
-  const operation = cockpitEditor.selectedOperation();
-  const failure = operation
-    ? replayDesign(cockpitEditor.history()).failures.get(operation.id)
-    : undefined;
-  const offered = editor() === 'cockpit' && cockpitEditor.session.draft === null;
-  const tools = offered
-    ? partToolsOf(operation, failure, { fitting: cockpitEditor.session.fitting })
-    : [];
-  for (const [tool, selector] of Object.entries(PART_TOOL_BUTTONS))
-    $(selector).hidden = !tools.some((offeredTool) => offeredTool === tool);
-  $('#partTools').hidden = tools.length === 0;
-}
-/** The joint actions in `container`: brackets, bolts and joins, as the inspector offers them. */
-function bindJointActions(container: HTMLElement) {
-  container.querySelectorAll<HTMLElement>('[data-joint][data-side]').forEach((button) =>
-    button.addEventListener('click', () => {
-      const side = faceOf(dataOf(button, 'side'));
-      const on = button.getAttribute('aria-pressed') !== 'true';
-      cockpitEditor.changeJoints((history, at) =>
-        setConnector(history, dataOf(button, 'joint'), side, on, at),
-      );
-    }),
-  );
-  container.querySelectorAll<HTMLElement>('[data-join]').forEach((button) =>
-    button.addEventListener('click', () => {
-      // A card names the part it joins from; the inspector joins from the selected part.
-      const partId = button.dataset.joinFrom ?? cockpitEditor.selectedPartId();
-      if (partId === null) return;
-      cockpitEditor.changeJoints((history, at) =>
-        joinParts(history, partId, dataOf(button, 'join'), at),
-      );
-    }),
-  );
-  container
-    .querySelectorAll<HTMLElement>('[data-joint-brackets]')
-    .forEach((button) =>
-      button.addEventListener('click', () =>
-        cockpitEditor.changeJoints((history, at) =>
-          fastenWithBrackets(history, dataOf(button, 'jointBrackets'), at),
-        ),
-      ),
-    );
-  container.querySelectorAll<HTMLInputElement>('[data-joint-bolts]').forEach((input) =>
-    input.addEventListener('change', () => {
-      const perSlot = input.value.trim() === '' ? Number.NaN : Number(input.value);
-      cockpitEditor.changeJoints((history, at) =>
-        fastenWithBolts(history, dataOf(input, 'jointBolts'), perSlot, at),
-      );
-    }),
-  );
-  container
-    .querySelectorAll<HTMLElement>('[data-joint-two-bolts]')
-    .forEach((button) =>
-      button.addEventListener('click', () =>
-        cockpitEditor.changeJoints((history, at) =>
-          fastenWithBolts(history, dataOf(button, 'jointTwoBolts'), QUICK_BOLTS_PER_SLOT, at),
-        ),
-      ),
-    );
-}
-/**
- * Delete removes the selected part, or deletes a selected step that makes none, as the buttons
- * of its inspector do. A part about to be added is left alone: Escape cancels it.
- */
-function deleteWithKey(event: KeyboardEvent) {
-  if (cockpitEditor.session.draft !== null || cockpitEditor.session.pendingChange) return;
-  const operation = cockpitEditor.selectedOperation();
-  const failure = operation
-    ? replayDesign(cockpitEditor.history()).failures.get(operation.id)
-    : undefined;
-  const action = deleteKeyAction(operation, failure, { fitting: cockpitEditor.session.fitting });
-  if (action === null) return;
-  event.preventDefault();
-  if (action === 'remove-part') cockpitEditor.removeSelectedPart();
-  else cockpitEditor.deleteSelectedStep();
-}
-/**
- * Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo the design's edits in the cockpit editor,
- * and Delete removes the selected part. In a text field they keep editing its text.
- */
-document.addEventListener('keydown', (event) => {
-  if (cockpitEditor.session.pendingChange && !document.querySelector('dialog[open]')) {
-    if (event.key === 'Escape') {
-      cockpitEditor.cancelChange();
-      return;
-    }
-    const typing =
-      event.target instanceof HTMLInputElement ||
-      event.target instanceof HTMLTextAreaElement ||
-      event.target instanceof HTMLSelectElement ||
-      event.target instanceof HTMLButtonElement;
-    if (event.key === 'Enter' && !typing) {
-      cockpitEditor.confirmChange();
-      return;
-    }
-  }
-  if (event.key === 'Escape' && cockpitEditor.session.openJointMarker !== null) {
-    cockpitEditor.closeJointCard();
-    return;
-  }
-  const dialogOpen = document.querySelector('dialog[open]') !== null;
-  if (event.key === 'Escape' && cockpitEditor.session.measurePicks !== null && !dialogOpen) {
-    cockpitEditor.setMeasuring(false);
-    return;
-  }
-  if (event.key === 'Escape' && cockpitEditor.session.draft !== null && !dialogOpen) {
-    cockpitEditor.cancelDraft();
-    return;
-  }
-  if (editor() !== 'cockpit' || document.querySelector('dialog[open]')) return;
-  if (
-    event.target instanceof HTMLInputElement ||
-    event.target instanceof HTMLTextAreaElement ||
-    event.target instanceof HTMLSelectElement
-  )
-    return;
-  if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey) {
-    deleteWithKey(event);
-    return;
-  }
-  // A focused button takes Enter as its own click.
-  const onAButton = event.target instanceof HTMLButtonElement;
-  if (event.key === 'Enter' && cockpitEditor.session.draft !== null && !onAButton) {
-    event.preventDefault();
-    cockpitEditor.confirmDraft();
-    return;
-  }
-  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-  const key = event.key.toLowerCase();
-  if (key === 'z' && !event.shiftKey) {
-    event.preventDefault();
-    cockpitEditor.undo();
-  } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
-    event.preventDefault();
-    cockpitEditor.redo();
-  }
-});
 // Control templates read the current state and evaluation.
 const controlView = () => ({ state, evaluation });
 const controlValue = (key: NumericField) => controlValueOf(controlView(), key);
@@ -1384,15 +926,7 @@ function renderControls() {
     layoutTarget = 'desk';
   let html = '';
   if (editor() === 'cockpit') {
-    html = designPanelHTML({
-      history: cockpitEditor.history(),
-      marker: cockpitEditor.at(),
-      selectedOperationId: cockpitEditor.session.selectedOperationId,
-      failures: replayDesign(cockpitEditor.history()).failures,
-      canUndo: canUndo(cockpitEditor.session.edits),
-      canRedo: canRedo(cockpitEditor.session.edits),
-      fitting: cockpitEditor.session.fitting,
-    });
+    html = historyPanelHTML(cockpitEditor);
   } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
     html = creationControls(
       state,
@@ -1413,7 +947,7 @@ function renderControls() {
   }
   if (editor() === 'cockpit') replaceKeepingFocus($('#controls'), html);
   else $('#controls').innerHTML = html;
-  bindDesignPanel();
+  bindHistoryPanel($('#controls'), cockpitEditor);
   bindRoomEditor();
   bindCreationControls();
   $optional('#startWithCockpit')?.addEventListener('click', startWithCockpit);
@@ -1661,13 +1195,13 @@ function refresh() {
   $('#metricFootprint').innerHTML = metrics.footprintHTML;
   $('#metricSpace').innerHTML = metrics.spaceHTML;
   renderWorkflow();
-  renderPartInspector();
-  renderCockpitChecks();
+  cockpitInspector.render();
+  cockpitInspector.renderChecks();
   renderMeasure();
   renderChangeBox();
   renderDraftBox();
   renderJointCard();
-  renderPartTools();
+  cockpitToolbar.render();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
 function download(filename: string, text: string, type: string) {
@@ -1838,21 +1372,6 @@ $('#dimensionBtn').addEventListener('click', () => {
   $('#dimensionBtn').classList.toggle('active', on);
   scene?.setDimensions(on);
 });
-$('#measureBtn').addEventListener('click', () =>
-  cockpitEditor.setMeasuring(cockpitEditor.session.measurePicks === null),
-);
-$('#growProfile').addEventListener('click', () => cockpitEditor.startGrowth());
-$('#putPlate').addEventListener('click', () => cockpitEditor.startPlate());
-$('#mountSeat').addEventListener('click', () => cockpitEditor.startMounting('generic-seat'));
-$('#mountWheelBase').addEventListener('click', () =>
-  cockpitEditor.startMounting('generic-wheel-base'),
-);
-$('#mountPedals').addEventListener('click', () => cockpitEditor.startMounting('generic-pedals'));
-$('#fitModeBtn').addEventListener('click', () =>
-  cockpitEditor.setFitting(!cockpitEditor.session.fitting),
-);
-$('#addFoot').addEventListener('click', () => cockpitEditor.addFootUnderSelected());
-$('#removePart').addEventListener('click', () => cockpitEditor.removeSelectedPart());
 $('#confirmDraftInView').addEventListener('click', () => cockpitEditor.confirmDraft());
 $('#cancelDraftInView').addEventListener('click', () => cockpitEditor.cancelDraft());
 $('#confirmChange').addEventListener('click', () => cockpitEditor.confirmChange());
@@ -2039,17 +1558,6 @@ importCockpitFile.addEventListener('change', async () => {
   } finally {
     importCockpitFile.value = '';
   }
-});
-$('#confirmSwapPeripheral').addEventListener('click', () => {
-  const swap = pendingSwap;
-  $<HTMLDialogElement>('#swapPeripheralDialog').close();
-  if (swap)
-    cockpitEditor.changeHistory((history) => swapPeripheralType(history, swap.partId, swap.typeId));
-});
-// Kept or swapped, the inspector shows the type the peripheral has.
-$('#swapPeripheralDialog').addEventListener('close', () => {
-  pendingSwap = null;
-  renderPartInspector({ force: true });
 });
 $('#confirmReplaceCockpit').addEventListener('click', () => {
   $<HTMLDialogElement>('#replaceCockpitDialog').close();
