@@ -85,7 +85,7 @@ import { measureReadout } from './measure-view.ts';
 import type { MeasureDrawing } from './render-measurement.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import { canRedo, canUndo } from './undo.ts';
-import * as editing from './cockpit-session.ts';
+import * as editing from './cockpit-editor/session.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
 import { normalizeRoom, moveRoomTarget, wallFrame } from './room.ts';
@@ -110,18 +110,8 @@ import {
   resizeDesk,
   moveArmJoint,
 } from './model.ts';
-import { CockpitScene, type HandleModifiers, type PagePoint } from './scene.ts';
-import {
-  draggedHistory,
-  dragFromTyped,
-  dragReadout,
-  snappedDrag,
-  symmetricDrag,
-  type Drag,
-  type DragReadout,
-  type Handle,
-} from './cad/handles.ts';
-import { snapToParts, type Snap } from './cad/snapping.ts';
+import { CockpitScene, type PagePoint } from './scene.ts';
+import { dragReadout, type DragReadout, type Handle, type HandleModifiers } from './cad/handles.ts';
 import { draftCornersMm, draftEditedBy, withDraft, type Draft } from './cad/drafts.ts';
 import type { JointMarker } from './cad/joint-markers.ts';
 import { handleBallMm } from './render-handles.ts';
@@ -465,13 +455,6 @@ function showJointInInspector(partId: string) {
   selectOperation(operationMaking(designHistory(), partId)?.id ?? null);
   $optional('#partJoints')?.scrollIntoView({ block: 'nearest' });
 }
-/** Shows a drag of a handle as a preview; one its part's operation cannot take keeps the last. */
-function changeInView(handle: Handle, drag: Drag, snap: Snap | null = null) {
-  const dragged = editing.changeInView(session, handle, drag, snap);
-  if (dragged === null) return;
-  session = dragged;
-  refresh();
-}
 function grabHandle(handle: Handle) {
   const { draft, pendingChange } = session;
   if (draft?.partId === handle.partId) {
@@ -490,44 +473,19 @@ function dragHandle(shown: Handle, movedMm: number, modifiers: HandleModifiers) 
     else dragDraft(draftAtGrab, shown, movedMm, modifiers);
     return;
   }
-  // A waiting change shows its handle where it was let go: the drag goes on from the handle
-  // as it was before the change.
-  const { pendingChange } = session;
-  const handle = pendingChange?.handle.id === shown.id ? pendingChange.handle : shown;
-  const history = designHistory();
-  const { shiftHeld, free, snapWithinMm } = modifiers;
-  const dragged = {
-    symmetric: symmetricDrag(handle, shiftHeld),
-    changeMm: changeAtGrabMm + movedMm,
-  };
-  const toParts = free ? null : snapToParts(history, handle, dragged, snapWithinMm, markerIndex());
-  if (toParts) changeInView(handle, toParts.drag, toParts.snap);
-  else changeInView(handle, snappedDrag(history, handle, dragged, free));
+  const dragged = editing.dragChange(session, shown, changeAtGrabMm, movedMm, modifiers);
+  if (dragged === null) return;
+  session = dragged;
+  refresh();
 }
 /**
  * A handle of the part about to be added changes it at once, with no box: its panel shows the
  * values, to type them exactly, and adds it.
  */
-function dragDraft(
-  draft: Draft,
-  handle: Handle,
-  movedMm: number,
-  { shiftHeld, free, snapWithinMm }: HandleModifiers,
-) {
-  const history = designHistory();
-  const at = markerIndex();
-  const shown = withDraft(history, draft, at);
-  const dragged = { symmetric: symmetricDrag(handle, shiftHeld), changeMm: movedMm };
-  const toParts = free ? null : snapToParts(shown, handle, dragged, snapWithinMm, at + 1);
-  const drag = toParts?.drag ?? snappedDrag(shown, handle, dragged, free);
-  let placed: Draft;
-  try {
-    placed = draftEditedBy(history, draft, at, (showing) => draggedHistory(showing, handle, drag));
-  } catch {
-    // A place the part cannot take keeps it where it last fitted.
-    return;
-  }
-  session = editing.placeDraft(session, placed, toParts?.snap ?? null);
+function dragDraft(draft: Draft, handle: Handle, movedMm: number, modifiers: HandleModifiers) {
+  const dragged = editing.dragDraft(session, draft, handle, movedMm, modifiers);
+  if (dragged === null) return;
+  session = dragged;
   renderPartInspector({ force: true });
   refresh();
 }
@@ -549,10 +507,11 @@ function releaseHandle() {
 /** A value typed in the box sets the change exactly. */
 function typeChange() {
   const typed = $<HTMLInputElement>('#changeValue').value;
-  const { pendingChange } = session;
-  if (!pendingChange || typed.trim() === '' || !Number.isFinite(Number(typed))) return;
-  const { handle, drag } = pendingChange;
-  changeInView(handle, dragFromTyped(designHistory(), handle, drag, Number(typed)));
+  if (typed.trim() === '' || !Number.isFinite(Number(typed))) return;
+  const changed = editing.typedChange(session, Number(typed));
+  if (changed === null) return;
+  session = changed;
+  refresh();
 }
 /** Makes the waiting change an edit of the design, which undo takes back in one step. */
 function confirmChange() {

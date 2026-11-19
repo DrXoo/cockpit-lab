@@ -114,6 +114,17 @@ export interface Drag {
 }
 
 /**
+ * How a handle is being dragged: whether Shift is held, which moves both ends or only one, and
+ * Alt, which drops the steps and the snapping; a snap reaches `snapWithinMm` along the handle, as far
+ * as a few pixels on screen cover where it is.
+ */
+export interface HandleModifiers {
+  shiftHeld: boolean;
+  free: boolean;
+  snapWithinMm: number;
+}
+
+/**
  * What the box beside a dragged handle shows: the change of one end or edge, the whole length,
  * width or depth of a symmetric resize, how far the part moved, or the length of a span an end
  * makes by reaching a part.

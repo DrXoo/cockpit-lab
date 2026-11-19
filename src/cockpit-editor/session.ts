@@ -1,7 +1,7 @@
 // What the cockpit editor is doing with the open design: the step selected, the history
 // marker, the edits to undo, a part about to be added, a change dragged with a handle, Fit
 // mode and the measure tool. Each change returns a new session; the editor shows it.
-import { DEFAULT_DRIVER, type Driver } from './cad/driver.ts';
+import { DEFAULT_DRIVER, type Driver } from '../cad/driver.ts';
 import {
   addOperation,
   deleteOperation,
@@ -10,24 +10,28 @@ import {
   removePart,
   replayDesign,
   type Operation,
-} from './cad/history.ts';
+} from '../cad/history.ts';
 import {
   draggedHandle,
   draggedHistory,
+  dragFromTyped,
   handlesSeenAlong,
   partHandles,
+  snappedDrag,
+  symmetricDrag,
   travelHandles,
   type Drag,
   type Handle,
-} from './cad/handles.ts';
-import type { Axis } from './cad/assembly.ts';
-import type { Snap } from './cad/snapping.ts';
-import { withDraft, type Draft } from './cad/drafts.ts';
-import { jointMarkers, type JointMarker } from './cad/joint-markers.ts';
-import type { PartHit } from './cad/picking.ts';
-import { nextMeasurePicks } from './cad/measure.ts';
-import type { CockpitDesign } from './cockpit-design.ts';
-import { noEdits, recordEdit, redo, undo, type Edits } from './undo.ts';
+  type HandleModifiers,
+} from '../cad/handles.ts';
+import type { Axis } from '../cad/assembly.ts';
+import { snapToParts, type Snap } from '../cad/snapping.ts';
+import { draftEditedBy, withDraft, type Draft } from '../cad/drafts.ts';
+import { jointMarkers, type JointMarker } from '../cad/joint-markers.ts';
+import type { PartHit } from '../cad/picking.ts';
+import { nextMeasurePicks } from '../cad/measure.ts';
+import type { CockpitDesign } from '../cockpit-design.ts';
+import { noEdits, recordEdit, redo, undo, type Edits } from '../undo.ts';
 
 /** A change made with a handle, waiting to be confirmed. */
 export interface PendingChange {
@@ -364,6 +368,65 @@ export function changeInView(
     return null;
   }
   return { ...session, pendingChange: { partId: handle.partId, handle, drag, snap, history } };
+}
+
+/**
+ * A handle of the selected part dragged `movedMm` since it was grabbed, `atGrabMm` along: the
+ * change waits, snapped to the parts around it when near them, and otherwise in steps. A
+ * waiting change keeps its handle where it was let go, so the drag goes on from the handle as
+ * it was before the change. Null when the part's operation cannot take it.
+ */
+export function dragChange(
+  session: CockpitSession,
+  shown: Handle,
+  atGrabMm: number,
+  movedMm: number,
+  { shiftHeld, free, snapWithinMm }: HandleModifiers,
+): CockpitSession | null {
+  const { pendingChange } = session;
+  const handle = pendingChange?.handle.id === shown.id ? pendingChange.handle : shown;
+  const history = designHistory(session);
+  const dragged = { symmetric: symmetricDrag(handle, shiftHeld), changeMm: atGrabMm + movedMm };
+  const at = markerIndex(session);
+  const toParts = free ? null : snapToParts(history, handle, dragged, snapWithinMm, at);
+  if (toParts) return changeInView(session, handle, toParts.drag, toParts.snap);
+  return changeInView(session, handle, snappedDrag(history, handle, dragged, free));
+}
+
+/** The waiting change set exactly to a value typed in its box, or null when nothing waits. */
+export function typedChange(session: CockpitSession, valueMm: number): CockpitSession | null {
+  const { pendingChange } = session;
+  if (!pendingChange) return null;
+  const { handle, drag } = pendingChange;
+  const typed = dragFromTyped(designHistory(session), handle, drag, valueMm);
+  return changeInView(session, handle, typed);
+}
+
+/**
+ * A handle of the part about to be added, as it was when grabbed, dragged `movedMm`: the part
+ * changes at once, with no box, snapped or in steps. Null when it cannot take that place, so it
+ * stays where it last fitted.
+ */
+export function dragDraft(
+  session: CockpitSession,
+  draft: Draft,
+  handle: Handle,
+  movedMm: number,
+  { shiftHeld, free, snapWithinMm }: HandleModifiers,
+): CockpitSession | null {
+  const history = designHistory(session);
+  const at = markerIndex(session);
+  const shown = withDraft(history, draft, at);
+  const dragged = { symmetric: symmetricDrag(handle, shiftHeld), changeMm: movedMm };
+  const toParts = free ? null : snapToParts(shown, handle, dragged, snapWithinMm, at + 1);
+  const drag = toParts?.drag ?? snappedDrag(shown, handle, dragged, free);
+  let placed: Draft;
+  try {
+    placed = draftEditedBy(history, draft, at, (showing) => draggedHistory(showing, handle, drag));
+  } catch {
+    return null;
+  }
+  return placeDraft(session, placed, toParts?.snap ?? null);
 }
 
 /** Makes the waiting change an edit of the design, which undo takes back in one step. */

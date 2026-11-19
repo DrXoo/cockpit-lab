@@ -8,7 +8,7 @@ import {
   type Operation,
 } from '../src/cad/history.ts';
 import { fastenWithBrackets } from '../src/cad/fastening.ts';
-import { partHandles } from '../src/cad/handles.ts';
+import { partHandles, type HandleModifiers } from '../src/cad/handles.ts';
 import type { PartHit } from '../src/cad/picking.ts';
 import type { CockpitDesign } from '../src/cockpit-design.ts';
 import {
@@ -19,6 +19,8 @@ import {
   confirmDraft,
   deleteSelectedStep,
   designHistory,
+  dragChange,
+  dragDraft,
   historyChange,
   jointChange,
   markerIndex,
@@ -36,12 +38,13 @@ import {
   shownHandles,
   shownJointMarkers,
   startDraft,
+  typedChange,
   undoEdit,
   withAddedPart,
   withHistory,
   type CockpitSession,
   type HistoryChange,
-} from '../src/cockpit-session.ts';
+} from '../src/cockpit-editor/session.ts';
 import { railHistory, withGrowth, withPeripheral, withPlate } from './support/designs.ts';
 import { present } from './support/lookups.ts';
 
@@ -287,4 +290,51 @@ test('with nothing selected, removing or deleting changes nothing', () => {
   const session = sessionOf(threeSteps());
   assert.deepEqual(removeSelectedPart(session), { kind: 'unchanged' });
   assert.deepEqual(deleteSelectedStep(session), { kind: 'unchanged' });
+});
+
+const STEPPED: HandleModifiers = { shiftHeld: false, free: false, snapWithinMm: 0 };
+
+/** The rail selected, and the handle at one of its ends. */
+function railEnd() {
+  const session = selectStep(sessionOf(railHistory()), 'op-1');
+  const end = shownHandles(session, null).find((handle) => handle.kind === 'end');
+  return { session, end: present(end, 'an end handle') };
+}
+
+test('a dragged end changes in steps of 10 mm, or to the millimetre when free', () => {
+  const { session, end } = railEnd();
+  const stepped = present(dragChange(session, end, 0, 23, STEPPED), 'a change');
+  assert.equal(stepped.pendingChange?.drag.changeMm, 20);
+  const free = present(dragChange(session, end, 0, 23, { ...STEPPED, free: true }), 'a change');
+  assert.equal(free.pendingChange?.drag.changeMm, 23);
+});
+
+test('a drag goes on from where the change waiting was let go', () => {
+  const { session, end } = railEnd();
+  const letGo = present(dragChange(session, end, 0, 40, STEPPED), 'a change');
+  const on = present(dragChange(letGo, end, 40, 30, STEPPED), 'a change');
+  assert.equal(on.pendingChange?.drag.changeMm, 70);
+});
+
+test('a value typed in the box sets the waiting change exactly', () => {
+  const { session, end } = railEnd();
+  const dragging = present(dragChange(session, end, 0, 40, STEPPED), 'a change');
+  const typed = present(typedChange(dragging, 123), 'a change');
+  assert.equal(typed.pendingChange?.drag.changeMm, 123);
+  assert.equal(typedChange(session, 123), null);
+});
+
+test('a handle of the part about to be added changes it at once', () => {
+  const selected = selectStep(sessionOf(railHistory()), 'op-1');
+  const drafting = startDraft(selected, draftGrowth(railHistory(), 'part-1'));
+  const draft = present(drafting.draft, 'a part being added');
+  const lengthBefore = draft.kind === 'grow-profile' ? draft.lengthMm : 0;
+  const end = present(
+    shownHandles(drafting, null).find((handle) => handle.kind === 'end'),
+    'an end handle',
+  );
+  const dragged = present(dragDraft(drafting, draft, end, 100, STEPPED), 'a dragged part');
+  assert.equal(dragged.pendingChange, null);
+  const grown = present(dragged.draft, 'the part being added');
+  assert.equal(grown.kind === 'grow-profile' ? grown.lengthMm : 0, lengthBefore + 100);
 });

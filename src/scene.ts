@@ -19,7 +19,7 @@ import type { CockpitDrawing } from './render-cad.ts';
 import type { ArmHandle } from './render-desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
 import { drawHover } from './render-hover.ts';
-import { distanceAlongAxis, type Handle } from './cad/handles.ts';
+import { distanceAlongAxis, type Handle, type HandleModifiers } from './cad/handles.ts';
 import type { JointMarker } from './cad/joint-markers.ts';
 import { handleBallMm } from './render-handles.ts';
 import { renderModel } from './render-model.ts';
@@ -166,17 +166,6 @@ type AnchoredItem =
       clearOf: T.Vector3 | null;
     }
   | { kind: 'above'; el: HTMLElement; points: T.Vector3[] };
-
-/**
- * How a handle is being dragged: whether Shift is held, which moves both ends or only one, and
- * Alt, which drops the steps and the snapping; a snap reaches as far along the handle as a few
- * pixels on screen cover where it is.
- */
-export interface HandleModifiers {
-  shiftHeld: boolean;
-  free: boolean;
-  snapWithinMm: number;
-}
 
 /** How near on screen a dragged handle comes to a place before it snaps there. */
 const SNAP_WITHIN_PX = 10;
