@@ -4,6 +4,10 @@ import { bindControls, groupHTML as group, type ControlView } from './controls-v
 import { accessoryControls } from './setup-editor.ts';
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 
+/** The reach that the arm's two segments allow, as the hint under their lengths says it. */
+export const armReachHint = ({ minReach, maxReach }: { minReach: number; maxReach: number }) =>
+  `The first segment runs from the mount to the elbow, the second from the elbow to the VESA plate. Reach from ${round(minReach)} to ${round(maxReach)} cm in the plan. An elbow at 0° keeps the arm straight; ±180° folds it.`;
+
 /** `selectedPose` is the arm pose last chosen, saved or updated, or '' for none. */
 export function deskPanelHTML(view: ControlView, layoutTarget: string, selectedPose = ''): string {
   const { range, toggle, select } = bindControls(view);
@@ -37,9 +41,9 @@ export function deskPanelHTML(view: ControlView, layoutTarget: string, selectedP
     ).replace('<div class="control-group">', '<div class="control-group" id="armControls">');
     html += group(
       'Arm dimensions',
-      range('armReach', 'Total segment length') +
-        range('armSplit', 'First segment (% of total)') +
-        `<p class="layout-hint" id="armLengths">First segment: ${round(evaluation.armPose.first)} cm · second segment: ${round(evaluation.armPose.second)} cm. An elbow at 0° keeps the arm straight; ±180° folds it.</p>` +
+      range('armFirstSegment', 'First segment') +
+        range('armSecondSegment', 'Second segment') +
+        `<p class="layout-hint" id="armLengths">${armReachHint(evaluation.armPose)}</p>` +
         range('armMinH', 'Minimum VESA height') +
         range('armMaxH', 'Maximum VESA height'),
       'Generic 2-segment model',

@@ -30,11 +30,9 @@ const ANGLE_SETTINGS: readonly string[] = ['monitorYaw'];
 export const unitFor = (key: string): string =>
   key === 'monitorInches'
     ? '″'
-    : key === 'armSplit'
-      ? '%'
-      : ANGLE_SETTINGS.includes(key) || key.endsWith('Angle')
-        ? '°'
-        : 'cm';
+    : ANGLE_SETTINGS.includes(key) || key.endsWith('Angle')
+      ? '°'
+      : 'cm';
 
 /**
  * The value a control shows: the arm angles as currently evaluated (they follow the monitor

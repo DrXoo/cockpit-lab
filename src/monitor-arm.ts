@@ -7,8 +7,8 @@ import { deskPose } from './layout.ts';
 export const wrapAngle = (angle: number): number => ((((angle + 180) % 360) + 360) % 360) - 180;
 
 export function armKinematics(s: RoomConfig, anchor: PlanPoint, target: PlanPoint | null = null) {
-  const first = (s.armReach * (s.armSplit ?? 50)) / 100,
-    second = s.armReach - first,
+  const first = s.armFirstSegment,
+    second = s.armSecondSegment,
     minReach = Math.abs(first - second),
     maxReach = first + second;
   let baseAngle = s.armBaseAngle ?? 0,

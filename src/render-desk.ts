@@ -179,6 +179,7 @@ export function drawMonitor(
   if (s.deskEnabled === false || s.monitorEnabled === false) return [];
   const p = e.clampPoint;
   const target = e.monitorPoint;
+  const maxReach = e.armPose.maxReach;
   const arm = e.armPose;
   const mid = arm.elbow;
   const actual = arm.end;
@@ -255,6 +256,7 @@ export function drawArmReach(
   if (s.deskEnabled === false || s.monitorEnabled === false) return;
   const p = e.clampPoint;
   const target = e.monitorPoint;
+  const maxReach = e.armPose.maxReach;
   const reach = r.group(parent, {}, { visible });
   r.line(
     [
@@ -267,7 +269,7 @@ export function drawArmReach(
   const circle: Vec3[] = [];
   for (let i = 0; i <= REACH_CIRCLE_SEGMENTS; i++) {
     const a = (i / REACH_CIRCLE_SEGMENTS) * Math.PI * 2;
-    circle.push([p.x + Math.cos(a) * s.armReach, 0.6, p.z + Math.sin(a) * s.armReach]);
+    circle.push([p.x + Math.cos(a) * maxReach, 0.6, p.z + Math.sin(a) * maxReach]);
   }
   r.line(circle, 'dashed', reach);
 }

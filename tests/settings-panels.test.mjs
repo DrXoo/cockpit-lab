@@ -13,10 +13,10 @@ const keysIn = (html) => [...html.matchAll(/id="([a-zA-Z]+)-range"/g)].map((matc
 test('the desk panel includes the monitor arm only when there is a monitor', () => {
   const withMonitor = deskPanelHTML(viewOf(), 'desk');
   assert.match(withMonitor, /<div class="control-group" id="armControls">/);
-  assert.ok(keysIn(withMonitor).includes('armReach'));
+  assert.ok(keysIn(withMonitor).includes('armFirstSegment'));
   const without = deskPanelHTML(viewOf({ monitorEnabled: false }), 'desk');
   assert.doesNotMatch(without, /id="armControls"/);
-  assert.ok(!keysIn(without).includes('armReach'));
+  assert.ok(!keysIn(without).includes('armFirstSegment'));
 });
 
 test('the desk panel marks the current tabletop size', () => {
@@ -109,5 +109,16 @@ test('a pose saved with the arm mounted elsewhere says so in text', () => {
   assert.match(
     html,
     /<small data-mount-moved="pose-1">Saved with the arm mounted elsewhere<\/small>/,
+  );
+});
+
+test('the desk panel sets each arm segment and states the reach they allow', () => {
+  const html = deskPanelHTML(viewOf({ armFirstSegment: 30, armSecondSegment: 50.5 }), 'desk');
+  assert.ok(keysIn(html).includes('armSecondSegment'));
+  assert.match(html, /id="armFirstSegment-number"[^>]*value="30"/);
+  assert.match(html, /id="armSecondSegment-number"[^>]*value="50.5"/);
+  assert.match(
+    html,
+    /<p class="layout-hint" id="armLengths">[^<]*Reach from 20.5 to 80.5 cm in the plan\./,
   );
 });

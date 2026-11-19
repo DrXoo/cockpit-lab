@@ -15,7 +15,7 @@ const view = { state, evaluation: evaluate(state) };
 
 test('each setting shows its unit', () => {
   assert.equal(unitFor('monitorInches'), '″');
-  assert.equal(unitFor('armSplit'), '%');
+  assert.equal(unitFor('armFirstSegment'), 'cm');
   assert.equal(unitFor('monitorYaw'), '°');
   assert.equal(unitFor('deskAngle'), '°');
   assert.equal(unitFor('deskH'), 'cm');

@@ -21,7 +21,7 @@ export function deskAccessories(s: RoomConfig): Accessory[] {
     items.push({
       name: 'Desk monitor arm',
       qty: 1,
-      note: `Rated reach ≥ ${s.armReach} cm; check VESA and load`,
+      note: `Segments ${s.armFirstSegment} + ${s.armSecondSegment} cm; check VESA and load`,
     });
   return items;
 }

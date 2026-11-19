@@ -169,7 +169,7 @@ import {
   placeChairAtDesk,
   centerInRoom,
 } from './room-actions.ts';
-import { deskPanelHTML } from './settings-panels.ts';
+import { armReachHint, deskPanelHTML } from './settings-panels.ts';
 import { monitorPositionHTML } from './desk-editor.ts';
 import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
 import {
@@ -2186,8 +2186,7 @@ function refresh() {
   if (bend) bend.value = state.armBend;
   refreshMonitorPosition();
   const lengths = $optional('#armLengths');
-  if (lengths)
-    lengths.textContent = `First segment: ${round(e.armPose.first)} cm · second segment: ${round(e.armPose.second)} cm. An elbow at 0° keeps the arm straight; ±180° folds it.`;
+  if (lengths) lengths.textContent = armReachHint(e.armPose);
   const coordinateHint = $optional('[data-desktop-hint]');
   if (coordinateHint)
     coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${state.deskDepth} cm depth; Z along its ${state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
@@ -2200,10 +2199,11 @@ function refresh() {
   const banner = validationBanner(shown, e);
   $('#validationBanner').className = banner.className;
   $('#validationBanner').innerHTML = banner.html;
-  $('#reachValue').textContent = `${Math.round(e.reach)} / ${state.armReach} cm`;
-  $('#reachMax').textContent = `Max. ${state.armReach} cm`;
-  $('#reachMeter').style.width = `${Math.min(100, (e.reach / state.armReach) * 100)}%`;
-  $('#reachMeter').classList.toggle('over', e.reach > state.armReach);
+  const maxReach = round(e.armPose.maxReach);
+  $('#reachValue').textContent = `${Math.round(e.reach)} / ${maxReach} cm`;
+  $('#reachMax').textContent = `Max. ${maxReach} cm`;
+  $('#reachMeter').style.width = `${Math.min(100, (e.reach / e.armPose.maxReach) * 100)}%`;
+  $('#reachMeter').classList.toggle('over', e.reach > e.armPose.maxReach);
   const metrics = metricsView(shown, e);
   $('#metricFootprint').innerHTML = metrics.footprintHTML;
   $('#metricSpace').innerHTML = metrics.spaceHTML;

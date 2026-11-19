@@ -28,12 +28,14 @@ import { solveJoint } from '../src/anatomy.ts';
 test('The default room has a reachable monitor, nothing to fix and room to walk', () => {
   const e = evaluate(defaults);
   assert.equal(e.errors, 0);
-  assert.ok(e.reach < defaults.armReach);
+  assert.ok(e.reach < e.armPose.maxReach);
   assert.ok(e.freeW > defaults.aisle);
 });
 test('Room and arm problems are actionable errors', () => {
   assert.equal(
-    evaluate({ ...defaults, armReach: 40, clampZ: -64 }).checks.find((c) => c.id === 'arm').level,
+    evaluate({ ...defaults, armFirstSegment: 20, armSecondSegment: 20, clampZ: -64 }).checks.find(
+      (c) => c.id === 'arm',
+    ).level,
     'error',
   );
   assert.equal(
@@ -48,13 +50,17 @@ test('Room and arm problems are actionable errors', () => {
   );
 });
 test('VR parks over the desk but still validates the actual parked arm', () => {
-  const e = evaluate({ ...defaults, monitorMode: 'vr', armReach: 40 });
+  const e = evaluate({ ...defaults, monitorMode: 'vr', armFirstSegment: 20, armSecondSegment: 20 });
   assert.equal(e.checks.find((c) => c.id === 'arm').level, 'ok');
   assert.equal(e.checks.find((c) => c.id === 'vr').level, 'ok');
   assert.equal(
-    evaluate({ ...defaults, monitorMode: 'vr', armReach: 40, clampZ: 60 }).checks.find(
-      (c) => c.id === 'arm',
-    ).level,
+    evaluate({
+      ...defaults,
+      monitorMode: 'vr',
+      armFirstSegment: 20,
+      armSecondSegment: 20,
+      clampZ: 60,
+    }).checks.find((c) => c.id === 'arm').level,
     'error',
   );
 });
@@ -333,10 +339,11 @@ test('Table size changes persist and old configurations keep the initial tableto
 });
 
 test('Two-link arm keeps both segment lengths and reaches the automatic desk target', () => {
-  for (const armSplit of [20, 50, 80])
+  for (const armFirstSegment of [17, 42.5, 68])
     for (const armBend of ['positive', 'negative']) {
-      // Mounted at the end of the desk, the target is within reach of every split.
-      const s = { ...defaults, clampZ: -64, armSplit, armBend },
+      // Mounted at the end of the desk, the target is within reach of every pair of segments.
+      const armSecondSegment = 85 - armFirstSegment;
+      const s = { ...defaults, clampZ: -64, armFirstSegment, armSecondSegment, armBend },
         e = evaluate(s),
         a = e.armPose;
       assert.ok(Math.abs(Math.hypot(a.elbow.x - a.base.x, a.elbow.z - a.base.z) - a.first) < 1e-8);
@@ -377,9 +384,9 @@ test('Dragging elbow changes the first segment heading and moves the connected m
 });
 test('Dragging VESA solves a reachable endpoint and clamps distant or over-folded targets', () => {
   const anchor = monitorGeometry(defaults).anchor;
-  for (const armSplit of [20, 50, 80])
+  for (const armFirstSegment of [17, 42.5, 68])
     for (const distance of [0, 10, 60, 500]) {
-      const s = { ...defaults, armSplit },
+      const s = { ...defaults, armFirstSegment, armSecondSegment: 85 - armFirstSegment },
         moved = moveArmJoint(s, 'end', anchor.x + distance, anchor.z),
         g = monitorGeometry(moved),
         a = g.arm;
@@ -392,7 +399,14 @@ test('Dragging VESA solves a reachable endpoint and clamps distant or over-folde
     }
 });
 test('Unequal segments detect the minimum reach and both elbow branches keep the same target', () => {
-  const s = { ...defaults, monitorMode: 'desk', armSplit: 80, clampX: -10, clampZ: 0 },
+  const s = {
+      ...defaults,
+      monitorMode: 'desk',
+      armFirstSegment: 68,
+      armSecondSegment: 17,
+      clampX: -10,
+      clampZ: 0,
+    },
     e = evaluate(s);
   assert.equal(e.armPose.reachable, false);
   assert.equal(e.checks.find((c) => c.id === 'arm').level, 'error');
@@ -425,10 +439,33 @@ test('Manual arm follows its desk and anchor, returns to the desk, and persists 
   assert.equal(onDesk.monitorPoint.z, expected.z);
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(manual))), manual);
   const old = { ...defaults };
-  for (const key of ['armSplit', 'armBaseAngle', 'armElbowAngle', 'monitorYaw', 'armBend'])
+  for (const key of ['armFirstSegment', 'armBaseAngle', 'armElbowAngle', 'monitorYaw', 'armBend'])
     delete old[key];
   const restored = sanitize(old);
-  assert.equal(restored.armSplit, 50);
+  assert.equal(restored.armFirstSegment, 42.5);
   assert.equal(restored.monitorMode, 'desk');
   assert.equal(editArm(defaults, 'deskWidth', 120), defaults);
+});
+
+test('Each arm segment keeps the length set for it', () => {
+  const s = { ...defaults, armFirstSegment: 30, armSecondSegment: 45.5 },
+    a = evaluate(s).armPose;
+  assert.equal(a.first, 30);
+  assert.equal(a.second, 45.5);
+  assert.equal(a.minReach, 15.5);
+  assert.equal(a.maxReach, 75.5);
+});
+test('Files with a total arm length and a split open with the same two segments', () => {
+  const { armFirstSegment, armSecondSegment, ...old } = defaults;
+  const restored = sanitize({ ...old, armReach: 100, armSplit: 30 });
+  assert.equal(restored.armFirstSegment, 30);
+  assert.equal(restored.armSecondSegment, 70);
+  assert.ok(!('armReach' in restored) && !('armSplit' in restored));
+  const onlyReach = sanitize({ ...old, armReach: 60 });
+  assert.equal(onlyReach.armFirstSegment, 30);
+  assert.equal(onlyReach.armSecondSegment, 30);
+  assert.throws(() => sanitize({ ...old, armReach: '60' }));
+  const both = sanitize({ ...defaults, armFirstSegment: 25, armReach: 100, armSplit: 30 });
+  assert.equal(both.armFirstSegment, 25);
+  assert.equal(both.armSecondSegment, defaults.armSecondSegment);
 });

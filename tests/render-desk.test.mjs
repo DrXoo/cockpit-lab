@@ -83,7 +83,7 @@ test('an arm that cannot reach the monitor shows the gap as an orange dashed lin
     r.primitives.find((p) => p.kind === 'material' && p.id === line.material)?.spec;
   const gaps = (r) =>
     r.primitives.filter((p) => p.kind === 'line' && warningSpec(r, p)?.kind === 'dashed');
-  const far = monitor({ armReach: 40, clampZ: defaults.clampZ + 80 });
+  const far = monitor({ armFirstSegment: 20, armSecondSegment: 20, clampZ: defaults.clampZ + 80 });
   assert.equal(far.evaluation.armPose.reachable, false);
   const [gap] = gaps(far.r);
   assert.deepEqual(warningSpec(far.r, gap), {

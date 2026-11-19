@@ -157,8 +157,8 @@ function spaceChecks(
       'arm',
       'Monitor arm',
       armPose.reachable ? (s.monitorMode === 'manual' ? 'Manual' : 'Reaches') : 'Out of reach',
-      !armPose.reachable ? 'error' : reach > s.armReach * 0.9 ? 'warning' : 'ok',
-      `${Math.round(reach)} cm in the plan · range ${round(armPose.minReach)}–${s.armReach} cm; segments ${round(armPose.first)} + ${round(armPose.second)} cm`,
+      !armPose.reachable ? 'error' : reach > armPose.maxReach * 0.9 ? 'warning' : 'ok',
+      `${Math.round(reach)} cm in the plan · range ${round(armPose.minReach)}–${round(armPose.maxReach)} cm; segments ${round(armPose.first)} + ${round(armPose.second)} cm`,
     ),
     check(
       'lift',

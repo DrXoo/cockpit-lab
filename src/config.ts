@@ -15,8 +15,8 @@ export const fields = {
   deskX: [-1500, 1500, 1],
   deskZ: [-1500, 1500, 1],
   deskAngle: [0, 355, 5],
-  armReach: [40, 120, 1],
-  armSplit: [20, 80, 1],
+  armFirstSegment: [10, 100, 0.5],
+  armSecondSegment: [10, 100, 0.5],
   armBaseAngle: [-180, 180, 0.1],
   armElbowAngle: [-180, 180, 0.1],
   monitorYaw: [-180, 180, 0.1],
@@ -95,8 +95,8 @@ export const defaults: RoomConfig = {
   deskX: 102,
   deskZ: 95,
   deskAngle: 0,
-  armReach: 85,
-  armSplit: 50,
+  armFirstSegment: 42.5,
+  armSecondSegment: 42.5,
   armBaseAngle: 0,
   armElbowAngle: 0,
   monitorYaw: 90,
@@ -170,9 +170,38 @@ const EARLIEST_CHASSIS_WIDTH_CM = { min: 58, max: 80, defaultCm: 64 };
 /** How far those files put the desk's center from the edge of its gap to the chassis. */
 const DESK_CENTER_FROM_EDGE_CM = 40;
 
+/**
+ * Earlier files gave the arm a total length and the first segment's share of it in percent,
+ * with these ranges and defaults.
+ */
+const EARLIER_ARM_REACH_CM = { min: 40, max: 120, defaultCm: 85 };
+const EARLIER_ARM_SPLIT_PERCENT = { min: 20, max: 80, defaultPercent: 50 };
+
 /** The values a choice setting accepts, or undefined when `key` is not a choice setting. */
 export const choiceOptions = (key: string): readonly string[] | undefined =>
   Object.hasOwn(CHOICE_SETTINGS, key) ? CHOICE_SETTINGS[key as ChoiceSetting] : undefined;
+
+function earlierNumber(raw: Record<string, unknown>, key: string, fallback: number): number {
+  if (!(key in raw)) return fallback;
+  const value = raw[key];
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    throw new Error(`Invalid value: ${key}`);
+  return value;
+}
+
+/** The segments of an arm saved as a total length and a split, before each had its own length. */
+function earlierArmSegments(raw: Record<string, unknown>): [first: number, second: number] {
+  const reach = EARLIER_ARM_REACH_CM;
+  const split = EARLIER_ARM_SPLIT_PERCENT;
+  const reachCm = clamp(earlierNumber(raw, 'armReach', reach.defaultCm), reach.min, reach.max);
+  const splitPercent = clamp(
+    earlierNumber(raw, 'armSplit', split.defaultPercent),
+    split.min,
+    split.max,
+  );
+  const firstCm = (reachCm * splitPercent) / 100;
+  return [firstCm, reachCm - firstCm];
+}
 
 /**
  * Validates a saved configuration. Missing settings take their defaults, numbers are clamped
@@ -191,6 +220,13 @@ export function sanitize(input: unknown): RoomConfig {
     const gap =
       typeof raw.deskGap === 'number' ? clamp(raw.deskGap, gapMin, gapMax) : defaults.deskGap;
     s.deskX = chassisWidth / 2 + gap + DESK_CENTER_FROM_EDGE_CM;
+  }
+  if (!('armFirstSegment' in raw) && !('armSecondSegment' in raw)) {
+    const [firstCm, secondCm] = earlierArmSegments(raw);
+    const [firstMin, firstMax] = fields.armFirstSegment;
+    const [secondMin, secondMax] = fields.armSecondSegment;
+    s.armFirstSegment = clamp(firstCm, firstMin, firstMax);
+    s.armSecondSegment = clamp(secondCm, secondMin, secondMax);
   }
   for (const key of Object.keys(fields) as NumericField[]) {
     if (!(key in raw)) continue;
