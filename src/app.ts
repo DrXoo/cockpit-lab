@@ -12,6 +12,7 @@ import {
   readCockpitFile,
 } from './cockpit-file.ts';
 import type { CockpitDesign } from './cockpit-design.ts';
+import { DEFAULT_DRIVER } from './cad/driver.ts';
 import {
   deleteKeyAction,
   designPanelHTML,
@@ -697,7 +698,7 @@ function confirmChange() {
   if (!pending) return;
   pendingChange = null;
   if (pending.drag.changeMm === 0) refresh();
-  else changeDesign({ history: pending.history });
+  else setHistory(pending.history);
 }
 function cancelChange() {
   if (!pendingChange) return;
@@ -911,6 +912,10 @@ function selectedPartId(): string | null {
 function stepAddedAtMarker() {
   if (marker !== null) marker += 1;
 }
+/** Makes `history` the design history, keeping the driver, as an edit that can be undone. */
+function setHistory(history: readonly Operation[]) {
+  changeDesign({ history, driver: cockpit?.driver ?? DEFAULT_DRIVER });
+}
 /** Makes `next` the cockpit design, as an edit that can be undone, and shows it. */
 function changeDesign(next: CockpitDesign) {
   const hadParts = designHasParts();
@@ -935,7 +940,7 @@ function addProfile() {
   const added = addAnchoredProfile(designHistory(), markerIndex());
   selectedOperationId = operationMaking(added.history, added.partId)?.id ?? null;
   stepAddedAtMarker();
-  changeDesign({ history: added.history });
+  setHistory(added.history);
 }
 /** Applies a change to the history; one it refuses is explained and nothing changes. */
 function changeHistory(change: (history: readonly Operation[]) => Operation[]): boolean {
@@ -951,7 +956,7 @@ function changeHistory(change: (history: readonly Operation[]) => Operation[]): 
     renderPartInspector({ force: true });
     return false;
   }
-  changeDesign({ history });
+  setHistory(history);
   return true;
 }
 /** Changes the operation of the selected step; values it cannot have are explained. */
@@ -996,7 +1001,7 @@ function changeJoints(change: (history: readonly Operation[], at: number) => Ope
     const known = new Set(history.map((operation) => operation.id));
     marker = next.filter((step) => before.has(step.id) || !known.has(step.id)).length;
   }
-  changeDesign({ history: next });
+  setHistory(next);
 }
 /** Puts a foot under the selected profile, at the marker, and selects it. */
 function addFootUnderSelected() {
@@ -1007,7 +1012,7 @@ function addFootUnderSelected() {
     const added = addFoot(designHistory(), partId, markerIndex());
     selectedOperationId = operationMaking(added.history, added.partId)?.id ?? null;
     stepAddedAtMarker();
-    changeDesign({ history: added.history });
+    setHistory(added.history);
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
@@ -1205,7 +1210,7 @@ function confirmDraft() {
   const at = markerIndex();
   selectedOperationId = added.id;
   stepAddedAtMarker();
-  changeDesign({ history: addOperation(designHistory(), added, at) });
+  setHistory(addOperation(designHistory(), added, at));
 }
 function cancelDraft() {
   draftPart = null;

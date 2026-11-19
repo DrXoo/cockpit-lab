@@ -30,7 +30,7 @@ test('an imported cockpit file becomes the design, and exports again the same', 
   await page.locator('#importCockpitFile').setInputFiles(emptyDesignFile());
   await expect
     .poll(async () => (await getSavedProject(page)).cockpit)
-    .toEqual({ units: 'mm', history: [] });
+    .toEqual({ units: 'mm', history: [], driver: { statureMm: 1750 } });
   expect(await getState(page)).toEqual(room);
 
   await expect(page.locator('#exportCockpit')).toBeVisible();

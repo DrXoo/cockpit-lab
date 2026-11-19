@@ -1,5 +1,5 @@
 // The cockpit design: its design history, the ordered list of operations that builds it, in mm
-// (docs/adr/0005). A project has at most one, and until the mini CAD is complete no room
+// (docs/adr/0005), and the driver it is made for. A project has at most one, and until the mini CAD is complete no room
 // includes it (docs/adr/0004).
 import {
   CONTACT_ROLES,
@@ -28,6 +28,7 @@ import {
   type Operation,
   type ParentEnd,
 } from './cad/history.ts';
+import { DEFAULT_DRIVER, driverOfStature, type Driver } from './cad/driver.ts';
 import { jointIdOf } from './cad/joints.ts';
 import { cleanUserText } from './user-text.ts';
 
@@ -35,20 +36,23 @@ export type { Operation } from './cad/history.ts';
 
 export interface CockpitDesign {
   history: readonly Operation[];
+  driver: Driver;
 }
 
 /** A cockpit design as project and cockpit files store it, with its units. */
 export interface CockpitDesignData {
   units: 'mm';
   history: readonly Operation[];
+  driver: Driver;
 }
 
 /** A new design starts empty. */
-export const emptyDesign = (): CockpitDesign => ({ history: [] });
+export const emptyDesign = (): CockpitDesign => ({ history: [], driver: DEFAULT_DRIVER });
 
 export const designData = (design: CockpitDesign): CockpitDesignData => ({
   units: 'mm',
   history: design.history,
+  driver: design.driver,
 });
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
@@ -67,7 +71,18 @@ export function readDesign(data: unknown): CockpitDesign {
   rejectRepeated(operations.map((operation) => operation.id));
   rejectRepeated(operations.filter(makesAPart).map((operation) => operation.partId));
   rejectJointsFastenedTwice(operations);
-  return { history: checkedHistory(operations) };
+  const driver = data.driver === undefined ? DEFAULT_DRIVER : readDriver(data.driver);
+  return { history: checkedHistory(operations), driver };
+}
+
+/** A design saved before it had a driver opens with the default one. */
+function readDriver(data: unknown): Driver {
+  if (!isPlainRecord(data)) throw new Error('Invalid driver in the cockpit design');
+  const unknown = Object.keys(data).find((key) => key !== 'statureMm');
+  if (unknown) throw new Error(`A driver has no ${unknown}`);
+  if (typeof data.statureMm !== 'number')
+    throw new Error("A driver's stature must be a number of mm.");
+  return driverOfStature(data.statureMm);
 }
 
 function readOperation(data: unknown): Operation {

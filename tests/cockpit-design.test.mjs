@@ -13,18 +13,33 @@ import {
 const designWith = (count) => {
   let history = [];
   for (let i = 0; i < count; i++) history = addAnchoredProfile(history).history;
-  return { history };
+  return { history, driver: { statureMm: 1750 } };
 };
 const stored = (design) => JSON.parse(JSON.stringify(designData(design)));
 
-test('a new design starts with an empty history', () => {
-  assert.deepEqual(emptyDesign(), { history: [] });
+test('a new design starts with an empty history and a driver of 175 cm', () => {
+  assert.deepEqual(emptyDesign(), { history: [], driver: { statureMm: 1750 } });
 });
 
-test('a design is stored as its history, in mm, and reads back the same', () => {
-  const data = designData(emptyDesign());
-  assert.deepEqual(data, { units: 'mm', history: [] });
-  assert.deepEqual(readDesign(JSON.parse(JSON.stringify(data))), emptyDesign());
+test('a design is stored as its history and its driver, in mm, and reads back the same', () => {
+  const design = { history: [], driver: { statureMm: 1820 } };
+  const data = designData(design);
+  assert.deepEqual(data, { units: 'mm', history: [], driver: { statureMm: 1820 } });
+  assert.deepEqual(readDesign(JSON.parse(JSON.stringify(data))), design);
+});
+
+test('a design saved without a driver opens with one of 175 cm', () => {
+  assert.deepEqual(readDesign({ units: 'mm', history: [] }).driver, { statureMm: 1750 });
+});
+
+test('a driver must have a stature from 140 to 210 cm, and nothing else', () => {
+  const withDriver = (driver) => () => readDesign({ units: 'mm', history: [], driver });
+  assert.throws(withDriver({ statureMm: 1300 }), /stature/);
+  assert.throws(withDriver({ statureMm: 2200 }), /stature/);
+  assert.throws(withDriver({ statureMm: '1750' }), /stature/);
+  assert.throws(withDriver({}), /stature/);
+  assert.throws(withDriver({ statureMm: 1750, heightCm: 175 }), /heightCm/);
+  assert.throws(withDriver(null), /driver/);
 });
 
 test('a stored design must state mm and hold a history', () => {
@@ -44,7 +59,10 @@ test('an operation this version does not know is rejected, not skipped', () => {
 });
 
 test('a history of anchored profiles reads back with the same values', () => {
-  const design = { history: editProfile(designWith(2).history, 'part-2', { name: 'Seat rail' }) };
+  const design = {
+    ...designWith(2),
+    history: editProfile(designWith(2).history, 'part-2', { name: 'Seat rail' }),
+  };
   assert.deepEqual(readDesign(stored(design)), design);
 });
 
@@ -82,7 +100,7 @@ test('a history that repeats an identifier is rejected', () => {
 
 const withGrowth = () => {
   const { history } = designWith(1);
-  return { history: addOperation(history, draftGrowth(history, 'part-1')) };
+  return { ...designWith(1), history: addOperation(history, draftGrowth(history, 'part-1')) };
 };
 
 test('a profile grown out of another reads back with its place on the face', () => {
@@ -126,8 +144,8 @@ test('a span reads back with the part it reaches, or with an open end once it is
     editDraft(history, draftGrowth(history, 'part-1'), { face: '+x', alongMm: 250 }),
   );
   history = editProfile(history, 'part-3', { reachesId: 'part-2' });
-  const data = stored({ history });
-  assert.deepEqual(readDesign(data), { history });
+  const data = stored({ ...designWith(0), history });
+  assert.deepEqual(readDesign(data), { ...designWith(0), history });
   const lost = { ...data.history[2], reachesId: 'part-8' };
   const read = readDesign({ ...data, history: [data.history[0], data.history[1], lost] });
   assert.equal(replayDesign(read.history).resolved.get('part-3').openEnd, true);

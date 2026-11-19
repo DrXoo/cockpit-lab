@@ -251,7 +251,11 @@ test('a project is written as v5: the room in cm, and the cockpit design apart f
   assert.deepEqual(Object.keys(file.room).sort(), ['activeLayoutId', 'layouts', 'shared']);
   assert.ok(!('cockpitEnabled' in file.room.shared));
   const withDesign = projectData(replaceCockpitDesign(designWithLayouts(), emptyDesign()));
-  assert.deepEqual(withDesign.cockpit, { units: 'mm', history: [] });
+  assert.deepEqual(withDesign.cockpit, {
+    units: 'mm',
+    history: [],
+    driver: { statureMm: 1750 },
+  });
 });
 
 test('a v5 project keeps its cockpit design history, and fails loudly on a broken one', () => {

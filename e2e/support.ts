@@ -11,6 +11,7 @@ import {
   type ProfileValues,
 } from '../src/cad/history.ts';
 import { cockpitFileData } from '../src/cockpit-file.ts';
+import { DEFAULT_DRIVER } from '../src/cad/driver.ts';
 
 export const STORAGE_KEY = 'cockpit-lab-v5';
 
@@ -93,5 +94,5 @@ export function sampleFrameHistory(): Operation[] {
 export const cockpitFileOf = (history: Operation[]) => ({
   name: 'cockpit.json',
   mimeType: 'application/json',
-  buffer: Buffer.from(JSON.stringify(cockpitFileData({ history }))),
+  buffer: Buffer.from(JSON.stringify(cockpitFileData({ history, driver: DEFAULT_DRIVER }))),
 });

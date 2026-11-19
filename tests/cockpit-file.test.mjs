@@ -19,12 +19,12 @@ const design = emptyDesign();
 /** A cockpit file through JSON, as it is downloaded and opened again. */
 const file = () => JSON.parse(JSON.stringify(cockpitFileData(design)));
 
-test('a cockpit file carries the design history alone, in mm, and reads back the same', () => {
+test('a cockpit file carries the design history and the driver, in mm, and reads back the same', () => {
   assert.deepEqual(file(), {
     app: 'Cockpit Lab',
     kind: 'cockpit',
     version: 2,
-    cockpit: { units: 'mm', history: [] },
+    cockpit: { units: 'mm', history: [], driver: { statureMm: 1750 } },
   });
   assert.deepEqual(readCockpitFile(file()), design);
 });
