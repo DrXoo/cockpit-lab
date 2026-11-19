@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { resolveAssembly, type Part, type ProfilePart } from '../src/cad/assembly.ts';
 import { cutList } from '../src/cad/cuts.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const profile = (id, name, sectionId, lengthMm, xMm = 0) => ({
+const profile = (
+  id: string,
+  name: string,
+  sectionId: string,
+  lengthMm: number,
+  xMm = 0,
+): ProfilePart => ({
   kind: 'profile',
   id,
   name,
@@ -47,7 +53,7 @@ test('the same length in another section is another cut', () => {
 });
 
 test('feet are not cuts', () => {
-  const parts = [
+  const parts: Part[] = [
     profile('a', 'Rail', '40x80', 1200),
     {
       kind: 'foot',

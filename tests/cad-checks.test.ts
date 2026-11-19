@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import {
+  resolveAssembly,
+  type FootPart,
+  type Part,
+  type ProfilePart,
+  type Vec3Mm,
+} from '../src/cad/assembly.ts';
+import type { Check } from '../src/checks.ts';
 import {
   addAnchoredProfile,
   addOperation,
@@ -9,13 +16,19 @@ import {
   editDraft,
   editProfile,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
 import { cadChecks } from '../src/cad-checks.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
 import { railHistory, withGrowth } from './support/designs.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const bar = (id, name, startMm, changes = {}) => ({
+const bar = (
+  id: string,
+  name: string,
+  startMm: Vec3Mm,
+  changes: Partial<ProfilePart> = {},
+): ProfilePart => ({
   kind: 'profile',
   id,
   name,
@@ -27,19 +40,20 @@ const bar = (id, name, startMm, changes = {}) => ({
   placement: { kind: 'anchor', startMm },
   ...changes,
 });
-const footUnder = (parentId) => ({
+const footUnder = (parentId: string): FootPart => ({
   kind: 'foot',
   id: `foot-${parentId}`,
   name: 'Foot',
   footTypeId: 'leveling-foot',
   placement: { kind: 'attachment', parentId, face: '-y', alongMm: 0, fromEnd: 'start' },
 });
-const byId = (checks) => Object.fromEntries(checks.map((c) => [c.id, c]));
+const byId = (checks: readonly Check[]) => Object.fromEntries(checks.map((c) => [c.id, c]));
 /** The checks of a set of parts made by hand, with no history behind them. */
-const checksFor = (parts) =>
+const checksFor = (parts: readonly Part[]) =>
   byId(cadChecks({ history: [], resolved: resolveAssembly(parts), failures: new Map() }));
 /** The checks of a design history, replayed in full. */
-const checksOfHistory = (history) => byId(cadChecks({ history, ...replayDesign(history) }));
+const checksOfHistory = (history: readonly Operation[]) =>
+  byId(cadChecks({ history, ...replayDesign(history) }));
 
 /** A: a rail front to back. B grows up out of it. */
 function ab() {

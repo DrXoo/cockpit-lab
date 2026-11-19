@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rectangle } from '../src/geometry.ts';
+import { rectangle, type Solid } from '../src/geometry.ts';
 import { solidOverlap, findInterferences, describeInterference } from '../src/interference.ts';
 
 const ORIGIN = { x: 0, z: 0, angle: 0 };
 const TOLERANCE = { heightCm: 0.1, planCm: 0.1 };
 
 /** A box from x0..x1, z0..z1 and y0..y1, in cm. */
-const box = (x0, x1, z0, z1, y0, y1) => ({ polygon: rectangle(x0, x1, z0, z1, ORIGIN), y0, y1 });
+const box = (x0: number, x1: number, z0: number, z1: number, y0: number, y1: number): Solid => ({
+  polygon: rectangle(x0, x1, z0, z1, ORIGIN),
+  y0,
+  y1,
+});
 
 test('volumes that are apart or only touch do not overlap', () => {
   const desktop = box(0, 100, 0, 60, 72.5, 75);
@@ -27,7 +31,7 @@ test('an overlap is measured along the axis that separates the volumes soonest',
 });
 
 test('interferences name both parts, once per pair, deepest first', () => {
-  const named = (label, solid) => ({ ...solid, label });
+  const named = (label: string, solid: Solid) => ({ ...solid, label });
   const cockpit = [
     named('Seat', box(90, 130, 10, 40, 0, 100)),
     named('Wheel', box(40, 60, 50, 80, 60, 74)),

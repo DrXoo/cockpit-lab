@@ -8,16 +8,18 @@ import {
   rectangle,
   overlapDepth,
   polygonDistance,
+  type Point3,
 } from '../src/geometry.ts';
 
-const near = (actual, expected, tolerance = 1e-9) =>
+const near = (actual: number, expected: number, tolerance = 1e-9) =>
   assert.ok(Math.abs(actual - expected) < tolerance, `${actual} ≉ ${expected}`);
-const nearPoint = (actual, expected) => {
+const nearPoint = (actual: Point3, expected: Point3) => {
   near(actual.x, expected.x);
   near(actual.y, expected.y);
   near(actual.z, expected.z);
 };
-const square = (x0, x1, z0, z1) => rectangle(x0, x1, z0, z1, { x: 0, z: 0, angle: 0 });
+const square = (x0: number, x1: number, z0: number, z1: number) =>
+  rectangle(x0, x1, z0, z1, { x: 0, z: 0, angle: 0 });
 
 test('clamp limits a value to a range and round keeps the given decimals', () => {
   assert.equal(clamp(5, 0, 3), 3);

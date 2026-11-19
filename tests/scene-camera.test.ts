@@ -6,12 +6,14 @@ import {
   cameraPose,
   designBounds,
   floorHeightCm,
+  type SceneView,
 } from '../src/scene-camera.ts';
+import type { RoomConfig } from '../src/config.ts';
 import { defaults, evaluate, sanitize } from '../src/model.ts';
 import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { resolveAssembly, type Part, type ProfilePart, type Vec3Mm } from '../src/cad/assembly.ts';
 
-const framingOf = (state) => {
+const framingOf = (state: RoomConfig) => {
   const evaluation = evaluate(state);
   return { state, evaluation, bounds: sceneBounds(state, evaluation) };
 };
@@ -73,7 +75,8 @@ test('the top view looks straight down with the back of the room at the top', ()
 
 test('only the 3D view can be orbited', () => {
   const framing = framingOf(defaults);
-  for (const view of ['top', 'desk']) assert.equal(cameraPose(view, framing).rotate, false);
+  for (const view of ['top', 'desk'] satisfies SceneView[])
+    assert.equal(cameraPose(view, framing).rotate, false);
   const iso = cameraPose('iso', framing);
   assert.equal(iso.rotate, true);
   assert.deepEqual(iso.polar, [0.05, Math.PI / 2 - 0.02]);
@@ -88,7 +91,7 @@ test('the desk view is centred on the desk and turns with it', () => {
   assert.ok(Math.abs(pose.up.z + 1) < 1e-9);
 });
 
-const rail = (id, startMm, lengthMm = 1000) => ({
+const rail = (id: string, startMm: Vec3Mm, lengthMm = 1000): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -99,7 +102,7 @@ const rail = (id, startMm, lengthMm = 1000) => ({
   lengthMm,
   placement: { kind: 'anchor', startMm },
 });
-const designFraming = (parts) => {
+const designFraming = (parts: readonly Part[]) => {
   const evaluation = evaluate(NOTHING_AROUND);
   return {
     state: NOTHING_AROUND,

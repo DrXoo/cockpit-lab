@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { driverHTML } from '../src/driver-view.ts';
+import type { SeatedDriver } from '../src/cad/driver.ts';
+
+type Seated = Extract<SeatedDriver, { kind: 'seated' }>;
 
 const DRIVER = { statureMm: 1820 };
-const point = (y) => ({ x: 0, y, z: 0 });
-const seated = (changes = {}) => ({
+const point = (y: number) => ({ x: 0, y, z: 0 });
+const seated = (changes: Partial<Seated> = {}): Seated => ({
   kind: 'seated',
   figure: {
     hip: point(300),
@@ -23,7 +26,9 @@ const seated = (changes = {}) => ({
   reach: { legs: true, arms: true },
   ...changes,
 });
-const angleItems = (html) => [...html.matchAll(/<li data-angle="(\w+)"[^>]*>([^<]*)<\/li>/g)];
+const angleItems = (html: string) => [
+  ...html.matchAll(/<li data-angle="(\w+)"[^>]*>([^<]*)<\/li>/g),
+];
 
 test('the stature is typed in cm', () => {
   const html = driverHTML(DRIVER, seated());

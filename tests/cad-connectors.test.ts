@@ -9,6 +9,7 @@ import {
   editProfile,
   removePart,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
 import {
   fastenWithBrackets,
@@ -18,6 +19,7 @@ import {
 } from '../src/cad/fastening.ts';
 import { partsToBuy } from '../src/cad/parts-to-buy.ts';
 import { cadChecks } from '../src/cad-checks.ts';
+import { ofKind, present } from './support/lookups.ts';
 
 const JOINT = 'part-2@part-1';
 const BRACKET = 'corner-bracket-40';
@@ -36,7 +38,7 @@ function ab(alongMm = 500) {
     editDraft(history, draftGrowth(history, 'part-1'), { name: 'B', alongMm, lengthMm: 300 }),
   );
 }
-const connectorsOf = (history) => replayDesign(history).connectors;
+const connectorsOf = (history: readonly Operation[]) => replayDesign(history).connectors;
 
 test('a corner bracket fits the sides of B along A, where its legs rest on both parts', () => {
   assert.deepEqual(fittingSides(ab(), JOINT), ['+z', '-z']);
@@ -79,15 +81,17 @@ test('a bracket sits outside both parts, against the side of B and on the face o
 test('connectors are added and taken away one side at a time, in the same step', () => {
   const one = setConnector(ab(), JOINT, '-z', true);
   assert.equal(one.length, 3);
-  assert.deepEqual(one[2].connectors, [{ typeId: BRACKET, side: '-z' }]);
+  assert.deepEqual(ofKind(one[2], 'fasten-joint').connectors, [{ typeId: BRACKET, side: '-z' }]);
   const two = setConnector(one, JOINT, '+z', true);
   assert.equal(two.length, 3);
   assert.deepEqual(
-    two[2].connectors.map((connector) => connector.side),
+    ofKind(two[2], 'fasten-joint').connectors.map((connector) =>
+      'side' in connector ? connector.side : 'bolts',
+    ),
     ['-z', '+z'],
   );
   const back = setConnector(two, JOINT, '-z', false);
-  assert.deepEqual(back[2].connectors, [{ typeId: BRACKET, side: '+z' }]);
+  assert.deepEqual(ofKind(back[2], 'fasten-joint').connectors, [{ typeId: BRACKET, side: '+z' }]);
   assert.equal(setConnector(back, JOINT, '+z', false).length, 2, 'no connectors, no step');
 });
 
@@ -99,7 +103,10 @@ test('a bracket that would not rest on both parts is refused, naming them', () =
 test('a part moved so that its bracket would hang off fails the step that fastens it', () => {
   const fastened = fastenWithBrackets(ab(), JOINT);
   const moved = editProfile(fastened, 'part-2', { alongMm: 30 });
-  assert.match(replayDesign(moved).failures.get('op-3'), /would not rest on A/);
+  assert.match(
+    present(replayDesign(moved).failures.get('op-3'), 'failure of op-3'),
+    /would not rest on A/,
+  );
   assert.deepEqual(connectorsOf(moved), []);
 });
 
@@ -109,7 +116,7 @@ test('the joint and its connectors go with a removed part; a deleted one fails t
   assert.equal(removed.failures.size, 0);
   assert.deepEqual(removed.connectors, []);
   const deleted = replayDesign(deleteOperation(fastened, 'op-2'));
-  assert.match(deleted.failures.get('op-3'), /deleted/);
+  assert.match(present(deleted.failures.get('op-3'), 'failure of op-3'), /deleted/);
 });
 
 test('the joints of a part list their connectors and the sides that fit', () => {
@@ -144,8 +151,14 @@ test('connectors take part in interference', () => {
     startMm: { x: -100, y: 60, z: 570 },
   });
   const checks = cadChecks({ history, ...replayDesign(history) });
-  const interference = checks.find((check) => check.id === 'cad-interference');
+  const interference = present(
+    checks.find((check) => check.id === 'cad-interference'),
+    'interference check',
+  );
   assert.deepEqual(interference.items, ['D into 40 corner bracket of B: 10 mm front to back']);
-  const pending = checks.find((check) => check.id === 'cad-pending-joints');
+  const pending = present(
+    checks.find((check) => check.id === 'cad-pending-joints'),
+    'pending joints check',
+  );
   assert.deepEqual(pending.items, []);
 });

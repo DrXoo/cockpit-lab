@@ -9,8 +9,14 @@ import {
   groupHTML,
 } from '../src/controls-view.ts';
 import { defaults, evaluate, fieldSpec, wrapAngle } from '../src/model.ts';
+import type { RoomConfig } from '../src/config.ts';
 
-const state = { ...defaults, monitorEnabled: true, keyboardEnabled: false, monitorMode: 'manual' };
+const state: RoomConfig = {
+  ...defaults,
+  monitorEnabled: true,
+  keyboardEnabled: false,
+  monitorMode: 'manual',
+};
 const view = { state, evaluation: evaluate(state) };
 
 test('each setting shows its unit', () => {
