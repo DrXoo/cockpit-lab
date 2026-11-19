@@ -10,6 +10,7 @@ import {
 import { drawCadProfiles, drawConnectors, type CockpitDrawing } from './render-cad.ts';
 import { drawPartLength, drawPlacementAlong, drawPlateSize } from './render-cad-dimensions.ts';
 import { drawMeasurement } from './render-measurement.ts';
+import { drawDriver } from './render-driver.ts';
 import { drawHandleStems, drawSnapGuide } from './render-handles.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
@@ -62,6 +63,7 @@ export function renderModel(
       { fitting: options.cockpit.fitting ?? false },
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
+    if (options.cockpit.driver) drawDriver(r, ROOT, options.cockpit.driver);
     const { resolved, selectedPartId, placedPartId = null } = options.cockpit;
     // While a part is placed on the selected profile, it is measured along it instead, and a
     // profile being placed shows its own length, whether dimensions are shown or not.

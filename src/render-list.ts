@@ -32,8 +32,11 @@ export type PaletteMaterial =
   | 'reference';
 
 export type MaterialSpec =
-  /** Unlit and visible from both sides, for walls, floors and plan zones. */
-  | { kind: 'flat'; color: Color; opacity: number }
+  /**
+   * Unlit and visible from both sides, for walls, floors and plan zones; drawn over everything
+   * when `onTop`, as a guide inside other parts.
+   */
+  | { kind: 'flat'; color: Color; opacity: number; onTop?: boolean }
   /** Lit, for furniture and desktop objects. */
   | { kind: 'matte'; color: Color; roughness: number }
   /** Outlines; transparent when an opacity is given. */

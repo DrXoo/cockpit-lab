@@ -26,6 +26,7 @@ function createMaterial(spec: MaterialSpec): T.Material {
       opacity: spec.opacity,
       side: T.DoubleSide,
       depthWrite: spec.opacity === 1,
+      depthTest: !spec.onTop,
     });
   if (spec.kind === 'matte')
     return new T.MeshStandardMaterial({ color: spec.color, roughness: spec.roughness });
@@ -39,6 +40,12 @@ function createMaterial(spec: MaterialSpec): T.Material {
   return spec.opacity === undefined
     ? new T.LineBasicMaterial({ color: spec.color })
     : new T.LineBasicMaterial({ color: spec.color, transparent: true, opacity: spec.opacity });
+}
+
+/** A mesh drawn over everything goes after the see-through parts, which would dim it. */
+function drawOnTopWhenAsked(mesh: T.Mesh) {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  if (materials.some((material) => !material.depthTest)) mesh.renderOrder = ON_TOP_RENDER_ORDER;
 }
 
 function place(object: T.Object3D, position: Vec3, rotation: Vec3) {
@@ -114,6 +121,7 @@ export function addPrimitives(
         place(mesh, p.position, p.rotation);
         mesh.scale.set(...p.scale);
         mesh.castShadow = true;
+        drawOnTopWhenAsked(mesh);
         parentOf(p.parent).add(mesh);
         break;
       }
@@ -128,6 +136,7 @@ export function addPrimitives(
         mesh.position.copy(from).add(to).multiplyScalar(0.5);
         mesh.quaternion.setFromUnitVectors(UP, to.clone().sub(from).normalize());
         mesh.castShadow = true;
+        drawOnTopWhenAsked(mesh);
         parentOf(p.parent).add(mesh);
         break;
       }

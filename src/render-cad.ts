@@ -19,6 +19,7 @@ import type { Handle } from './cad/handles.ts';
 import type { SnapGuide } from './cad/snapping.ts';
 import type { JointMarker } from './cad/joint-markers.ts';
 import { MM_PER_CM } from './units.ts';
+import type { DriverFigure } from './cad/driver.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */
 export interface CockpitDrawing {
@@ -45,6 +46,8 @@ export interface CockpitDrawing {
    * Otherwise they are a grey reference that clicks go through.
    */
   fitting?: boolean;
+  /** The driver seated in the design, drawn while fitting. */
+  driver?: DriverFigure | null;
 }
 
 /** Grooves stop this much short of the profile length. */

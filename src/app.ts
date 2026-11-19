@@ -17,6 +17,7 @@ import {
   driverOfStature,
   seatedDriver,
   type Driver,
+  type DriverFigure,
   type SeatedDriver,
 } from './cad/driver.ts';
 import { driverHTML } from './driver-view.ts';
@@ -475,6 +476,7 @@ function cockpitDrawing(): CockpitDrawing | null {
     previewPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
     choosingFaceOf: draftPart?.parentId ?? null,
     measure: measureDrawing(),
+    driver: fitting ? figureShown(shown, draftPart ? at + 1 : at) : null,
     handles: shownHandles(),
     snapGuide: (pendingChange?.snap ?? (draftPart ? draftSnap : null))?.guide ?? null,
     placedPartId: draftPart?.partId ?? pendingChange?.partId ?? null,
@@ -1427,6 +1429,11 @@ function renderPartInspector({ force = false } = {}) {
   bindJointActions(body);
 }
 const currentDriver = (): Driver => cockpit?.driver ?? DEFAULT_DRIVER;
+/** The driver's figure in the design drawn, when it seats one. */
+function figureShown(history: readonly Operation[], at: number): DriverFigure | null {
+  const seated = seatedDriver(replayDesign(history, at).fitted.resolved, currentDriver());
+  return seated.kind === 'seated' ? seated.figure : null;
+}
 /** The driver seated in the design the view shows, each part where it is along its travel. */
 const seatedDriverShown = (): SeatedDriver =>
   seatedDriver(replayDesign(designHistory(), markerIndex()).fitted.resolved, currentDriver());
