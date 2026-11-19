@@ -16,7 +16,11 @@ import {
   platePanelHTML,
   peripheralChange,
   peripheralPanelHTML,
+  type DesignPanel,
+  type PartField,
 } from '../src/cockpit-editor-view.ts';
+import type { JointOfPart } from '../src/cad/fastening.ts';
+import { ofKind, present } from './support/lookups.ts';
 import { draftPlate } from '../src/cad/plates.ts';
 import { draftPeripheral, editPeripheral } from '../src/cad/peripherals.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
@@ -29,15 +33,25 @@ import {
   editProfile,
   removePart,
   replayDesign,
+  type Operation,
+  type RemovePart,
 } from '../src/cad/history.ts';
 
-const historyWith = (count) => {
-  let history = [];
+/** The text `pattern` captures in `text`, failing the test when it matches nothing. */
+const captured = (pattern: RegExp, text: string, group = 1) =>
+  present(pattern.exec(text)?.[group], `a match of ${pattern}`);
+const profileAt = (history: readonly Operation[], index: number) =>
+  ofKind(history[index], 'add-anchored-profile');
+const growthAt = (history: readonly Operation[], index: number) =>
+  ofKind(history[index], 'grow-profile');
+
+const historyWith = (count: number) => {
+  let history: Operation[] = [];
   for (let i = 0; i < count; i++) history = addAnchoredProfile(history).history;
   return history;
 };
-const panel = (changes) => {
-  const history = changes?.history ?? [];
+const panel = (changes: Partial<DesignPanel> = {}) => {
+  const history = changes.history ?? [];
   return designPanelHTML({
     history,
     marker: history.length,
@@ -94,7 +108,7 @@ test('the Delete key removes the selected part, or deletes a step that makes non
     deleteKeyAction(history[1], 'It grows out of a part that was deleted.'),
     'delete-step',
   );
-  const removal = { kind: 'remove-part', id: 'op-3', removedId: 'part-2' };
+  const removal: RemovePart = { kind: 'remove-part', id: 'op-3', removedId: 'part-2' };
   assert.equal(deleteKeyAction(removal), 'delete-step');
   assert.equal(deleteKeyAction(undefined), null);
 });
@@ -112,7 +126,7 @@ test('the inspector edits the values of the operation that made the part', () =>
     startMm: { x: -280, y: 40, z: 12.5 },
   });
   const html = partInspectorHTML([operation], operation);
-  const value = (field) =>
+  const value = (field: string) =>
     new RegExp(`data-part-field="${field}"[^>]*value="([^"]*)"`).exec(html)?.[1];
   assert.equal(value('name'), 'Seat &quot;rail&quot;');
   assert.equal(value('lengthMm'), '1200');
@@ -128,7 +142,7 @@ test('the long side of the section can be turned only on a section that has one'
   assert.doesNotMatch(partInspectorHTML([square], square), /data-part-field="heightAxis"/);
   const [wide] = editProfile([square], 'part-1', { sectionId: '40x80' });
   const html = partInspectorHTML([wide], wide);
-  const choices = /data-part-field="heightAxis"[^>]*>([\s\S]*?)<\/select>/.exec(html)[1];
+  const choices = captured(/data-part-field="heightAxis"[^>]*>([\s\S]*?)<\/select>/, html);
   assert.deepEqual(
     [...choices.matchAll(/value="(\w)"/g)].map(([, axis]) => axis),
     ['x', 'y'],
@@ -137,7 +151,7 @@ test('the long side of the section can be turned only on a section that has one'
 });
 
 test('a field of the inspector changes one value of the operation', () => {
-  const [operation] = historyWith(1);
+  const operation = profileAt(historyWith(1), 0);
   assert.deepEqual(partChange(operation, 'name', 'Rail'), { name: 'Rail' });
   assert.deepEqual(partChange(operation, 'sectionId', '40x80'), { sectionId: '40x80' });
   assert.deepEqual(partChange(operation, 'axis', 'y'), { axis: 'y' });
@@ -149,9 +163,9 @@ test('a field of the inspector changes one value of the operation', () => {
 });
 
 test('a number field left empty or not a number gives no number to apply', () => {
-  const [operation] = historyWith(1);
+  const operation = profileAt(historyWith(1), 0);
   assert.ok(Number.isNaN(partChange(operation, 'lengthMm', '').lengthMm));
-  assert.ok(Number.isNaN(partChange(operation, 'startX', 'abc').startMm.x));
+  assert.ok(Number.isNaN(present(partChange(operation, 'startX', 'abc').startMm, 'start').x));
 });
 
 test('the markup names only fields the inspector has', () => {
@@ -195,7 +209,7 @@ test('the grow panel edits the new profile before it is added', () => {
 });
 
 test('the place on the face comes from its own fields', () => {
-  const [, growth] = railAndGrowth();
+  const growth = growthAt(railAndGrowth(), 1);
   assert.deepEqual(partChange(growth, 'face', '-x'), { face: '-x' });
   assert.deepEqual(partChange(growth, 'fromEnd', 'end'), { fromEnd: 'end' });
   assert.deepEqual(partChange(growth, 'alongMm', '120'), { alongMm: 120 });
@@ -207,15 +221,15 @@ test('the place on the face comes from its own fields', () => {
 test('a growth grows out of its face or lies along it, the ways the face allows', () => {
   const history = railAndGrowth();
   const html = partInspectorHTML(history, history[1]);
-  const choices = /data-part-field="way"[^>]*>([\s\S]*?)<\/select>/.exec(html)[1];
+  const choices = captured(/data-part-field="way"[^>]*>([\s\S]*?)<\/select>/, html);
   assert.deepEqual(
     [...choices.matchAll(/value="([^"]+)"/g)].map(([, way]) => way),
     ['out', '+x', '-x', '+z', '-z'],
   );
   assert.match(choices, /value="out" selected>Out of the face</);
   assert.match(choices, /value="\+z">Along the face, towards the front \(\+Z\)</);
-  assert.deepEqual(partChange(history[1], 'way', '-x'), { way: '-x' });
-  assert.deepEqual(partChange(history[1], 'way', 'out'), { way: 'out' });
+  assert.deepEqual(partChange(growthAt(history, 1), 'way', '-x'), { way: '-x' });
+  assert.deepEqual(partChange(growthAt(history, 1), 'way', 'out'), { way: 'out' });
   const lying = editProfile(history, 'part-2', { way: '+x' });
   assert.match(panel({ history: lying }), /Laid on Rail/);
 });
@@ -232,11 +246,11 @@ const towardsC = () => {
   });
   return addOperation(history, draft);
 };
-const reachChoices = (html) =>
+const reachChoices = (html: string) =>
   [
-    .../data-part-field="reachesId"[^>]*>([\s\S]*?)<\/select>/
-      .exec(html)[1]
-      .matchAll(/value="([^"]*)"( selected)?>([^<]*)</g),
+    ...captured(/data-part-field="reachesId"[^>]*>([\s\S]*?)<\/select>/, html).matchAll(
+      /value="([^"]*)"( selected)?>([^<]*)</g,
+    ),
   ].map(([, value, selected, text]) => [value, Boolean(selected), text]);
 
 test('the end of a grown profile can reach the parts in front of it', () => {
@@ -246,8 +260,10 @@ test('the end of a grown profile can reach the parts in front of it', () => {
     ['', true, 'Free, at its own length'],
     ['part-2', false, 'Reaches C'],
   ]);
-  assert.deepEqual(partChange(history[2], 'reachesId', 'part-2'), { reachesId: 'part-2' });
-  assert.deepEqual(partChange(history[2], 'reachesId', ''), { reachesId: null });
+  assert.deepEqual(partChange(growthAt(history, 2), 'reachesId', 'part-2'), {
+    reachesId: 'part-2',
+  });
+  assert.deepEqual(partChange(growthAt(history, 2), 'reachesId', ''), { reachesId: null });
   // A profile about to grow can reach a part too, from the design as the view shows it.
   const draft = draftGrowth(history, 'part-1');
   const growing = growPanelHTML([...history, draft], draft);
@@ -267,8 +283,12 @@ test('a span shows its length as the gap, and says when its end no longer meets 
   assert.match(panel({ history: away }), /⚠ not meeting C/);
 });
 
-const stepOf = (html, operationId) =>
-  new RegExp(`<li[^>]*><button[^>]*data-operation="${operationId}"[\\s\\S]*?</li>`).exec(html)[0];
+const stepOf = (html: string, operationId: string) =>
+  captured(
+    new RegExp(`<li[^>]*><button[^>]*data-operation="${operationId}"[\\s\\S]*?</li>`),
+    html,
+    0,
+  );
 
 test('the history marker sits after the steps the view shows; later steps wait below it', () => {
   const history = historyWith(3);
@@ -349,7 +369,7 @@ async function railAndUpright() {
   const { jointsOfPart } = await import('../src/cad/fastening.ts');
   const base = editProfile(historyWith(1), 'part-1', { name: 'A', lengthMm: 1000 });
   const history = addOperation(base, editDraft(base, draftGrowth(base, 'part-1'), { name: 'B' }));
-  return { history, joints: (h) => jointsOfPart(h, 'part-2') };
+  return { history, joints: (h: readonly Operation[]) => jointsOfPart(h, 'part-2') };
 }
 
 test('the inspector lists the joints of a part, pending until they have connectors', async () => {
@@ -394,7 +414,7 @@ test('parts that touch without a joint can be joined from the inspector', () => 
 
 test('a join is a step that names its two parts', () => {
   const base = historyWith(2);
-  const history = [
+  const history: Operation[] = [
     ...base,
     { kind: 'join-parts', id: 'op-3', partId: 'part-2', toPartId: 'part-1' },
   ];
@@ -450,7 +470,7 @@ test('the fields of a plate change the values of its operation', () => {
   assert.equal(partField('depthAxis'), 'depthAxis');
 });
 
-const plateJoint = (bolts) => ({
+const plateJoint = (bolts: JointOfPart['bolts']): JointOfPart => ({
   jointId: 'part-2@part-1',
   partName: 'Plate 2',
   toPartName: 'Rail',
@@ -462,7 +482,8 @@ const plateJoint = (bolts) => ({
 
 test('the joint of a plate takes bolts in each slot it covers, two at once with the quick action', () => {
   const history = railAndPlate();
-  const inspect = (bolts) => partInspectorHTML(history, history[1], undefined, [plateJoint(bolts)]);
+  const inspect = (bolts: JointOfPart['bolts']) =>
+    partInspectorHTML(history, history[1], undefined, [plateJoint(bolts)]);
   const none = inspect({ perSlot: 0, slots: 1 });
   assert.match(none, /⚠ No bolts yet/);
   assert.match(none, /data-joint-bolts="part-2@part-1"[^>]*value="0"/);
@@ -527,7 +548,7 @@ test('a peripheral is a step on its part, and its inspector sets its place and t
 test('the inspector of a peripheral sets its type and the values copied from it', () => {
   const history = railWithPedals();
   const html = partInspectorHTML(history, history[1]);
-  const types = html.match(/id="part-typeId"[^]*?<\/select>/)[0];
+  const types = captured(/id="part-typeId"[^]*?<\/select>/, html, 0);
   assert.deepEqual(
     [...types.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]),
     ['generic-seat', 'generic-wheel-base', 'generic-pedals'],
@@ -587,8 +608,9 @@ test('the peripheral panel edits the new peripheral before it is mounted', () =>
 });
 
 test('the fields of a peripheral change the values of its operation', () => {
-  const pedals = railWithPedals()[1];
-  const change = (field, value, item) => peripheralChange(pedals, field, value, item);
+  const pedals = ofKind(railWithPedals()[1], 'mount-peripheral');
+  const change = (field: PartField, value: string, item?: string) =>
+    peripheralChange(pedals, field, value, item);
   assert.deepEqual(change('name', 'Seat'), { name: 'Seat' });
   assert.deepEqual(change('face', '+x'), { face: '+x' });
   assert.deepEqual(change('facing', '-x'), { facing: '-x' });
@@ -599,7 +621,7 @@ test('the fields of a peripheral change the values of its operation', () => {
     envelope: { widthMm: 400, heightMm: 220, depthMm: 320 },
   });
   assert.deepEqual(change('backrestDeg', '20'), { backrestDeg: 20 });
-  const holes = change('holeDiameterMm', '10', '1').mountingPattern.holes;
+  const holes = present(change('holeDiameterMm', '10', '1').mountingPattern, 'pattern').holes;
   assert.deepEqual(holes[1], { xMm: -160, yMm: 120, diameterMm: 10 });
   assert.deepEqual(holes[0], pedals.mountingPattern.holes[0]);
   assert.deepEqual(change('contactYMm', '40', 'heel'), {
@@ -652,7 +674,7 @@ test('in Fit, the history adds no profile, as the frame is locked', () => {
   assert.doesNotMatch(panel({ history }), /id="addProfile"[^>]*disabled/);
 });
 
-const selectNamed = (html, id) =>
+const selectNamed = (html: string, id: string) =>
   html.match(new RegExp(`<select id="${id}".*?</select>`, 's'))?.[0];
 
 test('in Fit, an attached part of the frame stays locked but gets an adjustment', () => {
@@ -664,7 +686,7 @@ test('in Fit, an attached part of the frame stays locked but gets an adjustment'
   assert.doesNotMatch(fixed, /data-part-field|id="adjustmentTravel"/);
   const adjusted = editAdjustment(addAdjustment(history, 'part-2'), 'part-2', { positionMm: 20 });
   const html = partInspectorHTML(adjusted, adjusted[1], undefined, [], [], fitting);
-  const axis = selectNamed(html, 'adjustmentAxis');
+  const axis = present(selectNamed(html, 'adjustmentAxis'), 'adjustment axis');
   assert.match(axis, /data-adjustment-field="axis"/);
   assert.deepEqual(
     [...axis.matchAll(/value="(\w)"/g)].map(([, value]) => value),

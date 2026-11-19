@@ -22,7 +22,6 @@
   "exclude": [
     "tests/cad-assembly.test.ts",
     "tests/cad-handles.test.ts",
-    "tests/cockpit-editor-view.test.ts",
     "tests/project.test.ts",
     "tests/render-cad.test.ts"
   ]
