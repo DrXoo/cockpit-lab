@@ -18,21 +18,28 @@ import {
   replaceCockpitDesign,
   advanceSetup,
   completeSetup,
+  type Project,
 } from '../src/project.ts';
+import type { RoomConfig } from '../src/config.ts';
+import { present, withId } from './support/lookups.ts';
 import { duplicateLayout, hideFurniture } from '../src/layouts.ts';
 import { emptyDesign } from '../src/cockpit-design.ts';
 import { summaryHTML } from '../src/project-summary.ts';
 import { saveArmPose } from '../src/arm-poses.ts';
 
-const configOf = (project) => projectConfig(project);
+const configOf = (project: Project) => projectConfig(project);
 /** The project a file opens as. */
-const open = (data, options) => readProject(data, options).project;
+const open = (data: unknown, options?: { stored?: boolean }) => readProject(data, options).project;
 /** Whether opening the file left out a parametric cockpit. */
-const leftOut = (data) => readProject(data).parametricCockpitLeftOut;
+const leftOut = (data: unknown) => readProject(data).parametricCockpitLeftOut;
 /** A project file through JSON, as it is exported and opened again. */
-const throughFile = (project) => open(JSON.parse(JSON.stringify(projectData(project))));
+const throughFile = (project: Project) => open(JSON.parse(JSON.stringify(projectData(project))));
 
 /** The settings of a parametric cockpit, as files before v5 stored it. */
+/** `config` as an older file stored it, without `keys`. */
+const without = (config: object, keys: readonly string[]): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(config).filter(([key]) => !keys.includes(key)));
+
 const PARAMETRIC_COCKPIT = {
   length: 145,
   width: 64,
@@ -59,7 +66,7 @@ test('a new project has no items or accessories and waits for the room size', ()
   assert.deepEqual(e.accessories, []);
 });
 test('items not yet added neither block furniture or doors nor add checks', () => {
-  const s = {
+  const s: RoomConfig = {
     ...configOf(createProject()),
     roomEnabled: true,
     roomW: 500,
@@ -96,7 +103,7 @@ test('items not yet added neither block furniture or doors nor add checks', () =
   };
   const e = evaluate(s);
   assert.equal(e.errors, 0);
-  assert.equal(e.checks.find((c) => c.id === 'room-door-puerta').value, '90° clear');
+  assert.equal(withId(e.checks, 'room-door-puerta').value, '90° clear');
   assert.deepEqual(e.spaceCheck, []);
   assert.deepEqual(e.accessories, []);
   assert.ok(evaluate({ ...s, deskEnabled: true }).room.collisions.includes('mueble'));
@@ -129,12 +136,14 @@ test('progress resumes at the exact step and keeps the deferred steps', () => {
   assert.deepEqual(restored.setup.deferred, ['openings']);
   assert.equal(configOf(restored).roomW, 410);
   assert.equal(configOf(restored).deskEnabled, false);
-  assert.equal(restored.setup.drafts.desk.w, '160');
-  assert.equal(restored.setup.drafts.desk.d, '');
+  const deskDraft = present(restored.setup.drafts?.desk, 'desk draft');
+  assert.equal(deskDraft.w, '160');
+  assert.equal(deskDraft.d, '');
 });
 test('the v1 adapter keeps the room and the desk, and leaves out the parametric cockpit', () => {
-  const old = { ...defaults, ...PARAMETRIC_COCKPIT, deskX: 218, cockpitAngle: 70 };
-  delete old.deskEnabled;
+  const old = without({ ...defaults, ...PARAMETRIC_COCKPIT, deskX: 218, cockpitAngle: 70 }, [
+    'deskEnabled',
+  ]);
   const data = { app: 'Cockpit Lab', version: 1, config: old };
   const p = open(data);
   assert.equal(leftOut(data), true);
@@ -148,8 +157,7 @@ test('the v1 adapter keeps the room and the desk, and leaves out the parametric 
   assert.equal(open({ version: 1, config: old }, { stored: true }).setup.step, 'complete');
 });
 test('a v1 file without a desk position puts the desk beside its chassis, as it did', () => {
-  const old = { ...defaults, width: 70, deskGap: 20 };
-  delete old.deskX;
+  const old = without({ ...defaults, width: 70, deskGap: 20 }, ['deskX']);
   assert.equal(configOf(open({ app: 'Cockpit Lab', version: 1, config: old })).deskX, 95);
 });
 test('the reader rejects inconsistent progress, wrong units and invalid item presence', () => {
@@ -197,7 +205,7 @@ test('the room setup can be finished without a desk, keeping the deferred steps'
 
 test('progress saved when the setup had a cockpit step opens without it', () => {
   const config = { ...configOf(createProject()), roomEnabled: true, cockpitEnabled: false };
-  const saved = (setup) =>
+  const saved = (setup: unknown) =>
     open({ app: 'Cockpit Lab', version: 2, units: 'cm', config, setup }).setup;
   assert.deepEqual(
     saved({
@@ -270,7 +278,7 @@ test('a v5 project keeps its cockpit design history, and fails loudly on a broke
 });
 
 /** The same project as the v4 writer stored it, with a parametric cockpit the room includes. */
-function asVersion4({ library, setup }) {
+function asVersion4({ library, setup }: Project) {
   return JSON.parse(
     JSON.stringify({
       app: 'Cockpit Lab',
@@ -308,7 +316,7 @@ test('v5 files cannot hold the settings that placed the retired cockpit', () => 
 });
 
 /** The same project as the v3 writer stored it: the cockpit among the shared settings. */
-const asVersion3 = ({ library, setup }, cockpitEnabled) =>
+const asVersion3 = ({ library, setup }: Project, cockpitEnabled: boolean) =>
   JSON.parse(
     JSON.stringify({
       app: 'Cockpit Lab',
@@ -336,8 +344,8 @@ test('a v3 file opens with the same layouts, leaving out the parametric cockpit'
 
 test('the reader rejects layouts that do not match the shared furniture', () => {
   const file = JSON.parse(JSON.stringify(projectData(designWithLayouts())));
-  const withRoom = (change) => ({ ...file, room: { ...file.room, ...change } });
-  const withLayout = (change) =>
+  const withRoom = (change: object) => ({ ...file, room: { ...file.room, ...change } });
+  const withLayout = (change: object) =>
     withRoom({ layouts: [{ ...file.room.layouts[0], ...change }, file.room.layouts[1]] });
   assert.throws(() => open(withRoom({ layouts: [] })), /layouts/);
   assert.throws(() => open(withLayout({ furniture: {} })), /placement/);
