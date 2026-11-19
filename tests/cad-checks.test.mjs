@@ -12,6 +12,7 @@ import {
 } from '../src/cad/history.ts';
 import { cadChecks } from '../src/cad-checks.ts';
 import { addAdjustment, editAdjustment } from '../src/cad/adjustments.ts';
+import { railHistory, withGrowth } from './support/designs.mjs';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const bar = (id, name, startMm, changes = {}) => ({
@@ -159,4 +160,17 @@ test('a span that an adjustment would stretch or squeeze is listed once a part h
   const check = checksOfHistory(slid)['cad-fitted-spans'];
   assert.equal(check.level, 'warning');
   assert.deepEqual(check.items, ['Crossing would have to be 10 mm shorter to meet High rail']);
+});
+
+test('parts that meet at an end of a travel are listed, saying which part is at which end', () => {
+  assert.equal(checksOfHistory(ab())['cad-travel-interference'], undefined, 'no part slides');
+  let history = withGrowth(railHistory(), 'part-1', { name: 'Post', lengthMm: 200 });
+  history = withGrowth(history, 'part-1', { name: 'Other post', alongMm: 560, lengthMm: 200 });
+  const check = checksOfHistory(addAdjustment(history, 'part-2'))['cad-travel-interference'];
+  assert.equal(check.level, 'warning');
+  assert.deepEqual(check.items, [
+    'Post into Other post: 30 mm front to back, with Post at the front end of its travel',
+  ]);
+  const short = editAdjustment(addAdjustment(history, 'part-2'), 'part-2', { travelMm: 40 });
+  assert.equal(checksOfHistory(short)['cad-travel-interference'].level, 'ok');
 });

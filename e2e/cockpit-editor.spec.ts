@@ -995,6 +995,32 @@ test('fitting, a part slides along its adjustment, saved with the design without
   await expect(page.locator('#addAdjustment')).toHaveCount(0);
 });
 
+test('fitting, the checks list what a part would reach at an end of its travel', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#part-lengthMm').fill('2000');
+  await page.locator('#part-lengthMm').press('Enter');
+  await page.locator('#fitModeBtn').click();
+  // Pedals near the front of the rail, then the seat at its middle, clear of them.
+  await page.locator('#mountPedals').click();
+  await page.locator('#peripheral-alongMm').fill('1700');
+  await page.locator('#peripheral-alongMm').press('Enter');
+  await page.locator('#confirmPeripheral').click();
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#mountSeat').click();
+  await page.locator('#confirmPeripheral').click();
+  const travelCheck = page.locator('#cockpitChecks [data-check="cad-travel-interference"]');
+  await expect(travelCheck).toHaveClass(/ok/);
+  await expect(page.locator('#cockpitChecks [data-check="cad-interference"]')).toHaveClass(/ok/);
+
+  await page.locator('#adjustmentTravel').fill('1000');
+  await page.locator('#adjustmentTravel').press('Enter');
+  await expect(travelCheck).toHaveClass(/warning/);
+  await expect(travelCheck.locator('li')).toHaveCount(1);
+  await expect(page.locator('#cockpitChecks [data-check="cad-interference"]')).toHaveClass(/ok/);
+});
+
 test('a part about to be added is added or dropped from its box in the view, or with Enter', async ({
   page,
 }) => {

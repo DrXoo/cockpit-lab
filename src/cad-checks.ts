@@ -1,16 +1,17 @@
 // The checks a CAD cockpit design gets on its own: interference between its parts, the parts
 // that nothing supports, the joints still without connectors, the steps of its history that
-// failed and, once a part slides, the spans its adjustments would stretch or squeeze. Each is one check that lists what it found, so a design with many problems still
-// reads at a glance.
+// failed and, once a part slides, what meets at the ends of its travels and the spans its
+// adjustments would stretch or squeeze. Each is one check that lists what it found, so a design
+// with many problems still reads at a glance.
 import type { Check } from './checks.ts';
 import { round } from './geometry.ts';
 import type { Axis, ResolvedPart } from './cad/assembly.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
-import { cockpitInterferences } from './cad/interference.ts';
+import { cockpitInterferences, type CadInterference } from './cad/interference.ts';
 import { jointsOf, type Joint } from './cad/joints.ts';
 import { adjustmentOf, stepTitle, type Operation } from './cad/operations.ts';
 import { unsupportedParts } from './cad/support.ts';
-import type { FittedPose } from './cad/travel.ts';
+import { travelInterferences, type FittedPose } from './cad/travel.ts';
 
 /** A design replayed from its history, with the steps that failed. */
 export interface DesignToCheck {
@@ -30,6 +31,13 @@ const WAY_OUT_TEXT: Record<Axis, string> = {
   x: 'sideways',
   y: 'up or down',
   z: 'front to back',
+};
+
+/** The ends of a travel along each axis: +Z is the front, and −X is the pilot's right. */
+const TRAVEL_END_TEXT: Record<Axis, { towardsPlus: string; towardsMinus: string }> = {
+  x: { towardsPlus: 'left', towardsMinus: 'right' },
+  y: { towardsPlus: 'top', towardsMinus: 'bottom' },
+  z: { towardsPlus: 'front', towardsMinus: 'back' },
 };
 
 const countText = (count: number): string => (count ? String(count) : 'None');
@@ -55,7 +63,7 @@ export function cadChecks(design: DesignToCheck): Check[] {
   // Parts reach into each other where the driver has them, along their travels.
   const shown = design.fitted ?? design;
   const fitted = design.history.some((operation) => adjustmentOf(operation) !== undefined)
-    ? [fittedSpansCheck(design)]
+    ? [travelInterferenceCheck(design), fittedSpansCheck(design)]
     : [];
   return [
     interferenceCheck(shown.resolved, shown.connectors ?? []),
@@ -68,6 +76,23 @@ export function cadChecks(design: DesignToCheck): Check[] {
     failedStepsCheck(design),
     ...fitted,
   ];
+}
+
+/** The parts that would reach into each other with one adjusted part at an end of its travel. */
+function travelInterferenceCheck({ history, resolved, connectors = [] }: DesignToCheck): Check {
+  const nameOf = (id: string) => resolved.get(id)?.part.name ?? id;
+  const items = travelInterferences(history, resolved, connectors).map(
+    ({ movedId, endMm, axis, interference }) => {
+      const ends = TRAVEL_END_TEXT[axis];
+      const end = endMm > 0 ? ends.towardsPlus : ends.towardsMinus;
+      return `${interferenceText(interference)}, with ${nameOf(movedId)} at the ${end} end of its travel`;
+    },
+  );
+  return listCheck('cad-travel-interference', 'Parts meeting along a travel', items, {
+    found:
+      'Each travel is checked at both ends, with the other parts where they are. Shorten the travel, or move one part of each pair.',
+    none: 'No part reaches into another at either end of its travel.',
+  });
 }
 
 /** The spans that would no longer meet their part with the adjusted parts where they are. */
@@ -88,15 +113,15 @@ function interferenceCheck(
   resolved: ReadonlyMap<string, ResolvedPart>,
   connectors: readonly PlacedConnector[],
 ): Check {
-  const items = cockpitInterferences(resolved, connectors).map(
-    (found) =>
-      `${found.partName} into ${found.otherName}: ${round(found.depthMm, 1)} mm ${WAY_OUT_TEXT[found.axis]}`,
-  );
+  const items = cockpitInterferences(resolved, connectors).map(interferenceText);
   return listCheck('cad-interference', 'Parts reaching into each other', items, {
     found: 'Within the cockpit, deepest first. Move or shorten one part of each pair.',
     none: 'No part of the cockpit reaches into another.',
   });
 }
+
+const interferenceText = (found: CadInterference): string =>
+  `${found.partName} into ${found.otherName}: ${round(found.depthMm, 1)} mm ${WAY_OUT_TEXT[found.axis]}`;
 
 function supportCheck(
   resolved: ReadonlyMap<string, ResolvedPart>,
