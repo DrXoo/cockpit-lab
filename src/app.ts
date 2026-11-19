@@ -1,11 +1,4 @@
-import {
-  steps,
-  createProject,
-  readProject,
-  projectData,
-  recordProject,
-  replaceCockpitDesign,
-} from './project.ts';
+import { steps, createProject, readProject, projectData, replaceCockpitDesign } from './project.ts';
 import {
   cockpitFileData,
   PARAMETRIC_COCKPIT_FILE_MESSAGE,
@@ -49,7 +42,7 @@ import { CockpitScene } from './scene.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
 import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import type { Project, SetupProgress, StepId } from './project.ts';
+import type { Project, StepId } from './project.ts';
 import {
   MAX_LAYOUTS,
   MAX_LAYOUT_NAME_LENGTH,
@@ -58,7 +51,6 @@ import {
   duplicateLayout,
   hiddenFurnitureOf,
   hideFurniture,
-  layoutConfig,
   renameLayout,
   selectLayout,
   showFurniture,
@@ -98,6 +90,7 @@ import {
 import { armReachHint, deskPanelHTML } from './settings-panels.ts';
 import { monitorPositionHTML } from './desk-editor.ts';
 import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
+import { ProjectSession } from './project-session.ts';
 import {
   nextThemePreference,
   parseThemePreference,
@@ -205,19 +198,18 @@ function workspaceOf(value: string): Workspace {
 }
 function stepOf(value: string): StepId {
   const step = steps.find((s) => s.id === value);
-  if (!step) throw new Error(`Unknown setup step: ${value}`);
+  if (!step) throw new Error(`Unknown project.setup step: ${value}`);
   return step.id;
 }
 const isRoomSection = (value: Section) => value === 'room' || value === 'furniture';
 
 const newProject = createProject();
-// `state` is the active layout as it is being edited; `library` keeps every layout as last
-// recorded. Saving and exporting record `state` into it first. The cockpit editor holds the
-// cockpit design.
-let library: LayoutLibrary = newProject.library,
-  state: RoomConfig = layoutConfig(library),
-  setup: SetupProgress = newProject.setup,
-  section: Section = 'room',
+const project = new ProjectSession(newProject, {
+  store,
+  cockpit: () => cockpitEditor.session.design,
+  showStatus: (message, status) => setSaveStatus(message, status),
+});
+let section: Section = 'room',
   /** The tab each editor shows when it opens again. */
   lastSection: Record<Editor, Section> = { cockpit: 'design', room: 'room' },
   view: SceneView = 'top',
@@ -235,7 +227,7 @@ const cockpitEditor = new CockpitEditor(
     renderControls: () => renderControls(),
     renderInspector: () => cockpitInspector.render({ force: true }),
     renderJointCard: () => cockpitOverlays.renderJointCard(),
-    saveSoon: () => queueSave(),
+    saveSoon: () => project.saveSoon(),
     frameDesign: () => setActiveView(view),
     toast: (message) => toast(message),
     sightAxis: () => SIGHT_AXIS[view],
@@ -262,11 +254,11 @@ function reportLeftOutCockpit({ fromBrowser }: { fromBrowser: boolean }) {
   $('#leftOutCockpitKept').hidden = !fromBrowser;
   $<HTMLDialogElement>('#leftOutCockpitDialog').showModal();
 }
-if (setup.step === 'complete') view = 'iso';
-else section = sectionOfStep(setup.step);
-if (setup.step !== 'complete' && state.roomEnabled) layoutEditing = true;
+if (project.setup.step === 'complete') view = 'iso';
+else section = sectionOfStep(project.setup.step);
+if (project.setup.step !== 'complete' && project.state.roomEnabled) layoutEditing = true;
 // A project with a cockpit design and no room yet opens where the design is edited.
-if (!state.roomEnabled && cockpitEditor.session.design !== null) {
+if (!project.state.roomEnabled && cockpitEditor.session.design !== null) {
   section = 'design';
   view = 'iso';
 }
@@ -275,9 +267,8 @@ const editor = (): Editor => editorOfSection(section);
 const cockpitDrawing = (): CockpitDrawing | null =>
   editor() === 'cockpit' ? cockpitEditor.drawing() : null;
 /** What the scene and the checks show: the active layout, or the cockpit design on its own. */
-const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : state);
+const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : project.state);
 let evaluation = evaluate(shownConfig());
-let pendingSave: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(message: string) {
   $('#toast').textContent = message;
@@ -290,28 +281,17 @@ function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
   $('.save-info').dataset.state = status;
 }
 /** Makes `project` the open one, editing its active layout. */
-function openProject(project: Project) {
-  library = project.library;
-  cockpitEditor.open(project.cockpit);
-  state = layoutConfig(library);
-  selectedArmPose = activeArmPose(state)?.id ?? '';
-  setup = project.setup;
-}
-/** The open project, with the edits to the active layout recorded. */
-function recordedProject(): Project {
-  const cockpit = cockpitEditor.session.design;
-  ({ library } = recordProject({ cockpit, library, setup }, state));
-  return { cockpit, library, setup };
+function openProject(opened: Project) {
+  project.open(opened);
+  cockpitEditor.open(opened.cockpit);
+  selectedArmPose = activeArmPose(project.state)?.id ?? '';
 }
 /** Records the edits, applies `change` to the layouts and opens the resulting active layout. */
 function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
-  clearTimeout(pendingSave);
-  const recorded = recordedProject();
-  library = change(recorded.library);
-  state = layoutConfig(library);
-  selectedArmPose = activeArmPose(state)?.id ?? '';
-  if (layoutTarget.startsWith('furniture:') && !roomItem(state, layoutTarget)) layoutTarget = '';
-  persist();
+  project.changeLayouts(change);
+  selectedArmPose = activeArmPose(project.state)?.id ?? '';
+  if (layoutTarget.startsWith('furniture:') && !roomItem(project.state, layoutTarget))
+    layoutTarget = '';
   renderControls();
   refresh();
   syncSceneEditing();
@@ -325,23 +305,14 @@ function syncSceneEditing() {
     isRoomSection(section),
   );
 }
-function persist() {
-  if (store.save(recordedProject())) setSaveStatus('Saved in this browser');
-  else setSaveStatus('Not saved automatically · export a JSON file', 'error');
-}
-function queueSave() {
-  setSaveStatus('Saving…');
-  clearTimeout(pendingSave);
-  pendingSave = setTimeout(persist, 250);
-}
 function update(change: SettingChange) {
-  state = applySetting(state, change);
-  if (change.key.startsWith('room')) state = normalizeRoom(state);
-  queueSave();
+  project.state = applySetting(project.state, change);
+  if (change.key.startsWith('room')) project.state = normalizeRoom(project.state);
+  project.saveSoon();
   refresh();
 }
 // Control templates read the current state and evaluation.
-const controlView = () => ({ state, evaluation });
+const controlView = () => ({ state: project.state, evaluation });
 const controlValue = (key: NumericField) => controlValueOf(controlView(), key);
 const range: ControlTemplates['range'] = (key, label) => rangeHTML(controlView(), key, label);
 const toggle: ControlTemplates['toggle'] = (key, label) => toggleHTML(controlView(), key, label);
@@ -349,14 +320,14 @@ const select: ControlTemplates['select'] = (key, label, options) =>
   selectHTML(controlView(), key, label, options);
 /** Applies a change to the monitor arm or its saved poses, and redraws the arm controls. */
 function changeArm(next: RoomConfig) {
-  state = next;
-  queueSave();
+  project.state = next;
+  project.saveSoon();
   renderControls();
   refresh();
 }
 function roomChanged(redraw = false) {
-  state = normalizeRoom(state);
-  queueSave();
+  project.state = normalizeRoom(project.state);
+  project.saveSoon();
   if (redraw) renderControls();
   refresh();
 }
@@ -370,38 +341,38 @@ function selectRoomTarget(target: string) {
   setActiveView('top');
 }
 function changeRoomValue(key: string, value: string | number, redraw = false) {
-  state = updateRoomItem(state, layoutTarget, key, value);
+  project.state = updateRoomItem(project.state, layoutTarget, key, value);
   roomChanged(redraw);
 }
 function syncRoomInputs() {
   if (!isRoomSection(section)) return;
-  const item = roomItem(state, layoutTarget),
+  const item = roomItem(project.state, layoutTarget),
     mounted = item?.type === 'wallShelf',
     frame =
       item && isFeature(item)
-        ? wallFrame(state, item.wall)
+        ? wallFrame(project.state, item.wall)
         : mounted
-          ? wallFrame(state, item.mountWall)
+          ? wallFrame(project.state, item.mountWall)
           : null;
   controlsAll<FieldElement>('[data-room-key]').forEach((el) => {
     const key = dataOf(el, 'roomKey'),
-      value = roomValue(state, layoutTarget, key);
+      value = roomValue(project.state, layoutTarget, key);
     if (el instanceof HTMLInputElement && ['number', 'range'].includes(el.type)) {
       const limits =
         key === 'offset' && frame && item
           ? [0, Math.max(0, frame.length - item.width)]
           : key === 'elevation' && mounted
-            ? [0, state.roomH]
+            ? [0, project.state.roomH]
             : key === 'width' && frame && item && !mounted
               ? [30, item.type === 'wardrobeAccess' ? frame.length : Math.min(300, frame.length)]
               : key === 'height' && frame && !mounted
-                ? [30, state.roomH]
+                ? [30, project.state.roomH]
                 : key === 'sill' && frame && item
-                  ? [0, state.roomH - item.height]
+                  ? [0, project.state.roomH - item.height]
                   : key === 'x'
-                    ? [-200, state.roomW + 200]
+                    ? [-200, project.state.roomW + 200]
                     : key === 'z'
-                      ? [-200, state.roomD + 200]
+                      ? [-200, project.state.roomD + 200]
                       : null;
       if (limits) {
         el.min = String(limits[0]);
@@ -433,7 +404,7 @@ function bindRoomEditor() {
       const value = round(clamp(raw, Number(el.min), Number(el.max)), 1);
       changeRoomValue(key, value, false);
       if (commit) {
-        el.value = String(roomValue(state, layoutTarget, key));
+        el.value = String(roomValue(project.state, layoutTarget, key));
         if (['width', 'height'].includes(key)) renderControls();
       }
     };
@@ -444,7 +415,7 @@ function bindRoomEditor() {
     el.addEventListener('click', () =>
       changeRoomValue(
         'angle',
-        ((roomValue(state, layoutTarget, 'angle') as number) +
+        ((roomValue(project.state, layoutTarget, 'angle') as number) +
           Number(dataOf(el, 'roomRotate')) +
           360) %
           360,
@@ -457,16 +428,16 @@ function bindRoomEditor() {
         id =
           crypto.randomUUID?.() ||
           'room-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
-      const hiddenFurniture = activeLayout(library).hiddenFurniture.length;
-      if (!canAddRoomItem(state, type, { hiddenFurniture })) {
+      const hiddenFurniture = activeLayout(project.library).hiddenFurniture.length;
+      if (!canAddRoomItem(project.state, type, { hiddenFurniture })) {
         toast('Item limit reached');
         return;
       }
-      const added = addRoomItem(state, type, id);
-      state = added.state;
-      setup = {
-        ...setup,
-        deferred: setup.deferred.filter((step) => step !== stepOfRoomItem(type)),
+      const added = addRoomItem(project.state, type, id);
+      project.state = added.state;
+      project.setup = {
+        ...project.setup,
+        deferred: project.setup.deferred.filter((step) => step !== stepOfRoomItem(type)),
       };
       layoutTarget = added.target;
       roomChanged(true);
@@ -481,15 +452,15 @@ function bindRoomEditor() {
     }),
   );
   $optional('#chairAtDesk')?.addEventListener('click', () => {
-    if (roomItem(state, layoutTarget)?.type !== 'chair') return;
-    state = placeChairAtDesk(state, layoutTarget);
+    if (roomItem(project.state, layoutTarget)?.type !== 'chair') return;
+    project.state = placeChairAtDesk(project.state, layoutTarget);
     roomChanged(true);
     scene?.setLayoutEditing(layoutEditing, layoutTarget, true);
     setActiveView('top');
     toast('Chair placed in front of the desk');
   });
   $optional('#roomHide')?.addEventListener('click', () => {
-    const item = roomItem(state, layoutTarget);
+    const item = roomItem(project.state, layoutTarget);
     if (!item || isFeature(item)) return;
     changeLayouts((layouts) => hideFurniture(layouts, item.id));
     $('#controls').scrollTop = 0;
@@ -504,8 +475,8 @@ function bindRoomEditor() {
     }),
   );
   $optional('#roomDelete')?.addEventListener('click', () => {
-    if (!roomItem(state, layoutTarget)) return;
-    state = deleteRoomItem(state, layoutTarget);
+    if (!roomItem(project.state, layoutTarget)) return;
+    project.state = deleteRoomItem(project.state, layoutTarget);
     layoutTarget = 'desk';
     roomChanged(true);
     scene?.setLayoutEditing(layoutEditing, layoutTarget, true);
@@ -515,40 +486,40 @@ function bindRoomEditor() {
     setActiveView('top');
   });
   $optional('#roomCenter')?.addEventListener('click', () => {
-    state = centerInRoom(state, evaluation);
+    project.state = centerInRoom(project.state, evaluation);
     roomChanged(true);
     setActiveView('top');
     toast('Desk centered, with everything on it');
   });
 }
 function enterStep(id: StepId) {
-  setup = { ...setup, step: id };
+  project.setup = { ...project.setup, step: id };
   section = sectionOfStep(id);
   layoutTarget = id === 'desk' ? 'desk' : '';
-  layoutEditing = state.roomEnabled;
+  layoutEditing = project.state.roomEnabled;
   showWorkspace('config');
   switchSection(section);
-  persist();
+  project.saveNow();
   refresh();
-  setActiveView(id === 'desk' && state.deskEnabled ? 'desk' : 'top');
+  setActiveView(id === 'desk' && project.state.deskEnabled ? 'desk' : 'top');
 }
 function continueSetup(defer = false) {
-  const result = nextSetupStep(setup, state, { defer });
+  const result = nextSetupStep(project.setup, project.state, { defer });
   if (result.status === 'needs-room') {
     $optional<HTMLFormElement>('#setupRoomForm')?.reportValidity();
     return;
   }
   if (result.status === 'blocked') return;
-  setup = result.setup;
-  persist();
-  if (setup.step === 'complete') {
+  project.setup = result.setup;
+  project.saveNow();
+  if (project.setup.step === 'complete') {
     layoutEditing = false;
     switchSection('room');
     showWorkspace('view');
     setActiveView('iso');
     refresh();
     toast('Project ready. You can keep editing each part.');
-  } else enterStep(setup.step);
+  } else enterStep(project.setup.step);
 }
 function bindCreationControls() {
   for (const [group, prefix] of [
@@ -561,42 +532,42 @@ function bindCreationControls() {
         d: $<HTMLInputElement>(`#${prefix}D`).value,
         h: $<HTMLInputElement>(`#${prefix}H`).value,
       };
-      setup = { ...setup, drafts: { ...setup.drafts, [group]: draft } };
-      queueSave();
+      project.setup = { ...project.setup, drafts: { ...project.setup.drafts, [group]: draft } };
+      project.saveSoon();
     });
   }
   const roomForm = $optional<HTMLFormElement>('#setupRoomForm');
   roomForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!roomForm.reportValidity()) return;
-    state = withRoomSize(
-      state,
+    project.state = withRoomSize(
+      project.state,
       Number($<HTMLInputElement>('#setupRoomW').value),
       Number($<HTMLInputElement>('#setupRoomD').value),
       Number($<HTMLInputElement>('#setupRoomH').value),
     );
-    setup = { ...setup, drafts: { ...setup.drafts, room: undefined } };
-    persist();
+    project.setup = { ...project.setup, drafts: { ...project.setup.drafts, room: undefined } };
+    project.saveNow();
     continueSetup();
   });
   const deskForm = $optional<HTMLFormElement>('#setupDeskForm');
   deskForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!deskForm.reportValidity()) return;
-    state = withDesk(
-      state,
+    project.state = withDesk(
+      project.state,
       Number($<HTMLInputElement>('#setupDeskW').value),
       Number($<HTMLInputElement>('#setupDeskD').value),
       Number($<HTMLInputElement>('#setupDeskH').value),
     );
-    setup = {
-      ...setup,
-      deferred: setup.deferred.filter((id) => id !== 'desk'),
-      drafts: { ...setup.drafts, desk: undefined },
+    project.setup = {
+      ...project.setup,
+      deferred: project.setup.deferred.filter((id) => id !== 'desk'),
+      drafts: { ...project.setup.drafts, desk: undefined },
     };
     layoutTarget = 'desk';
     layoutEditing = true;
-    persist();
+    project.saveNow();
     renderControls();
     refresh();
     scene?.setLayoutEditing(true, layoutTarget, false);
@@ -611,8 +582,8 @@ function inspectorSectionOf(selector: string): HTMLElement {
 }
 function renderWorkflow() {
   const inCockpit = editor() === 'cockpit',
-    guided = !inCockpit && setup.step !== 'complete',
-    step = steps.find((s) => s.id === setup.step),
+    guided = !inCockpit && project.setup.step !== 'complete',
+    step = steps.find((s) => s.id === project.setup.step),
     shown = shownConfig();
   const stepLabel = step?.label ?? '';
   document.body.dataset.guided = String(guided);
@@ -626,7 +597,7 @@ function renderWorkflow() {
     (tab) => (tab.hidden = dataOf(tab, 'inEditor') !== editor()),
   );
   $('#setupProgress').hidden = !guided;
-  $('#setupProgress').innerHTML = guided ? progressHTML(setup) : '';
+  $('#setupProgress').innerHTML = guided ? progressHTML(project.setup) : '';
   $('#setupActions').hidden = !guided;
   $('.config-tabs').hidden = guided || inCockpit;
   renderLayoutPicker(guided || inCockpit);
@@ -638,7 +609,7 @@ function renderWorkflow() {
   $('#setupGuide').hidden = !guided;
   $('#setupGuideTitle').textContent = step?.title || '';
   $('#setupGuideHint').textContent = step?.hint || '';
-  const buttons = setupButtons(setup, state);
+  const buttons = setupButtons(project.setup, project.state);
   $<HTMLButtonElement>('#setupBack').disabled = buttons.backDisabled;
   $('#setupNext').textContent = buttons.nextLabel;
   $<HTMLButtonElement>('#setupNext').disabled = buttons.nextDisabled;
@@ -667,11 +638,13 @@ function renderWorkflow() {
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
   $('#validationBanner').hidden = inCockpit;
   inspectorSectionOf('#deskSizeTag').hidden =
-    !shown.deskEnabled || (guided && setup.step !== 'desk');
+    !shown.deskEnabled || (guided && project.setup.step !== 'desk');
   inspectorSectionOf('#deskSizeTag').querySelector('h3')!.lastChild!.textContent =
     shown.monitorEnabled ? 'Desk and monitor' : 'Desk';
   inspectorSectionOf('#matTag').hidden =
-    !shown.deskEnabled || !evaluation.desktopItems.length || (guided && setup.step !== 'desk');
+    !shown.deskEnabled ||
+    !evaluation.desktopItems.length ||
+    (guided && project.setup.step !== 'desk');
   $('.reach-card').hidden = !(shown.deskEnabled && shown.monitorEnabled);
   $('#editArmBtn').hidden = !(shown.deskEnabled && shown.monitorEnabled);
   const metrics = $$('.metrics>div');
@@ -685,26 +658,26 @@ function renderWorkflow() {
   $('.build-note').hidden = !hasScene;
   const sceneTitle = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Your room';
   $('#sceneTitle').textContent =
-    !guided && !inCockpit && library.layouts.length > 1
-      ? `${sceneTitle} · ${activeLayout(library).name}`
+    !guided && !inCockpit && project.library.layouts.length > 1
+      ? `${sceneTitle} · ${activeLayout(project.library).name}`
       : sceneTitle;
 }
 /** The layout picker appears in the room editor once the guided setup is done. */
 function renderLayoutPicker(hidden: boolean) {
   $('#layoutArea').hidden = hidden;
   const select = $<HTMLSelectElement>('#layoutSelect');
-  const options = layoutOptionsHTML(library);
+  const options = layoutOptionsHTML(project.library);
   if (select.innerHTML !== options) select.innerHTML = options;
-  select.value = library.activeLayoutId;
-  $('#layoutHint').hidden = library.layouts.length > 1;
-  $<HTMLButtonElement>('#deleteLayout').disabled = library.layouts.length === 1;
-  $<HTMLButtonElement>('#duplicateLayout').disabled = library.layouts.length >= MAX_LAYOUTS;
+  select.value = project.library.activeLayoutId;
+  $('#layoutHint').hidden = project.library.layouts.length > 1;
+  $<HTMLButtonElement>('#deleteLayout').disabled = project.library.layouts.length === 1;
+  $<HTMLButtonElement>('#duplicateLayout').disabled = project.library.layouts.length >= MAX_LAYOUTS;
 }
 function renderControls() {
-  const guided = editor() === 'room' && setup.step !== 'complete',
-    stage = guided ? setup.step : section === 'furniture' ? 'furniture' : 'openings';
+  const guided = editor() === 'room' && project.setup.step !== 'complete',
+    stage = guided ? project.setup.step : section === 'furniture' ? 'furniture' : 'openings';
   if ((stage === 'openings' || stage === 'furniture') && isRoomSection(section)) {
-    const items = roomItems(state, stage);
+    const items = roomItems(project.state, stage);
     if (!items.some((v) => roomTarget(v) === layoutTarget))
       layoutTarget = items[0] ? roomTarget(items[0]) : '';
   }
@@ -717,20 +690,20 @@ function renderControls() {
   let html = '';
   if (editor() === 'cockpit') {
     html = historyPanelHTML(cockpitEditor);
-  } else if (guided || (section === 'desk' && state.deskEnabled === false)) {
+  } else if (guided || (section === 'desk' && project.state.deskEnabled === false)) {
     html = creationControls(
-      state,
+      project.state,
       evaluation,
-      guided ? setup : { ...setup, step: 'desk' },
+      guided ? project.setup : { ...project.setup, step: 'desk' },
       layoutTarget,
       { range, toggle, select },
       selectedArmPose,
     );
   } else if (isRoomSection(section)) {
-    html = roomControls(state, evaluation, layoutTarget, range, toggle, {
+    html = roomControls(project.state, evaluation, layoutTarget, range, toggle, {
       mode: section === 'furniture' ? 'furniture' : 'room',
-      hiddenFurniture: hiddenFurnitureOf(library),
-      layoutCount: library.layouts.length,
+      hiddenFurniture: hiddenFurnitureOf(project.library),
+      layoutCount: project.library.layouts.length,
     });
   } else {
     html = deskPanelHTML(controlView(), layoutTarget, selectedArmPose);
@@ -766,7 +739,7 @@ function renderControls() {
   controlsAll<HTMLInputElement>('input[data-number]').forEach((el) => {
     const key = numericField(el.dataset.key);
     const applyNumber = (commit: boolean) => {
-      const [min, max, step] = fieldSpec(key, state);
+      const [min, max, step] = fieldSpec(key, project.state);
       if (el.value.trim() === '' || !Number.isFinite(Number(el.value))) {
         if (commit) el.value = String(round(controlValue(key), 1));
         return;
@@ -781,7 +754,7 @@ function renderControls() {
       if (
         controlValue(key) !== val ||
         (['armBaseAngle', 'armElbowAngle', 'monitorYaw'].includes(key) &&
-          state.monitorMode !== 'manual')
+          project.state.monitorMode !== 'manual')
       )
         update({ kind: 'number', key, value: val });
       if (commit) el.value = String(round(controlValue(key), 1));
@@ -816,7 +789,7 @@ function renderControls() {
   controlsAll('[data-rotate]').forEach((button) =>
     button.addEventListener('click', () => {
       const key = numericField(layoutTarget + 'Angle');
-      const value = (state[key] + Number(dataOf(button, 'rotate')) + 360) % 360;
+      const value = (project.state[key] + Number(dataOf(button, 'rotate')) + 360) % 360;
       update({ kind: 'number', key, value });
       renderControls();
     }),
@@ -824,7 +797,7 @@ function renderControls() {
   const armPoseName = $optional<HTMLInputElement>('#armPoseName');
   const saveCurrentArmPose = () => {
     try {
-      const next = saveArmPose(state, armPoseName?.value);
+      const next = saveArmPose(project.state, armPoseName?.value);
       selectedArmPose = activeArmPose(next)?.id ?? '';
       changeArm(next);
       toast('Pose saved in this layout.');
@@ -846,11 +819,12 @@ function renderControls() {
     const edge = clampEdgeSelect.value;
     if (edge !== 'xmin' && edge !== 'xmax' && edge !== 'zmin' && edge !== 'zmax')
       throw new Error(`Unknown desk edge: ${edge}`);
-    state.clampSide = edge;
-    const b = deskBounds(state);
-    if (edge === 'xmin' || edge === 'xmax') state.clampX = edge === 'xmin' ? -b.anchorX : b.anchorX;
-    else state.clampZ = edge === 'zmin' ? -b.anchorZ : b.anchorZ;
-    persist();
+    project.state.clampSide = edge;
+    const b = deskBounds(project.state);
+    if (edge === 'xmin' || edge === 'xmax')
+      project.state.clampX = edge === 'xmin' ? -b.anchorX : b.anchorX;
+    else project.state.clampZ = edge === 'zmin' ? -b.anchorZ : b.anchorZ;
+    project.saveNow();
     renderControls();
     refresh();
   });
@@ -858,8 +832,8 @@ function renderControls() {
   deskSizePresetSelect?.addEventListener('change', () => {
     if (deskSizePresetSelect.value === 'custom') return;
     const [width, depth] = deskSizePresetSelect.value.split('x').map(Number);
-    state = resizeDesk(state, width, depth);
-    persist();
+    project.state = resizeDesk(project.state, width, depth);
+    project.saveNow();
     renderControls();
     refresh();
     setActiveView('desk');
@@ -869,8 +843,8 @@ function renderControls() {
   matPresetSelect?.addEventListener('change', () => {
     if (matPresetSelect.value === 'custom') return;
     const [width, depth] = matPresetSelect.value.split('x').map(Number);
-    state = updateDeskItem({ ...state, matWidth: width }, 'matDepth', depth);
-    persist();
+    project.state = updateDeskItem({ ...project.state, matWidth: width }, 'matDepth', depth);
+    project.saveNow();
     renderControls();
     refresh();
   });
@@ -887,7 +861,7 @@ function switchSection(value: Section) {
     (layoutTarget.startsWith('feature:') || layoutTarget.startsWith('furniture:'))
   )
     layoutTarget = 'desk';
-  if (value === 'room' && !roomItem(state, layoutTarget) && layoutTarget !== 'desk')
+  if (value === 'room' && !roomItem(project.state, layoutTarget) && layoutTarget !== 'desk')
     layoutTarget = 'desk';
   $$<HTMLButtonElement>('.config-tabs button').forEach((b) => {
     const active = dataOf(b, 'section') === section;
@@ -906,7 +880,8 @@ function switchSection(value: Section) {
 function showEditor(next: Editor, target: Section = lastSection[next]) {
   const changed = next !== editor();
   switchSection(target);
-  if (changed) setActiveView(next === 'cockpit' || setup.step === 'complete' ? 'iso' : 'top');
+  if (changed)
+    setActiveView(next === 'cockpit' || project.setup.step === 'complete' ? 'iso' : 'top');
 }
 $$('.editor-switch button').forEach((button) =>
   button.addEventListener('click', () => showEditor(editorOf(dataOf(button, 'editor')))),
@@ -916,7 +891,7 @@ const shownMonitorPositions = new WeakMap<Element, string>();
 function refreshMonitorPosition() {
   const area = $optional('#monitorPositionArea');
   if (!area) return;
-  const html = monitorPositionHTML(state, selectedArmPose);
+  const html = monitorPositionHTML(project.state, selectedArmPose);
   if (shownMonitorPositions.get(area) === html) return;
   area.innerHTML = html;
   shownMonitorPositions.set(area, html);
@@ -927,23 +902,23 @@ function refresh() {
   const e = evaluation;
   syncRoomInputs();
   $('#roomInspector').hidden = shown.roomEnabled === false;
-  $('#roomSizeTag').textContent = `${state.roomW} × ${state.roomD}`;
+  $('#roomSizeTag').textContent = `${project.state.roomW} × ${project.state.roomD}`;
   $('#roomChecks').innerHTML = [...e.extra.filter((c) => c.id === 'room'), ...e.room.checks]
     .map(checkRowHTML)
     .join('');
   $('#desktopChecks').innerHTML = e.desktopChecks.map(checkRowHTML).join('');
-  $('#matTag').textContent = `${state.matWidth} × ${state.matDepth}`;
-  $('#deskSizeTag').textContent = `${state.deskWidth} × ${state.deskDepth}`;
+  $('#matTag').textContent = `${project.state.matWidth} × ${project.state.matDepth}`;
+  $('#deskSizeTag').textContent = `${project.state.deskWidth} × ${project.state.deskDepth}`;
   const sizeSelect = $optional<HTMLSelectElement>('#deskSizePreset');
   if (sizeSelect) {
-    const value = `${state.deskWidth}x${state.deskDepth}`;
+    const value = `${project.state.deskWidth}x${project.state.deskDepth}`;
     sizeSelect.value = [...sizeSelect.options].some((o) => o.value === value) ? value : 'custom';
   }
   controlsAll<FieldElement>('[data-key]').forEach((el) => {
     if (!(el instanceof HTMLInputElement)) return;
     if (el.matches('input[type=range]') || el.hasAttribute('data-number')) {
       const key = numericField(el.dataset.key);
-      const [min, max, step] = fieldSpec(key, state);
+      const [min, max, step] = fieldSpec(key, project.state);
       el.min = String(min);
       el.max = String(max);
       el.step = String(step);
@@ -958,15 +933,15 @@ function refresh() {
   });
 
   const mode = $optional<HTMLSelectElement>('#monitorMode');
-  if (mode) mode.value = state.monitorMode;
+  if (mode) mode.value = project.state.monitorMode;
   const bend = $optional<HTMLSelectElement>('#armBend');
-  if (bend) bend.value = state.armBend;
+  if (bend) bend.value = project.state.armBend;
   refreshMonitorPosition();
   const lengths = $optional('#armLengths');
   if (lengths) lengths.textContent = armReachHint(e.armPose);
   const coordinateHint = $optional('[data-desktop-hint]');
   if (coordinateHint)
-    coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${state.deskDepth} cm depth; Z along its ${state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
+    coordinateHint.innerHTML = `Reference: the center of the desktop, which turns with the desk. X runs along its ${project.state.deskDepth} cm depth; Z along its ${project.state.deskWidth} cm width. Select and drag in the <b>Desk</b> or <b>Top</b> views. You can also type the position and rotation here.`;
   $('#spaceChecks').innerHTML = [
     ...e.spaceCheck,
     ...e.extra.filter((c) => c.id !== 'room' && c.level !== 'ok'),
@@ -1013,7 +988,7 @@ function reportUnreadableSave(keptAs: string, text: string) {
 function exportConfig() {
   download(
     'cockpit-lab-design.json',
-    JSON.stringify(projectData(recordedProject()), null, 2),
+    JSON.stringify(projectData(project.recorded()), null, 2),
     'application/json',
   );
   toast('JSON exported. Use Open JSON to bring this design back.');
@@ -1021,7 +996,7 @@ function exportConfig() {
 function summary() {
   $('#summaryTitle').textContent = SUMMARY_HEADING.title;
   $('#summaryDialog .section-kicker').textContent = SUMMARY_HEADING.kicker;
-  $('#summaryContent').innerHTML = summaryHTML(state, evaluation, setup);
+  $('#summaryContent').innerHTML = summaryHTML(project.state, evaluation, project.setup);
   $<HTMLDialogElement>('#summaryDialog').showModal();
 }
 $$('.config-tabs button').forEach((b) =>
@@ -1056,13 +1031,13 @@ const layoutSelect = $<HTMLSelectElement>('#layoutSelect');
 layoutSelect.addEventListener('change', () => {
   const id = layoutSelect.value;
   changeLayouts((layouts) => selectLayout(layouts, id));
-  toast(`Showing the layout ${activeLayout(library).name}`);
+  toast(`Showing the layout ${activeLayout(project.library).name}`);
 });
 type LayoutNameAction = 'duplicate' | 'rename';
 let layoutNameAction: LayoutNameAction = 'duplicate';
 function askLayoutName(action: LayoutNameAction) {
   layoutNameAction = action;
-  const current = activeLayout(library).name;
+  const current = activeLayout(project.library).name;
   const input = $<HTMLInputElement>('#layoutName');
   $('#layoutNameTitle').textContent = action === 'duplicate' ? 'Duplicate layout' : 'Rename layout';
   $('#confirmLayoutName').textContent = action === 'duplicate' ? 'Duplicate' : 'Rename';
@@ -1088,7 +1063,7 @@ $('#deleteLayout').addEventListener('click', () =>
   $<HTMLDialogElement>('#deleteLayoutDialog').showModal(),
 );
 $('#confirmDeleteLayout').addEventListener('click', () => {
-  const deleted = activeLayout(library).name;
+  const deleted = activeLayout(project.library).name;
   changeLayouts((layouts) => deleteLayout(layouts, layouts.activeLayoutId));
   $<HTMLDialogElement>('#deleteLayoutDialog').close();
   toast(`Layout ${deleted} deleted`);
@@ -1099,8 +1074,7 @@ function startNewProject(start: Editor) {
   openProject(createProject());
   layoutTarget = '';
   layoutEditing = false;
-  clearTimeout(pendingSave);
-  persist();
+  project.saveNow();
   $<HTMLDialogElement>('#resetDialog').close();
   if (start === 'room') {
     enterStep('room');
@@ -1148,7 +1122,7 @@ $('#layoutBtn').addEventListener('click', () => {
   $('#layoutBtn').setAttribute('aria-pressed', String(layoutEditing));
   syncSceneEditing();
   if (layoutEditing) {
-    if (setup.step === 'complete' && !isRoomSection(section)) switchSection('desk');
+    if (project.setup.step === 'complete' && !isRoomSection(section)) switchSection('desk');
     setActiveView(desktopTargets.some((t) => t.id === layoutTarget) ? 'desk' : 'top');
   } else setActiveView(view);
 });
@@ -1239,29 +1213,29 @@ $('#controls').addEventListener('click', (event) => {
 function chooseMonitorPositionOf(choice: string) {
   const poseId = choice.startsWith('pose:') ? choice.slice('pose:'.length) : '';
   selectedArmPose = poseId;
-  changeArm(chooseMonitorPosition(state, choice));
-  const pose = state.armPoses.find((candidate) => candidate.id === poseId);
-  if (pose && armPoseMountMoved(state, pose))
+  changeArm(chooseMonitorPosition(project.state, choice));
+  const pose = project.state.armPoses.find((candidate) => candidate.id === poseId);
+  if (pose && armPoseMountMoved(project.state, pose))
     toast(
       `${pose.name} was saved with the arm mounted elsewhere, so the monitor is not where it was.`,
     );
 }
 /** The pose the monitor position shows, if it shows one. */
 function shownArmPose() {
-  const { choice } = monitorPositionOf(state, selectedArmPose);
-  return state.armPoses.find((pose) => choice === `pose:${pose.id}`);
+  const { choice } = monitorPositionOf(project.state, selectedArmPose);
+  return project.state.armPoses.find((pose) => choice === `pose:${pose.id}`);
 }
 function updateSelectedArmPose() {
   const pose = shownArmPose();
   if (!pose) return;
-  changeArm(updateArmPose(state, pose.id));
+  changeArm(updateArmPose(project.state, pose.id));
   toast(`Pose ${pose.name} updated.`);
 }
 function deleteSelectedArmPose() {
   const pose = shownArmPose();
   if (!pose) return;
   selectedArmPose = '';
-  changeArm(deleteArmPose(state, pose.id));
+  changeArm(deleteArmPose(project.state, pose.id));
   toast(`Pose ${pose.name} deleted.`);
 }
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
@@ -1281,12 +1255,12 @@ importFile.addEventListener('change', async () => {
     }
     const opened = readProject(data);
     openProject(opened.project);
-    persist();
+    project.saveNow();
     renderControls();
     refresh();
     $<HTMLDialogElement>('#summaryDialog').close();
-    if (!state.roomEnabled && cockpitEditor.hasDesign()) startWithCockpit();
-    else if (setup.step !== 'complete') enterStep(setup.step);
+    if (!project.state.roomEnabled && cockpitEditor.hasDesign()) startWithCockpit();
+    else if (project.setup.step !== 'complete') enterStep(project.setup.step);
     else {
       switchSection('room');
       setActiveView('iso');
@@ -1345,17 +1319,15 @@ $('#confirmReplaceCockpit').addEventListener('click', () => {
 });
 /** Makes an imported design the project's, in the cockpit editor and in the room. */
 function useImportedDesign(design: CockpitDesign) {
-  clearTimeout(pendingSave);
-  openProject(replaceCockpitDesign(recordedProject(), design));
-  persist();
+  openProject(replaceCockpitDesign(project.recorded(), design));
+  project.saveNow();
   renderControls();
   refresh();
   setActiveView('iso');
   toast('Cockpit file imported.');
 }
 window.addEventListener('pagehide', () => {
-  clearTimeout(pendingSave);
-  persist();
+  project.saveNow();
 });
 $('#setupProgress').addEventListener('click', (event) => {
   const button =
@@ -1363,16 +1335,16 @@ $('#setupProgress').addEventListener('click', (event) => {
   if (button && !button.disabled) enterStep(stepOf(dataOf(button, 'step')));
 });
 $('#setupBack').addEventListener('click', () => {
-  const index = steps.findIndex((s) => s.id === setup.step);
+  const index = steps.findIndex((s) => s.id === project.setup.step);
   if (index > 0) enterStep(steps[index - 1].id);
 });
 $('#setupNext').addEventListener('click', () => {
-  if (setup.step === 'room') $optional<HTMLFormElement>('#setupRoomForm')?.requestSubmit();
+  if (project.setup.step === 'room') $optional<HTMLFormElement>('#setupRoomForm')?.requestSubmit();
   else continueSetup();
 });
 $('#setupSkip').addEventListener('click', () => continueSetup(true));
 $('#newProject').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
-if (setup.step !== 'complete') showWorkspace('config');
+if (project.setup.step !== 'complete') showWorkspace('config');
 renderControls();
 refresh();
 if (loaded.status === 'unreadable') reportUnreadableSave(loaded.keptAs, loaded.text);
@@ -1391,15 +1363,16 @@ try {
   scene.onHandleRelease = () => handleDragging.release();
   scene.onJointMarkerPick = (marker) => cockpitEditor.openJointCard(marker);
   scene.onArmMove = (joint, x, z) => {
-    state = moveArmJoint(state, joint, x, z);
-    queueSave();
+    project.state = moveArmJoint(project.state, joint, x, z);
+    project.saveSoon();
     refresh();
   };
   scene.onLayoutSelect = (target) => {
     layoutTarget = target;
-    if (setup.step === 'complete') {
+    if (project.setup.step === 'complete') {
       switchSection(
-        target.startsWith('furniture:') || roomItem(state, target)?.type === 'wardrobeAccess'
+        target.startsWith('furniture:') ||
+          roomItem(project.state, target)?.type === 'wardrobeAccess'
           ? 'furniture'
           : target.startsWith('feature:')
             ? 'room'
@@ -1410,16 +1383,16 @@ try {
   };
   scene.onLayoutMove = (target, x, z) => {
     const item = desktopTargets.find((t) => t.id === target),
-      previousEdge = clampEdge(state);
+      previousEdge = clampEdge(project.state);
     if (target.startsWith('feature:') || target.startsWith('furniture:'))
-      state = moveRoomTarget(state, target, x, z);
-    else if (item) state = placeDeskItem(state, item.id, x, z);
+      project.state = moveRoomTarget(project.state, target, x, z);
+    else if (item) project.state = placeDeskItem(project.state, item.id, x, z);
     else {
-      state[numericField(target + 'X')] = round(clamp(x, -1500, 1500));
-      state[numericField(target + 'Z')] = round(clamp(z, -1500, 1500));
+      project.state[numericField(target + 'X')] = round(clamp(x, -1500, 1500));
+      project.state[numericField(target + 'Z')] = round(clamp(z, -1500, 1500));
     }
-    queueSave();
-    if (target === 'arm' && previousEdge !== clampEdge(state) && section === 'desk')
+    project.saveSoon();
+    if (target === 'arm' && previousEdge !== clampEdge(project.state) && section === 'desk')
       renderControls();
     refresh();
   };
@@ -1436,6 +1409,6 @@ declare global {
 // Read-only view of the current state and calculations, for checking a configuration.
 // The end-to-end tests read the app through it (e2e/support.ts): keep its shape.
 window.cockpitLab = {
-  getState: () => structuredClone(state),
+  getState: () => structuredClone(project.state),
   getEvaluation: () => structuredClone(evaluation),
 };
