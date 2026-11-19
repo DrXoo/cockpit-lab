@@ -7,8 +7,11 @@ import {
   draftGrowth,
   editDraft,
   editProfile,
+  makesAPart,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
+import type { Axis, BoxMm } from '../src/cad/assembly.ts';
 import { editPlate } from '../src/cad/plates.ts';
 import {
   draftPeripheral,
@@ -19,16 +22,24 @@ import {
 import { addAdjustment, editAdjustment, removeAdjustment } from '../src/cad/adjustments.ts';
 import { fastenWithBolts, fastenWithBrackets } from '../src/cad/fastening.ts';
 import { peripheralType } from '../src/cad/catalog.ts';
-import { designData, readDesign } from '../src/cockpit-design.ts';
+import { designData, emptyDesign, readDesign } from '../src/cockpit-design.ts';
+import { present } from './support/lookups.ts';
 import { plateHistory, railHistory, withPeripheral } from './support/designs.ts';
 
 /** The rail with a seat on the middle of its top: part-2. */
 const seatHistory = () => withPeripheral(railHistory(), 'part-1', 'generic-seat');
-const adjustmentOf = (history, partId) =>
-  history.find((operation) => operation.partId === partId && 'name' in operation).adjustment;
-const designBox = (history, partId) => replayDesign(history).resolved.get(partId).box;
-const fittedBox = (history, partId) => replayDesign(history).fitted.resolved.get(partId).box;
-const shifted = (box, axis, mm) => {
+function adjustmentOf(history: readonly Operation[], partId: string) {
+  const making = present(
+    history.filter(makesAPart).find((operation) => operation.partId === partId),
+    partId,
+  );
+  return 'adjustment' in making ? making.adjustment : undefined;
+}
+const designBox = (history: readonly Operation[], partId: string) =>
+  present(replayDesign(history).resolved.get(partId), partId).box;
+const fittedBox = (history: readonly Operation[], partId: string) =>
+  present(replayDesign(history).fitted.resolved.get(partId), partId).box;
+const shifted = (box: BoxMm, axis: Axis, mm: number) => {
   const moved = { min: { ...box.min }, max: { ...box.max } };
   moved.min[axis] += mm;
   moved.max[axis] += mm;
@@ -37,12 +48,12 @@ const shifted = (box, axis, mm) => {
 
 test('a seat is mounted with the travel of its rails, along the way it faces, at its center', () => {
   const seat = peripheralType('generic-seat');
-  assert.equal(seat.railTravelMm > 0, true);
+  assert.equal(present(seat.railTravelMm, 'rail travel') > 0, true);
   assert.equal(seat.source.kind, 'estimated');
   const draft = draftPeripheral(railHistory(), 'part-1', 'generic-seat');
   assert.deepEqual(draft.adjustment, { axis: 'z', travelMm: seat.railTravelMm, positionMm: 0 });
   const turned = editPeripheralDraft(railHistory(), draft, { facing: '+x' });
-  assert.equal(turned.adjustment.axis, 'x', 'its rails turn with it');
+  assert.equal(present(turned.adjustment, 'adjustment').axis, 'x', 'its rails turn with it');
   const pedals = draftPeripheral(railHistory(), 'part-1', 'generic-pedals');
   assert.equal('adjustment' in pedals, false, 'only a seat comes with one');
 });
@@ -55,7 +66,11 @@ test('a part gets an adjustment along its parent, centered where it is attached'
     withPeripheral(plateHistory(), 'part-2', 'generic-pedals', { facing: '-x' }),
     'part-3',
   );
-  assert.equal(adjustmentOf(pedals, 'part-3').axis, 'x', 'a peripheral slides the way it faces');
+  assert.equal(
+    present(adjustmentOf(pedals, 'part-3'), 'adjustment').axis,
+    'x',
+    'a peripheral slides the way it faces',
+  );
   assert.throws(() => addAdjustment(history, 'part-2'), /already/);
   assert.deepEqual(adjustmentOf(removeAdjustment(history, 'part-2'), 'part-2'), undefined);
 });
@@ -89,10 +104,10 @@ test('an adjustment runs along an axis of the face its part hangs from', () => {
   const history = addAdjustment(plateHistory(), 'part-2');
   assert.throws(() => editAdjustment(history, 'part-2', { axis: 'y' }), /along the face/);
   const across = editAdjustment(history, 'part-2', { axis: 'x', travelMm: 20 });
-  assert.equal(adjustmentOf(across, 'part-2').axis, 'x');
+  assert.equal(present(adjustmentOf(across, 'part-2'), 'adjustment').axis, 'x');
   // Moved to the side of the rail, the plate cannot slide across it out of that face.
   const onTheSide = editPlate(across, 'part-2', { face: '+x' });
-  assert.equal(adjustmentOf(onTheSide, 'part-2').axis, 'z');
+  assert.equal(present(adjustmentOf(onTheSide, 'part-2'), 'adjustment').axis, 'z');
 });
 
 test('a travel that would take its part off its parent at either end is refused', () => {
@@ -106,7 +121,10 @@ test('a travel that would take its part off its parent at either end is refused'
   );
   // A shorter rail leaves the end of the post's travel off it: its step fails.
   const shorter = editProfile(posted, 'part-1', { lengthMm: 520 });
-  assert.match(replayDesign(shorter).failures.get('op-2'), /At one end of its 100 mm travel/);
+  assert.match(
+    present(replayDesign(shorter).failures.get('op-2'), 'failure of op-2'),
+    /At one end of its 100 mm travel/,
+  );
 });
 
 test('a peripheral slides on its mounting, so it only has to stay over its part', () => {
@@ -194,7 +212,7 @@ test('a span that depends on a moved part keeps its length and is reported', () 
   assert.deepEqual(design.fitted.changedSpans, [
     { partId: 'part-4', reachesId: 'part-2', changeMm: -10 },
   ]);
-  const span = design.fitted.resolved.get('part-4');
+  const span = present(design.fitted.resolved.get('part-4'), 'part-4');
   assert.equal(span.lengthMm, 460);
   assert.equal(span.box.max.x, 490);
   assert.deepEqual(replayDesign(history).fitted.changedSpans, []);
@@ -207,7 +225,7 @@ test('swapping a peripheral keeps its adjustment, taking the travel of a seat’
     { travelMm: 300, positionMm: 140 },
   );
   const seat = swapPeripheralType(pedals, 'part-2', 'generic-seat');
-  const { railTravelMm } = peripheralType('generic-seat');
+  const railTravelMm = present(peripheralType('generic-seat').railTravelMm, 'rail travel');
   assert.deepEqual(adjustmentOf(seat, 'part-2'), {
     axis: 'z',
     travelMm: railTravelMm,
@@ -221,9 +239,9 @@ test('swapping a peripheral keeps its adjustment, taking the travel of a seat’
 
 test('an adjustment is saved with its step and read back; a wrong one is refused', () => {
   const history = editAdjustment(seatHistory(), 'part-2', { positionMm: -30 });
-  const data = JSON.parse(JSON.stringify(designData({ history })));
+  const data = JSON.parse(JSON.stringify(designData({ ...emptyDesign(), history })));
   assert.deepEqual(readDesign(data).history, history);
-  const withAdjustment = (adjustment) => ({
+  const withAdjustment = (adjustment: object) => ({
     ...data,
     history: [data.history[0], { ...data.history[1], adjustment }],
   });

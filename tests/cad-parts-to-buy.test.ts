@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import {
+  resolveAssembly,
+  type Face,
+  type FootPart,
+  type PlatePart,
+  type ProfilePart,
+} from '../src/cad/assembly.ts';
+import type { Connector } from '../src/cad/joints.ts';
 import { partsToBuy } from '../src/cad/parts-to-buy.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
-const rail = (id, xMm) => ({
+const rail = (id: string, xMm: number): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -15,7 +22,7 @@ const rail = (id, xMm) => ({
   lengthMm: 1200,
   placement: { kind: 'anchor', startMm: { x: xMm, y: 100, z: 0 } },
 });
-const crossmember = {
+const crossmember: ProfilePart = {
   ...rail('rear', 0),
   name: 'Rear crossmember',
   axis: 'x',
@@ -29,14 +36,14 @@ const crossmember = {
     reachesId: 'right-rail',
   },
 };
-const foot = (id, parentId, footTypeId) => ({
+const foot = (id: string, parentId: string, footTypeId: string): FootPart => ({
   kind: 'foot',
   id,
   name: id,
   footTypeId,
   placement: { kind: 'attachment', parentId, face: '-y', alongMm: 0, fromEnd: 'start' },
 });
-const bracket = (id, side) => ({
+const bracket = (id: string, side: Face): Connector => ({
   id,
   jointId: 'rear@left-rail',
   typeId: 'corner-bracket-40',
@@ -82,7 +89,7 @@ test('a connector on a joint that does not exist is an error', () => {
   assert.throws(() => partsToBuy(resolved, [orphan]), /rear@nowhere/);
 });
 
-const plate = (id, widthMm, depthMm, sheetId) => ({
+const plate = (id: string, widthMm: number, depthMm: number, sheetId: string): PlatePart => ({
   kind: 'plate',
   id,
   name: id,

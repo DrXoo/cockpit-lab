@@ -1,10 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addAnchoredProfile, draftGrowth, editDraft, editProfile } from '../src/cad/history.ts';
+import {
+  addAnchoredProfile,
+  draftGrowth,
+  editDraft,
+  editProfile,
+  type Operation,
+} from '../src/cad/history.ts';
+import type { Vec3Mm } from '../src/cad/assembly.ts';
+import { ofKind, present } from './support/lookups.ts';
 import { draftPlate } from '../src/cad/plates.ts';
-import { draggedHistory, partHandles } from '../src/cad/handles.ts';
+import { draggedHistory, partHandles, type Drag } from '../src/cad/handles.ts';
 import { snapToParts } from '../src/cad/snapping.ts';
-import { draftCornersMm, draftEditedBy, withDraft } from '../src/cad/drafts.ts';
+import { draftCornersMm, draftEditedBy, withDraft, type Draft } from '../src/cad/drafts.ts';
 import { draftPeripheral } from '../src/cad/peripherals.ts';
 import { railHistory } from './support/designs.ts';
 
@@ -14,14 +22,17 @@ const twoRails = () => {
   return editProfile(added.history, added.partId, { startMm: { x: 800, y: 20, z: 0 } });
 };
 /** A profile about to grow out of the rail's +x face, 300 mm long. */
-const growing = (history) =>
+const growing = (history: readonly Operation[]) =>
   editDraft(history, draftGrowth(history, 'part-1'), { face: '+x', lengthMm: 300 });
-const handleOf = (history, draft, id) =>
-  partHandles(withDraft(history, draft, history.length), draft.partId, history.length + 1).find(
-    (handle) => handle.id === `${draft.partId}:${id}`,
+const handleOf = (history: readonly Operation[], draft: Draft, id: string) =>
+  present(
+    partHandles(withDraft(history, draft, history.length), draft.partId, history.length + 1).find(
+      (handle) => handle.id === `${draft.partId}:${id}`,
+    ),
+    `handle ${id}`,
   );
 /** The draft once its handle `id` is dragged as given. */
-const dragged = (history, draft, id, drag) =>
+const dragged = (history: readonly Operation[], draft: Draft, id: string, drag: Drag) =>
   draftEditedBy(history, draft, history.length, (shown) =>
     draggedHistory(shown, handleOf(history, draft, id), drag),
   );
@@ -46,7 +57,7 @@ test('dragging a handle of a part about to be added changes it, and not the desi
   const history = railHistory();
   const draft = growing(history);
   const longer = dragged(history, draft, 'end', { changeMm: 120, symmetric: false });
-  assert.equal(longer.lengthMm, 420);
+  assert.equal(ofKind(longer, 'grow-profile').lengthMm, 420);
   assert.equal(longer.id, draft.id);
   const moved = dragged(history, draft, 'move:z', { changeMm: 100, symmetric: false });
   assert.equal(moved.alongMm, draft.alongMm + 100);
@@ -58,8 +69,11 @@ test('a profile about to grow reaches a part in front of it, and is added as a s
   const draft = growing(history);
   const handle = handleOf(history, draft, 'end');
   const shown = withDraft(history, draft, history.length);
-  const { drag } = snapToParts(shown, handle, { changeMm: 455, symmetric: false }, 10);
-  const span = dragged(history, draft, 'end', drag);
+  const { drag } = present(
+    snapToParts(shown, handle, { changeMm: 455, symmetric: false }, 10),
+    'snapped drag',
+  );
+  const span = ofKind(dragged(history, draft, 'end', drag), 'grow-profile');
   assert.equal(span.reachesId, 'part-2');
   assert.equal(span.lengthMm, 760);
 });
@@ -71,7 +85,7 @@ test('an edit that would put a part about to be added off its parent is refused'
 });
 
 /** The lowest and highest coordinates of some points. */
-const extent = (points) => ({
+const extent = (points: readonly Vec3Mm[]) => ({
   min: {
     x: Math.min(...points.map((p) => p.x)),
     y: Math.min(...points.map((p) => p.y)),

@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { resolveAssembly, type Face, type ProfilePart, type Vec3Mm } from '../src/cad/assembly.ts';
+import type { PartHit } from '../src/cad/picking.ts';
+import { ofKind } from './support/lookups.ts';
 import { measureBetween, nextMeasurePicks } from '../src/cad/measure.ts';
 
 /** A 40 × 40 rail from front to back, 500 mm long, standing on the floor, centered on `x`. */
-const rail = (id, x, { z = 0, tiltDeg } = {}) => ({
+const rail = (
+  id: string,
+  x: number,
+  { z = 0, tiltDeg }: { z?: number; tiltDeg?: number } = {},
+): ProfilePart => ({
   kind: 'profile',
   id,
   name: id,
@@ -19,9 +25,17 @@ const rail = (id, x, { z = 0, tiltDeg } = {}) => ({
     ...(tiltDeg === undefined ? {} : { tiltDeg }),
   },
 });
-const pick = (partId, face, x, y, z) => ({ partId, face, pointMm: { x, y, z } });
-const rounded = (point) =>
-  Object.fromEntries(Object.entries(point).map(([axis, mm]) => [axis, Math.round(mm * 1e6) / 1e6]));
+const pick = (partId: string, face: Face, x: number, y: number, z: number): PartHit => ({
+  partId,
+  face,
+  pointMm: { x, y, z },
+});
+const roundedMm = (mm: number) => Math.round(mm * 1e6) / 1e6;
+const rounded = (point: Vec3Mm): Vec3Mm => ({
+  x: roundedMm(point.x),
+  y: roundedMm(point.y),
+  z: roundedMm(point.z),
+});
 
 // A is x −20…20 and B x 280…320, both y 0…40 and z 0…500 mm.
 const AB = resolveAssembly([rail('a', 0), rail('b', 300)]);
@@ -33,7 +47,7 @@ test('two faces that face each other measure the gap between them', () => {
     pick('b', '-x', 280, 30, 400),
   );
   assert.equal(measurement.kind, 'gap');
-  assert.equal(measurement.gapMm, 260);
+  assert.equal(ofKind(measurement, 'gap').gapMm, 260);
   // Straight across, from where the first face was clicked.
   assert.deepEqual(measurement.fromMm, { x: 20, y: 20, z: 100 });
   assert.deepEqual(measurement.toMm, { x: 280, y: 20, z: 100 });
@@ -46,7 +60,7 @@ test('the gap is drawn where the faces overlap, even if the first click was besi
     pick('a', '+x', 20, 20, 100),
     pick('b', '-x', 280, 20, 600),
   );
-  assert.equal(measurement.gapMm, 260);
+  assert.equal(ofKind(measurement, 'gap').gapMm, 260);
   assert.deepEqual(measurement.fromMm, { x: 20, y: 20, z: 300 });
 });
 
