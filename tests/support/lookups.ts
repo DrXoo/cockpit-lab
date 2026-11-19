@@ -15,6 +15,12 @@ const isOfKind = <T extends { kind: string }, K extends T['kind']>(
   kind: K,
 ): value is OfKind<T, K> => value.kind === kind;
 
+/** The values of `kind`, in their order. */
+export const allOfKind = <T extends { kind: string }, K extends T['kind']>(
+  values: readonly T[],
+  kind: K,
+): OfKind<T, K>[] => values.filter((value) => isOfKind(value, kind));
+
 /** `value`, failing the test when it is missing or not of `kind`. */
 export function ofKind<T extends { kind: string }, K extends T['kind']>(
   value: T | undefined,

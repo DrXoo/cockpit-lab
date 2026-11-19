@@ -9,7 +9,9 @@ import {
   facingParts,
   replayDesign,
   replayHistory,
+  type Operation,
 } from '../src/cad/history.ts';
+import { ofKind, present } from './support/lookups.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 
 /**
@@ -34,7 +36,9 @@ function abc() {
   });
   return addOperation(history, draft);
 }
-const resolvedOf = (history, partId) => resolveAssembly(replayHistory(history)).get(partId);
+const resolvedOf = (history: readonly Operation[], partId: string) =>
+  present(resolveAssembly(replayHistory(history)).get(partId), partId);
+const span = (history: readonly Operation[]) => ofKind(history[2], 'grow-profile');
 
 test('a profile can reach the facing face of the parts in front of its free end', () => {
   assert.deepEqual(facingParts(abc(), 'part-3'), ['part-2']);
@@ -44,10 +48,10 @@ test('a profile can reach the facing face of the parts in front of its free end'
 test('B grows out of A and reaches C, and moving C changes the length of B', () => {
   const spanned = editProfile(abc(), 'part-3', { reachesId: 'part-2' });
   assert.equal(resolvedOf(spanned, 'part-3').lengthMm, 460);
-  assert.equal(spanned[2].lengthMm, 460, 'the operation keeps the length it last took');
+  assert.equal(span(spanned).lengthMm, 460, 'the operation keeps the length it last took');
   const moved = editProfile(spanned, 'part-2', { startMm: { x: 600, y: 20, z: 0 } });
   assert.equal(resolvedOf(moved, 'part-3').lengthMm, 560);
-  assert.equal(moved[2].lengthMm, 560);
+  assert.equal(span(moved).lengthMm, 560);
 });
 
 test('when the faces stop facing, the span keeps its last length and reports its open end', () => {
@@ -61,8 +65,8 @@ test('when the faces stop facing, the span keeps its last length and reports its
 test('detaching the end of a span keeps the length it had', () => {
   const spanned = editProfile(abc(), 'part-3', { reachesId: 'part-2' });
   const free = editProfile(spanned, 'part-3', { reachesId: null });
-  assert.equal(free[2].reachesId, undefined);
-  assert.equal(free[2].lengthMm, 460);
+  assert.equal(span(free).reachesId, undefined);
+  assert.equal(span(free).lengthMm, 460);
   assert.equal(resolvedOf(free, 'part-3').part.placement.kind, 'attachment');
 });
 
@@ -87,5 +91,8 @@ test('a span cannot reach a part that is not in front of it or that hangs from i
 test('a part moved so close that a span reaching it would be too short fails the span', () => {
   const spanned = editProfile(abc(), 'part-3', { reachesId: 'part-2' });
   const close = editProfile(spanned, 'part-2', { startMm: { x: 45, y: 20, z: 0 } });
-  assert.match(replayDesign(close).failures.get('op-3'), /C would be too close to B/);
+  assert.match(
+    present(replayDesign(close).failures.get('op-3'), 'failure of op-3'),
+    /C would be too close to B/,
+  );
 });

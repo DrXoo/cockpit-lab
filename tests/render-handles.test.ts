@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderList, ROOT } from '../src/render-list.ts';
 import { drawHandleStems, handleBallMm } from '../src/render-handles.ts';
+import type { Handle } from '../src/cad/handles.ts';
+import { ofKind } from './support/lookups.ts';
 
-const endHandle = {
+const endHandle: Handle = {
   kind: 'end',
   id: 'part-1:end',
   partId: 'part-1',
@@ -19,20 +21,19 @@ test('a handle stands off the end of its profile, along its length', () => {
 test('a thin stem joins each handle to the end it changes', () => {
   const r = createRenderList();
   drawHandleStems(r, ROOT, [endHandle]);
-  const rounded = (values) => values.map((value) => Math.round(value * 1000) / 1000);
+  const rounded = (values: readonly number[]) =>
+    values.map((value) => Math.round(value * 1000) / 1000);
   assert.deepEqual(
-    r.primitives.map((stem) => [
-      stem.kind,
-      rounded(stem.size),
-      rounded(stem.position),
-      stem.material,
-    ]),
+    r.primitives.map((stem) => {
+      assert.equal(stem.kind, 'box');
+      return [stem.kind, rounded(stem.size), rounded(stem.position), stem.material];
+    }),
     [['box', [0.3, 0.3, 4], [0, 2, 102], 'hover']],
   );
 });
 
 test('a move handle sits at the center of its part, with no stem', () => {
-  const move = {
+  const move: Handle = {
     kind: 'move',
     id: 'part-1:move:x',
     partId: 'part-1',
@@ -47,7 +48,7 @@ test('a move handle sits at the center of its part, with no stem', () => {
 });
 
 test('a travel handle sits at the center of its part, on a line along its travel with its center marked', () => {
-  const travel = {
+  const travel: Handle = {
     kind: 'travel',
     id: 'part-2:travel',
     partId: 'part-2',
@@ -77,6 +78,10 @@ test('a travel handle sits at the center of its part, on a line along its travel
       ],
     ],
   );
-  const material = r.primitives.find((shape) => shape.kind === 'material');
-  assert.equal(material.spec.onTop, true, 'drawn over the parts it lies in');
+  const { spec } = ofKind(
+    r.primitives.find((shape) => shape.kind === 'material'),
+    'material',
+  );
+  assert.equal(spec.kind, 'dashed');
+  assert.equal(spec.onTop, true, 'drawn over the parts it lies in');
 });

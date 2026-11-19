@@ -24,7 +24,6 @@
     "tests/cad-assembly.test.ts",
     "tests/cad-drafts.test.ts",
     "tests/cad-driver.test.ts",
-    "tests/cad-feet.test.ts",
     "tests/cad-handles.test.ts",
     "tests/cad-measure.test.ts",
     "tests/cad-parts-to-buy.test.ts",
@@ -32,7 +31,6 @@
     "tests/cad-picking.test.ts",
     "tests/cad-replay.test.ts",
     "tests/cad-snapping.test.ts",
-    "tests/cad-spans.test.ts",
     "tests/cockpit-design.test.ts",
     "tests/cockpit-editor-view.test.ts",
     "tests/layout-picking.test.ts",
@@ -43,11 +41,8 @@
     "tests/render-cad-dimensions.test.ts",
     "tests/render-cad.test.ts",
     "tests/render-desk.test.ts",
-    "tests/render-handles.test.ts",
-    "tests/render-model.test.ts",
     "tests/render-room.test.ts",
     "tests/room.test.ts",
-    "tests/undo.test.ts",
     "tests/wardrobe-access.test.ts"
   ]
 }

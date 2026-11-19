@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderModel } from '../src/render-model.ts';
+import { renderModel, type RenderModel, type RenderOptions } from '../src/render-model.ts';
+import type { RoomConfig } from '../src/config.ts';
+import { allOfKind, ofKind, present } from './support/lookups.ts';
 import { ROOT } from '../src/render-list.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import { degToRad } from '../src/geometry.ts';
@@ -15,18 +17,18 @@ import {
 } from '../src/cad/history.ts';
 import { partHandles } from '../src/cad/handles.ts';
 
-const options = {
+const options: RenderOptions = {
   view: 'iso',
   layoutEditing: false,
   layoutTarget: 'desk',
   roomFloor: '#e5e9dd',
 };
-const render = (changes = {}, extra = {}) => {
+const render = (changes: Partial<RoomConfig> = {}, extra: Partial<RenderOptions> = {}) => {
   const state = { ...defaults, ...changes };
   return { state, model: renderModel(state, evaluate(state), { ...options, ...extra }) };
 };
-const topGroups = (model) =>
-  model.primitives.filter((p) => p.kind === 'group' && p.parent === ROOT);
+const topGroups = (model: RenderModel) =>
+  allOfKind(model.primitives, 'group').filter((p) => p.parent === ROOT);
 
 test('the desk is drawn in its own placement', () => {
   const { state, model } = render({ deskAngle: -15 });
@@ -37,16 +39,16 @@ test('the desk is drawn in its own placement', () => {
 
 test('all measurements share one group that can be hidden without rebuilding', () => {
   const { model } = render({ roomEnabled: true });
-  const groups = model.primitives.filter((p) => p.role === 'dimensions');
+  const groups = allOfKind(model.primitives, 'group').filter((p) => p.role === 'dimensions');
   assert.equal(groups.length, 1);
   const dimensions = groups[0].id;
-  const measured = model.primitives.filter((p) => p.kind === 'group' && p.parent === dimensions);
+  const measured = allOfKind(model.primitives, 'group').filter((p) => p.parent === dimensions);
   assert.ok(measured.length >= 2, 'desk and room measurements');
 });
 
 test('a hidden room is still a group, so the views can rely on it', () => {
   const { model } = render({ roomEnabled: false });
-  const room = topGroups(model).at(-1);
+  const room = present(topGroups(model).at(-1), 'room group');
   assert.equal(room.visible, false);
 });
 
@@ -69,8 +71,8 @@ test('a cockpit design shown on its own is drawn at the origin, with its selecte
   const history = addAnchoredProfile(addAnchoredProfile([]).history).history;
   const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-2' };
   const { model } = render(NOTHING_AROUND, { cockpit });
-  const bars = model.primitives.filter(
-    (p) => p.kind === 'box' && p.parent === ROOT && ['silver', 'selected'].includes(p.material),
+  const bars = allOfKind(model.primitives, 'box').filter(
+    (p) => p.parent === ROOT && (p.material === 'silver' || p.material === 'selected'),
   );
   assert.deepEqual(
     bars.map((bar) => bar.material),
@@ -83,8 +85,11 @@ test('the selected part shows its length with the other dimensions, which can be
   const history = addAnchoredProfile([]).history;
   const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-1' };
   const { model } = render(NOTHING_AROUND, { cockpit });
-  const dimensions = model.primitives.find((p) => p.kind === 'group' && p.role === 'dimensions');
-  const measured = model.primitives.filter((p) => p.kind === 'line' && p.material === 'dim');
+  const dimensions = present(
+    allOfKind(model.primitives, 'group').find((p) => p.role === 'dimensions'),
+    'dimensions group',
+  );
+  const measured = allOfKind(model.primitives, 'line').filter((p) => p.material === 'dim');
   assert.ok(measured.length > 0);
   assert.ok(measured.every((line) => line.parent === dimensions.id));
   assert.deepEqual(
@@ -102,7 +107,10 @@ test('a measurement is drawn apart from the dimensions, so hiding them keeps it'
     measure: { points: [at], measurement: null },
   };
   const { model } = render(NOTHING_AROUND, { cockpit });
-  const marker = model.primitives.find((p) => p.kind === 'sphere');
+  const marker = ofKind(
+    model.primitives.find((p) => p.kind === 'sphere'),
+    'sphere',
+  );
   assert.equal(marker.parent, ROOT);
 });
 
@@ -110,9 +118,9 @@ test('the handles of the selected part are drawn with the design, as stems to th
   const history = addAnchoredProfile([]).history;
   const handles = partHandles(history, 'part-1');
   const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-1' };
-  const stems = (drawing) =>
-    render(NOTHING_AROUND, { cockpit: drawing }).model.primitives.filter(
-      (p) => p.kind === 'box' && p.material === 'hover',
+  const stems = (drawing: RenderOptions['cockpit']) =>
+    allOfKind(render(NOTHING_AROUND, { cockpit: drawing }).model.primitives, 'box').filter(
+      (p) => p.material === 'hover',
     );
   assert.equal(stems(cockpit).length, 0);
   assert.equal(stems({ ...cockpit, handles }).length, 2, 'the two ends; a move handle has none');
@@ -127,7 +135,10 @@ test('a profile being placed shows its own length, even with dimensions hidden',
     placedPartId: growing.partId,
   };
   const { model } = render(NOTHING_AROUND, { cockpit });
-  const length = model.labels.find((label) => label.measures === 'part-length');
+  const length = present(
+    model.labels.find((label) => label.measures === 'part-length'),
+    'part length',
+  );
   assert.equal(length.text, '300 mm');
   assert.equal(length.alwaysShown, true);
   assert.equal(model.labels.filter((label) => label.measures === 'part-length').length, 1);

@@ -12,14 +12,17 @@ import {
   facingParts,
   removePart,
   replayDesign,
+  type Operation,
 } from '../src/cad/history.ts';
+import { ofKind, present } from './support/lookups.ts';
 import { unsupportedParts } from '../src/cad/support.ts';
 
 /** A: a 40 × 40 rail front to back, 1000 mm long, lying on the floor. */
 function rail() {
   return editProfile(addAnchoredProfile([]).history, 'part-1', { name: 'A', lengthMm: 1000 });
 }
-const resolvedOf = (history, partId) => replayDesign(history).resolved.get(partId);
+const resolvedOf = (history: readonly Operation[], partId: string) =>
+  present(replayDesign(history).resolved.get(partId), partId);
 
 test('a foot goes under the start of a profile, flush with its end', () => {
   const { history, partId } = addFoot(rail(), 'part-1');
@@ -43,15 +46,15 @@ test('a foot goes under the start of a profile, flush with its end', () => {
 test('the next foot goes under the end that has fewer', () => {
   const first = addFoot(rail(), 'part-1').history;
   const second = addFoot(first, 'part-1').history;
-  assert.equal(second[2].fromEnd, 'end');
+  assert.equal(ofKind(second[2], 'add-foot').fromEnd, 'end');
   assert.equal(resolvedOf(second, 'part-3').box.max.z, resolvedOf(second, 'part-1').box.max.z);
-  assert.equal(addFoot(second, 'part-1').history[3].fromEnd, 'start');
+  assert.equal(ofKind(addFoot(second, 'part-1').history[3], 'add-foot').fromEnd, 'start');
 });
 
 test('a foot under an upright stands under its end', () => {
   const upright = editProfile(rail(), 'part-1', { axis: 'y' });
   const { history } = addFoot(upright, 'part-1');
-  assert.equal(history[1].alongMm, 0);
+  assert.equal(ofKind(history[1], 'add-foot').alongMm, 0);
   assert.equal(resolvedOf(history, 'part-2').box.max.y, resolvedOf(history, 'part-1').box.min.y);
 });
 
@@ -81,13 +84,16 @@ test('a profile shortened so that its foot would hang off fails the foot', () =>
   const { history } = addFoot(rail(), 'part-1');
   const moved = editFoot(history, 'part-2', { alongMm: 900 });
   const shortened = editProfile(moved, 'part-1', { lengthMm: 500 });
-  assert.match(replayDesign(shortened).failures.get('op-2'), /Leveling foot 2 would hang off A/);
+  assert.match(
+    present(replayDesign(shortened).failures.get('op-2'), 'failure of op-2'),
+    /Leveling foot 2 would hang off A/,
+  );
 });
 
 test('a foot fails when its profile is deleted, and goes with it when it is removed', () => {
   const { history } = addFoot(rail(), 'part-1');
   assert.match(
-    replayDesign(deleteOperation(history, 'op-1')).failures.get('op-2'),
+    present(replayDesign(deleteOperation(history, 'op-1')).failures.get('op-2'), 'failure of op-2'),
     /stands under a part that was deleted/,
   );
   const removed = replayDesign(removePart(history, 'part-1'));
