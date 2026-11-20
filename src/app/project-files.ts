@@ -8,6 +8,7 @@ import {
 import type { CockpitDesign } from '../cockpit/design.ts';
 import type { CockpitEditor } from '../cockpit/editor/editor.ts';
 import { $ } from '../ui/dom.ts';
+import { downloadText } from '../ui/download.ts';
 import {
   projectData,
   readProject,
@@ -35,14 +36,7 @@ export interface ProjectFilesHost {
   showSaveStatus(message: string, status: SaveStatus): void;
 }
 
-function download(filename: string, text: string) {
-  const blob = new Blob([text], { type: JSON_TYPE });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
+const download = (filename: string, text: string) => downloadText(filename, text, JSON_TYPE);
 
 /** Whether a file is a cockpit file rather than a project, from its own description. */
 const isCockpitFile = (data: unknown): boolean =>
