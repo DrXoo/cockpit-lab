@@ -90,7 +90,23 @@ _Avoid_: device, controller, accessory (accessories are on the desk)
 
 **Mounting pattern**:
 The holes a peripheral is bolted through, placed relative to its own mounting origin.
-_Avoid_: hole pattern (for the plate's own holes), VESA (except for monitors)
+_Avoid_: hole pattern, VESA (except for monitors)
+
+**Plate hole**:
+A hole or slot cut through a plate, always put there by something else: a **Mounting hole** or a **Fastening hole**. A plate has no holes of its own.
+_Avoid_: own hole, custom hole, drilling
+
+**Fabrication process**:
+How a plate is cut and drilled, such as laser cutting or drilling by hand, which decides whether it can have slots and how close its holes may come to its edge and to each other. Each plate has its own.
+_Avoid_: machining, manufacturing method, tolerance profile
+
+**Mounting hole**:
+A **Plate hole** that a peripheral mounted on the plate puts there, one for each hole of its **Mounting pattern**, where it is mounted.
+_Avoid_: peripheral hole, seat hole
+
+**Fastening hole**:
+A **Plate hole** that a bolt fastening the plate to a profile goes through, over a slot of the profile's face.
+_Avoid_: plate bolt hole, frame hole
 
 **Contact point**:
 Where the driver meets a peripheral: the hip and backrest on the seat, the hands on the wheel or grips, the heels on the pedals.
@@ -113,7 +129,7 @@ A bolt or T-nut a connector needs, counted from the connector's type rather than
 _Avoid_: hardware (for a single bolt), screw
 
 **Adjustment**:
-An **Attachment** with a travel, along which its part moves without changing any part, as a seat on its rails or a plate in its slots.
+An **Attachment** with a travel, along which its part moves without changing any part, as a seat on its rails, pedals in slots of their plate or a plate on T-nuts in a profile's slot.
 _Avoid_: slider, setting, degree of freedom
 
 **Fitting**:
@@ -177,7 +193,8 @@ _Avoid_: wizard, onboarding
 - A new **Cockpit design** starts empty, and its first **Part** is an **Anchored part**. A design starts from one or more **Anchored parts**; every other **Part** has exactly one **Attachment**, to a part that is anchored or attached in turn.
 - A **Span** takes its position from its **Attachment** and its length from the part it reaches. It never reaches a part that depends on it, so moving either part has one answer. If the faces stop facing each other, the span keeps its last length and reports the open end.
 - A **Peripheral** hangs from a **Plate** or a **Profile**, with its mounting face on one of their faces, on any side; it is the only part that hangs from a plate.
-- A **Peripheral** mounted on a **Plate** puts its **Mounting pattern** into the plate as holes that follow it; with an **Adjustment** on the plate, they become slots that cover its travel. A plate can have holes and slots of its own as well.
+- A **Peripheral** mounted on a **Plate** puts its **Mounting pattern** into the plate as **Mounting holes** that follow it. A peripheral's **Adjustment** runs either on its own rails, which are bolted to the plate, or in slots of the plate: then each of its mounting holes is a slot that covers the travel. A seat whose type has rails runs on them by default. Anywhere else an adjustment slides on T-nuts in a profile's slot, and its holes stay round.
+- A **Plate** fastened to a profile by bolts has a **Fastening hole** for each bolt. A plate has no holes of its own: every **Plate hole** follows what puts it there.
 - Every **Part** has a name, which is the user's data like a furniture name and may repeat; interference and warnings name the part by it. The parts to buy group **Profiles** by **Cut** and list the names under each.
 - Every **Attachment** and each end of a **Span** that meets its part make a **Joint**, except a **Foot**'s, which its own adapter fastens, and a **Peripheral**'s, bolted through its **Mounting pattern**; a peripheral is supported by the part it is mounted on. Parts that only touch make none until the user adds one. The parts to buy come from the resolved joints, and the unresolved ones are listed as pending.
 - Every **Profile** belongs to one **Profile system**, and a **Connector** fits the profile systems its data sheet names. Catalog dimensions say whether they come from a data sheet or were measured.

@@ -22,11 +22,11 @@ Every attachment and each end of a span make a joint, unresolved until it has co
 
 ## The driver in the CAD
 
-Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate in its slots; the editor shows the design's adjustments, and anything else about the posture changes by editing parts.
+Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate on T-nuts in its profiles' slots; the editor shows the design's adjustments, and anything else about the posture changes by editing parts.
 
 A design is replayed with every part at the center of its travel, and the fitted pose then moves each adjusted part, and what hangs from it, to its position (`src/cockpit/cad/history/travel.ts`). The design at the centers is what is built and bought: joints, connectors, cuts, parts to buy, the checks of every step, the drafts' parents and snapping. The fitted pose is what the driver sits in: the drawing, the handles, the joint markers' positions, measuring and interference. A new consumer of the geometry picks one of the two for that reason.
 
-A peripheral mounted on a plate puts its mounting pattern into the plate as holes that follow it, and slots that cover the travel of an adjustment. The plate can have holes and slots of its own as well.
+A peripheral mounted on a plate puts its mounting pattern into the plate as holes that follow it, or slots that cover its travel when its adjustment runs in slots of the plate rather than on its own rails; each bolt that fastens the plate to a profile puts a hole there too. A plate has no holes of its own ([ADR 0006](adr/0006-a-plate-has-only-derived-holes.md)).
 
 ## Catalog
 
@@ -40,7 +40,7 @@ All CAD dimensions are stored in mm. Each part has a stable identifier and a nam
 | --- | --- |
 | Profile system | Supplier, series, slot, sections, connectors that fit and data sources |
 | Profile | Name, system and section, length, attachment or anchor, machining |
-| Plate | Name, outline, thickness, own holes and slots, attachment |
+| Plate | Name, outline, sheet, fabrication process, attachment; its holes and slots are derived |
 | Peripheral | Name, envelope, mounting pattern, contact points, travel, data source |
 | Foot | Leveling foot or caster under a profile |
 | Joint | The two parts and faces it joins, and its connectors |
@@ -125,7 +125,24 @@ Built in slices, each usable in the browser when it lands:
 
 ### 6. Plate drawings and holes
 
-Edit the outline, holes, arrays and slots in a 2D view, with the holes the plate's bolts need and the holes and slots that mounted peripherals put there; check that a slot covers its adjustment's travel. Validate features outside the outline, overlaps and minimum distances to the edge configured for the fabrication process. DXF/SVG files must rebuild the same dimensions when reopened, without duplicate cuts. The thickness and fabrication notes go with the drawing; a 2D DXF does not encode them by itself. Outlines other than a rectangle, drawn as straight segments with their lengths and turning angles, come when a design needs one.
+Planned in November 2026: a plate gets its holes and slots, a drawing to check them against how it is made, and the files to have it cut or drilled. Nothing in the drawing is edited.
+
+- **Holes.** A plate has only derived holes ([ADR 0006](adr/0006-a-plate-has-only-derived-holes.md)): a mounting hole for each hole of the mounting pattern of a peripheral mounted on it, and a fastening hole for each bolt of its joints to profiles. Each takes its diameter from what puts it there: the pattern's diameter is the hole cut in the plate, clearance included, and the plate bolt's type gets a clearance diameter in the catalog, 9 mm for M8 (ISO 273 medium series, estimated). Holes stay where the design puts its parts at the center of their travel, as fitting never moves them.
+- **Slots.** A peripheral's adjustment runs either on its own rails, bolted to the plate, or in slots of the plate; a seat whose type has rails runs on them by default. In slots, each mounting hole becomes a slot along the adjustment's axis, as wide as the hole and as long as the travel plus the hole's diameter. A part that slides on T-nuts in a profile's slot, as a plate or a peripheral on a profile does, puts no slots anywhere.
+- **Fabrication process.** A small catalog of processes, with estimated values and their source: laser or water-jet cutting, which cuts slots and wants at least the sheet's thickness between a hole and the edge or another hole; and drilling by hand, which cuts no slots and wants 1.5 diameters from a hole's center to the edge and more between holes. Each plate stores its process in its step, laser cutting by default.
+- **Checks.** Listed with the design's checks and marked ⚠ in the drawing, never refusing an edit: a hole or slot outside the outline or crossing it; too close to the edge for the plate's process; overlapping or too close to another, with the distance; a slot the process cannot cut; and a mounting hole over the profile the plate rests on, where the bolt has no room for its nut, unless it is over one of the profile's slots, where it takes a T-nut (a slot must lie wholly over the profile's slot or wholly off the profile).
+- **Drawing.** A **Drawing** view beside 3D, Top and Side, for a selected plate, replaces the 3D view with the plate seen from its face away from the profile, its depth up the page towards + on its axis, and an arrow saying which way that is on the cockpit, as the driver names it (↑ front, ↑ up): an asymmetric pattern on a plate turned over is mirrored. It is the same SVG the plate exports, with dimensions and each hole named after what puts it there, shown on hover or click. The inspector keeps showing the plate, with its process and the exports. Holes are drawn on the plate in the 3D views as well, as a reference.
+- **Exports.** A DXF for a cutting shop: one file per plate, in mm, R12, with the outline as a closed polyline, each hole as a circle and each slot as a closed polyline of two lines and two arcs, nothing repeated, and no dimensions or text a shop might cut. An SVG at 1:1, to print and stick on the sheet as a drilling template, with dimensions, center marks, the orientation arrow, the side it is seen from and a 100 mm scale bar to check the print. The thickness, sheet, process and name go in the file name and on the SVG; quantities are in the parts to buy. A test reads the exported DXF back and checks that it rebuilds the plate's outline and holes with no duplicate entities; the app does not import DXF.
+- **Format.** Version 5 grows, without a new version: how a peripheral's adjustment runs, and a plate's process. Designs saved before open unchanged, with laser cutting and seats on their rails.
+
+Outlines other than a rectangle, drawn as straight segments with their lengths and turning angles, and holes of a plate's own come when a design needs them.
+
+Built in slices, each usable in the browser when it lands:
+
+1. **Holes and the Drawing view.** Mounting and fastening holes with their diameters, the bolt's clearance diameter in the catalog, drawn on the plate in 3D and in the Drawing view with dimensions, sources and the orientation arrow; the plate part's empty own holes go.
+2. **Slots.** Rails or slots for a peripheral's adjustment, chosen in its inspector in Fit; slots in the drawing; the format grows.
+3. **Process and checks.** The process catalog, a plate's process in its inspector, and the five checks in the design's checks and the drawing; the format grows.
+4. **Exports.** The DXF and the SVG template, and the test that reads the DXF back.
 
 ### 7. Switching between racing and flight
 
