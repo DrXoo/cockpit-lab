@@ -37,3 +37,7 @@ export function ofKind<T extends { kind: string }, K extends T['kind']>(
   assert.ok(isOfKind(value, kind), `Expected a ${kind}, found a ${value.kind}.`);
   return value;
 }
+
+/** The text `pattern` captures in `text`, failing the test when it matches nothing. */
+export const captured = (pattern: RegExp, text: string, group = 1): string =>
+  present(pattern.exec(text)?.[group], `a match of ${pattern}`);

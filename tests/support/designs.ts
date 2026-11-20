@@ -15,6 +15,13 @@ import {
 import { draftPeripheral, editPeripheralDraft } from '../../src/cockpit/cad/history/peripherals.ts';
 import { draftPlate, editPlateDraft } from '../../src/cockpit/cad/history/plates.ts';
 
+/** `count` anchored 40 × 40 profiles with the values the editor gives them: part-1 onwards. */
+export function anchoredProfiles(count: number): Operation[] {
+  let history: Operation[] = [];
+  for (let added = 0; added < count; added++) history = addAnchoredProfile(history).history;
+  return history;
+}
+
 /** A 40 × 40 rail named Rail, 1000 mm long, running along z from the origin: part-1. */
 export function railHistory(): Operation[] {
   const { history, partId } = addAnchoredProfile([]);
@@ -53,4 +60,15 @@ export function withPeripheral(
 ): Operation[] {
   const draft = draftPeripheral(history, parentId, typeId);
   return addOperation(history, editPeripheralDraft(history, draft, changes));
+}
+
+/**
+ * Rail A (part-1), 1000 mm long; rail C (part-2), 500 mm to its left; and B (part-3), grown out
+ * of A's left side towards C, free at its own length.
+ */
+export function growthTowardsRail(): Operation[] {
+  let history = anchoredProfiles(2);
+  history = editProfile(history, 'part-1', { name: 'A', lengthMm: 1000 });
+  history = editProfile(history, 'part-2', { name: 'C', startMm: { x: 500, y: 20, z: 0 } });
+  return withGrowth(history, 'part-1', { name: 'B', face: '+x', alongMm: 250 });
 }
