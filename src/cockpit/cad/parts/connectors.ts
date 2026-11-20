@@ -152,6 +152,20 @@ export function placedBolts(
   return placed;
 }
 
+/**
+ * Where the center line of each slot of a profile's face is, along `across`, the axis of the
+ * face across the profile: the slots of a series sit one module apart, centered on the face, as
+ * they are drawn.
+ */
+export function slotCentersAcross(profile: ResolvedPart, across: Axis): number[] {
+  if (profile.part.kind !== 'profile') throw new Error(`${profile.part.name} is not a profile.`);
+  const system = profileSystem(profile.part.systemId);
+  const faceMin = profile.box.min[across];
+  const faceWidthMm = profile.box.max[across] - faceMin;
+  const count = Math.max(1, Math.round(faceWidthMm / system.series));
+  return Array.from({ length: count }, (_, slot) => faceMin + ((slot + 0.5) * faceWidthMm) / count);
+}
+
 /** The slots of a profile's face a plate covers, where bolts go, and the axes they lie along. */
 interface CoveredSlots {
   /** The profile's length, along which the bolts of a slot are spaced. */
@@ -182,15 +196,8 @@ export function coveredSlots(
   const along = profile.axis;
   if (along === normal) return `${plate.name} meets the end of ${profile.name}, which has no slot.`;
   const across = AXES.find((axis) => axis !== normal && axis !== along) ?? 'x';
-  const faceMin = met.box.min[across];
-  const faceWidthMm = met.box.max[across] - faceMin;
-  // The slots of a series sit one module apart, centered on the face, as they are drawn.
-  const count = Math.max(1, Math.round(faceWidthMm / system.series));
   const halfHead = type.headWidthMm / 2;
-  const centersMm = Array.from(
-    { length: count },
-    (_, slot) => faceMin + ((slot + 0.5) * faceWidthMm) / count,
-  ).filter(
+  const centersMm = slotCentersAcross(met, across).filter(
     (centerMm) =>
       centerMm - halfHead >= joined.box.min[across] - REST_TOLERANCE_MM &&
       centerMm + halfHead <= joined.box.max[across] + REST_TOLERANCE_MM,
