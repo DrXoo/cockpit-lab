@@ -1,6 +1,6 @@
 // The keys of the cockpit editor. Escape drops what is waiting, being measured or being added;
-// Enter confirms it; Delete removes the selected part; Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z)
-// undo and redo. In a text field they keep editing its text.
+// Enter confirms it; R turns a profile about to grow; Delete removes the selected part; Ctrl+Z
+// and Ctrl+Y (or Ctrl+Shift+Z) undo and redo. In a text field they keep editing its text.
 import { deleteKeyAction } from './part-tools.ts';
 import type { CockpitEditor } from './editor.ts';
 
@@ -48,6 +48,12 @@ export function bindCockpitKeys(editor: CockpitEditor, shown: () => boolean) {
     if (event.key === 'Enter' && session.draft !== null && !onAButton) {
       event.preventDefault();
       editor.confirmDraft();
+      return;
+    }
+    const plainKey = !event.ctrlKey && !event.metaKey && !event.altKey;
+    if (event.key.toLowerCase() === 'r' && plainKey && session.draft !== null) {
+      event.preventDefault();
+      editor.turnDraft();
       return;
     }
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return;

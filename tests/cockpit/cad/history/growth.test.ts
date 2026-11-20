@@ -6,10 +6,12 @@ import {
   growthAt,
   replayDesign,
   replayHistory,
+  turnedGrowth,
+  type GrowthWay,
   type Operation,
 } from '../../../../src/cockpit/cad/history/history.ts';
 import { resolveAssembly } from '../../../../src/cockpit/cad/parts/assembly.ts';
-import { railHistory, withGrowth } from '../../../support/designs.ts';
+import { growthTowardsRail, railHistory, withGrowth } from '../../../support/designs.ts';
 import { ofKind, present } from '../../../support/lookups.ts';
 
 const boxOf = (history: readonly Operation[], partId: string) =>
@@ -168,9 +170,52 @@ test('a profile can lie along a face, running the way it is given from its place
   });
   const sideways = withGrowth(railHistory(), 'part-1', { way: '-x', lengthMm: 300 });
   assert.deepEqual(boxOf(sideways, 'part-2'), {
-    min: { x: -300, y: 40, z: 480 },
-    max: { x: 0, y: 80, z: 520 },
+    min: { x: -280, y: 40, z: 480 },
+    max: { x: 20, y: 80, z: 520 },
   });
+});
+
+test('a profile turned to lie across its parent starts at its edge, so it crosses all of it', () => {
+  const across = withGrowth(railHistory(), 'part-1', { way: '+x', lengthMm: 300 });
+  assert.equal(growth(across).acrossMm, -20);
+  assert.deepEqual(boxOf(across, 'part-2'), {
+    min: { x: -20, y: 40, z: 480 },
+    max: { x: 280, y: 80, z: 520 },
+  });
+  assert.equal(growth(editProfile(across, 'part-2', { way: '-x' })).acrossMm, 20);
+  const placed = withGrowth(railHistory(), 'part-1', { way: '+x', acrossMm: 0 });
+  assert.equal(growth(placed).acrossMm, 0, 'an offset given with the way is kept');
+});
+
+test('a profile turned upright, or along its parent, goes back to the middle of the face', () => {
+  const across = withGrowth(railHistory(), 'part-1', { way: '+x' });
+  assert.equal(growth(editProfile(across, 'part-2', { way: 'out' })).acrossMm, 0);
+  assert.equal(growth(editProfile(across, 'part-2', { way: '+z' })).acrossMm, 0);
+  const offset = withGrowth(railHistory(), 'part-1', { acrossMm: 10 });
+  assert.equal(
+    growth(editProfile(offset, 'part-2', { way: '+z' })).acrossMm,
+    10,
+    'a turn that never lies across the parent keeps the offset',
+  );
+});
+
+test('turning a profile about to grow goes through every way, across its parent first', () => {
+  const history = railHistory();
+  const ways: GrowthWay[] = [];
+  let draft = draftGrowth(history, 'part-1');
+  for (let turn = 0; turn < 5; turn++) {
+    draft = turnedGrowth(history, draft);
+    ways.push(draft.way);
+  }
+  assert.deepEqual(ways, ['+x', '-x', '+z', '-z', 'out']);
+});
+
+test('turning a span to lie on its face lets its end go', () => {
+  const history = editProfile(growthTowardsRail(), 'part-3', { reachesId: 'part-2' });
+  const span = ofKind(history[2], 'grow-profile');
+  const turned = turnedGrowth(history, span);
+  assert.equal(turned.way, '+y');
+  assert.equal(turned.reachesId, undefined);
 });
 
 test('a profile lying on a face rests its whole section on it', () => {

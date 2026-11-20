@@ -12,7 +12,12 @@ import {
   type ResolvedPart,
   type Vec3Mm,
 } from '../parts/assembly.ts';
-import { footType, MOTEDIS_SERIES_40_SLOT_8, profileSection } from '../parts/catalog.ts';
+import {
+  footType,
+  MOTEDIS_SERIES_40_SLOT_8,
+  profileSection,
+  profileSystem,
+} from '../parts/catalog.ts';
 import { replayDesign } from './replay.ts';
 import { adjustmentOnFace } from './travel.ts';
 import {
@@ -378,6 +383,7 @@ function editedGrowth(
   const parent = operationMaking(history, operation.parentId);
   const parentAxis = parent && makesAProfile(parent) ? lengthAxisOf(parent) : faceAxis(face);
   const adjustment = adjustmentOnFace(operation.adjustment, face, parentAxis);
+  const way = changes.way ?? keptLying(history, operation, face);
   const edited = onItsFace(history, {
     kind: operation.kind,
     id: operation.id,
@@ -387,8 +393,8 @@ function editedGrowth(
     face,
     fromEnd: changes.fromEnd ?? operation.fromEnd,
     alongMm: changes.alongMm ?? operation.alongMm,
-    acrossMm: changes.acrossMm ?? operation.acrossMm,
-    way: changes.way ?? keptLying(history, operation, face),
+    acrossMm: changes.acrossMm ?? acrossAfterTurn(parent, operation, face, way),
+    way,
     ...(adjustment === undefined ? {} : { adjustment }),
   });
   return reachesId === undefined ? edited : { ...edited, reachesId };
@@ -479,6 +485,61 @@ function keptLying(history: readonly Operation[], operation: GrowProfile, face: 
       ? parentAxis
       : (AXES.find((candidate) => candidate !== faceAxis(face)) ?? 'z');
   return `+${axis}`;
+}
+
+/**
+ * Where across its face a profile goes once it turns. Lying across its parent, it starts at the
+ * parent's edge, so it crosses all of it; turned out of that, it goes back to the middle of the
+ * face, where the slot is. Other turns keep the offset.
+ */
+function acrossAfterTurn(
+  parent: Operation | undefined,
+  operation: GrowProfile,
+  face: Face,
+  way: GrowthWay,
+): number {
+  if (way === operation.way || !parent || !makesAProfile(parent)) return operation.acrossMm;
+  if (way !== 'out' && liesAcross(parent, face, way)) {
+    const towards = way[0] === '+' ? 1 : -1;
+    return -towards * (sectionExtentMm(parent, faceAxis(way)) / 2);
+  }
+  if (operation.way !== 'out' && liesAcross(parent, operation.face, operation.way)) return 0;
+  return operation.acrossMm;
+}
+
+/** Whether a profile growing out of a side of `parent` lies on it, running across it. */
+function liesAcross(parent: ProfileOperation, face: Face, way: Face): boolean {
+  const parentAxis = lengthAxisOf(parent);
+  return faceAxis(face) !== parentAxis && faceAxis(way) !== parentAxis;
+}
+
+/** How far a profile's section reaches along `axis`, which runs across its length. */
+function sectionExtentMm(profile: ProfileOperation, axis: Axis): number {
+  const section = profileSection(profileSystem(profile.systemId), profile.sectionId);
+  return axis === profile.heightAxis ? section.heightMm : section.widthMm;
+}
+
+/**
+ * The profile turned to the next way it can grow out of its face: out of it, then lying across
+ * its parent, then along it, each way + before −, and out again. Lying, it reaches nothing.
+ */
+export function turnedGrowth(history: readonly Operation[], operation: GrowProfile): GrowProfile {
+  const parent = operationMaking(history, operation.parentId);
+  const parentAxis = parent && makesAProfile(parent) ? lengthAxisOf(parent) : null;
+  const normal = faceAxis(operation.face);
+  const alongFace = AXES.filter((axis) => axis !== normal).sort(
+    (a, b) => Number(a === parentAxis) - Number(b === parentAxis),
+  );
+  const ways: GrowthWay[] = [
+    'out',
+    ...alongFace.flatMap((axis): Face[] => [`+${axis}`, `-${axis}`]),
+  ];
+  const next = ways[(ways.indexOf(operation.way) + 1) % ways.length];
+  return editDraft(
+    history,
+    operation,
+    next === 'out' ? { way: next } : { way: next, reachesId: null },
+  );
 }
 
 /** The shape of a profile with the changes given, keeping the values not given. */

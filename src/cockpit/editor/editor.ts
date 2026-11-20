@@ -19,6 +19,7 @@ import {
   makesAProfile,
   operationMaking,
   replayDesign,
+  turnedGrowth,
   type Operation,
   type ProfileValues,
 } from '../cad/history/history.ts';
@@ -746,6 +747,13 @@ export class CockpitEditor {
     }
     this.host.renderInspector();
     this.host.refresh();
+  }
+
+  /** Turns a profile about to grow to the next way it can grow out of its face. */
+  turnDraft() {
+    const { draft } = this.current;
+    if (draft?.kind !== 'grow-profile') return;
+    this.changeDraft((history) => turnedGrowth(history, draft));
   }
 
   confirmDraft() {

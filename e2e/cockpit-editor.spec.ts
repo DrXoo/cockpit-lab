@@ -351,6 +351,32 @@ test('a profile can lie along a face instead of growing out of it', async ({ pag
   await expect(page.locator('#part-way')).toHaveValue('+z');
 });
 
+test('a profile about to grow turns from its box in the view, or with R, across its parent first', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  const way = page.locator('#grow-way');
+  await expect(way).toHaveValue('out');
+  await page.locator('#turnDraftInView').click();
+  await expect(way).toHaveValue('+x');
+  await expect(page.locator('#grow-acrossMm')).toHaveValue('-20');
+  await page.keyboard.press('r');
+  await expect(way).toHaveValue('-x');
+  await page.locator('#confirmDraftInView').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'grow-profile', way: '-x', acrossMm: 20 });
+});
+
+test('a peripheral about to be mounted has no turn in its box', async ({ page }) => {
+  await startDesign(page);
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountPedals').click();
+  await expect(page.locator('#draftBox')).toBeVisible();
+  await expect(page.locator('#turnDraftInView')).toBeHidden();
+});
+
 test('B grows out of A and reaches C; moving C changes B, and B lets go keeping its length', async ({
   page,
 }) => {

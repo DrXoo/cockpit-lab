@@ -79,6 +79,7 @@ export class CockpitViewOverlays {
     this.shown = shown;
     this.shownJointCard = '';
     this.hoverLabelTimer = undefined;
+    $('#turnDraftInView').addEventListener('click', () => editor.turnDraft());
     $('#confirmDraftInView').addEventListener('click', () => editor.confirmDraft());
     $('#cancelDraftInView').addEventListener('click', () => editor.cancelDraft());
     $('#confirmChange').addEventListener('click', () => editor.confirmChange());
@@ -188,7 +189,7 @@ export class CockpitViewOverlays {
   /**
    * The box of a part about to be added, above it in the view: ✓ adds it and ✗ drops it, as
    * the buttons of its panel do, so a part placed with its handles is added without leaving
-   * the view.
+   * the view. A profile about to grow also turns from it.
    */
   private renderDraftBox() {
     const editor = this.editor;
@@ -200,6 +201,7 @@ export class CockpitViewOverlays {
       return;
     }
     $('#draftKind').textContent = DRAFT_TITLES[draft.kind];
+    $('#turnDraftInView').hidden = draft.kind !== 'grow-profile';
     const confirm = $('#confirmDraftInView');
     const confirmLabel = DRAFT_CONFIRM_LABELS[draft.kind];
     confirm.title = `${confirmLabel} (Enter)`;
