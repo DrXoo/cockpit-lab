@@ -119,7 +119,7 @@ test('legs or arms that do not reach are reported', () => {
 test('without a wheel, the hands hold nothing and there is no elbow angle', () => {
   const fit = seated([seat(), pedals(800)]);
   assert.equal(fit.reach.arms, null);
-  assert.equal(fit.figure.hands, null);
+  assert.deepEqual(fit.figure.arms, []);
   assert.ok(!fit.angles.some((angle) => angle.joint === 'elbow'));
 });
 

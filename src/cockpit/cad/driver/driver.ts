@@ -54,9 +54,15 @@ export interface DriverFigure {
   heel: Vec3Mm;
   shoulder: Vec3Mm;
   eye: Vec3Mm;
-  /** The elbow and hands; null when nothing takes the hands. */
-  elbow: Vec3Mm | null;
-  hands: Vec3Mm | null;
+  /** The arms that hold something, none when nothing takes the hands. */
+  arms: DriverArm[];
+}
+
+/** An arm of the figure, from its shoulder through the elbow to the hand. */
+export interface DriverArm {
+  shoulder: Vec3Mm;
+  elbow: Vec3Mm;
+  hand: Vec3Mm;
 }
 
 export type SeatedDriver =
@@ -113,8 +119,16 @@ export function seatedDriver(
       heel: fromSide(posture.foot),
       shoulder: fromSide(posture.shoulder),
       eye: fromSide(posture.eye),
-      elbow: arms ? fromSide(arms.joint) : null,
-      hands: posture.hands ? fromSide(posture.hands.point) : null,
+      arms:
+        arms && posture.hands
+          ? [
+              {
+                shoulder: fromSide(posture.shoulder),
+                elbow: fromSide(arms.joint),
+                hand: fromSide(posture.hands.point),
+              },
+            ]
+          : [],
     },
     angles,
     reach: { legs: posture.legs.reachable, arms: arms ? arms.reachable : null },

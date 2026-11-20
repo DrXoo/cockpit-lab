@@ -10,8 +10,13 @@ const figure: DriverFigure = {
   heel: { x: 0, y: 100, z: 800 },
   shoulder: { x: 0, y: 800, z: -100 },
   eye: { x: 0, y: 980, z: -120 },
-  elbow: { x: 0, y: 600, z: 150 },
-  hands: { x: 0, y: 650, z: 450 },
+  arms: [
+    {
+      shoulder: { x: 0, y: 800, z: -100 },
+      elbow: { x: 0, y: 600, z: 150 },
+      hand: { x: 0, y: 650, z: 450 },
+    },
+  ],
 };
 const drawn = (driverFigure: DriverFigure) => {
   const r = createRenderList();
@@ -60,9 +65,7 @@ test('the eye point is marked with a ball', () => {
 });
 
 test('without hands to hold, the figure has no arms', () => {
-  const tubes = drawn({ ...figure, elbow: null, hands: null }).filter(
-    (primitive) => primitive.kind === 'tube',
-  );
+  const tubes = drawn({ ...figure, arms: [] }).filter((primitive) => primitive.kind === 'tube');
   assert.equal(tubes.length, 4);
 });
 

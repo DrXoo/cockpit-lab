@@ -24,6 +24,11 @@ export function solveJoint(a: SidePoint, b: SidePoint, l1: number, l2: number, b
     (Math.acos(clamp((l1 * l1 + l2 * l2 - safeD * safeD) / (2 * l1 * l2), -1, 1)) * 180) / Math.PI;
   return { joint, reachable, angle, d };
 }
+/** The upper arm, shoulder to elbow, as a share of the stature. */
+export const UPPER_ARM_PER_STATURE = 0.186;
+/** The forearm, elbow to the middle of the hand, as a share of the stature. */
+export const FOREARM_PER_STATURE = 0.146;
+
 /** Where the design meets the driver, in the cockpit's side plane, in cm. */
 export interface Contacts {
   /** The hip point on the seat. */
@@ -52,7 +57,13 @@ export function postureFrom(driver: Driver, contacts: Contacts) {
   const hands = contacts.hands
     ? {
         point: contacts.hands,
-        arms: solveJoint(shoulder, contacts.hands, h * 0.186, h * 0.146, -1),
+        arms: solveJoint(
+          shoulder,
+          contacts.hands,
+          h * UPPER_ARM_PER_STATURE,
+          h * FOREARM_PER_STATURE,
+          -1,
+        ),
       }
     : null;
   // Torso to thigh included angle in the sagittal plane.

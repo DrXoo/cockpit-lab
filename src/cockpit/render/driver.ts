@@ -16,6 +16,8 @@ const EYE = { kind: 'flat', color: 0x8a6fd6, opacity: 1, onTop: true } as const;
 
 const cm = ({ x, y, z }: Vec3Mm): Vec3 => [x / MM_PER_CM, y / MM_PER_CM, z / MM_PER_CM];
 
+const samePoint = (a: Vec3Mm, b: Vec3Mm): boolean => a.x === b.x && a.y === b.y && a.z === b.z;
+
 export function drawDriver(r: RenderList, parent: ParentRef, figure: DriverFigure): void {
   const limbs: [Vec3Mm, Vec3Mm][] = [
     [figure.hip, figure.knee],
@@ -23,8 +25,10 @@ export function drawDriver(r: RenderList, parent: ParentRef, figure: DriverFigur
     [figure.hip, figure.shoulder],
     [figure.shoulder, figure.eye],
   ];
-  if (figure.elbow && figure.hands)
-    limbs.push([figure.shoulder, figure.elbow], [figure.elbow, figure.hands]);
+  for (const arm of figure.arms) {
+    if (!samePoint(arm.shoulder, figure.shoulder)) limbs.push([figure.shoulder, arm.shoulder]);
+    limbs.push([arm.shoulder, arm.elbow], [arm.elbow, arm.hand]);
+  }
   const limb = r.material(FIGURE);
   for (const [from, to] of limbs) r.tube(cm(from), cm(to), LIMB_RADIUS_CM, limb, parent);
   const [x, y, z] = cm(figure.eye);

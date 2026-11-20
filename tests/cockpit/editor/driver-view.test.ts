@@ -15,8 +15,7 @@ const seated = (changes: Partial<Seated> = {}): Seated => ({
     heel: point(100),
     shoulder: point(800),
     eye: point(1012.4),
-    elbow: point(700),
-    hands: point(650),
+    arms: [{ shoulder: point(800), elbow: point(700), hand: point(650) }],
   },
   angles: [
     { joint: 'knee', angleDeg: 125.4, range: { minDeg: 110, maxDeg: 140 }, verdict: 'within' },
