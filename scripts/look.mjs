@@ -6,7 +6,9 @@
 // The walk is a module whose default export receives `{ page, shot }`, with the page already
 // open on the app, so a walk starts with its first click; `await shot('name')`
 // saves name.png in the folder (by default one in the system's temporary folder). Errors of the
-// page are printed as they happen.
+// page are printed as they happen. A walk can build its cockpit design with tests/support/designs.ts
+// and load it through #importCockpitFile with cockpitFileData (src/cockpit/file.ts), importing
+// both by an absolute file:// URL when the walk lives outside the repository.
 //
 // The preview port keeps it apart from the dev server (5173), whose browser storage may hold
 // real designs; a project made here lives only in this run's browser.

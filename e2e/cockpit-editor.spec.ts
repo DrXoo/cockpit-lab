@@ -63,6 +63,7 @@ test('the first room step leads to the cockpit for those who only design one', a
 /** The design history the app autosaved in this browser. */
 const savedHistory = async (page: Page) => (await getSavedProject(page))?.cockpit?.history;
 
+/** Opens the cockpit editor with one profile: part-1, made by op-1. */
 async function startDesign(page: Page) {
   await openApp(page);
   await page.locator('#startWithCockpit').click();

@@ -1,6 +1,6 @@
 # Working on Cockpit Lab
 
-Cockpit Lab is a self-hosted web app for designing compact aluminium-profile cockpits for sim racing and flight. It started as a prototype hosted elsewhere and is being rebuilt as a maintainable codebase that we own. Read `README.md` and `docs/mini-cad.md` before changing the architecture.
+Cockpit Lab is a self-hosted web app for designing compact aluminium-profile cockpits for sim racing and flight. It started as a prototype hosted elsewhere and is being rebuilt as a maintainable codebase that we own. Find a module through the *Project structure* table of `README.md` before reading source, and keep that table current when a module comes or goes. Read `docs/mini-cad.md` before changing the architecture.
 
 ## Language
 
