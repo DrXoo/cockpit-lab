@@ -109,3 +109,13 @@ export function growthTowardsRail(): Operation[] {
   history = editProfile(history, 'part-2', { name: 'C', startMm: { x: 500, y: 20, z: 0 } });
   return withGrowth(history, 'part-1', { name: 'B', face: '+x', alongMm: 250 });
 }
+
+/**
+ * The rail (part-1) with a Deck grown out of its top (part-2), a plate on the deck (part-3) and
+ * a wheel base on the plate (part-4).
+ */
+export function deckHistory(): Operation[] {
+  const deck = withGrowth(railHistory(), 'part-1', { name: 'Deck', face: '+y', alongMm: 500 });
+  const plated = withPlate(deck, 'part-2', { name: 'Wheel plate', face: '+z' });
+  return withPeripheral(plated, 'part-3', 'generic-wheel-base', { face: '+z' });
+}

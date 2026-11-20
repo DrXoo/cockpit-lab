@@ -16,24 +16,8 @@ import {
   ungroupSubassembly,
   type Subassembly,
 } from '../../../../src/cockpit/cad/history/subassemblies.ts';
-import {
-  growthTowardsRail,
-  railHistory,
-  withGrowth,
-  withPeripheral,
-  withPlate,
-} from '../../../support/designs.ts';
+import { deckHistory, growthTowardsRail, withGrowth } from '../../../support/designs.ts';
 import { present } from '../../../support/lookups.ts';
-
-/**
- * The rail (part-1) with a Deck grown out of its top (part-2), a plate on the deck (part-3) and
- * a wheel base on the plate (part-4).
- */
-function deckHistory(): Operation[] {
-  const deck = withGrowth(railHistory(), 'part-1', { name: 'Deck', face: '+y', alongMm: 500 });
-  const plated = withPlate(deck, 'part-2', { name: 'Wheel plate', face: '+z' });
-  return withPeripheral(plated, 'part-3', 'generic-wheel-base', { face: '+z' });
-}
 
 const applied = (history: readonly Operation[], subassemblies: readonly Subassembly[]) =>
   appliedSubassemblies(subassemblies, replayDesign(history).resolved);
