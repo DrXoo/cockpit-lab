@@ -142,6 +142,63 @@ test('a profile lying on a face, or butting an end, has no bracket that fits', (
   assert.throws(() => fastenWithBrackets(history, 'part-3@part-1'), /No corner bracket fits/);
 });
 
+/**
+ * A with C lying across its top, 700 mm from its back end, from A's right edge towards the
+ * pilot's left.
+ */
+function crossing() {
+  const history = ab();
+  return addOperation(
+    history,
+    editDraft(history, draftGrowth(history, 'part-1'), {
+      name: 'C',
+      way: '+x',
+      alongMm: 700,
+      acrossMm: -20,
+      lengthMm: 300,
+    }),
+  );
+}
+const CROSSING = 'part-3@part-1';
+
+test('a profile lying across another takes a corner bracket on each side along the other', () => {
+  assert.deepEqual(fittingSides(crossing(), CROSSING), ['+z', '-z']);
+  const history = fastenWithBrackets(crossing(), CROSSING);
+  const design = replayDesign(history);
+  assert.deepEqual(
+    design.connectors.map(({ jointId, side }) => [jointId, side]),
+    [
+      [CROSSING, '+z'],
+      [CROSSING, '-z'],
+    ],
+  );
+  const pending = partsToBuy(design.resolved, design.connectors).pendingJoints;
+  assert.deepEqual(
+    pending.map(({ jointId }) => jointId),
+    [JOINT],
+    'only B to A is left to fasten',
+  );
+});
+
+test('a bracket of a crossing stands against the side of C, over the width of A', () => {
+  const [front] = connectorsOf(fastenWithBrackets(crossing(), CROSSING));
+  assert.equal(front.name, '40 corner bracket of C');
+  assert.deepEqual(front.box, {
+    min: { x: -18, y: 40, z: 720 },
+    max: { x: 18, y: 80, z: 760 },
+  });
+});
+
+test('a crossing near the end of the part below has no bracket on the side past the end', () => {
+  const history = editProfile(crossing(), 'part-3', { alongMm: 980 });
+  assert.deepEqual(fittingSides(history, CROSSING), ['-z']);
+});
+
+test('a profile that crosses only part of the width below has no room for a bracket', () => {
+  const history = editProfile(crossing(), 'part-3', { acrossMm: 0 });
+  assert.deepEqual(fittingSides(history, CROSSING), []);
+});
+
 test('connectors take part in interference', () => {
   let history = fastenWithBrackets(ab(), JOINT);
   history = editProfile(addAnchoredProfile(history).history, 'part-3', {

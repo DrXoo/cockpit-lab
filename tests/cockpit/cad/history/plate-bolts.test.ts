@@ -131,7 +131,7 @@ test('bolts fasten only a plate to a profile, and no corner bracket fastens a pl
   const history = railsAndPlate();
   const grown = addOperation(history, draftGrowth(history, 'part-1'));
   assert.throws(() => fastenWithBolts(grown, 'part-4@part-1', 2), /fasten a plate to a profile/);
-  assert.throws(() => setConnector(history, LEFT, '+x', true), /end on/);
+  assert.throws(() => setConnector(history, LEFT, '+x', true), /fastens a profile/);
 });
 
 test('the joints of a plate say how many bolts each slot has, and how many slots it covers', () => {
