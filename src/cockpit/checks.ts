@@ -1,7 +1,8 @@
 // The checks a CAD cockpit design gets on its own: interference between its parts, the parts
 // that nothing supports, the joints still without connectors, the steps of its history that
 // failed and, once a part slides, what meets at the ends of its travels and the spans its
-// adjustments would stretch or squeeze. Each is one check that lists what it found, so a design
+// adjustments would stretch or squeeze, and, once it has a plate, what is wrong with the holes of
+// its plates for how they are made. Each is one check that lists what it found, so a design
 // with many problems still reads at a glance.
 import type { Check } from '../shared/checks.ts';
 import { round } from '../shared/geometry.ts';
@@ -12,6 +13,12 @@ import { jointsOf, type Joint } from './cad/parts/joints.ts';
 import { adjustmentOf, stepTitle, type Operation } from './cad/history/operations.ts';
 import { unsupportedParts } from './cad/analysis/support.ts';
 import { travelInterferences, type FittedPose } from './cad/history/travel.ts';
+import {
+  plateHoleProblems,
+  type HoleProblem,
+  type HoleProblemKind,
+} from './cad/analysis/hole-problems.ts';
+import type { SlidingPart } from './cad/parts/plate-holes.ts';
 
 /** A design replayed from its history, with the steps that failed. */
 export interface DesignToCheck {
@@ -24,6 +31,8 @@ export interface DesignToCheck {
   joints?: readonly Joint[];
   /** The design as fitted; when left out, every part is at the center of its travel. */
   fitted?: FittedPose;
+  /** The adjustment of each part that has one, by its id; none when left out. */
+  adjustments?: ReadonlyMap<string, SlidingPart>;
 }
 
 /** The shortest way out, in the frame of the part it was measured on. */
@@ -75,7 +84,79 @@ export function cadChecks(design: DesignToCheck): Check[] {
     ),
     failedStepsCheck(design),
     ...fitted,
+    ...plateHoleChecks(design),
   ];
+}
+
+/** What each check of plate holes is called and says, by the kind of problem it lists. */
+const HOLE_CHECKS: Record<
+  HoleProblemKind,
+  { id: string; label: string; found: string; none: string }
+> = {
+  'off-plate': {
+    id: 'cad-holes-off-plate',
+    label: 'Holes off their plate',
+    found:
+      'A hole must lie wholly within its plate. Move what puts it there, or make the plate larger.',
+    none: 'Every hole lies within its plate.',
+  },
+  'near-edge': {
+    id: 'cad-holes-near-edge',
+    label: 'Holes too close to an edge',
+    found:
+      'Each plate’s process wants this much material between a hole and the edge. Move what puts the hole there, or make the plate larger.',
+    none: 'Every hole leaves its plate’s process enough material to the edge.',
+  },
+  'near-hole': {
+    id: 'cad-holes-near-holes',
+    label: 'Holes too close together',
+    found:
+      'Each plate’s process wants this much material between two holes. Move a peripheral, or change the bolts of a joint.',
+    none: 'No two holes come closer than their plate’s process wants.',
+  },
+  'uncut-slot': {
+    id: 'cad-uncut-slots',
+    label: 'Slots the process cannot cut',
+    found: 'Have the plate laser or water-jet cut, or run the peripheral on its own rails.',
+    none: 'Every slot is on a plate whose process cuts slots.',
+  },
+  'over-profile': {
+    id: 'cad-holes-over-profiles',
+    label: 'Holes over a profile',
+    found:
+      'A bolt through such a hole meets the profile, with no room for its nut. Move the peripheral until the hole is off the profile or over one of its slots, where it takes a T-nut.',
+    none: 'Every mounting hole over a profile is over one of its slots.',
+  },
+};
+
+const HOLE_PROBLEM_KINDS: readonly HoleProblemKind[] = [
+  'off-plate',
+  'near-edge',
+  'near-hole',
+  'uncut-slot',
+  'over-profile',
+];
+
+/** The five checks of the holes of the design's plates, once it has a plate. */
+function plateHoleChecks(design: DesignToCheck): Check[] {
+  const plates = [...design.resolved.values()].filter(({ part }) => part.kind === 'plate');
+  if (plates.length === 0) return [];
+  const sources = {
+    resolved: design.resolved,
+    joints: design.joints ?? jointsOf(design.resolved),
+    connectors: design.connectors ?? [],
+    adjustments: design.adjustments ?? new Map<string, SlidingPart>(),
+  };
+  const found: { plateName: string; problem: HoleProblem }[] = plates.flatMap(({ part }) =>
+    plateHoleProblems(sources, part.id).map((problem) => ({ plateName: part.name, problem })),
+  );
+  return HOLE_PROBLEM_KINDS.map((kind) => {
+    const { id, label, found: foundText, none } = HOLE_CHECKS[kind];
+    const items = found
+      .filter(({ problem }) => problem.kind === kind)
+      .map(({ plateName, problem }) => `${plateName}: ${problem.text}`);
+    return listCheck(id, label, items, { found: foundText, none });
+  });
 }
 
 /** The parts that would reach into each other with one adjusted part at an end of its travel. */

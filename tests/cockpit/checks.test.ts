@@ -20,7 +20,8 @@ import {
 } from '../../src/cockpit/cad/history/history.ts';
 import { cadChecks } from '../../src/cockpit/checks.ts';
 import { addAdjustment, editAdjustment } from '../../src/cockpit/cad/history/adjustments.ts';
-import { railHistory, withGrowth } from '../support/designs.ts';
+import { editPlate } from '../../src/cockpit/cad/history/plates.ts';
+import { railHistory, withGrowth, withPeripheral, withPlate } from '../support/designs.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const bar = (
@@ -187,4 +188,52 @@ test('parts that meet at an end of a travel are listed, saying which part is at 
   ]);
   const short = editAdjustment(addAdjustment(history, 'part-2'), 'part-2', { travelMm: 40 });
   assert.equal(checksOfHistory(short)['cad-travel-interference'].level, 'ok');
+});
+
+const PLATE_CHECKS = [
+  'cad-holes-off-plate',
+  'cad-holes-near-edge',
+  'cad-holes-near-holes',
+  'cad-uncut-slots',
+  'cad-holes-over-profiles',
+];
+
+test('a design with a plate gets the five checks of its holes, none with nothing to list', () => {
+  assert.equal(checksOfHistory(railHistory())['cad-holes-off-plate'], undefined, 'no plate');
+  const checks = checksOfHistory(withPlate(railHistory(), 'part-1'));
+  assert.deepEqual(
+    PLATE_CHECKS.map((id) => [checks[id]?.level, checks[id]?.items]),
+    PLATE_CHECKS.map(() => ['ok', []]),
+  );
+});
+
+test('the problems of a plate’s holes are listed under its name, one check for each kind', () => {
+  const plate = withPlate(railHistory(), 'part-1', { name: 'Wheel plate', widthMm: 200 });
+  const holes = [
+    { xMm: 97, yMm: 0, diameterMm: 8 },
+    { xMm: 40, yMm: 0, diameterMm: 8 },
+    { xMm: 45, yMm: 0, diameterMm: 8 },
+    { xMm: 10, yMm: 0, diameterMm: 8 },
+    { xMm: -90, yMm: 0, diameterMm: 8 },
+  ];
+  let history = withPeripheral(plate, 'part-2', 'generic-wheel-base', {
+    name: 'Wheel base',
+    mountingPattern: { holes },
+  });
+  history = editAdjustment(addAdjustment(history, 'part-3'), 'part-3', { runsOn: 'slots' });
+  history = editPlate(history, 'part-2', { processId: 'hand-drilling' });
+  const checks = checksOfHistory(history);
+  assert.deepEqual(
+    PLATE_CHECKS.map((id) => [id, checks[id]?.level, checks[id]?.items?.length]),
+    [
+      ['cad-holes-off-plate', 'warning', 1],
+      ['cad-holes-near-edge', 'warning', 1],
+      ['cad-holes-near-holes', 'warning', 1],
+      ['cad-uncut-slots', 'warning', 5],
+      ['cad-holes-over-profiles', 'warning', 1],
+    ],
+  );
+  assert.deepEqual(checks['cad-holes-off-plate']?.items, [
+    'Wheel plate: Wheel base, hole 1 crosses the edge',
+  ]);
 });

@@ -106,7 +106,13 @@ export function pointOnPlate(plate: ResolvedPart, xMm: number, yMm: number): Vec
 }
 
 /** Where a point in the frame of a plate's tilt falls on its drawing. */
-type DrawnOn = (pointMm: Vec3Mm) => { xMm: number; yMm: number };
+export type DrawnOn = (pointMm: Vec3Mm) => { xMm: number; yMm: number };
+
+/** Where points in the frame of a plate's tilt fall on its drawing. */
+export function drawnOnPlate(plate: ResolvedPart): DrawnOn {
+  if (plate.part.kind !== 'plate') throw new Error(`${plate.part.name} is not a plate.`);
+  return drawnOn(plate, plate.part);
+}
 
 function drawnOn(plate: ResolvedPart, part: PlatePart): DrawnOn {
   const view = plateView(part);
