@@ -53,6 +53,47 @@ test('a driver must have a stature from 140 to 210 cm, and nothing else', () => 
   assert.throws(withDriver(null), /driver/);
 });
 
+test('a design stores its subassemblies beside the history, and reads them back', () => {
+  const design: CockpitDesign = {
+    ...designWith(2),
+    subassemblies: [{ name: 'Wheel deck', rootId: 'part-2' }],
+  };
+  assert.deepEqual(stored(design).subassemblies, [{ name: 'Wheel deck', rootId: 'part-2' }]);
+  assert.deepEqual(readDesign(stored(design)), design);
+});
+
+test('a design without subassemblies stores none, as it was saved before', () => {
+  assert.equal('subassemblies' in stored(designWith(1)), false);
+  assert.equal('subassemblies' in stored({ ...designWith(1), subassemblies: [] }), false);
+  assert.equal(readDesign(stored(designWith(1))).subassemblies, undefined);
+});
+
+test('a stored subassembly needs a name and a root, once each', () => {
+  const withSubassemblies = (subassemblies: unknown) => () =>
+    readDesign({ ...stored(designWith(2)), subassemblies });
+  assert.throws(withSubassemblies({}), /subassemblies/);
+  assert.throws(withSubassemblies([{ name: 'Deck' }]), /identifier/);
+  assert.throws(withSubassemblies([{ name: 3, rootId: 'part-1' }]), /name/);
+  assert.throws(withSubassemblies([{ name: 'Deck', rootId: 'part-1', parts: [] }]), /parts/);
+  assert.throws(
+    withSubassemblies([
+      { name: 'Deck', rootId: 'part-1' },
+      { name: 'Again', rootId: 'part-1' },
+    ]),
+    /part-1/,
+  );
+  const cleaned = readDesign({
+    ...stored(designWith(2)),
+    subassemblies: [{ name: ' <b>Deck</b> ', rootId: 'part-1' }],
+  });
+  assert.deepEqual(cleaned.subassemblies, [{ name: 'bDeck/b', rootId: 'part-1' }]);
+});
+
+test('a subassembly whose root the history no longer makes still opens', () => {
+  const design = { ...designWith(1), subassemblies: [{ name: 'Gone', rootId: 'part-7' }] };
+  assert.deepEqual(readDesign(stored(design)).subassemblies, design.subassemblies);
+});
+
 test('a stored design must state mm and hold a history', () => {
   assert.throws(() => readDesign({ units: 'cm', history: [] }), /units/);
   assert.throws(() => readDesign({ history: [] }), /units/);

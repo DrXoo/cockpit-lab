@@ -30,7 +30,8 @@ import { draftEditedBy, withDraft, type Draft } from '../cad/history/drafts.ts';
 import { jointMarkers, type JointMarker } from '../cad/interaction/joint-markers.ts';
 import type { PartHit } from '../cad/interaction/picking.ts';
 import { nextMeasurePicks } from '../cad/analysis/measure.ts';
-import type { CockpitDesign } from '../design.ts';
+import { emptyDesign, type CockpitDesign } from '../design.ts';
+import type { Subassembly } from '../cad/history/subassemblies.ts';
 import { noEdits, recordEdit, redo, undo, type Edits } from '../../shared/undo.ts';
 
 /** A change made with a handle, waiting to be confirmed. */
@@ -154,11 +155,28 @@ export function changeDesign(session: CockpitSession, next: CockpitDesign): Cock
   });
 }
 
-/** Makes `history` the design history, keeping the driver, as an edit that can be undone. */
+/** The design, or a new one while the project has none. */
+export const openDesign = (session: CockpitSession): CockpitDesign =>
+  session.design ?? emptyDesign();
+
+/**
+ * Makes `history` the design history, keeping the driver and the subassemblies, as an edit that
+ * can be undone.
+ */
 export const withHistory = (
   session: CockpitSession,
   history: readonly Operation[],
-): CockpitSession => changeDesign(session, { history, driver: currentDriver(session) });
+): CockpitSession => changeDesign(session, { ...openDesign(session), history });
+
+/** Makes `subassemblies` the design's, keeping its history and driver, as an edit that can be undone. */
+export const withSubassemblies = (
+  session: CockpitSession,
+  subassemblies: readonly Subassembly[],
+): CockpitSession => changeDesign(session, { ...openDesign(session), subassemblies });
+
+/** The design's subassemblies, none when it has no design or none of them. */
+export const designSubassemblies = (session: CockpitSession): readonly Subassembly[] =>
+  session.design?.subassemblies ?? [];
 
 /** The session after its design changed: a step no longer there is unselected. */
 function showingChangedDesign(session: CockpitSession): CockpitSession {

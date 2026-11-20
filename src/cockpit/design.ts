@@ -35,6 +35,7 @@ import {
 } from './cad/history/history.ts';
 import { DEFAULT_DRIVER, driverOfStature, type Driver } from './cad/driver/driver.ts';
 import { jointIdOf } from './cad/parts/joints.ts';
+import type { Subassembly } from './cad/history/subassemblies.ts';
 import { cleanUserText } from '../shared/user-text.ts';
 
 export type { Operation } from './cad/history/history.ts';
@@ -42,6 +43,8 @@ export type { Operation } from './cad/history/history.ts';
 export interface CockpitDesign {
   history: readonly Operation[];
   driver: Driver;
+  /** The parts taken off and put back as a whole, beside the history (docs/adr/0007); none when left out. */
+  subassemblies?: readonly Subassembly[];
 }
 
 /** A cockpit design as project and cockpit files store it, with its units. */
@@ -49,15 +52,18 @@ export interface CockpitDesignData {
   units: 'mm';
   history: readonly Operation[];
   driver: Driver;
+  subassemblies?: readonly Subassembly[];
 }
 
 /** A new design starts empty. */
 export const emptyDesign = (): CockpitDesign => ({ history: [], driver: DEFAULT_DRIVER });
 
+/** A design without subassemblies is stored as it was before they existed. */
 export const designData = (design: CockpitDesign): CockpitDesignData => ({
   units: 'mm',
   history: design.history,
   driver: design.driver,
+  ...(design.subassemblies?.length ? { subassemblies: design.subassemblies } : {}),
 });
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
@@ -77,7 +83,29 @@ export function readDesign(data: unknown): CockpitDesign {
   rejectRepeated(operations.filter(makesAPart).map((operation) => operation.partId));
   rejectJointsFastenedTwice(operations);
   const driver = data.driver === undefined ? DEFAULT_DRIVER : readDriver(data.driver);
-  return { history: checkedHistory(operations), driver };
+  const design = { history: checkedHistory(operations), driver };
+  if (data.subassemblies === undefined) return design;
+  return { ...design, subassemblies: readSubassemblies(data.subassemblies) };
+}
+
+/**
+ * A design's subassemblies, each root once. A root the history no longer makes is kept: the
+ * subassembly does not apply until a step makes it again, as when its step's deletion is undone.
+ */
+function readSubassemblies(data: unknown): Subassembly[] {
+  if (!Array.isArray(data)) throw new Error('Invalid subassemblies in the cockpit design');
+  const subassemblies = data.map((value): Subassembly => {
+    const stored = recordOf(value, 'subassembly', ['name', 'rootId']);
+    if (typeof stored.name !== 'string') throw new Error("A subassembly's name must be text");
+    return {
+      name: cleanUserText(stored.name, 'Subassembly', MAX_PART_NAME_LENGTH),
+      rootId: identifier(stored.rootId),
+    };
+  });
+  const roots = subassemblies.map(({ rootId }) => rootId);
+  const repeated = roots.find((rootId, index) => roots.indexOf(rootId) !== index);
+  if (repeated !== undefined) throw new Error(`Two subassemblies have the same root, ${repeated}`);
+  return subassemblies;
 }
 
 /** A design saved before it had a driver opens with the default one. */

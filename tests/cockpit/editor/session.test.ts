@@ -42,6 +42,7 @@ import {
   undoEdit,
   withAddedPart,
   withHistory,
+  withSubassemblies,
   type CockpitSession,
   type HistoryChange,
 } from '../../../src/cockpit/editor/session.ts';
@@ -158,6 +159,20 @@ test('a history change keeps the driver', () => {
   const driver = { statureMm: 1600 };
   const session = changeDesign(sessionOf(railHistory()), { history: railHistory(), driver });
   assert.deepEqual(withHistory(session, threeSteps()).design?.driver, driver);
+});
+
+test('a history change keeps the subassemblies', () => {
+  const subassemblies = [{ name: 'Upright', rootId: 'part-2' }];
+  const session = withSubassemblies(sessionOf(threeSteps()), subassemblies);
+  assert.deepEqual(withHistory(session, railHistory()).design?.subassemblies, subassemblies);
+});
+
+test('a change of the subassemblies is an edit that can be undone, keeping the step selected', () => {
+  const selected = selectStep(sessionOf(threeSteps()), stepOf(sessionOf(threeSteps()), 'part-2'));
+  const grouped = withSubassemblies(selected, [{ name: 'Upright', rootId: 'part-2' }]);
+  assert.equal(grouped.selectedOperationId, selected.selectedOperationId);
+  assert.equal(undone(grouped).design?.subassemblies, undefined);
+  assert.deepEqual(designHistory(grouped), threeSteps());
 });
 
 test('a design change starts the measurement again, and ends it once no part is left', () => {

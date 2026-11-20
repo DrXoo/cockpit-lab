@@ -35,6 +35,14 @@ import type { JointMarker } from '../cad/interaction/joint-markers.ts';
 import { measureBetween, pickInCockpit } from '../cad/analysis/measure.ts';
 import type { PartHit } from '../cad/interaction/picking.ts';
 import type { CockpitDesign } from '../design.ts';
+import {
+  appliedSubassemblies,
+  makeSubassembly,
+  renameSubassembly,
+  ungroupSubassembly,
+  type AppliedSubassembly,
+  type Subassembly,
+} from '../cad/history/subassemblies.ts';
 import type { JointCard, TouchingPart } from './joints-view.ts';
 import type { CockpitDrawing } from '../render/cad.ts';
 import type { MeasureDrawing } from '../render/measurement.ts';
@@ -389,7 +397,48 @@ export class CockpitEditor {
       this.host.renderInspector();
       return;
     }
-    this.changeDesign({ history: this.history(), driver });
+    this.changeDesign({ ...editing.openDesign(this.current), driver });
+  }
+
+  /** The subassemblies that apply at the history marker, with their parts. */
+  subassembliesShown(): AppliedSubassembly[] {
+    const { resolved } = replayDesign(this.history(), this.at());
+    return appliedSubassemblies(editing.designSubassemblies(this.current), resolved);
+  }
+
+  /** Makes the selected part the root of a new subassembly, named after it. */
+  makeSubassemblyOfSelected() {
+    const partId = this.selectedPartId();
+    if (partId === null) return;
+    this.changeSubassemblies((stored) => makeSubassembly(stored, this.history(), partId));
+  }
+
+  /** Renames the subassembly of a root; a name left empty keeps the one it had. */
+  renameSubassembly(rootId: string, name: string) {
+    this.changeSubassemblies((stored) => renameSubassembly(stored, rootId, name));
+  }
+
+  /** Ungroups the subassembly of a root, without removing any part. */
+  ungroupSubassembly(rootId: string) {
+    this.changeSubassemblies((stored) => ungroupSubassembly(stored, rootId));
+  }
+
+  /** Changes the design's subassemblies; a change it refuses, or that changes nothing, is not an edit. */
+  private changeSubassemblies(change: (stored: readonly Subassembly[]) => Subassembly[]) {
+    this.settleChange();
+    const stored = editing.designSubassemblies(this.current);
+    let next: Subassembly[];
+    try {
+      next = change(stored);
+    } catch (error) {
+      this.host.toast(messageOf(error));
+      return;
+    }
+    if (JSON.stringify(next) === JSON.stringify(stored)) {
+      this.host.renderInspector();
+      return;
+    }
+    this.showDesignChange(editing.withSubassemblies(this.current, next));
   }
 
   addProfile() {
