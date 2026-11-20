@@ -94,6 +94,52 @@ test('a subassembly whose root the history no longer makes still opens', () => {
   assert.deepEqual(readDesign(stored(design)).subassemblies, design.subassemblies);
 });
 
+test('a design stores its modes and the mode shown beside the history, and reads them back', () => {
+  const design: CockpitDesign = {
+    ...designWith(2),
+    subassemblies: [{ name: 'Wheel deck', rootId: 'part-2' }],
+    modes: [
+      { id: 'mode-1', name: 'Racing', takenOff: [] },
+      { id: 'mode-2', name: 'Flight', takenOff: ['part-2'] },
+    ],
+    shownModeId: 'mode-2',
+  };
+  assert.deepEqual(stored(design).modes, design.modes);
+  assert.equal(stored(design).shownModeId, 'mode-2');
+  assert.deepEqual(readDesign(stored(design)), design);
+});
+
+test('a design without modes stores none, and shows all its parts', () => {
+  const design = { ...designWith(1), modes: [] };
+  assert.equal('modes' in stored(design), false);
+  assert.equal('shownModeId' in stored(design), false);
+  assert.equal(readDesign(stored(designWith(1))).modes, undefined);
+});
+
+test('a stored mode needs an id, a name and subassemblies of the design to take off', () => {
+  const withModes = (modes: unknown, shownModeId?: unknown) => () =>
+    readDesign({
+      ...stored(designWith(2)),
+      subassemblies: [{ name: 'Deck', rootId: 'part-2' }],
+      modes,
+      ...(shownModeId === undefined ? {} : { shownModeId }),
+    });
+  const mode = { id: 'mode-1', name: 'Flight', takenOff: ['part-2'] };
+  assert.throws(withModes({}), /modes/);
+  assert.throws(withModes([{ ...mode, id: '' }]), /identifier/);
+  assert.throws(withModes([{ ...mode, name: 3 }]), /name/);
+  assert.throws(withModes([{ ...mode, positions: {} }]), /positions/);
+  assert.throws(withModes([mode, { ...mode, name: 'Again' }]), /mode-1/);
+  assert.throws(withModes([{ ...mode, takenOff: 'part-2' }]), /takes off/);
+  assert.throws(withModes([{ ...mode, takenOff: ['part-1'] }]), /part-1/);
+  assert.throws(withModes([mode], 'mode-9'), /mode-9/);
+  const cleaned = readDesign({
+    ...stored(designWith(2)),
+    modes: [{ id: 'mode-1', name: ' <i>Flight</i> ', takenOff: [] }],
+  });
+  assert.equal(cleaned.modes?.[0]?.name, 'iFlight/i');
+});
+
 test('a stored design must state mm and hold a history', () => {
   assert.throws(() => readDesign({ units: 'cm', history: [] }), /units/);
   assert.throws(() => readDesign({ history: [] }), /units/);

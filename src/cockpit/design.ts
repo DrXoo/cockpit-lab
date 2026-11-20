@@ -36,6 +36,7 @@ import {
 import { DEFAULT_DRIVER, driverOfStature, type Driver } from './cad/driver/driver.ts';
 import { jointIdOf } from './cad/parts/joints.ts';
 import type { Subassembly } from './cad/history/subassemblies.ts';
+import type { Mode } from './cad/history/modes.ts';
 import { cleanUserText } from '../shared/user-text.ts';
 
 export type { Operation } from './cad/history/history.ts';
@@ -45,6 +46,10 @@ export interface CockpitDesign {
   driver: Driver;
   /** The parts taken off and put back as a whole, beside the history (docs/adr/0007); none when left out. */
   subassemblies?: readonly Subassembly[];
+  /** The ways the cockpit is used, each with the subassemblies it takes off; none when left out. */
+  modes?: readonly Mode[];
+  /** The mode the view shows and checks; all the parts when left out. */
+  shownModeId?: string;
 }
 
 /** A cockpit design as project and cockpit files store it, with its units. */
@@ -53,17 +58,23 @@ export interface CockpitDesignData {
   history: readonly Operation[];
   driver: Driver;
   subassemblies?: readonly Subassembly[];
+  modes?: readonly Mode[];
+  shownModeId?: string;
 }
 
 /** A new design starts empty. */
 export const emptyDesign = (): CockpitDesign => ({ history: [], driver: DEFAULT_DRIVER });
 
-/** A design without subassemblies is stored as it was before they existed. */
+/** A design without subassemblies or modes is stored as it was before they existed. */
 export const designData = (design: CockpitDesign): CockpitDesignData => ({
   units: 'mm',
   history: design.history,
   driver: design.driver,
   ...(design.subassemblies?.length ? { subassemblies: design.subassemblies } : {}),
+  ...(design.modes?.length ? { modes: design.modes } : {}),
+  ...(design.modes?.length && design.shownModeId !== undefined
+    ? { shownModeId: design.shownModeId }
+    : {}),
 });
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
@@ -83,9 +94,48 @@ export function readDesign(data: unknown): CockpitDesign {
   rejectRepeated(operations.filter(makesAPart).map((operation) => operation.partId));
   rejectJointsFastenedTwice(operations);
   const driver = data.driver === undefined ? DEFAULT_DRIVER : readDriver(data.driver);
-  const design = { history: checkedHistory(operations), driver };
-  if (data.subassemblies === undefined) return design;
-  return { ...design, subassemblies: readSubassemblies(data.subassemblies) };
+  const design: CockpitDesign = { history: checkedHistory(operations), driver };
+  const subassemblies =
+    data.subassemblies === undefined ? undefined : readSubassemblies(data.subassemblies);
+  if (subassemblies) design.subassemblies = subassemblies;
+  if (data.modes === undefined) return design;
+  const modes = readModes(data.modes, subassemblies ?? []);
+  return { ...design, modes, ...readShownMode(data.shownModeId, modes) };
+}
+
+/** A design's modes, each id once, taking off only subassemblies the design has. */
+function readModes(data: unknown, subassemblies: readonly Subassembly[]): Mode[] {
+  if (!Array.isArray(data)) throw new Error('Invalid modes in the cockpit design');
+  const roots = new Set(subassemblies.map(({ rootId }) => rootId));
+  const modes = data.map((value): Mode => {
+    const stored = recordOf(value, 'mode', ['id', 'name', 'takenOff']);
+    if (typeof stored.name !== 'string') throw new Error("A mode's name must be text");
+    const { takenOff } = stored;
+    if (!Array.isArray(takenOff))
+      throw new Error('A mode needs the list of the subassemblies it takes off');
+    const name = cleanUserText(stored.name, 'Mode', MAX_PART_NAME_LENGTH);
+    return { id: identifier(stored.id), name, takenOff: takenOff.map(subassemblyRoot) };
+  });
+  const ids = modes.map(({ id }) => id);
+  const repeated = ids.find((id, index) => ids.indexOf(id) !== index);
+  if (repeated !== undefined) throw new Error(`Two modes have the same identifier, ${repeated}`);
+  return modes;
+
+  function subassemblyRoot(value: unknown): string {
+    const rootId = identifier(value);
+    if (!roots.has(rootId))
+      throw new Error(`A mode takes off ${rootId}, which roots no subassembly`);
+    return rootId;
+  }
+}
+
+/** The mode shown, one of the design's; all the parts are shown when it names none. */
+function readShownMode(value: unknown, modes: readonly Mode[]): { shownModeId?: string } {
+  if (value === undefined) return {};
+  const id = identifier(value);
+  if (!modes.some((mode) => mode.id === id))
+    throw new Error(`The cockpit design shows the mode ${id}, which it does not have`);
+  return { shownModeId: id };
 }
 
 /**
