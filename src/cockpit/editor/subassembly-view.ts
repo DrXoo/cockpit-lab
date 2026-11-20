@@ -7,9 +7,25 @@ import { escapeHTML } from '../../ui/html.ts';
 const MAKE_BUTTON =
   '<button class="button button-light" id="makeSubassembly" title="Group this part and everything that hangs from it, so they can be taken off and put back as a whole"><i data-icon="layers"></i>Make subassembly</button>';
 
-/** The subassembly section of the inspector of a part in the design shown. */
-export function subassemblyHTML(applied: readonly AppliedSubassembly[], partId: string): string {
-  const heading = '<h4 class="buy-group">Subassembly</h4>';
+/** The mode shown that takes a part off, with the subassembly that takes it. */
+export interface PartOffInMode {
+  mode: string;
+  subassembly: string;
+}
+
+/**
+ * The subassembly section of the inspector of a part in the design shown, saying first when the
+ * mode shown takes the part off.
+ */
+export function subassemblyHTML(
+  applied: readonly AppliedSubassembly[],
+  partId: string,
+  off: PartOffInMode | null = null,
+): string {
+  const offNote = off
+    ? `<p class="layout-hint" id="partOffInMode">◌ Off in <strong>${escapeHTML(off.mode)}</strong>, with <strong>${escapeHTML(off.subassembly)}</strong>: shown as a ghost while selected.</p>`
+    : '';
+  const heading = `<h4 class="buy-group">Subassembly</h4>${offNote}`;
   const root = applied.find(({ rootId }) => rootId === partId);
   if (root) return `${heading}${rootHTML(applied, root)}`;
   const member = innermostSubassembly(applied, partId);

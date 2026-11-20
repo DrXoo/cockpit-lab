@@ -32,6 +32,7 @@ import type { PartHit } from '../cad/interaction/picking.ts';
 import { nextMeasurePicks } from '../cad/analysis/measure.ts';
 import { emptyDesign, type CockpitDesign } from '../design.ts';
 import type { Subassembly } from '../cad/history/subassemblies.ts';
+import type { Mode } from '../cad/history/modes.ts';
 import { noEdits, recordEdit, redo, undo, type Edits } from '../../shared/undo.ts';
 
 /** A change made with a handle, waiting to be confirmed. */
@@ -168,15 +169,73 @@ export const withHistory = (
   history: readonly Operation[],
 ): CockpitSession => changeDesign(session, { ...openDesign(session), history });
 
-/** Makes `subassemblies` the design's, keeping its history and driver, as an edit that can be undone. */
+/**
+ * Makes `subassemblies` the design's, keeping its history and driver, as an edit that can be
+ * undone. The modes change with them when given, as when one they take off is ungrouped.
+ */
 export const withSubassemblies = (
   session: CockpitSession,
   subassemblies: readonly Subassembly[],
-): CockpitSession => changeDesign(session, { ...openDesign(session), subassemblies });
+  modes: readonly Mode[] = designModes(session),
+): CockpitSession => {
+  const design = { ...openDesign(session), subassemblies };
+  return changeDesign(session, modes.length ? { ...design, modes } : design);
+};
 
 /** The design's subassemblies, none when it has no design or none of them. */
 export const designSubassemblies = (session: CockpitSession): readonly Subassembly[] =>
   session.design?.subassemblies ?? [];
+
+/** The design's modes, none when it has no design or none of them. */
+export const designModes = (session: CockpitSession): readonly Mode[] =>
+  session.design?.modes ?? [];
+
+/** The mode the view shows and checks, or null when it shows all the parts. */
+export const shownMode = (session: CockpitSession): Mode | null =>
+  designModes(session).find((mode) => mode.id === session.design?.shownModeId) ?? null;
+
+/** The design with `shownModeId` as the mode shown, or all the parts when it is null. */
+function showingMode(design: CockpitDesign, shownModeId: string | null): CockpitDesign {
+  const { shownModeId: _shown, ...rest } = design;
+  return shownModeId === null ? rest : { ...rest, shownModeId };
+}
+
+/**
+ * Makes `modes` the design's, showing the mode `shownModeId` or all the parts, as an edit that
+ * can be undone.
+ */
+export const withModes = (
+  session: CockpitSession,
+  modes: readonly Mode[],
+  shownModeId: string | null,
+): CockpitSession =>
+  changeDesign(session, showingMode({ ...openDesign(session), modes }, shownModeId));
+
+/**
+ * Shows a mode, or all the parts when `modeId` is null. Which one is saved with the design, but
+ * choosing it is not an edit, as it changes no part.
+ */
+export function showMode(session: CockpitSession, modeId: string | null): CockpitSession {
+  if (modeId !== null && !designModes(session).some((mode) => mode.id === modeId))
+    throw new Error(`The cockpit design has no mode ${modeId}.`);
+  const design = session.design;
+  if (design === null) return session;
+  return { ...session, design: showingMode(design, modeId) };
+}
+
+/**
+ * The design an undo or a redo goes back to, still showing the mode shown when it has it, as
+ * choosing the mode shown is not an edit.
+ */
+function keepingShownMode(
+  restored: CockpitDesign | null,
+  current: CockpitDesign | null,
+): CockpitDesign | null {
+  if (restored === null) return null;
+  const shownModeId = current?.shownModeId ?? null;
+  const kept = shownModeId === null || restored.modes?.some(({ id }) => id === shownModeId);
+  return kept ? showingMode(restored, shownModeId) : restored;
+}
 
 /** The session after its design changed: a step no longer there is unselected. */
 function showingChangedDesign(session: CockpitSession): CockpitSession {
@@ -214,14 +273,16 @@ export function historyChange(
 export function undoEdit(session: CockpitSession): CockpitSession | null {
   const step = undo(session.edits, session.design);
   if (!step) return null;
-  return showingChangedDesign({ ...session, edits: step.edits, design: step.value });
+  const design = keepingShownMode(step.value, session.design);
+  return showingChangedDesign({ ...session, edits: step.edits, design });
 }
 
 /** The design the last undo left, or null when there is nothing to redo. */
 export function redoEdit(session: CockpitSession): CockpitSession | null {
   const step = redo(session.edits, session.design);
   if (!step) return null;
-  return showingChangedDesign({ ...session, edits: step.edits, design: step.value });
+  const design = keepingShownMode(step.value, session.design);
+  return showingChangedDesign({ ...session, edits: step.edits, design });
 }
 
 /** Steps added at the marker push it on, so it stays after them. */

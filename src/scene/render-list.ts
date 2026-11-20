@@ -29,7 +29,9 @@ export type PaletteMaterial =
   /** What is under the pointer in the cockpit editor, seen through. */
   | 'hover'
   /** A peripheral out of Fit: grey and seen through, a reference for designing the frame. */
-  | 'reference';
+  | 'reference'
+  /** A selected part that the mode shown takes off: faint, in the accent of the selection. */
+  | 'ghost';
 
 export type MaterialSpec =
   /**

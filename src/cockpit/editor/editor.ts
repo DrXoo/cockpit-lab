@@ -44,6 +44,17 @@ import {
   type AppliedSubassembly,
   type Subassembly,
 } from '../cad/history/subassemblies.ts';
+import {
+  addMode,
+  deleteMode,
+  designInMode,
+  forgetSubassemblyInModes,
+  partsOffIn,
+  renameMode,
+  setSubassemblyOn,
+  type Mode,
+} from '../cad/history/modes.ts';
+import type { ReplayedDesign } from '../cad/history/replay.ts';
 import type { JointCard, TouchingPart } from './joints-view.ts';
 import type { CockpitDrawing } from '../render/cad.ts';
 import type { MeasureDrawing } from '../render/measurement.ts';
@@ -163,22 +174,37 @@ export class CockpitEditor {
     const shown = draft ? withDraft(history, draft, at) : history;
     const shownAt = draft ? at + 1 : at;
     // The view shows the cockpit as fitted, each part where it is along its travel, and the
-    // holes where the design puts them, as fitting never moves them.
-    const design = replayDesign(shown, shownAt);
-    const { fitted } = design;
+    // holes where the design puts them, as fitting never moves them. A plate keeps the holes of
+    // the parts its mode takes off, as it is made once for every mode.
+    const whole = replayDesign(shown, shownAt);
+    const partsOff = this.partsOffIn(whole);
+    const design = designInMode(whole, partsOff);
+    const selectedPartId = this.selectedPartId();
+    // A part the mode takes off is shown as a ghost while it is selected.
+    const ghostPartId =
+      selectedPartId !== null && partsOff.has(selectedPartId) ? selectedPartId : null;
+    const resolved = new Map(design.fitted.resolved);
+    const ghost = ghostPartId === null ? undefined : whole.fitted.resolved.get(ghostPartId);
+    if (ghostPartId !== null && ghost) resolved.set(ghostPartId, ghost);
+    const plateHoles = new Map(
+      [...holesOfPlates(whole)].filter(([plateId]) => !partsOff.has(plateId)),
+    );
     return {
-      resolved: fitted.resolved,
-      connectors: fitted.connectors,
-      plateHoles: holesOfPlates(design),
-      selectedPartId: this.selectedPartId(),
+      resolved,
+      connectors: design.fitted.connectors,
+      plateHoles,
+      selectedPartId,
       previewPartId: draft?.partId ?? pendingChange?.partId ?? null,
+      ghostPartId,
       choosingFaceOf: draft?.parentId ?? null,
       measure: this.measureDrawing(),
-      driver: fitting ? this.figureIn(shown, shownAt) : null,
+      driver: fitting ? this.figureIn(design) : null,
       handles: this.shownHandles(),
       snapGuide: (pendingChange?.snap ?? (draft ? draftSnap : null))?.guide ?? null,
       placedPartId: draft?.partId ?? pendingChange?.partId ?? null,
-      jointMarkers: editing.shownJointMarkers(this.current),
+      jointMarkers: editing
+        .shownJointMarkers(this.current)
+        .filter(({ partId, toPartId }) => !partsOff.has(partId) && !partsOff.has(toPartId)),
       fitting,
     };
   }
@@ -239,7 +265,7 @@ export class CockpitEditor {
   measureDrawing(): MeasureDrawing | null {
     const { measurePicks } = this.current;
     if (measurePicks === null) return null;
-    const { resolved } = replayDesign(this.history(), this.at()).fitted;
+    const { resolved } = this.designShown().fitted;
     const [first, second] = measurePicks;
     return {
       points: measurePicks.map((pick) => pickInCockpit(resolved, pick)),
@@ -247,17 +273,103 @@ export class CockpitEditor {
     };
   }
 
-  /** The driver seated in the design the view shows, each part where it is along its travel. */
+  /**
+   * The driver seated in the design the view shows, with the parts of its mode on, each where
+   * it is along its travel.
+   */
   seatedDriver(): SeatedDriver {
-    const { resolved } = replayDesign(this.history(), this.at()).fitted;
+    const { resolved } = this.designShown().fitted;
     return seatedDriver(resolved, editing.currentDriver(this.current));
   }
 
-  /** The driver's figure in a design drawn up to step `at`, when it seats one. */
-  private figureIn(history: readonly Operation[], at: number): DriverFigure | null {
-    const { resolved } = replayDesign(history, at).fitted;
-    const seated = seatedDriver(resolved, editing.currentDriver(this.current));
+  /** The driver's figure in a design drawn, when it seats one. */
+  private figureIn(design: ReplayedDesign): DriverFigure | null {
+    const seated = seatedDriver(design.fitted.resolved, editing.currentDriver(this.current));
     return seated.kind === 'seated' ? seated.figure : null;
+  }
+
+  /** The design at the history marker with only the parts of the mode shown. */
+  private designShown(): ReplayedDesign {
+    const whole = replayDesign(this.history(), this.at());
+    return designInMode(whole, this.partsOffIn(whole));
+  }
+
+  /** The parts the mode shown takes off a replayed design; none with all the parts shown. */
+  private partsOffIn(design: ReplayedDesign): Set<string> {
+    const mode = editing.shownMode(this.current);
+    if (mode === null) return new Set();
+    const subassemblies = editing.designSubassemblies(this.current);
+    return partsOffIn(mode, appliedSubassemblies(subassemblies, design.resolved));
+  }
+
+  /** The design's modes, in the order they were made. */
+  modes(): readonly Mode[] {
+    return editing.designModes(this.current);
+  }
+
+  /** The mode the view shows and checks, or null when it shows all the parts. */
+  shownMode(): Mode | null {
+    return editing.shownMode(this.current);
+  }
+
+  /**
+   * The mode the selected part is off in, with the outermost subassembly it takes off that
+   * holds the part, or null when the part is on or the view shows all the parts.
+   */
+  selectedPartOff(): { mode: string; subassembly: string } | null {
+    const partId = this.selectedPartId();
+    const mode = this.shownMode();
+    if (partId === null || mode === null) return null;
+    const taking = this.subassembliesShown()
+      .filter(({ rootId, partIds }) => mode.takenOff.includes(rootId) && partIds.includes(partId))
+      .reduce<AppliedSubassembly | null>(
+        (outermost, next) =>
+          outermost === null || next.partIds.length > outermost.partIds.length ? next : outermost,
+        null,
+      );
+    return taking ? { mode: mode.name, subassembly: taking.name } : null;
+  }
+
+  /** Shows a mode, or all the parts; which one is saved, but choosing it is not an edit. */
+  showMode(modeId: string | null) {
+    this.current = editing.showMode(this.current, modeId);
+    this.host.saveSoon();
+    this.showPanels();
+  }
+
+  /** Adds a mode with every subassembly on, and shows it. */
+  addMode() {
+    this.settleChange();
+    const modes = addMode(this.modes());
+    const added = modes.at(-1) ?? null;
+    this.showDesignChange(editing.withModes(this.current, modes, added?.id ?? null));
+  }
+
+  /** Renames a mode; a name left empty keeps the one it had. */
+  renameMode(modeId: string, name: string) {
+    this.changeModes(renameMode(this.modes(), modeId, name));
+  }
+
+  /** Deletes a mode; when it was shown, the view shows all the parts. */
+  deleteMode(modeId: string) {
+    this.changeModes(deleteMode(this.modes(), modeId));
+  }
+
+  /** Puts a subassembly on in a mode, or takes it off. */
+  setSubassemblyOn(modeId: string, rootId: string, on: boolean) {
+    this.changeModes(setSubassemblyOn(this.modes(), modeId, rootId, on));
+  }
+
+  /** Makes `next` the design's modes, as an edit; one that changes nothing is not. */
+  private changeModes(next: Mode[]) {
+    this.settleChange();
+    if (JSON.stringify(next) === JSON.stringify(this.modes())) {
+      this.host.renderInspector();
+      return;
+    }
+    const shown = this.shownMode();
+    const stillShown = shown !== null && next.some(({ id }) => id === shown.id);
+    this.showDesignChange(editing.withModes(this.current, next, stillShown ? shown.id : null));
   }
 
   /** The parts that touch the selected one at the marker without a joint, to join it to. */
@@ -431,13 +543,21 @@ export class CockpitEditor {
     this.changeSubassemblies((stored) => renameSubassembly(stored, rootId, name));
   }
 
-  /** Ungroups the subassembly of a root, without removing any part. */
+  /** Ungroups the subassembly of a root, without removing any part; no mode takes it off then. */
   ungroupSubassembly(rootId: string) {
-    this.changeSubassemblies((stored) => ungroupSubassembly(stored, rootId));
+    this.changeSubassemblies((stored) => ungroupSubassembly(stored, rootId), {
+      modes: forgetSubassemblyInModes(this.modes(), rootId),
+    });
   }
 
-  /** Changes the design's subassemblies; a change it refuses, or that changes nothing, is not an edit. */
-  private changeSubassemblies(change: (stored: readonly Subassembly[]) => Subassembly[]) {
+  /**
+   * Changes the design's subassemblies, and its modes with them when given; a change it refuses,
+   * or that changes nothing, is not an edit.
+   */
+  private changeSubassemblies(
+    change: (stored: readonly Subassembly[]) => Subassembly[],
+    { modes = this.modes() }: { modes?: readonly Mode[] } = {},
+  ) {
     this.settleChange();
     const stored = editing.designSubassemblies(this.current);
     let next: Subassembly[];
@@ -451,7 +571,7 @@ export class CockpitEditor {
       this.host.renderInspector();
       return;
     }
-    this.showDesignChange(editing.withSubassemblies(this.current, next));
+    this.showDesignChange(editing.withSubassemblies(this.current, next, modes));
   }
 
   addProfile() {

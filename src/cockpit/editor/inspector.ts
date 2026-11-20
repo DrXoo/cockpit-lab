@@ -26,7 +26,8 @@ import {
   swapPeripheralType,
 } from '../cad/history/peripherals.ts';
 import { editPlate, editPlateDraft } from '../cad/history/plates.ts';
-import { cadChecks } from '../checks.ts';
+import { designChecks } from '../checks.ts';
+import { modesPanelHTML } from './modes-view.ts';
 import { checkRowHTML } from '../../ui/check-view.ts';
 import { downloadText } from '../../ui/download.ts';
 import {
@@ -45,6 +46,7 @@ import { partsToBuyHTML } from './parts-view.ts';
 import { $, dataOf, replaceKeepingFocus } from '../../ui/dom.ts';
 import { driverHTML } from './driver-view.ts';
 import { MM_PER_CM } from '../../shared/units.ts';
+import { appliedSubassemblies } from '../cad/history/subassemblies.ts';
 import type { CockpitEditor, PlateFile, PlateFiles } from './editor.ts';
 import { bindJointActions } from './joint-actions.ts';
 
@@ -81,6 +83,7 @@ export class CockpitInspector {
     this.shownLists = new Map();
     this.pendingSwap = null;
     this.bindSwapDialog();
+    this.bindModesPanel();
   }
 
   /** Shows the panel of the selected step, the part about to be added or the driver. */
@@ -106,7 +109,11 @@ export class CockpitInspector {
             failure,
             editor.jointsOfSelected(),
             editor.touchingSelected(),
-            { fitting, subassemblies: editor.subassembliesShown() },
+            {
+              fitting,
+              subassemblies: editor.subassembliesShown(),
+              offInMode: editor.selectedPartOff(),
+            },
           )
         : this.draftPanelHTML(history, draft);
     if (!force && html === this.shownHTML) return;
@@ -176,16 +183,25 @@ export class CockpitInspector {
     $('#cockpitChecksNote').hidden = !this.shown() || editor.hasParts();
     $('#cockpitChecksSection').hidden = !shown;
     $('#partsToBuySection').hidden = !shown;
+    const subassemblies = editor.subassemblies();
+    $('#modesSection').hidden = !shown || subassemblies.length === 0;
     if (!shown) return;
     const history = editor.history();
     const design = replayDesign(history);
     $('#wholeDesignNote').hidden = editor.at() === history.length;
-    this.showList(
-      $('#cockpitChecks'),
-      cadChecks({ history, ...design, subassemblies: editor.subassemblies() })
-        .map(checkRowHTML)
-        .join(''),
-    );
+    const checks = designChecks({
+      history,
+      replayed: design,
+      subassemblies,
+      modes: editor.modes(),
+      shownModeId: editor.shownMode()?.id ?? null,
+      driver: editor.driver(),
+    });
+    this.showList($('#cockpitChecks'), checks.map(checkRowHTML).join(''));
+    if (subassemblies.length > 0) {
+      const applied = appliedSubassemblies(subassemblies, design.resolved);
+      this.showModesPanel(modesPanelHTML(applied, editor.modes()));
+    }
     this.showList(
       $('#partsToBuy'),
       partsToBuyHTML(partsToBuy(design.resolved, design.connectors, design.joints)),
@@ -196,6 +212,42 @@ export class CockpitInspector {
     if (this.shownLists.get(container) === html) return;
     container.innerHTML = html;
     this.shownLists.set(container, html);
+  }
+
+  /** Shows the Modes panel when it changed, with its icons. */
+  private showModesPanel(html: string) {
+    const panel = $('#modesBody');
+    if (this.shownLists.get(panel) === html) return;
+    replaceKeepingFocus(panel, html);
+    this.shownLists.set(panel, html);
+  }
+
+  /**
+   * The controls of the Modes panel, bound once on the panel, as its table is rebuilt whenever
+   * the design changes.
+   */
+  private bindModesPanel() {
+    const editor = this.editor;
+    const panel = $('#modesBody');
+    panel.addEventListener('click', (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest('#addMode')) {
+        editor.addMode();
+        return;
+      }
+      const deleting = event.target.closest<HTMLElement>('[data-delete-mode]');
+      if (deleting) editor.deleteMode(dataOf(deleting, 'deleteMode'));
+    });
+    panel.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) return;
+      if (input.dataset.modeName !== undefined) {
+        editor.renameMode(input.dataset.modeName, input.value);
+        return;
+      }
+      if (input.dataset.mode !== undefined && input.dataset.root !== undefined)
+        editor.setSubassemblyOn(input.dataset.mode, input.dataset.root, input.checked);
+    });
   }
 
   private fieldsIn(body: HTMLElement) {

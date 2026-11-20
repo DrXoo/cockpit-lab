@@ -26,13 +26,15 @@ import { isAPeripheral, type Mode } from './part-tools.ts';
 import { peripheralInspectorHTML } from './peripheral-view.ts';
 import { plateExportsHTML, plateFieldsHTML } from './plate-view.ts';
 import { profileFieldsHTML } from './profile-view.ts';
-import { subassemblyHTML } from './subassembly-view.ts';
+import { subassemblyHTML, type PartOffInMode } from './subassembly-view.ts';
 import type { AppliedSubassembly } from '../cad/history/subassemblies.ts';
 
 /** How the inspector shows a step: the mode of the view, and the subassemblies at the marker. */
 export interface PartInspectorOptions extends Mode {
   /** The subassemblies that apply where the view shows the design; none when left out. */
   subassemblies?: readonly AppliedSubassembly[];
+  /** The mode shown that takes the part off, or null when it is on. */
+  offInMode?: PartOffInMode | null;
 }
 
 /**
@@ -46,14 +48,14 @@ export function partInspectorHTML(
   failure?: string,
   joints: readonly JointOfPart[] = [],
   touching: readonly TouchingPart[] = [],
-  { fitting = false, subassemblies = [] }: PartInspectorOptions = {},
+  { fitting = false, subassemblies = [], offInMode = null }: PartInspectorOptions = {},
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
   // A failed step makes no part to group.
   const subassembly =
     failure === undefined && makesAPart(operation)
-      ? subassemblyHTML(subassemblies, operation.partId)
+      ? subassemblyHTML(subassemblies, operation.partId, offInMode)
       : '';
   if (fitting && !isAPeripheral(operation))
     return lockedStepHTML(history, operation, failure, subassembly);

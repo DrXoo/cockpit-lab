@@ -43,6 +43,10 @@ import {
   withAddedPart,
   withHistory,
   withSubassemblies,
+  withModes,
+  designModes,
+  shownMode,
+  showMode,
   type CockpitSession,
   type HistoryChange,
 } from '../../../src/cockpit/editor/session.ts';
@@ -173,6 +177,39 @@ test('a change of the subassemblies is an edit that can be undone, keeping the s
   assert.equal(grouped.selectedOperationId, selected.selectedOperationId);
   assert.equal(undone(grouped).design?.subassemblies, undefined);
   assert.deepEqual(designHistory(grouped), threeSteps());
+});
+
+/** Three steps grouped as an Upright (part-2), with a mode that takes it off. */
+function withFlightMode(): CockpitSession {
+  const grouped = withSubassemblies(sessionOf(threeSteps()), [
+    { name: 'Upright', rootId: 'part-2' },
+  ]);
+  return withModes(grouped, [{ id: 'mode-1', name: 'Flight', takenOff: ['part-2'] }], 'mode-1');
+}
+
+test('a change of the modes is an edit that can be undone, and shows the mode it names', () => {
+  const moded = withFlightMode();
+  assert.equal(shownMode(moded)?.name, 'Flight');
+  assert.deepEqual(designModes(undone(moded)), []);
+  assert.equal(shownMode(undone(moded)), null);
+});
+
+test('choosing the mode shown is saved with the design, but is not an edit', () => {
+  const moded = withFlightMode();
+  const allParts = showMode(moded, null);
+  assert.equal(shownMode(allParts), null);
+  assert.equal(allParts.design?.shownModeId, undefined);
+  assert.equal(allParts.edits, moded.edits);
+  assert.equal(shownMode(showMode(allParts, 'mode-1'))?.name, 'Flight');
+  assert.throws(() => showMode(moded, 'mode-9'), /mode-9/);
+});
+
+test('undoing an edit keeps the mode shown while the design it goes back to has it', () => {
+  const moded = withFlightMode();
+  const edited = showMode(withHistory(moded, railHistory()), null);
+  assert.equal(shownMode(undone(edited)), null, 'all the parts stay shown');
+  const renamed = withModes(edited, [{ id: 'mode-1', name: 'Sim', takenOff: [] }], null);
+  assert.equal(shownMode(showMode(undone(renamed), 'mode-1'))?.name, 'Flight');
 });
 
 test('a design change starts the measurement again, and ends it once no part is left', () => {

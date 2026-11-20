@@ -40,6 +40,13 @@ export function createPalette(vectorFallback: boolean): Palette {
       opacity: 0.45,
       depthWrite: false,
     }),
+    ghost: new T.MeshStandardMaterial({
+      color: 0xca6036,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+      roughness: 1,
+    }),
     reference: new T.MeshStandardMaterial({
       color: 0x8f968f,
       transparent: true,

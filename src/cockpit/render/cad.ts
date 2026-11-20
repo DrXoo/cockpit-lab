@@ -37,6 +37,8 @@ export interface CockpitDrawing {
   selectedPartId: string | null;
   /** A part about to be added, drawn as a preview. */
   previewPartId?: string | null;
+  /** A selected part that the mode shown takes off, drawn as a ghost that clicks go through. */
+  ghostPartId?: string | null;
   /** The part whose face a click chooses, while a part is about to be added to it. */
   choosingFaceOf?: string | null;
   /** The handles of the selected part, to drag in the view. */
@@ -92,27 +94,41 @@ export function drawCadProfiles(
   resolved: ReadonlyMap<string, ResolvedPart>,
   selectedId: string | null = null,
   previewId: string | null = null,
-  { fitting = false }: { fitting?: boolean } = {},
+  { fitting = false, ghostId = null }: { fitting?: boolean; ghostId?: string | null } = {},
 ): void {
   const frameOf = tiltFrames(r, parent);
   for (const resolvedPart of resolved.values()) {
     const { part, box, tiltDeg } = resolvedPart;
-    if (part.kind === 'foot') drawFoot(r, frameOf(tiltDeg), box, part.id === selectedId);
+    const ghost = part.id === ghostId;
+    if (part.kind === 'foot')
+      drawFoot(
+        r,
+        frameOf(tiltDeg),
+        box,
+        ghost ? 'ghost' : part.id === selectedId ? 'selected' : 'own',
+      );
     if (part.kind === 'peripheral') {
       // Out of Fit a peripheral is only a reference for the frame, never selected or previewed.
-      const shown: PeripheralLook = !fitting
-        ? 'reference'
-        : part.id === previewId
-          ? 'preview'
-          : part.id === selectedId
-            ? 'selected'
-            : 'own';
+      const shown: PeripheralLook = ghost
+        ? 'ghost'
+        : !fitting
+          ? 'reference'
+          : part.id === previewId
+            ? 'preview'
+            : part.id === selectedId
+              ? 'selected'
+              : 'own';
       drawPeripheral(r, frameOf(tiltDeg), resolvedPart, shown);
     }
     if (part.kind !== 'profile' && part.kind !== 'plate') continue;
     const size = sizeOf(box);
-    const material =
-      part.id === previewId ? 'preview' : part.id === selectedId ? 'selected' : 'silver';
+    const material = ghost
+      ? 'ghost'
+      : part.id === previewId
+        ? 'preview'
+        : part.id === selectedId
+          ? 'selected'
+          : 'silver';
     const solid = r.box(...size, ...centerOf(box), material, frameOf(tiltDeg), true);
     if (part.kind === 'profile')
       drawGrooves(r, solid.id, size, part.axis, cm(profileSystem(part.systemId).series));
@@ -120,7 +136,7 @@ export function drawCadProfiles(
 }
 
 /** How a peripheral is drawn: in its own materials, or all in one that marks its state. */
-type PeripheralLook = 'own' | 'selected' | 'preview' | 'reference';
+type PeripheralLook = 'own' | 'selected' | 'preview' | 'reference' | 'ghost';
 
 /** A box of a peripheral's drawing, in its own frame from its mounting origin, in mm. */
 interface ShapeBox {
@@ -487,7 +503,14 @@ function plateOf(box: BoxMm, axis: Axis, fromLow: boolean, thicknessMm: number):
   return plate;
 }
 
-function drawFoot(r: RenderList, frame: ParentRef, box: BoxMm, selected: boolean): void {
+/** A foot, in its own materials, all in the selection's or all in the ghost's. */
+function drawFoot(
+  r: RenderList,
+  frame: ParentRef,
+  box: BoxMm,
+  look: 'own' | 'selected' | 'ghost',
+): void {
+  const materialOf = (own: PaletteMaterial): PaletteMaterial => (look === 'own' ? own : look);
   const x = cm((box.min.x + box.max.x) / 2);
   const z = cm((box.min.z + box.max.z) / 2);
   const padTopMm = box.min.y + FOOT_PAD_HEIGHT_MM;
@@ -498,7 +521,7 @@ function drawFoot(r: RenderList, frame: ParentRef, box: BoxMm, selected: boolean
     x,
     cm(box.min.y + FOOT_PAD_HEIGHT_MM / 2),
     z,
-    selected ? 'selected' : 'rubber',
+    materialOf('rubber'),
     frame,
   );
   r.cylinder(
@@ -507,7 +530,7 @@ function drawFoot(r: RenderList, frame: ParentRef, box: BoxMm, selected: boolean
     x,
     cm((padTopMm + box.max.y) / 2),
     z,
-    selected ? 'selected' : 'silver',
+    materialOf('silver'),
     frame,
   );
 }

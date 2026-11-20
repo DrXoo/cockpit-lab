@@ -65,7 +65,10 @@ export function renderModel(
       options.cockpit.resolved,
       options.cockpit.selectedPartId,
       options.cockpit.previewPartId ?? null,
-      { fitting: options.cockpit.fitting ?? false },
+      {
+        fitting: options.cockpit.fitting ?? false,
+        ghostId: options.cockpit.ghostPartId ?? null,
+      },
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
     if (options.cockpit.plateHoles)

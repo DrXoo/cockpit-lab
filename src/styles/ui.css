@@ -883,7 +883,7 @@ select option {
 }
 
 .change-box input {
-  width: 72px;
+  width: 60px;
   padding: 2px 4px;
   font: inherit;
   text-align: right;
@@ -1865,4 +1865,63 @@ select option {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.mode-shown {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  padding: 5px 8px;
+  font-size: 12px;
+  max-width: 160px;
+}
+.modes-table-wrap {
+  overflow-x: auto;
+  margin: 8px 0 10px;
+}
+.modes-table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.modes-table th,
+.modes-table td {
+  padding: 4px 4px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.modes-table thead th {
+  font-weight: 600;
+}
+.modes-table tbody th {
+  font-weight: 500;
+}
+.mode-heading {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.mode-heading input {
+  width: 60px;
+  font-size: 12px;
+  padding: 3px 5px;
+}
+.mode-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.mode-cell.off,
+.mode-cell.off-with-parent {
+  color: var(--text-muted);
+}
+.mode-cell.off-with-parent {
+  cursor: default;
+}
+.mode-heading .icon-button {
+  padding: 4px;
+}
+.mode-heading .icon-button svg {
+  width: 13px;
+  height: 13px;
 }

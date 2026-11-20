@@ -290,6 +290,55 @@ test('a part is made the root of a subassembly, renamed and ungrouped from its i
   await expect.poll(savedSubassemblies).toEqual([{ name: 'Wheel deck', rootId: 'part-2' }]);
 });
 
+test('modes are added in the Modes panel, take subassemblies off and are chosen in the view', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  const saved = async () => (await getSavedProject(page))?.cockpit;
+  await expect(page.locator('#modesSection')).toBeHidden();
+  await page.locator('#makeSubassembly').click();
+  await expect(page.locator('#noModes')).toBeVisible();
+  await expect(page.locator('#modeShown')).toBeHidden();
+
+  await page.locator('#addMode').click();
+  await expect
+    .poll(async () => (await saved())?.modes)
+    .toEqual([{ id: 'mode-1', name: 'Mode 1', takenOff: [] }]);
+  await expect(page.locator('#modeShown')).toHaveValue('mode-1');
+  await page.locator('[data-mode-name="mode-1"]').fill('Flight');
+  await page.locator('[data-mode-name="mode-1"]').press('Enter');
+  await page.locator('input[data-mode="mode-1"][data-root="part-2"]').uncheck();
+  await expect
+    .poll(async () => (await saved())?.modes)
+    .toEqual([{ id: 'mode-1', name: 'Flight', takenOff: ['part-2'] }]);
+  await expect(page.locator('#modeShown option[value="mode-1"]')).toHaveText('Flight');
+  await expect(page.locator('[data-check="cad-modes"]')).toHaveCount(0);
+
+  // The part taken off is a ghost while selected, and its inspector says so.
+  await page.locator('[data-operation="op-2"]').click();
+  await expect(page.locator('#partOffInMode')).toBeVisible();
+  await page.locator('#modeShown').selectOption('');
+  await expect.poll(async () => (await saved())?.shownModeId).toBeUndefined();
+  await expect(page.locator('#partOffInMode')).toHaveCount(0);
+  await expect(page.locator('[data-check="cad-modes"]')).toBeVisible();
+  await expect(page.locator('[data-check="cad-interference"]')).toHaveCount(0);
+
+  await page.locator('#addMode').click();
+  await expect(page.locator('#modeShown')).toHaveValue('mode-2');
+  await expect(page.locator('[data-check="cad-modes"]')).toBeVisible();
+  await page.locator('[data-delete-mode="mode-2"]').click();
+  await expect(page.locator('#modeShown')).toHaveValue('');
+
+  // Ungrouping a subassembly takes it out of every mode.
+  await page.locator('#ungroupSubassembly').click();
+  await expect
+    .poll(async () => (await saved())?.modes)
+    .toEqual([{ id: 'mode-1', name: 'Flight', takenOff: [] }]);
+  await expect(page.locator('#modesSection')).toBeHidden();
+});
+
 test('a profile can lie along a face instead of growing out of it', async ({ page }) => {
   await startDesign(page);
   await page.locator('#growProfile').click();

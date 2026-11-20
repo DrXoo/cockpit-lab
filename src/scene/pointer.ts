@@ -212,12 +212,15 @@ export class ScenePointer {
   private partAt(event: PointerEvent): PartHit | null {
     const { cockpit } = this.host;
     if (!cockpit) return null;
-    const { resolved, previewPartId, fitting = false } = cockpit;
-    // A part about to be added is only a preview, and out of Fit a peripheral is only a
-    // reference: clicks go through them.
+    const { resolved, previewPartId, ghostPartId, fitting = false } = cockpit;
+    // A part about to be added is only a preview, a part the mode takes off only a ghost, and
+    // out of Fit a peripheral is only a reference: clicks go through them.
     const pickable = new Map(
       [...resolved].filter(
-        ([partId, { part }]) => partId !== previewPartId && (fitting || part.kind !== 'peripheral'),
+        ([partId, { part }]) =>
+          partId !== previewPartId &&
+          partId !== ghostPartId &&
+          (fitting || part.kind !== 'peripheral'),
       ),
     );
     return hitAlongRay(pickable, rayInMm(this.rayAt(event)));

@@ -291,7 +291,14 @@
             </button>
           </div>
           <div class="scene-options">
-            <button
+            <select
+              class="mode-shown"
+              id="modeShown"
+              aria-label="Mode shown"
+              title="Show all the parts of the design, or only those a mode has on"
+              hidden
+            ></select
+            ><button
               class="layout-button"
               id="layoutBtn"
               aria-pressed="false"
@@ -443,6 +450,16 @@
             For the whole design, with every step, wherever the history marker is.
           </p>
           <div id="cockpitChecks"></div>
+        </section>
+        <section class="inspector-section" id="modesSection" hidden>
+          <div class="section-line">
+            <h3><i data-icon="layers"></i>Modes</h3>
+          </div>
+          <p class="layout-hint">
+            Which subassemblies are on the cockpit in each mode. The parts outside every subassembly
+            are on in all of them.
+          </p>
+          <div id="modesBody"></div>
         </section>
         <section class="inspector-section" id="partsToBuySection" hidden>
           <div class="section-line">
