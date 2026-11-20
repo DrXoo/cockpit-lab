@@ -284,6 +284,8 @@ export interface PlateBoltType {
   headHeightMm: number;
   /** How far the bolt reaches past the plate, into its T-nut, without touching the slot's floor. */
   intoTheSlotMm: number;
+  /** The hole it goes through in the plate, clearance included. */
+  clearanceHoleMm: number;
   /** The lengths it is stocked in, shortest first, each a fastener type `bolt-m8x<length>`. */
   stockedLengthsMm: readonly number[];
   source: DataSource;
@@ -304,6 +306,8 @@ const PLATE_BOLT_TYPES: readonly PlateBoltType[] = [
     headWidthMm: 13,
     headHeightMm: 8,
     intoTheSlotMm: 8,
+    // ISO 273 medium series for M8, estimated: check what the chosen shop cuts.
+    clearanceHoleMm: 9,
     stockedLengthsMm: [12, 16, 20, 25, 30],
     source: PLATE_BOLT_SOURCE,
   },

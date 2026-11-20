@@ -185,7 +185,6 @@ const plate: PlatePart = {
   sheetId: 'aluminium-5',
   normal: '+y',
   depthAxis: 'z',
-  ownHoles: [],
   placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 600, fromEnd: 'start' },
 };
 const sized = (view: SceneView = 'iso', plateId: string | null = 'plate') => {

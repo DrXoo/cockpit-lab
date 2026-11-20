@@ -14,7 +14,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from './catalog.ts';
-import type { Hole, MountingPattern } from './plate.ts';
+import type { MountingPattern } from './plate.ts';
 
 export type Axis = 'x' | 'y' | 'z';
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -105,7 +105,6 @@ export interface PlatePart {
   normal: Face;
   /** The axis its depth runs along, never its normal's. */
   depthAxis: Axis;
-  ownHoles: readonly Hole[];
   placement: Anchor | Attachment;
 }
 
@@ -269,7 +268,7 @@ function peripheralFrame(part: PeripheralPart): PeripheralFrame {
 }
 
 /** The face that the cross product of the directions two faces look along looks along. */
-function crossFace(a: Face, b: Face): Face {
+export function crossFace(a: Face, b: Face): Face {
   const from = AXES.indexOf(faceAxis(a));
   const to = AXES.indexOf(faceAxis(b));
   const third = AXES[3 - from - to];

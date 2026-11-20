@@ -98,7 +98,6 @@ const plate = (id: string, widthMm: number, depthMm: number, sheetId: string): P
   sheetId,
   normal: '+y',
   depthAxis: 'z',
-  ownHoles: [],
   placement: {
     kind: 'attachment',
     parentId: 'left-rail',

@@ -301,7 +301,6 @@ const plate = (placement: Anchor | Attachment): PlatePart => ({
   sheetId: 'aluminium-5',
   normal: 'face' in placement ? placement.face : '+y',
   depthAxis: 'z',
-  ownHoles: [],
   placement,
 });
 const pedals = (placement: Anchor | Attachment): PeripheralPart => ({

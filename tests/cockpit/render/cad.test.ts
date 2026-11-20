@@ -159,7 +159,6 @@ const plateOn = (parentId: string): PlatePart => ({
   sheetId: 'aluminium-8',
   normal: '+y',
   depthAxis: 'z',
-  ownHoles: [],
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 600, fromEnd: 'start' },
 });
 

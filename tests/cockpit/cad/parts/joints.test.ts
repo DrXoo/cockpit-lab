@@ -100,7 +100,6 @@ const plateOn = (parentId: string): PlatePart => ({
   sheetId: 'aluminium-5',
   normal: '+y',
   depthAxis: 'z',
-  ownHoles: [],
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 200, fromEnd: 'start' },
 });
 const peripheralOn = (parentId: string): PeripheralPart => ({

@@ -390,7 +390,6 @@ function plateMadeBy(operation: AddPlate): PlatePart {
     sheetId: operation.sheetId,
     normal: operation.face,
     depthAxis: operation.depthAxis,
-    ownHoles: [],
     placement: {
       kind: 'attachment',
       parentId: operation.parentId,

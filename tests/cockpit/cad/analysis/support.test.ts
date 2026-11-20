@@ -85,7 +85,6 @@ test('a peripheral on a plate is supported through the plate', () => {
     sheetId: 'aluminium-5',
     normal: '+y',
     depthAxis: 'z',
-    ownHoles: [],
     placement: {
       kind: 'attachment',
       parentId: 'left-rail',
