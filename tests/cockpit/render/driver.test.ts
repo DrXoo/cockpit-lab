@@ -76,3 +76,28 @@ test('the figure is drawn over the parts, so the seat it sits in does not hide i
   assert.ok(materials.length > 0);
   assert.ok(materials.every(({ spec }) => spec.kind === 'flat' && spec.onTop === true));
 });
+
+test('an arm with a shoulder of its own is joined to the top of the torso', () => {
+  const onGrip = {
+    shoulder: { x: -200, y: 800, z: -100 },
+    elbow: { x: -200, y: 600, z: 150 },
+    hand: { x: -200, y: 650, z: 450 },
+  };
+  const tubes = drawn({ ...figure, arms: [onGrip] })
+    .filter((primitive) => primitive.kind === 'tube')
+    .map(({ from, to }) => [from, to]);
+  assert.deepEqual(tubes.slice(4), [
+    [
+      [0, 80, -10],
+      [-20, 80, -10],
+    ],
+    [
+      [-20, 80, -10],
+      [-20, 60, 15],
+    ],
+    [
+      [-20, 60, 15],
+      [-20, 65, 45],
+    ],
+  ]);
+});

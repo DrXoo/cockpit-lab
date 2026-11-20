@@ -64,3 +64,75 @@ test('a design that seats no driver says why, and keeps the stature', () => {
   assert.match(html, /id="driverStature"/);
   assert.equal(angleItems(html).length, 0);
 });
+
+test('an elbow on a grip is named by its hand', () => {
+  const html = driverHTML(
+    DRIVER,
+    seated({
+      angles: [
+        {
+          joint: 'elbow',
+          hand: 'right',
+          angleDeg: 110,
+          range: { minDeg: 90, maxDeg: 130 },
+          verdict: 'within',
+        },
+      ],
+    }),
+  );
+  assert.match(html, /<li data-angle="elbow" data-hand="right"[^>]*>✓ Right elbow 110°, within/);
+});
+
+test('each grip says whether its hand is on it or reaches it, and by how much it does not', () => {
+  const grip = (partId: string, held: boolean, shortByMm: number) => ({
+    partId,
+    name: `<${partId}>`,
+    hand: 'right' as const,
+    held,
+    shortByMm,
+  });
+  const html = driverHTML(
+    DRIVER,
+    seated({
+      reach: {
+        legs: true,
+        arms: null,
+        grips: [
+          grip('stick', true, 0),
+          grip('far-stick', true, 44.2),
+          grip('shifter', false, 0),
+          grip('handbrake', false, 0.3),
+        ],
+      },
+    }),
+  );
+  const items = [...html.matchAll(/<li data-grip="([\w-]+)" class="([\w -]+)">([^<]*)<\/li>/g)];
+  assert.deepEqual(
+    items.map(([, partId, classes, text]) => [partId, classes, text]),
+    [
+      ['stick', 'driver-angle ok', '✓ Right hand on &lt;stick&gt;'],
+      [
+        'far-stick',
+        'driver-angle warning',
+        '⚠ Right hand on &lt;far-stick&gt;, 45 mm beyond its reach',
+      ],
+      ['shifter', 'driver-angle ok', '✓ &lt;shifter&gt; within reach of the right hand'],
+      [
+        'handbrake',
+        'driver-angle warning',
+        '⚠ &lt;handbrake&gt; 1 mm beyond reach of the right hand',
+      ],
+    ],
+  );
+});
+
+test('a hand with two sticks or throttles is warned about', () => {
+  const html = driverHTML(
+    DRIVER,
+    seated({ doubledGrips: [{ hand: 'left', names: ['Throttle', 'Stick'] }] }),
+  );
+  assert.match(
+    html,
+    /data-doubled="left"[^>]*>⚠ The left hand has more than one grip to hold, Throttle and Stick, and holds neither\.</,
+  );
+});

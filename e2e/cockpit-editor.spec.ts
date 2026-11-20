@@ -1174,6 +1174,38 @@ test('fitting with nothing selected, the panel seats the driver and sets the sta
   await expect(page.locator('#driverStature')).toHaveValue('175');
 });
 
+test('without a wheel, the driver holds a stick and a throttle, one in each hand', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#part-lengthMm').fill('1500');
+  await page.locator('#part-lengthMm').press('Enter');
+  await page.locator('#fitModeBtn').click();
+  const mount = async (button: string, alongMm: number) => {
+    await page.locator('[data-part="part-1"]').click();
+    await page.locator(button).click();
+    await page.locator('#peripheral-alongMm').fill(String(alongMm));
+    await page.locator('#peripheral-alongMm').press('Enter');
+    await page.locator('#confirmPeripheral').click();
+  };
+  await mount('#mountSeat', 400);
+  await mount('#mountPedals', 1250);
+  await mount('#mountSideStick', 800);
+  await mount('#mountThrottle', 900);
+  await clickViewport(page, 0.03, 0.97);
+  const elbows = page.locator('#driverAngles [data-angle="elbow"]');
+  await expect(elbows).toHaveCount(2);
+  await expect(page.locator('[data-angle="elbow"][data-hand="right"]')).toHaveCount(1);
+  await expect(page.locator('[data-angle="elbow"][data-hand="left"]')).toHaveCount(1);
+  await expect(page.locator('#driverGrips [data-grip]')).toHaveCount(2);
+
+  await page.locator('[data-part="part-5"]').click();
+  await page.locator('#part-hand').selectOption('right');
+  await clickViewport(page, 0.03, 0.97);
+  await expect(page.locator('[data-doubled="right"]')).toBeVisible();
+  await expect(elbows).toHaveCount(0);
+});
+
 test('a part about to be added is added or dropped from its box in the view, or with Enter', async ({
   page,
 }) => {
