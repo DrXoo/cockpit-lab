@@ -40,14 +40,6 @@ import { sectionOfStep, setupButtons } from './setup-actions.ts';
 import { deskPanelHTML } from './settings-panels.ts';
 import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
 import { ProjectSession } from './project-session.ts';
-import {
-  nextThemePreference,
-  parseThemePreference,
-  resolveTheme,
-  THEME_PREFERENCE_LABELS,
-  THEME_STORAGE_KEY,
-  type ThemePreference,
-} from './theme-preference.ts';
 import { checkRowHTML } from './check-view.ts';
 import { $, $$, $optional, dataOf, replaceKeepingFocus } from './dom.ts';
 import {
@@ -68,49 +60,11 @@ import { DeskControls } from './room-editing/desk-controls.ts';
 import { LayoutPicker } from './room-editing/layout-picker.ts';
 import { SettingControls } from './room-editing/settings-controls.ts';
 import { drawIcons } from './icons.ts';
+import { ColorTheme } from './theme.ts';
 
 drawIcons();
 
-// The color theme is a preference of this browser, not part of the design.
-const systemPrefersDark = matchMedia('(prefers-color-scheme: dark)');
-const THEME_ICONS: Record<ThemePreference, string> = {
-  system: 'themeSystem',
-  light: 'themeLight',
-  dark: 'themeDark',
-};
-function storedThemePreference(): ThemePreference {
-  try {
-    return parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
-  } catch {
-    return 'system';
-  }
-}
-let themePreference = storedThemePreference();
-function applyTheme() {
-  const root = document.documentElement;
-  root.dataset.theme = resolveTheme(themePreference, systemPrefersDark.matches);
-  const label = THEME_PREFERENCE_LABELS[themePreference];
-  const button = $('#themeBtn');
-  button.setAttribute('aria-label', `Color theme: ${label}`);
-  $('#themeBtn span').textContent = label;
-  $('#themeBtn i').dataset.icon = THEME_ICONS[themePreference];
-  drawIcons(button);
-  const pageColor = getComputedStyle(root).getPropertyValue('--surface-page').trim();
-  $('meta[name="theme-color"]').setAttribute('content', pageColor);
-  scene?.applyTheme();
-}
-$('#themeBtn').addEventListener('click', () => {
-  themePreference = nextThemePreference(themePreference);
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, themePreference);
-  } catch {
-    // Without storage the choice lasts until the page is closed.
-  }
-  applyTheme();
-});
-systemPrefersDark.addEventListener('change', () => {
-  if (themePreference === 'system') applyTheme();
-});
+const colorTheme = new ColorTheme(() => scene?.applyTheme());
 const store = createProjectStore(() => window.localStorage);
 const VIEWS: readonly string[] = ['iso', 'top', 'desk', 'side'];
 function viewOf(value: string): SceneView {
@@ -783,7 +737,7 @@ try {
   console.error(error);
   $('#webglFallback').hidden = false;
 }
-applyTheme();
+colorTheme.apply();
 declare global {
   interface Window {
     cockpitLab: { getState(): RoomConfig; getEvaluation(): CockpitEvaluation };
