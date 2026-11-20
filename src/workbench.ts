@@ -8,33 +8,33 @@ import type { CockpitInspector } from './cockpit-editor/inspector.ts';
 import type { CockpitToolbar } from './cockpit-editor/toolbar.ts';
 import type { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
 import { NOTHING_AROUND } from './cockpit-editor-view.ts';
-import { activeArmPose } from './arm-poses.ts';
-import type { RoomConfig } from './config.ts';
+import { activeArmPose } from './room/arm-poses.ts';
+import type { RoomConfig } from './room/config.ts';
 import { $, $$, $optional, dataOf, replaceKeepingFocus } from './ui/dom.ts';
-import type { CockpitEvaluation } from './evaluate.ts';
-import { hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
-import { evaluate } from './model.ts';
+import type { CockpitEvaluation } from './room/evaluate.ts';
+import { hiddenFurnitureOf, type LayoutLibrary } from './room/layouts.ts';
+import { evaluate } from './room/model.ts';
 import { toast } from './app/notices.ts';
 import { isGuided, renderPageChrome, type PageChrome } from './app/page-chrome.ts';
 import { createProject, type Project } from './project/project.ts';
 import type { ProjectSession } from './project/session.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project/summary.ts';
 import type { CockpitDrawing } from './render-cad.ts';
-import type { DeskControls } from './room-editing/desk-controls.ts';
-import type { GuidedSetup } from './room-editing/guided-setup.ts';
-import type { RoomEditorHost } from './room-editing/host.ts';
-import type { LayoutPicker } from './room-editing/layout-picker.ts';
-import { renderRoomChecks } from './room-editing/room-checks-panel.ts';
-import type { RoomItems } from './room-editing/room-items.ts';
+import type { DeskControls } from './room/editing/desk-controls.ts';
+import type { GuidedSetup } from './room/editing/guided-setup.ts';
+import type { RoomEditorHost } from './room/editing/host.ts';
+import type { LayoutPicker } from './room/editing/layout-picker.ts';
+import { renderRoomChecks } from './room/editing/room-checks-panel.ts';
+import type { RoomItems } from './room/editing/room-items.ts';
 import {
   noRoomSelection,
   panelTarget,
   targetAfterLayoutChange,
   targetAfterSwitch,
   type RoomSelection,
-} from './room-editing/selection.ts';
-import type { SettingControls } from './room-editing/settings-controls.ts';
-import { roomControls } from './room-editor.ts';
+} from './room/editing/selection.ts';
+import type { SettingControls } from './room/editing/settings-controls.ts';
+import { roomControls } from './room/editing/room-editor.ts';
 import type { CockpitScene } from './scene/scene.ts';
 import { SIGHT_AXIS, type SceneView } from './scene/camera.ts';
 import {
@@ -47,9 +47,9 @@ import {
   type Section,
   type Workspace,
 } from './app/sections.ts';
-import { sectionOfStep } from './setup-actions.ts';
-import { creationControls } from './setup-editor.ts';
-import { deskPanelHTML } from './settings-panels.ts';
+import { sectionOfStep } from './room/editing/setup-actions.ts';
+import { creationControls } from './room/editing/setup-editor.ts';
+import { deskPanelHTML } from './room/editing/settings-panels.ts';
 
 const VIEWS = ['iso', 'top', 'desk', 'side'] as const;
 

@@ -3,8 +3,8 @@
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
-import type { RoomConfig } from '../config.ts';
-import type { CockpitEvaluation } from '../evaluate.ts';
+import type { RoomConfig } from '../room/config.ts';
+import type { CockpitEvaluation } from '../room/evaluate.ts';
 import { inversePoint } from '../shared/geometry.ts';
 import { hitAlongRay, type PartHit } from '../cad/picking.ts';
 import type { Face, ResolvedPart } from '../cad/assembly.ts';
@@ -14,9 +14,13 @@ export interface PagePoint {
   x: number;
   y: number;
 }
-import { draggedPosition, pickLayoutItem, type LayoutGrab } from '../layout-picking.ts';
+import {
+  draggedPosition,
+  pickLayoutItem,
+  type LayoutGrab,
+} from '../room/editing/layout-picking.ts';
 import type { CockpitDrawing } from '../render-cad.ts';
-import type { ArmHandle } from '../render-desk.ts';
+import type { ArmHandle } from '../room/render/desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
 import { drawHover } from '../render-hover.ts';
 import { distanceAlongAxis, type Handle, type HandleModifiers } from '../cad/handles.ts';

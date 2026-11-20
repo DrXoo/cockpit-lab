@@ -1,14 +1,14 @@
 // The parts of the page that follow the editor shown and the guided setup: headings, tabs, the
 // setup's guide and buttons, the empty-scene message, and the panels and buttons each editor
 // offers.
-import type { RoomConfig } from '../config.ts';
+import type { RoomConfig } from '../room/config.ts';
 import { $, $$, dataOf } from '../ui/dom.ts';
-import type { CockpitEvaluation } from '../evaluate.ts';
-import { activeLayout, type LayoutLibrary } from '../layouts.ts';
+import type { CockpitEvaluation } from '../room/evaluate.ts';
+import { activeLayout, type LayoutLibrary } from '../room/layouts.ts';
 import { steps, type SetupProgress } from '../project/project.ts';
 import type { Editor } from './sections.ts';
-import { setupButtons } from '../setup-actions.ts';
-import { progressHTML } from '../setup-editor.ts';
+import { setupButtons } from '../room/editing/setup-actions.ts';
+import { progressHTML } from '../room/editing/setup-editor.ts';
 
 export interface PageChrome {
   editor: Editor;

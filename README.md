@@ -68,35 +68,35 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/cockpit-editor/` | The cockpit editor: its session (selection, history marker, undo, part being added, Fit, measuring) as pure state in `session.ts`, its commands without DOM in `editor.ts`, and one controller per part of the page (inspector, toolbar, keys, history panel, view overlays, handle dragging) |
 | `src/room-editing/` | The room editor: its selection and the rules that keep it to the panel shown, and one controller per part of the page (setting controls, room items, guided setup, desk and arm, layout picker, room checks, dragging in the plan), all through `RoomEditorHost` |
 | `src/ui/dom.ts`, `src/ui/icons.ts`, `src/app/dialogs.ts`, `src/app/notices.ts`, `src/app/theme.ts` | Finding and replacing parts of the page, its icons, closing dialogs, toasts and the save status, and the color theme |
-| `src/dom-input.ts`, `src/setting-change.ts` | Validating what the panels send, and applying a setting change |
+| `src/room/editing/dom-input.ts`, `src/room/setting-change.ts` | Validating what the panels send, and applying a setting change |
 | `src/project/project.ts`, `src/project/storage.ts`, `src/project/session.ts` | Project format, browser storage, and the open project with its autosave |
 | `src/cockpit-file.ts`, `src/app/project-files.ts` | Cockpit files: a cockpit design on its own, to move it between projects; exporting and opening project and cockpit files |
-| `src/layouts.ts`, `src/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
+| `src/room/layouts.ts`, `src/room/editing/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
 | `src/shared/user-text.ts` | Cleaning names typed by users |
-| `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
-| `src/room-actions.ts` | Adding, editing, deleting and placing room items |
-| `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the desk panel of the room editor |
+| `src/room/editing/setup-editor.ts`, `src/room/editing/setup-actions.ts` | Guided setup steps and rules |
+| `src/room/actions.ts` | Adding, editing, deleting and placing room items |
+| `src/room/editing/controls-view.ts`, `src/room/editing/settings-panels.ts` | Setting controls and the desk panel of the room editor |
 | `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/shared/undo.ts` | The cockpit design as its design history and how files store it, the HTML of the cockpit editor's history panel and inspector and reading their fields, and undo and redo of its edits |
 | `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
 | `src/render-hover.ts`, `src/hover-view.ts` | What marks the part or face under the pointer in the cockpit editor, and the label that names it |
 | `src/cad/handles.ts`, `src/render-handles.ts` | The handles that resize the selected profile by dragging in the view, and their stems |
 | `src/render-cad-dimensions.ts`, `src/render-measurement.ts`, `src/measure-view.ts` | The length of the selected part, and the measure tool's drawing and readout |
-| `src/project/summary.ts`, `src/inspector-view.ts`, `src/ui/check-view.ts`, `src/ui/html.ts` | Summary, validation banner, metrics and checks |
-| `src/model.ts` | Public entry point of the room model |
-| `src/config.ts` | Room settings, ranges, defaults and validation |
-| `src/evaluate.ts` | Envelopes, interferences and checks for a room configuration |
+| `src/project/summary.ts`, `src/room/editing/inspector-view.ts`, `src/ui/check-view.ts`, `src/ui/html.ts` | Summary, validation banner, metrics and checks |
+| `src/room/model.ts` | Public entry point of the room model |
+| `src/room/config.ts` | Room settings, ranges, defaults and validation |
+| `src/room/evaluate.ts` | Envelopes, interferences and checks for a room configuration |
 | `src/shared/interference.ts` | How far two volumes overlap and which part reaches into which item |
-| `src/layout.ts`, `src/desk.ts`, `src/monitor-arm.ts`, `src/anatomy.ts` | Desk placement, desk, monitor arm and the seated posture model |
-| `src/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
-| `src/parts.ts`, `src/field-spec.ts` | Desk accessories to buy and per-setting ranges |
+| `src/room/layout.ts`, `src/room/desk.ts`, `src/room/monitor-arm.ts`, `src/anatomy.ts` | Desk placement, desk, monitor arm and the seated posture model |
+| `src/room/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
+| `src/room/parts.ts`, `src/room/field-spec.ts` | Desk accessories to buy and per-setting ranges |
 | `src/shared/geometry.ts`, `src/shared/units.ts`, `src/shared/checks.ts` | Plan geometry, cm/mm units and the check type |
-| `src/room.ts`, `src/room-editor.ts`, `src/desk-editor.ts` | Room, furniture and desk model and editors |
+| `src/room/room.ts`, `src/room/editing/room-editor.ts`, `src/room/editing/desk-editor.ts` | Room, furniture and desk model and editors |
 | `src/scene/scene.ts` | Three.js scene, labels and interaction, with an SVG fallback |
 | `src/scene/render-model.ts`, `src/scene/render-list.ts` | Render model: what the scene draws, as plain data in drawing order |
-| `src/render-desk.ts`, `src/render-room.ts`, `src/render-profile.ts` | Drawings of the desk and monitor, the room and aluminium profiles |
-| `src/render-annotations.ts` | Measurements, labels and the selection outline |
+| `src/room/render/desk.ts`, `src/room/render/room.ts`, `src/room/render/profile.ts` | Drawings of the desk and monitor, the room and aluminium profiles |
+| `src/room/render/annotations.ts` | Measurements, labels and the selection outline |
 | `src/scene/three-adapter.ts` | Turns the render model into Three.js objects |
-| `src/scene/camera.ts`, `src/layout-picking.ts` | Camera framing for each view, and what a drag in the plan grabs |
+| `src/scene/camera.ts`, `src/room/editing/layout-picking.ts` | Camera framing for each view, and what a drag in the plan grabs |
 | `tests/` | Unit tests |
 | `e2e/` | End-to-end tests and the project files they use |
 | `scripts/` | Project checks and development tools (look, rename) |

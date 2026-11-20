@@ -3,7 +3,7 @@
 // history (docs/adr/0005). v1 to v4 files open with their room only: the parametric cockpit
 // they may hold is retired without conversion (docs/adr/0004). v3 and v4 files store the room as
 // v5 does; v1 and v2 files hold a single configuration and open as one layout.
-import { defaults, sanitize, type RoomConfig } from '../config.ts';
+import { defaults, sanitize, type RoomConfig } from '../room/config.ts';
 import {
   FURNITURE_PLACEMENT_KEYS,
   MAX_LAYOUTS,
@@ -14,7 +14,7 @@ import {
   recordLayout,
   type LayoutEntry,
   type LayoutLibrary,
-} from '../layouts.ts';
+} from '../room/layouts.ts';
 import {
   designData,
   readDesign,

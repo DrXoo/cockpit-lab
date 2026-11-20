@@ -8,7 +8,7 @@ import {
   projectConfig,
   projectFromConfig,
 } from '../../src/project/project.ts';
-import { defaults, sanitize } from '../../src/model.ts';
+import { defaults, sanitize } from '../../src/room/model.ts';
 import type { Project } from '../../src/project/project.ts';
 import { present } from '../support/lookups.ts';
 

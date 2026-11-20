@@ -62,7 +62,7 @@ import {
 } from './cad/history.ts';
 import { differsFromItsType } from './cad/peripherals.ts';
 import type { Hole } from './cad/plate.ts';
-import { defaults, type RoomConfig } from './config.ts';
+import { defaults, type RoomConfig } from './room/config.ts';
 import { round } from './shared/geometry.ts';
 import { escapeHTML } from './ui/html.ts';
 

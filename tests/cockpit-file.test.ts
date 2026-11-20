@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, sanitize } from '../src/model.ts';
+import { defaults, sanitize } from '../src/room/model.ts';
 import { emptyDesign } from '../src/cockpit-design.ts';
 import {
   cockpitFileData,

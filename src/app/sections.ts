@@ -1,6 +1,6 @@
 // The parts of the page the user moves between: the two editors, the tabs of their side panel
 // and, on narrow screens, the panel shown.
-import type { SettingsSection } from '../setup-actions.ts';
+import type { SettingsSection } from '../room/editing/setup-actions.ts';
 
 /**
  * The cockpit editor changes the cockpit design on its own; the room editor arranges the room

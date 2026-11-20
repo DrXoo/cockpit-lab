@@ -7,7 +7,7 @@ import {
   getDesktopItems,
   resizeDesk,
   sanitize,
-} from '../../src/model.ts';
+} from '../../src/room/model.ts';
 import {
   createProject,
   readProject,
@@ -20,12 +20,12 @@ import {
   completeSetup,
   type Project,
 } from '../../src/project/project.ts';
-import type { RoomConfig } from '../../src/config.ts';
+import type { RoomConfig } from '../../src/room/config.ts';
 import { present, withId } from '../support/lookups.ts';
-import { duplicateLayout, hideFurniture } from '../../src/layouts.ts';
+import { duplicateLayout, hideFurniture } from '../../src/room/layouts.ts';
 import { emptyDesign } from '../../src/cockpit-design.ts';
 import { summaryHTML } from '../../src/project/summary.ts';
-import { saveArmPose } from '../../src/arm-poses.ts';
+import { saveArmPose } from '../../src/room/arm-poses.ts';
 
 const configOf = (project: Project) => projectConfig(project);
 /** The project a file opens as. */

@@ -3,11 +3,11 @@
 import { escapeHTML as esc } from '../ui/html.ts';
 import { checkLineHTML } from '../ui/check-view.ts';
 import { steps, type SetupProgress } from './project.ts';
-import type { RoomConfig, MonitorMode } from '../config.ts';
-import type { CockpitEvaluation } from '../evaluate.ts';
-import { wallFrame } from '../room.ts';
+import type { RoomConfig, MonitorMode } from '../room/config.ts';
+import type { CockpitEvaluation } from '../room/evaluate.ts';
+import { wallFrame } from '../room/room.ts';
 import { round } from '../shared/geometry.ts';
-import { wrapAngle } from '../monitor-arm.ts';
+import { wrapAngle } from '../room/monitor-arm.ts';
 
 export const SUMMARY_HEADING = { title: 'Project summary', kicker: 'YOUR SPACE' };
 

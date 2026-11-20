@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { defaults, evaluate } from '../../../src/room/model.ts';
+import type { RoomConfig } from '../../../src/room/config.ts';
+import { creationControls } from '../../../src/room/editing/setup-editor.ts';
+import { saveArmPose } from '../../../src/room/arm-poses.ts';
+
+const controls = { range: () => '', toggle: () => '', select: () => '' };
+const render = (state: RoomConfig, target: string) =>
+  creationControls(
+    state,
+    evaluate(state),
+    { step: 'desk', furthest: 3, deferred: [] },
+    target,
+    controls,
+  );
+
+test('the Desk step offers the monitor position and the saved poses, whatever is selected', () => {
+  const s = saveArmPose(defaults, 'Racing');
+  for (const target of ['desk', 'arm', 'keyboard', 'pc', 'mouse', 'mat']) {
+    const html = render(s, target);
+    assert.match(html, /<select id="monitorPosition">/, target);
+    assert.match(html, /<option value="pose:pose-1" selected>Racing<\/option>/, target);
+    assert.match(html, /id="saveArmPose"/, target);
+    assert.doesNotMatch(html, /data-monitor-pose/, target);
+  }
+});
+
+test('the Desk step has no monitor position without a monitor or a desk', () => {
+  assert.doesNotMatch(render({ ...defaults, monitorEnabled: false }, 'desk'), /monitorPosition/);
+  assert.doesNotMatch(render({ ...defaults, deskEnabled: false }, 'desk'), /monitorPosition/);
+});

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { escapeHTML } from '../../src/ui/html.ts';
 import { checkLineHTML, checkMark, checkRowHTML } from '../../src/ui/check-view.ts';
 import { roomSummaryHTML, summaryHTML } from '../../src/project/summary.ts';
-import { defaults, sanitize, evaluate } from '../../src/model.ts';
+import { defaults, sanitize, evaluate } from '../../src/room/model.ts';
 import { completeSetup } from '../../src/project/project.ts';
 
 const config = sanitize({

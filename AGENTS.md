@@ -61,7 +61,7 @@ These principles serve readability and change. Don't add abstractions, layers or
   - import local modules with their `.ts` extension;
   - use only erasable syntax: no `enum`, `namespace` or constructor parameter properties;
   - prefer `declare` for class fields that the constructor assigns.
-- Type checking is strict (`tsconfig.json`, `npm run typecheck`) for `src/`, `tests/`, `e2e/`, `scripts/` and the Playwright configuration. Don't loosen compiler options, and don't silence an error with `any` or a cast: values from outside the code (DOM, files, storage) are validated where they enter, as `src/dom-input.ts` and `src/project/project.ts` do.
+- Type checking is strict (`tsconfig.json`, `npm run typecheck`) for `src/`, `tests/`, `e2e/`, `scripts/` and the Playwright configuration. Don't loosen compiler options, and don't silence an error with `any` or a cast: values from outside the code (DOM, files, storage) are validated where they enter, as `src/room/editing/dom-input.ts` and `src/project/project.ts` do.
 - Lengths in the configurator model are cm; use the `Cm`/`Mm` types and the conversions in `src/shared/units.ts` wherever both units meet.
 - There is no external deployment. The app runs locally and can be served by any static file server.
 

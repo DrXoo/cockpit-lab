@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_DRIVER } from '../../src/cad/driver.ts';
 import type { CockpitDesign } from '../../src/cockpit-design.ts';
-import { activeLayout, duplicateLayout, layoutConfig } from '../../src/layouts.ts';
+import { activeLayout, duplicateLayout, layoutConfig } from '../../src/room/layouts.ts';
 import { createProject, type Project } from '../../src/project/project.ts';
 import type { ProjectStore } from '../../src/project/storage.ts';
 import { AUTOSAVE_DELAY_MS, ProjectSession, type SaveStatus } from '../../src/project/session.ts';
