@@ -58,7 +58,12 @@ test('a seat is mounted with the travel of its rails, along the way it faces, at
   assert.equal(present(seat.railTravelMm, 'rail travel') > 0, true);
   assert.equal(seat.source.kind, 'estimated');
   const draft = draftPeripheral(railHistory(), 'part-1', 'generic-seat');
-  assert.deepEqual(draft.adjustment, { axis: 'z', travelMm: seat.railTravelMm, positionMm: 0 });
+  assert.deepEqual(draft.adjustment, {
+    axis: 'z',
+    travelMm: seat.railTravelMm,
+    positionMm: 0,
+    runsOn: 'rails',
+  });
   const turned = editPeripheralDraft(railHistory(), draft, { facing: '+x' });
   assert.equal(present(turned.adjustment, 'adjustment').axis, 'x', 'its rails turn with it');
   const pedals = draftPeripheral(railHistory(), 'part-1', 'generic-pedals');
@@ -237,11 +242,30 @@ test('swapping a peripheral keeps its adjustment, taking the travel of a seat’
     axis: 'z',
     travelMm: railTravelMm,
     positionMm: railTravelMm / 2,
+    runsOn: 'slots',
   });
   const back = swapPeripheralType(seat, 'part-2', 'generic-wheel-base');
   assert.deepEqual(adjustmentOf(back, 'part-2'), adjustmentOf(seat, 'part-2'));
   const moved = editPeripheral(seat, 'part-2', { alongMm: 400 });
   assert.deepEqual(adjustmentOf(moved, 'part-2'), adjustmentOf(seat, 'part-2'));
+});
+
+test('a peripheral slides on its own rails or in slots of its plate; other parts on neither', () => {
+  const seat = adjustmentOf(withPeripheral(plateHistory(), 'part-2', 'generic-seat'), 'part-3');
+  assert.equal(present(seat, 'the seat’s adjustment').runsOn, 'rails', 'a seat on its rails');
+  const wheel = addAdjustment(
+    withPeripheral(plateHistory(), 'part-2', 'generic-wheel-base'),
+    'part-3',
+  );
+  assert.equal(present(adjustmentOf(wheel, 'part-3'), 'adjustment').runsOn, 'slots');
+  const onRails = editAdjustment(wheel, 'part-3', { runsOn: 'rails' });
+  assert.equal(present(adjustmentOf(onRails, 'part-3'), 'adjustment').runsOn, 'rails');
+  const plate = addAdjustment(plateHistory(), 'part-2');
+  assert.equal('runsOn' in present(adjustmentOf(plate, 'part-2'), 'adjustment'), false);
+  assert.throws(
+    () => editAdjustment(plate, 'part-2', { runsOn: 'slots' }),
+    /Only a peripheral runs on rails or in slots/,
+  );
 });
 
 test('an adjustment is saved with its step and read back; a wrong one is refused', () => {
@@ -265,4 +289,18 @@ test('an adjustment is saved with its step and read back; a wrong one is refused
     () => readDesign(withAdjustment({ axis: 'y', travelMm: 200, positionMm: 0 })),
     /along the face/,
   );
+  assert.throws(
+    () => readDesign(withAdjustment({ axis: 'z', travelMm: 200, positionMm: 0, runsOn: 'air' })),
+    /air/,
+  );
+});
+
+test('a peripheral’s adjustment saved before it said how it runs is on rails', () => {
+  const data = JSON.parse(JSON.stringify(designData({ ...emptyDesign(), history: seatHistory() })));
+  const { runsOn: _dropped, ...before } = data.history[1].adjustment;
+  const opened = readDesign({
+    ...data,
+    history: [data.history[0], { ...data.history[1], adjustment: before }],
+  });
+  assert.deepEqual(adjustmentOf(opened.history, 'part-2'), { ...before, runsOn: 'rails' });
 });

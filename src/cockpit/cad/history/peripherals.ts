@@ -89,6 +89,7 @@ function railsOf(
     axis: had?.axis ?? faceAxis(facing),
     travelMm: type.railTravelMm,
     positionMm: withinTravel(had?.positionMm ?? 0, type.railTravelMm),
+    runsOn: had?.runsOn ?? 'rails',
   };
 }
 

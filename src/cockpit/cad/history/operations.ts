@@ -50,7 +50,15 @@ export interface Adjustment {
   travelMm: number;
   /** Where the part is along it: from its center, towards + on its axis. */
   positionMm: number;
+  /**
+   * For a peripheral only, what it slides on: its own rails, bolted to the plate, or slots cut
+   * in the plate in place of its mounting holes.
+   */
+  runsOn?: AdjustmentGuide;
 }
+
+export type AdjustmentGuide = 'rails' | 'slots';
+export const ADJUSTMENT_GUIDES: readonly AdjustmentGuide[] = ['rails', 'slots'];
 
 /** Adds a profile placed on its own, hanging from no other part. */
 export interface AddAnchoredProfile extends ProfileShape {
@@ -691,10 +699,16 @@ function checkGrowth(operation: GrowProfile) {
  * An adjustment runs along the face its part hangs from, and its part is somewhere along its
  * travel. Whether the travel keeps the part on its parent is known only once it is replayed.
  */
-function checkAdjustment({ adjustment, face }: AdjustableOperation) {
+function checkAdjustment({ kind, adjustment, face }: AdjustableOperation) {
   if (adjustment === undefined) return;
-  const { axis, travelMm, positionMm } = adjustment;
+  const { axis, travelMm, positionMm, runsOn } = adjustment;
   if (!AXES.includes(axis)) throw new Error(`Unknown axis: ${axis}`);
+  if (runsOn !== undefined && kind !== 'mount-peripheral')
+    throw new Error(
+      'Only a peripheral runs on rails or in slots: a profile or a plate slides on T-nuts in its profile’s slot.',
+    );
+  if (runsOn !== undefined && !ADJUSTMENT_GUIDES.includes(runsOn))
+    throw new Error(`An adjustment runs on rails or in slots, not ${runsOn}.`);
   if (axis === faceAxis(face))
     throw new Error('An adjustment runs along the face its part hangs from, not out of it.');
   if (!Number.isFinite(travelMm) || travelMm <= 0 || travelMm > MAX_TRAVEL_MM)

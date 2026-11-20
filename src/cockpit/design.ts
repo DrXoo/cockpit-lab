@@ -18,12 +18,14 @@ import {
 } from './cad/parts/catalog.ts';
 import type { Hole, MountingPattern } from './cad/parts/mounting-pattern.ts';
 import {
+  ADJUSTMENT_GUIDES,
   checkedHistory,
   checkedOperation,
   FACES,
   makesAPart,
   MAX_PART_NAME_LENGTH,
   type Adjustment,
+  type AdjustmentGuide,
   type ConnectorChoice,
   type Operation,
   type ParentEnd,
@@ -281,21 +283,35 @@ function readMounting(data: Record<string, unknown>): Operation {
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
     facing: face(data.facing),
-    ...optionalAdjustment(data.adjustment),
+    ...peripheralAdjustment(data.adjustment),
   };
 }
 
 /** An adjustment, stored only on a part that has one; its operation checks its values. */
 function optionalAdjustment(value: unknown): { adjustment?: Adjustment } {
   if (value === undefined) return {};
-  const data = recordOf(value, 'adjustment', ['axis', 'travelMm', 'positionMm']);
+  const data = recordOf(value, 'adjustment', ['axis', 'travelMm', 'positionMm', 'runsOn']);
   return {
     adjustment: {
       axis: axis(data.axis),
       travelMm: millimetres(data.travelMm, 'travel'),
       positionMm: millimetres(data.positionMm, 'position along a travel'),
+      ...(data.runsOn === undefined ? {} : { runsOn: adjustmentGuide(data.runsOn) }),
     },
   };
+}
+
+/** A peripheral's adjustment, on its rails when saved before it said what it runs on. */
+function peripheralAdjustment(value: unknown): { adjustment?: Adjustment } {
+  const { adjustment } = optionalAdjustment(value);
+  if (adjustment === undefined) return {};
+  return { adjustment: { ...adjustment, runsOn: adjustment.runsOn ?? 'rails' } };
+}
+
+function adjustmentGuide(value: unknown): AdjustmentGuide {
+  const guide = ADJUSTMENT_GUIDES.find((known) => known === value);
+  if (!guide) throw new Error(`An adjustment runs on rails or in slots, not ${String(value)}.`);
+  return guide;
 }
 
 function readEnvelope(value: unknown): Envelope {

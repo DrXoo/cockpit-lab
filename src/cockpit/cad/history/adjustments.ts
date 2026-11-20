@@ -8,10 +8,12 @@ import {
   makesAProfile,
   operationMaking,
   type Adjustment,
+  type AdjustmentGuide,
   type AdjustableOperation,
   type Operation,
 } from './history.ts';
 import { withinTravel } from './travel.ts';
+import { peripheralTypes } from '../parts/catalog.ts';
 
 /** A new adjustment's travel, as far as a plate usually slides in its slots. */
 export const NEW_TRAVEL_MM = 100;
@@ -29,6 +31,7 @@ export function addAdjustment(history: readonly Operation[], partId: string): Op
     axis: newAxis(history, operation),
     travelMm: NEW_TRAVEL_MM,
     positionMm: 0,
+    ...(operation.kind === 'mount-peripheral' ? { runsOn: newGuide(operation.typeId) } : {}),
   };
   return changeOperation(history, { ...operation, adjustment });
 }
@@ -46,10 +49,12 @@ export function editAdjustment(
   const current = operation.adjustment;
   if (current === undefined) throw new Error(`${operation.name} has no adjustment to change.`);
   const travelMm = changes.travelMm ?? current.travelMm;
+  const runsOn = changes.runsOn ?? current.runsOn;
   const adjustment: Adjustment = {
     axis: changes.axis ?? current.axis,
     travelMm,
     positionMm: changes.positionMm ?? withinTravel(current.positionMm, travelMm),
+    ...(runsOn === undefined ? {} : { runsOn }),
   };
   return changeOperation(history, { ...operation, adjustment });
 }
@@ -69,6 +74,12 @@ function adjustableStep(history: readonly Operation[], partId: string): Adjustab
   if (operation.kind === 'add-anchored-profile')
     throw new Error(`${operation.name} is anchored: only a part that hangs from another slides.`);
   return operation;
+}
+
+/** What a new adjustment of a peripheral runs on: its type's rails if it has them, else slots. */
+function newGuide(typeId: string): AdjustmentGuide {
+  const type = peripheralTypes().find((candidate) => candidate.id === typeId);
+  return type?.railTravelMm === undefined ? 'slots' : 'rails';
 }
 
 /** The axis a new adjustment runs along. */
