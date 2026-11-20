@@ -291,9 +291,7 @@ const itemsOf = (check: Check | undefined, what: string): readonly string[] =>
 
 const checksInModes = (shownModeId: string | null, modes = interchangeable().modes) => {
   const { history, subassemblies } = interchangeable();
-  return byId(
-    designChecks({ history, replayed: replayDesign(history), subassemblies, modes, shownModeId }),
-  );
+  return byId(designChecks({ history, subassemblies, modes, shownModeId }));
 };
 
 test('a design without modes is checked with every part on', () => {
@@ -339,7 +337,6 @@ test('a mode whose parts all fit has no problems to count', () => {
   const checks = byId(
     designChecks({
       history: standing,
-      replayed: replayDesign(standing),
       subassemblies: interchangeable().subassemblies,
       modes: interchangeable().modes.slice(0, 2),
       shownModeId: 'mode-1',
@@ -348,6 +345,34 @@ test('a mode whose parts all fit has no problems to count', () => {
   const others = present(checks['cad-modes'], 'the problems of other modes');
   assert.equal(others.level, 'ok');
   assert.deepEqual(others.items, []);
+});
+
+test('each mode is checked with its parts where it fits them', () => {
+  const seated = withPeripheral(railHistory(), 'part-1', 'generic-seat', { alongMm: 100 });
+  const pedals = withPeripheral(seated, 'part-1', 'generic-pedals', { alongMm: 850 });
+  const adjusted = addAdjustment(pedals, 'part-3');
+  const history = editAdjustment(adjusted, 'part-3', {
+    axis: 'z',
+    travelMm: 300,
+    positionMm: -150,
+  });
+  const modes: Mode[] = [
+    { id: 'mode-1', name: 'Racing', takenOff: [] },
+    { id: 'mode-2', name: 'Stretched', takenOff: [], positionsMm: { 'part-3': 150 } },
+  ];
+  const checksShowing = (shownModeId: string) =>
+    byId(
+      designChecks({ history, subassemblies: [], modes, shownModeId, driver: { statureMm: 1750 } }),
+    );
+
+  assert.deepEqual(itemsOf(checksShowing('mode-1')['cad-driver-reach'], 'the reach'), []);
+  assert.deepEqual(itemsOf(checksShowing('mode-2')['cad-driver-reach'], 'the reach'), [
+    'The legs do not reach the pedals',
+  ]);
+  assert.match(
+    itemsOf(checksShowing('mode-1')['cad-modes'], 'the other modes').join(),
+    /^Stretched: .*Driver's reach: 1$/,
+  );
 });
 
 test('once the driver sits in the design, what the driver does not reach is listed', () => {

@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { DEFAULT_DRIVER } from '../../../src/cockpit/cad/driver/driver.ts';
 import {
   addAnchoredProfile,
+  adjustmentOf,
   draftGrowth,
   editProfile,
   type Operation,
 } from '../../../src/cockpit/cad/history/history.ts';
+import { addAdjustment, editAdjustment } from '../../../src/cockpit/cad/history/adjustments.ts';
 import { fastenWithBrackets } from '../../../src/cockpit/cad/history/fastening.ts';
 import { partHandles, type HandleModifiers } from '../../../src/cockpit/cad/interaction/handles.ts';
 import type { PartHit } from '../../../src/cockpit/cad/interaction/picking.ts';
@@ -44,6 +46,8 @@ import {
   withHistory,
   withSubassemblies,
   withModes,
+  withNewMode,
+  withoutMode,
   designModes,
   shownMode,
   showMode,
@@ -210,6 +214,69 @@ test('undoing an edit keeps the mode shown while the design it goes back to has 
   assert.equal(shownMode(undone(edited)), null, 'all the parts stay shown');
   const renamed = withModes(edited, [{ id: 'mode-1', name: 'Sim', takenOff: [] }], null);
   assert.equal(shownMode(showMode(undone(renamed), 'mode-1'))?.name, 'Flight');
+});
+
+/** A rail with a plate on a 100 mm travel (part-2), 20 mm along it, in Racing and Flight. */
+function fittedInTwoModes(): CockpitSession {
+  const plated = withPlate(railHistory(), 'part-1');
+  const history = editAdjustment(addAdjustment(plated, 'part-2'), 'part-2', { positionMm: 20 });
+  const grouped = withSubassemblies(sessionOf(history), [{ name: 'Plate', rootId: 'part-2' }]);
+  return withNewMode(withNewMode(grouped));
+}
+
+const plateAt = (history: readonly Operation[]) =>
+  present(adjustmentOf(present(history[1], 'the plate')), 'its adjustment').positionMm;
+
+test('a new mode starts at the positions of the mode shown, and is shown', () => {
+  const racing = withNewMode(sessionOf(withPlate(railHistory(), 'part-1')));
+  const flight = withNewMode(racing);
+
+  assert.equal(shownMode(racing)?.id, 'mode-1');
+  assert.equal(shownMode(flight)?.id, 'mode-2');
+  assert.deepEqual(designModes(undone(flight)), designModes(racing));
+});
+
+test('fitting in a later mode moves its parts there, and the first keeps the operations', () => {
+  const flight = fittedInTwoModes();
+  const moved = changedSession(
+    historyChange(flight, (history) => editAdjustment(history, 'part-2', { positionMm: -40 })),
+  );
+
+  assert.equal(plateAt(designHistory(moved)), -40);
+  assert.equal(plateAt(present(moved.design, 'the design').history), 20);
+  assert.equal(plateAt(designHistory(showMode(moved, 'mode-1'))), 20);
+  assert.equal(plateAt(designHistory(showMode(moved, null))), 20);
+});
+
+test('deleting the first mode makes the next the first, with its positions', () => {
+  const flight = fittedInTwoModes();
+  const moved = changedSession(
+    historyChange(flight, (history) => editAdjustment(history, 'part-2', { positionMm: -40 })),
+  );
+
+  const deleted = withoutMode(moved, 'mode-1');
+
+  assert.deepEqual(
+    designModes(deleted).map(({ id }) => id),
+    ['mode-2'],
+  );
+  assert.equal(plateAt(present(deleted.design, 'the design').history), -40);
+});
+
+test('Fit needs a mode: turned on with all the parts shown, it shows the first', () => {
+  const allParts = showMode(fittedInTwoModes(), null);
+
+  const fitting = setFitting(allParts, true);
+
+  assert.equal(shownMode(fitting)?.id, 'mode-1');
+  assert.equal(shownMode(setFitting(sessionOf(railHistory()), true)), null);
+});
+
+test('showing all the parts turns Fit off', () => {
+  const fitting = setFitting(fittedInTwoModes(), true);
+
+  assert.equal(showMode(fitting, null).fitting, false);
+  assert.equal(showMode(fitting, 'mode-1').fitting, true);
 });
 
 test('a design change starts the measurement again, and ends it once no part is left', () => {

@@ -1196,6 +1196,39 @@ test('fitting, a part slides along its adjustment, saved with the design without
   await expect(page.locator('#addAdjustment')).toHaveCount(0);
 });
 
+test('each mode keeps where its parts are along their travels, and Fit needs a mode', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountSeat').click();
+  await page.locator('#confirmPeripheral').click();
+  await page.locator('#makeSubassembly').click();
+  await page.locator('#addMode').click();
+  await page.locator('#addMode').click();
+  await expect(page.locator('#modeShown')).toHaveValue('mode-2');
+  const saved = async () => (await getSavedProject(page))?.cockpit;
+
+  await page.locator('#adjustmentPosition').fill('-40');
+  await page.locator('#adjustmentPosition').press('Enter');
+  await expect
+    .poll(async () => (await saved())?.modes?.[1]?.positionsMm)
+    .toEqual({ 'part-2': -40 });
+  expect((await savedHistory(page))?.[1]).toMatchObject({ adjustment: { positionMm: 0 } });
+  await page.locator('#modeShown').selectOption('mode-1');
+  await expect(page.locator('#adjustmentPosition')).toHaveValue('0');
+  await page.locator('#modeShown').selectOption('mode-2');
+  await expect(page.locator('#adjustmentPosition')).toHaveValue('-40');
+
+  // All the parts are not fitted: showing them turns Fit off, and Fit shows the first mode.
+  await page.locator('#modeShown').selectOption('');
+  await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#fitModeBtn').click();
+  await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#modeShown')).toHaveValue('mode-1');
+  await expect.poll(async () => (await saved())?.shownModeId).toBe('mode-1');
+});
+
 test('fitting, the checks list what a part would reach at an end of its travel', async ({
   page,
 }) => {

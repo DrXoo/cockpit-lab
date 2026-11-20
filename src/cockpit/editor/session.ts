@@ -33,6 +33,12 @@ import { nextMeasurePicks } from '../cad/analysis/measure.ts';
 import { emptyDesign, type CockpitDesign } from '../design.ts';
 import type { Subassembly } from '../cad/history/subassemblies.ts';
 import type { Mode } from '../cad/history/modes.ts';
+import {
+  addFittedMode,
+  deleteFittedMode,
+  historyInMode,
+  keepFitting,
+} from '../cad/history/mode-positions.ts';
 import { noEdits, recordEdit, redo, undo, type Edits } from '../../shared/undo.ts';
 
 /** A change made with a handle, waiting to be confirmed. */
@@ -111,9 +117,15 @@ export const reopened = (
   pendingChange: null,
 });
 
-/** The design history, empty without a design. */
-export const designHistory = (session: CockpitSession): readonly Operation[] =>
-  session.design?.history ?? [];
+/**
+ * The design history as the mode shown fits it, each adjustment where that mode has it; empty
+ * without a design. The editor shows and edits this one, and `withHistory` stores it.
+ */
+export function designHistory(session: CockpitSession): readonly Operation[] {
+  const { design } = session;
+  if (design === null) return [];
+  return historyInMode(design.history, design.modes ?? [], design.shownModeId ?? null);
+}
 
 /** Whether the design has parts to show. */
 export const designHasParts = (session: CockpitSession): boolean =>
@@ -161,13 +173,20 @@ export const openDesign = (session: CockpitSession): CockpitDesign =>
   session.design ?? emptyDesign();
 
 /**
- * Makes `history` the design history, keeping the driver and the subassemblies, as an edit that
- * can be undone.
+ * Makes `history`, as the mode shown fits it, the design history, keeping the driver and the
+ * subassemblies, as an edit that can be undone. The positions of the adjustments go to the mode
+ * shown, and every other mode keeps its own.
  */
-export const withHistory = (
+export function withHistory(
   session: CockpitSession,
   history: readonly Operation[],
-): CockpitSession => changeDesign(session, { ...openDesign(session), history });
+): CockpitSession {
+  const design = openDesign(session);
+  const { modes } = design;
+  if (!modes?.length) return changeDesign(session, { ...design, history });
+  const kept = keepFitting(history, design.history, modes, design.shownModeId ?? null);
+  return changeDesign(session, { ...design, ...kept });
+}
 
 /**
  * Makes `subassemblies` the design's, keeping its history and driver, as an edit that can be
@@ -211,6 +230,26 @@ export const withModes = (
 ): CockpitSession =>
   changeDesign(session, showingMode({ ...openDesign(session), modes }, shownModeId));
 
+/** Adds a mode with every subassembly on, at the positions of the mode shown, and shows it. */
+export function withNewMode(session: CockpitSession): CockpitSession {
+  const { history } = openDesign(session);
+  const modes = addFittedMode(history, designModes(session), shownMode(session)?.id ?? null);
+  return withModes(session, modes, modes.at(-1)?.id ?? null);
+}
+
+/**
+ * Deletes a mode, as an edit. Deleting the first one puts the positions of the next in the
+ * operations; deleting the one shown shows all the parts, and turns Fit off.
+ */
+export function withoutMode(session: CockpitSession, modeId: string): CockpitSession {
+  const design = openDesign(session);
+  const left = deleteFittedMode(design.history, designModes(session), modeId);
+  const shownId = shownMode(session)?.id ?? null;
+  const shown = shownId === modeId ? null : shownId;
+  const changed = changeDesign(session, showingMode({ ...design, ...left }, shown));
+  return shown === null ? setFitting(changed, false) : changed;
+}
+
 /**
  * Shows a mode, or all the parts when `modeId` is null. Which one is saved with the design, but
  * choosing it is not an edit, as it changes no part.
@@ -220,7 +259,8 @@ export function showMode(session: CockpitSession, modeId: string | null): Cockpi
     throw new Error(`The cockpit design has no mode ${modeId}.`);
   const design = session.design;
   if (design === null) return session;
-  return { ...session, design: showingMode(design, modeId) };
+  const shown = { ...session, design: showingMode(design, modeId), pendingChange: null };
+  return modeId === null ? setFitting(shown, false) : shown;
 }
 
 /**
@@ -369,12 +409,19 @@ export function moveMarker(session: CockpitSession, to: number | null): CockpitS
 /**
  * Turns Fit on or off. What was about to be added or changed is dropped, the card of a joint
  * closes, and a peripheral selected while fitting is unselected, as designing cannot change it.
+ * Fit needs a mode, as each mode has its own fitting: turned on with all the parts shown, it
+ * shows the first.
  */
 export function setFitting(session: CockpitSession, on: boolean): CockpitSession {
   if (session.fitting === on) return session;
   const unselect = !on && selectedOperation(session)?.kind === 'mount-peripheral';
+  const first = designModes(session)[0];
+  const moded =
+    on && shownMode(session) === null && first !== undefined && session.design !== null
+      ? { ...session, design: showingMode(session.design, first.id) }
+      : session;
   return {
-    ...session,
+    ...moded,
     fitting: on,
     draft: null,
     pendingChange: null,

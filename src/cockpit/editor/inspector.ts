@@ -186,12 +186,11 @@ export class CockpitInspector {
     const subassemblies = editor.subassemblies();
     $('#modesSection').hidden = !shown || subassemblies.length === 0;
     if (!shown) return;
-    const history = editor.history();
+    const history = editor.storedHistory();
     const design = replayDesign(history);
     $('#wholeDesignNote').hidden = editor.at() === history.length;
     const checks = designChecks({
       history,
-      replayed: design,
       subassemblies,
       modes: editor.modes(),
       shownModeId: editor.shownMode()?.id ?? null,

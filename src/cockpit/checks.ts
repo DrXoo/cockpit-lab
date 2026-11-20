@@ -27,7 +27,8 @@ import {
   type Subassembly,
 } from './cad/history/subassemblies.ts';
 import { designInMode, partsOffIn, type Mode } from './cad/history/modes.ts';
-import type { ReplayedDesign } from './cad/history/replay.ts';
+import { historyInMode } from './cad/history/mode-positions.ts';
+import { replayDesign } from './cad/history/replay.ts';
 import { seatedDriver, type Driver } from './cad/driver/driver.ts';
 
 /** A design replayed from its history, with the steps that failed. */
@@ -49,10 +50,10 @@ export interface DesignToCheck {
   driver?: Driver;
 }
 
-/** A design replayed in full, with what it keeps beside its history. */
+/** A design as stored, with what it keeps beside its history. */
 export interface DesignInModes {
+  /** The history as stored, with the positions of the first mode. */
   history: readonly Operation[];
-  replayed: ReplayedDesign;
   subassemblies: readonly Subassembly[];
   modes: readonly Mode[];
   /** The mode the view shows, or null for all the parts. */
@@ -107,7 +108,8 @@ function listCheck(
  * problems it has.
  */
 export function designChecks(design: DesignInModes): Check[] {
-  const { history, replayed, subassemblies, modes, driver } = design;
+  const { history, subassemblies, modes, driver } = design;
+  const replayed = replayDesign(history);
   const whole: DesignToCheck = {
     history,
     ...replayed,
@@ -116,10 +118,15 @@ export function designChecks(design: DesignInModes): Check[] {
   };
   if (modes.length === 0) return cadChecks(whole);
   const applied = appliedSubassemblies(subassemblies, replayed.resolved);
-  const inMode = (mode: Mode): DesignToCheck => ({
-    ...whole,
-    ...designInMode(replayed, partsOffIn(mode, applied)),
-  });
+  // Each mode is checked with its parts where it fits them, and only those it has on.
+  const inMode = (mode: Mode): DesignToCheck => {
+    const fitted = historyInMode(history, modes, mode.id);
+    return {
+      ...whole,
+      history: fitted,
+      ...designInMode(replayDesign(fitted), partsOffIn(mode, applied)),
+    };
+  };
   const shown = modes.find((mode) => mode.id === design.shownModeId) ?? null;
   const others = modes.filter((mode) => mode !== shown);
   const checks = cadChecks(whole, { onCockpit: shown ? inMode(shown) : null });

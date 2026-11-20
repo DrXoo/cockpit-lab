@@ -45,8 +45,6 @@ import {
   type Subassembly,
 } from '../cad/history/subassemblies.ts';
 import {
-  addMode,
-  deleteMode,
   designInMode,
   forgetSubassemblyInModes,
   partsOffIn,
@@ -118,8 +116,14 @@ export class CockpitEditor {
     this.current = editing.reopened(this.current, design);
   }
 
+  /** The design history as the mode shown fits it: what the editor shows and edits. */
   history(): readonly Operation[] {
     return editing.designHistory(this.current);
+  }
+
+  /** The design history as stored, with the positions of the first mode. */
+  storedHistory(): readonly Operation[] {
+    return this.current.design?.history ?? [];
   }
 
   /** How many steps the view shows. */
@@ -337,12 +341,10 @@ export class CockpitEditor {
     this.showPanels();
   }
 
-  /** Adds a mode with every subassembly on, and shows it. */
+  /** Adds a mode with every subassembly on, at the positions of the mode shown, and shows it. */
   addMode() {
     this.settleChange();
-    const modes = addMode(this.modes());
-    const added = modes.at(-1) ?? null;
-    this.showDesignChange(editing.withModes(this.current, modes, added?.id ?? null));
+    this.showDesignChange(editing.withNewMode(this.current));
   }
 
   /** Renames a mode; a name left empty keeps the one it had. */
@@ -350,9 +352,10 @@ export class CockpitEditor {
     this.changeModes(renameMode(this.modes(), modeId, name));
   }
 
-  /** Deletes a mode; when it was shown, the view shows all the parts. */
+  /** Deletes a mode; when it was shown, the view shows all the parts and Fit turns off. */
   deleteMode(modeId: string) {
-    this.changeModes(deleteMode(this.modes(), modeId));
+    this.settleChange();
+    this.showDesignChange(editing.withoutMode(this.current, modeId));
   }
 
   /** Puts a subassembly on in a mode, or takes it off. */
@@ -425,8 +428,7 @@ export class CockpitEditor {
   /** Turns Fit on or off; what was about to be added or changed is dropped. */
   setFitting(on: boolean) {
     if (this.current.fitting === on) return;
-    this.current = editing.setFitting(this.current, on);
-    this.showPanels();
+    this.showSession(editing.setFitting(this.current, on));
   }
 
   /** Opens the card of a joint marker beside it, closing any other. */
@@ -670,8 +672,7 @@ export class CockpitEditor {
 
   /** Selects a step. A peripheral's turns Fit on, as peripherals are only changed while fitting. */
   select(operationId: string | null) {
-    this.current = editing.selectStep(this.current, operationId);
-    this.showPanels();
+    this.showSession(editing.selectStep(this.current, operationId));
   }
 
   /** Selects the step that made a part. */
@@ -776,6 +777,17 @@ export class CockpitEditor {
   private showPanels() {
     this.host.renderControls();
     this.host.refresh();
+  }
+
+  /**
+   * Shows a session that changes no part. Turning Fit on can show a mode, as Fit needs one, and
+   * the mode shown is saved with the design.
+   */
+  private showSession(next: editing.CockpitSession) {
+    const modeBefore = this.current.design?.shownModeId;
+    this.current = next;
+    if (next.design?.shownModeId !== modeBefore) this.host.saveSoon();
+    this.showPanels();
   }
 
   /** Makes `next` the session after its design changed: saves and shows it, framing the first part. */
