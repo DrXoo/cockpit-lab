@@ -210,7 +210,6 @@ test('it is added and selected in Furniture with wall, width, height, position a
   assert.deepEqual(roomItems(s, 'openings'), []);
   const html = roomControls(
     s,
-    evaluate(s),
     'feature:armario',
     () => '',
     () => '',

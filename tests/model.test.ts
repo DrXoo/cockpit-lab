@@ -17,7 +17,6 @@ import {
   deskBounds,
   fieldSpec,
   resizeDesk,
-  armKinematics,
   monitorGeometry,
   setMonitorMode,
   editArm,
@@ -26,7 +25,7 @@ import {
 import { solveJoint } from '../src/anatomy.ts';
 import type { ArmBend, MonitorMode, RoomConfig } from '../src/config.ts';
 import type { DesktopItemId } from '../src/desk.ts';
-import { present, withId } from './support/lookups.ts';
+import { withId } from './support/lookups.ts';
 
 /** `config` as an older file stored it, without `keys`. */
 const without = (config: RoomConfig, keys: readonly string[]): Record<string, unknown> =>

@@ -9,7 +9,6 @@ import {
   transformPoint,
   type PlanPoint,
   type Point3,
-  type Polygon,
   type Solid,
 } from './geometry.ts';
 import type { Check, CheckLevel } from './checks.ts';

@@ -4,7 +4,7 @@ import { deskPanelHTML } from '../src/settings-panels.ts';
 import { defaults, evaluate } from '../src/model.ts';
 import type { RoomConfig } from '../src/config.ts';
 import { present } from './support/lookups.ts';
-import { saveArmPose, applyArmPose } from '../src/arm-poses.ts';
+import { saveArmPose } from '../src/arm-poses.ts';
 
 const viewOf = (overrides: Partial<RoomConfig> = {}) => {
   const state = { ...defaults, ...overrides };

@@ -8,7 +8,6 @@ import {
   type RoomFeature,
 } from './room.ts';
 import type { RoomConfig } from './config.ts';
-import type { CockpitEvaluation } from './evaluate.ts';
 import type { ControlTemplates } from './controls-view.ts';
 import { escapeHTML } from './html.ts';
 
@@ -72,7 +71,6 @@ function hiddenFurnitureHTML(hidden: readonly { id: string; name: string }[]): s
 
 export function roomControls(
   s: RoomConfig,
-  e: CockpitEvaluation,
   target: string,
   range: ControlTemplates['range'],
   toggle: ControlTemplates['toggle'],

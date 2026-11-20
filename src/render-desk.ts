@@ -179,7 +179,6 @@ export function drawMonitor(
   if (s.deskEnabled === false || s.monitorEnabled === false) return [];
   const p = e.clampPoint;
   const target = e.monitorPoint;
-  const maxReach = e.armPose.maxReach;
   const arm = e.armPose;
   const mid = arm.elbow;
   const actual = arm.end;

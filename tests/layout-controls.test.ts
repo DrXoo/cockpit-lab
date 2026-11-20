@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, sanitize, evaluate } from '../src/model.ts';
+import { defaults, sanitize } from '../src/model.ts';
 import { roomControls, type RoomControlOptions } from '../src/room-editor.ts';
 import { canAddRoomItem } from '../src/room-actions.ts';
 import {
@@ -17,7 +17,7 @@ const config = sanitize({ ...defaults, roomFurniture: [bed] });
 const range = (key: string) => `<range ${key}>`;
 const toggle = (key: string) => `<toggle ${key}>`;
 const furnitureControls = (target: string, options: RoomControlOptions) =>
-  roomControls(config, evaluate(config), target, range, toggle, {
+  roomControls(config, target, range, toggle, {
     mode: 'furniture',
     ...options,
   });

@@ -48,7 +48,7 @@ export function creationControls(
     if (!s.roomEnabled)
       html += `<p class="setup-alternative">Only designing a cockpit? <button class="text-button" id="startWithCockpit">Start with the cockpit →</button></p>`;
   } else if (step === 'openings' || step === 'furniture') {
-    html = roomControls(s, e, target, range, toggle, { mode: step });
+    html = roomControls(s, target, range, toggle, { mode: step });
   } else if (step === 'desk') {
     if (s.deskEnabled === false)
       html = `<form id="setupDeskForm"><p class="setup-prompt">Your desk dimensions</p>${number('setupDeskW', 'Desktop width', 120, 200, desk.w ?? '', '120–200')}${number('setupDeskD', 'Desktop depth', 60, 80, desk.d ?? '', '60–80')}${number('setupDeskH', 'Height from the floor', 66, 131, desk.h ?? '', 'E.g. 75')}<p class="layout-hint">This configurator supports desktops of 120–200 × 60–80 cm and draws reference legs 66 cm deep.</p><button type="submit" class="button button-dark">Add desk</button></form>`;

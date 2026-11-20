@@ -251,7 +251,7 @@ export class Workbench implements CockpitEditorHost, RoomEditorHost {
       );
     } else if (isRoomSection(section)) {
       const { range, toggle } = parts.settingControls.templates();
-      html = roomControls(project.state, evaluation, selection.target, range, toggle, {
+      html = roomControls(project.state, selection.target, range, toggle, {
         mode: section === 'furniture' ? 'furniture' : 'room',
         hiddenFurniture: hiddenFurnitureOf(project.library),
         layoutCount: project.library.layouts.length,

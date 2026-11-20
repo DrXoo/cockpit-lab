@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, sanitize, rectangle, evaluate } from '../src/model.ts';
+import { defaults, sanitize, rectangle } from '../src/model.ts';
 import {
   normalizeRoom,
   evaluateRoom,
@@ -224,7 +224,6 @@ test('the furniture panel offers wall and height without the free rotation contr
   const s = room({ roomFurniture: [shelf()] }),
     html = roomControls(
       s,
-      evaluate(s),
       'furniture:alta',
       () => '',
       () => '',

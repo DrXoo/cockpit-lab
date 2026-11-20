@@ -12,9 +12,6 @@ import {
 } from './arm-poses.ts';
 import { escapeHTML } from './html.ts';
 
-/** Multiplication sign, the delete mark of a saved pose. */
-const CROSS = '×';
-
 const AUTOMATIC_POSITION_LABELS: Record<(typeof AUTOMATIC_MONITOR_MODES)[number], string> = {
   desk: 'On the desk',
   vr: 'VR · parked',
