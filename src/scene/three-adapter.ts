@@ -179,3 +179,14 @@ export function addPrimitives(
   }
   return built;
 }
+
+/** Frees the geometry and the own materials of a drawing; the palette is shared and kept. */
+export function disposeDrawing(root: T.Object3D, palette: Palette) {
+  const shared = new Set<T.Material>(Object.values(palette));
+  root.traverse((object) => {
+    if (!(object instanceof T.Mesh || object instanceof T.Line)) return;
+    object.geometry.dispose();
+    const materials: T.Material[] = [object.material].flat();
+    for (const material of materials) if (!shared.has(material)) material.dispose();
+  });
+}
