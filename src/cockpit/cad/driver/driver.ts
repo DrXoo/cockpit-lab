@@ -1,8 +1,15 @@
 // The driver a cockpit design is made for (CONTEXT.md: Driver). Only the stature is stored: the
 // posture follows from where the design puts the seat, the wheel and the pedals. Lengths in mm.
-import { postureFrom, type SidePoint } from './anatomy.ts';
+import {
+  FOREARM_PER_STATURE,
+  postureFrom,
+  UPPER_ARM_PER_STATURE,
+  type SidePoint,
+} from './anatomy.ts';
 import { MM_PER_CM } from '../../../shared/units.ts';
-import { faceAxis, type ResolvedPart, type Vec3Mm } from '../parts/assembly.ts';
+import { faceAxis, type Hand, type ResolvedPart, type Vec3Mm } from '../parts/assembly.ts';
+import type { DriverArm } from './arms.ts';
+import { handsOnGrips, type DoubledGrips, type GripReach } from './grips.ts';
 import { cadContacts } from './posture.ts';
 
 export interface Driver {
@@ -42,6 +49,8 @@ export const GT_ANGLE_RANGES: Record<DriverJoint, AngleRange> = {
 
 export interface DriverAngle {
   joint: DriverJoint;
+  /** The arm of an elbow on a grip; none for the joints both sides share, and on the wheel. */
+  hand?: Hand;
   angleDeg: number;
   range: AngleRange;
   verdict: 'below' | 'within' | 'above';
@@ -58,28 +67,31 @@ export interface DriverFigure {
   arms: DriverArm[];
 }
 
-/** An arm of the figure, from its shoulder through the elbow to the hand. */
-export interface DriverArm {
-  shoulder: Vec3Mm;
-  elbow: Vec3Mm;
-  hand: Vec3Mm;
-}
+export type { DriverArm, DoubledGrips, GripReach };
 
 export type SeatedDriver =
   | {
       kind: 'seated';
       figure: DriverFigure;
       angles: DriverAngle[];
-      /** Whether the legs reach the pedals and the arms the wheel; arms null without one. */
-      reach: { legs: boolean; arms: boolean | null };
+      reach: {
+        legs: boolean;
+        /** Whether the arms reach the wheel; null without one. */
+        arms: boolean | null;
+        /** Each grip of the design, in the order of its parts. */
+        grips: GripReach[];
+      };
+      /** The hands with more than one stick or throttle, which hold none of them. */
+      doubledGrips: DoubledGrips[];
     }
   | { kind: 'unseated'; reason: string };
 
 /**
  * The driver seated in a design, from the contact points where its parts are: the hip on the
- * seat, the heels on the pedals and the hands on the wheel, with the torso along the backrest.
- * The posture is worked out in the plane through the hip along the way the seat faces, with
- * the average proportions of `anatomy.ts`; a contact off that plane is taken onto it.
+ * seat, the heels on the pedals and the hands on the wheel or their grips, with the torso
+ * along the backrest. The posture is worked out in the plane through the hip along the way the
+ * seat faces, with the average proportions of `anatomy.ts`; a contact off that plane is taken
+ * onto it. A hand on a grip reaches it from its own shoulder, beside that plane (`grips.ts`).
  */
 export function seatedDriver(
   resolved: ReadonlyMap<string, ResolvedPart>,
@@ -87,7 +99,7 @@ export function seatedDriver(
 ): SeatedDriver {
   const found = cadContacts(resolved);
   if ('reason' in found) return { kind: 'unseated', reason: found.reason };
-  const { hip, heel, hands, reclineDeg, facing } = found.contacts;
+  const { hip, heel, hands, reclineDeg, facing, grips } = found.contacts;
   const forward = faceAxis(facing);
   if (forward === 'y')
     return { kind: 'unseated', reason: 'The seat faces up or down, so no driver sits in it.' };
@@ -105,33 +117,45 @@ export function seatedDriver(
     { heightCm: driver.statureMm / MM_PER_CM, reclineDeg },
     { hip: toSide(hip), heel: toSide(heel), ...(hands ? { hands: toSide(hands) } : {}) },
   );
-  const arms = posture.hands?.arms ?? null;
+  const shoulder = fromSide(posture.shoulder);
+  const wheelArm = posture.hands?.arms ?? null;
+  const onGrips = handsOnGrips(grips, {
+    centerShoulder: shoulder,
+    facing,
+    statureMm: driver.statureMm,
+    arm: {
+      upperArmMm: driver.statureMm * UPPER_ARM_PER_STATURE,
+      forearmMm: driver.statureMm * FOREARM_PER_STATURE,
+    },
+    wheelOn: hands !== null,
+  });
   const angles: DriverAngle[] = [
     measured('knee', posture.legs.angle),
     measured('hip', posture.hipAngle),
-    ...(arms ? [measured('elbow', arms.angle)] : []),
+    ...(wheelArm ? [measured('elbow', wheelArm.angle)] : []),
+    ...onGrips.held.map(({ hand, elbowDeg }) => ({ ...measured('elbow', elbowDeg), hand })),
   ];
+  const wheelArms: DriverArm[] =
+    wheelArm && posture.hands
+      ? [{ shoulder, elbow: fromSide(wheelArm.joint), hand: fromSide(posture.hands.point) }]
+      : [];
   return {
     kind: 'seated',
     figure: {
       hip: fromSide(posture.hip),
       knee: fromSide(posture.legs.joint),
       heel: fromSide(posture.foot),
-      shoulder: fromSide(posture.shoulder),
+      shoulder,
       eye: fromSide(posture.eye),
-      arms:
-        arms && posture.hands
-          ? [
-              {
-                shoulder: fromSide(posture.shoulder),
-                elbow: fromSide(arms.joint),
-                hand: fromSide(posture.hands.point),
-              },
-            ]
-          : [],
+      arms: [...wheelArms, ...onGrips.held.map(({ arm }) => arm)],
     },
     angles,
-    reach: { legs: posture.legs.reachable, arms: arms ? arms.reachable : null },
+    reach: {
+      legs: posture.legs.reachable,
+      arms: wheelArm ? wheelArm.reachable : null,
+      grips: onGrips.reach,
+    },
+    doubledGrips: onGrips.doubled,
   };
 }
 

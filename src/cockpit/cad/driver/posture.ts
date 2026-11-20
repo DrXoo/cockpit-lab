@@ -3,9 +3,11 @@ import {
   contactPointsMm,
   type ContactRole,
   type Face,
+  type Hand,
   type ResolvedPart,
   type Vec3Mm,
 } from '../parts/assembly.ts';
+import { gripUse, type GripUse } from '../parts/catalog.ts';
 
 export interface CadContacts {
   hip: Vec3Mm;
@@ -16,6 +18,18 @@ export interface CadContacts {
   reclineDeg: number;
   /** The way the seat faces, which is the way the driver faces. */
   facing: Face;
+  /** Every grip of the design, in the order of its parts. */
+  grips: CadGrip[];
+}
+
+/** A peripheral's grip, used by one hand. */
+export interface CadGrip {
+  partId: string;
+  /** The peripheral's name, as the user gave it. */
+  name: string;
+  hand: Hand;
+  use: GripUse;
+  pointMm: Vec3Mm;
 }
 
 /** What to mount when no part carries a contact the driver needs. */
@@ -64,6 +78,25 @@ export function cadContacts(
       hands: only('hands')?.pointMm ?? null,
       reclineDeg: seat.backrestDeg ?? 0,
       facing: seat.facing,
+      grips: gripsIn(resolved),
     },
   };
+}
+
+function gripsIn(resolved: ReadonlyMap<string, ResolvedPart>): CadGrip[] {
+  const grips: CadGrip[] = [];
+  for (const holder of resolved.values()) {
+    const { part } = holder;
+    if (part.kind !== 'peripheral' || !part.hand) continue;
+    for (const { role, pointMm } of contactPointsMm(holder))
+      if (role === 'grip')
+        grips.push({
+          partId: part.id,
+          name: part.name,
+          hand: part.hand,
+          use: gripUse(part.category),
+          pointMm,
+        });
+  }
+  return grips;
 }

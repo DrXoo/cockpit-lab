@@ -165,6 +165,20 @@ export const PERIPHERAL_CATEGORIES: readonly PeripheralCategory[] = [
   'throttle',
 ];
 
+/** How the driver uses a peripheral's grip: held, the hand resting on it, or reached for. */
+export type GripUse = 'held' | 'reached';
+
+/** The peripherals a hand rests on; any other grip, a shifter's or a handbrake's, is reached. */
+const HELD_GRIP_CATEGORIES: readonly PeripheralCategory[] = [
+  'center-stick',
+  'side-stick',
+  'throttle',
+];
+
+/** How the driver uses the grip of a peripheral of this category. */
+export const gripUse = (category: PeripheralCategory): GripUse =>
+  HELD_GRIP_CATEGORIES.includes(category) ? 'held' : 'reached';
+
 /**
  * A kind of peripheral, whose values are copied into a design when one is mounted, so a saved
  * design never changes with the catalog. Its envelope, mounting pattern and contact points are

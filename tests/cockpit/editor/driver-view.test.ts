@@ -22,7 +22,8 @@ const seated = (changes: Partial<Seated> = {}): Seated => ({
     { joint: 'hip', angleDeg: 90.2, range: { minDeg: 95, maxDeg: 120 }, verdict: 'below' },
     { joint: 'elbow', angleDeg: 150, range: { minDeg: 90, maxDeg: 130 }, verdict: 'above' },
   ],
-  reach: { legs: true, arms: true },
+  reach: { legs: true, arms: true, grips: [] },
+  doubledGrips: [],
   ...changes,
 });
 const angleItems = (html: string) => [
@@ -50,7 +51,7 @@ test('the eye point is given as its height above the floor', () => {
 });
 
 test('legs or arms that do not reach are warned about', () => {
-  const html = driverHTML(DRIVER, seated({ reach: { legs: false, arms: false } }));
+  const html = driverHTML(DRIVER, seated({ reach: { legs: false, arms: false, grips: [] } }));
   assert.match(html, /⚠ The legs do not reach the pedals\./);
   assert.match(html, /⚠ The arms do not reach the wheel\./);
   const reaching = driverHTML(DRIVER, seated());

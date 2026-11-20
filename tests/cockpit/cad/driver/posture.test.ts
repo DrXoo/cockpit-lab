@@ -90,3 +90,29 @@ test('grips for each hand leave the driver seated', () => {
   ]);
   assert.equal(contacts.heel.z - contacts.hip.z, 1000);
 });
+
+test('each grip is listed with its hand, held on a stick or throttle and reached otherwise', () => {
+  const grip = (id: string, category: PeripheralCategory, hand: 'left' | 'right') =>
+    peripheral(id, category, [{ role: 'grip', offsetMm: { x: 0, y: 300, z: 0 } }], { hand });
+  const contacts = contactsOf([
+    seat(),
+    pedals,
+    grip('stick', 'center-stick', 'right'),
+    grip('throttle', 'throttle', 'left'),
+    grip('shifter', 'shifter', 'right'),
+  ]);
+  assert.deepEqual(
+    contacts.grips.map(({ partId, name, hand, use, pointMm }) => [
+      partId,
+      name,
+      hand,
+      use,
+      pointMm,
+    ]),
+    [
+      ['stick', 'stick', 'right', 'held', { x: 0, y: 300, z: 0 }],
+      ['throttle', 'throttle', 'left', 'held', { x: 0, y: 300, z: 0 }],
+      ['shifter', 'shifter', 'right', 'reached', { x: 0, y: 300, z: 0 }],
+    ],
+  );
+});
