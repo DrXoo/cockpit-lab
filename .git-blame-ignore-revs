@@ -1,2 +1,9 @@
 # Prettier formatting of the whole codebase
 68e3e2edca0a5adae172c1bbbb8a0e9b806d0564
+
+# Moving the source into folders: only import paths changed
+efb441f667177cf003c6f05c48fa29008740da5b
+33aef1d6225c034c69eb0ecd6169b4f60c6299ab
+89f2e6be1b2be164a5e747d5f2424cf426125aaf
+661af6ec739c2612c69b56a5acf90f1c3089b6bd
+959397ad06922cbb9cb3bbf6e529d67d733590a1
