@@ -1194,6 +1194,21 @@ test('a peripheral for one hand is mounted from the toolbar and says which hand 
   await expect(page.locator('#part-hand')).toBeHidden();
 });
 
+test('a seat rests the holes of one side on its profile, chosen in its inspector', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountSeat').click();
+  await page.locator('#confirmPeripheral').click();
+  const seat = async () => (await savedHistory(page))?.[1];
+  await expect(page.locator('#part-holesOver')).toHaveValue('origin');
+  await page.locator('#part-holesOver').selectOption('left');
+  await expect.poll(seat).toMatchObject({ holesOver: 'left', acrossMm: 0 });
+  await page.locator('#part-holesOver').selectOption('origin');
+  await expect.poll(async () => (await seat())?.holesOver).toBeUndefined();
+});
+
 test('fitting, a part slides along its adjustment, saved with the design without a step', async ({
   page,
 }) => {

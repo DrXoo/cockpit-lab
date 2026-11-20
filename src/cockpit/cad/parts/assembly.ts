@@ -14,7 +14,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from './catalog.ts';
-import type { MountingPattern } from './mounting-pattern.ts';
+import { sideLineMm, type MountingPattern, type PatternSide } from './mounting-pattern.ts';
 
 export type Axis = 'x' | 'y' | 'z';
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -155,6 +155,11 @@ export interface PeripheralPart {
   /** For a peripheral with a grip, the hand that uses it. */
   hand?: Hand;
   /**
+   * The side whose holes stand on the place it is attached at, the line along them there, so
+   * they bolt into the profile under them; its mounting origin does when absent.
+   */
+  holesOver?: PatternSide;
+  /**
    * The way the driver faces when using it, along the face it is mounted on: +Z, the front of
    * the cockpit, for a peripheral mounted as usual.
    */
@@ -256,7 +261,14 @@ function resolvePeripheral(part: PeripheralPart, dependency: Dependency): Resolv
     return resolvedAs(tiltDeg, intoTiltedFrame(placement.startMm, tiltDeg));
   }
   const parent = dependency(placement.parentId);
-  return resolvedAs(parent.tiltDeg, attachmentPoint(parent, placement));
+  const origin = attachmentPoint(parent, placement);
+  if (part.holesOver !== undefined) {
+    const lineMm = sideLineMm(part.mountingPattern, part.holesOver);
+    if (lineMm === null)
+      throw new Error(`${part.name} has no holes on its ${part.holesOver} side to rest on.`);
+    origin[faceAxis(frame.across)] -= faceSign(frame.across) * lineMm;
+  }
+  return resolvedAs(parent.tiltDeg, origin);
 }
 
 /** The faces a peripheral's own axes look along, in the frame of its tilt. */

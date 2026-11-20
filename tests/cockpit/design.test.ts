@@ -348,6 +348,36 @@ test('a peripheral with a grip reads back with the hand that uses it', () => {
   assert.throws(() => readDesign(withThrottle({ hand: undefined })), /which hand/);
 });
 
+test('a peripheral reads back with the side whose holes rest on its place', () => {
+  const { history } = designWith(1);
+  const pedals: MountPeripheral = {
+    kind: 'mount-peripheral',
+    id: 'op-2',
+    partId: 'part-2',
+    name: 'Pedals',
+    typeId: 'generic-pedals',
+    category: 'pedals',
+    envelope: { widthMm: 400, heightMm: 200, depthMm: 320 },
+    mountingPattern: { holes: [{ xMm: -160, yMm: 120, diameterMm: 8.5 }] },
+    contactPoints: [{ role: 'heel', offsetMm: { x: 0, y: 30, z: -130 } }],
+    source: { kind: 'estimated', reference: 'Typical of the kind' },
+    parentId: 'part-1',
+    face: '+y',
+    fromEnd: 'start',
+    alongMm: 300,
+    acrossMm: 0,
+    facing: '+z',
+    holesOver: 'right',
+  };
+  const data = stored({ ...emptyDesign(), history: [...history, pedals] });
+  assert.deepEqual(readDesign(data).history[1], pedals);
+  const withSide = (holesOver: unknown) => ({
+    ...data,
+    history: [data.history[0], { ...pedals, holesOver }],
+  });
+  assert.throws(() => readDesign(withSide('middle')), /side of a mounting pattern/);
+});
+
 test('a mounted peripheral reads back with the values copied from its type and its place', () => {
   const { history } = designWith(1);
   const pedals: MountPeripheral = {

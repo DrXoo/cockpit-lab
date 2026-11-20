@@ -25,7 +25,8 @@ import {
   type Operation,
 } from '../cad/history/history.ts';
 import { differsFromItsType } from '../cad/history/peripherals.ts';
-import type { Hole } from '../cad/parts/mounting-pattern.ts';
+import { PATTERN_SIDES, type Hole, type PatternSide } from '../cad/parts/mounting-pattern.ts';
+import { ORIGIN_OVER_ITS_PLACE } from './field-changes.ts';
 import { round } from '../../shared/geometry.ts';
 import { escapeHTML } from '../../ui/html.ts';
 import {
@@ -126,7 +127,26 @@ function peripheralPlaceHTML(
   const place = onAnEnd
     ? '<p class="layout-hint">On an end face it is mounted at the center of the end.</p>'
     : `${fields.select('fromEnd', 'Measured from', ends, peripheral.fromEnd)}${fields.number('alongMm', 'Distance to its mounting origin', peripheral.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', peripheral.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
-  return `${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
+  const over = onAnEnd ? '' : holesOverHTML(fields, peripheral);
+  return `${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}${over}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
+}
+
+const HOLES_OVER_NAMES: Record<PatternSide, string> = {
+  left: 'Its left holes',
+  right: 'Its right holes',
+};
+
+/**
+ * What stands on its place: its mounting origin, or the holes of one side, which then rest on
+ * the slot in the middle of a profile's face, as on one of two rails under a seat.
+ */
+function holesOverHTML(fields: FieldTemplates, { holesOver }: MountPeripheral): string {
+  const choices: [string, string][] = [
+    [ORIGIN_OVER_ITS_PLACE, 'Its mounting origin'],
+    ...PATTERN_SIDES.map((side): [string, string] => [side, HOLES_OVER_NAMES[side]]),
+  ];
+  const chosen = holesOver ?? ORIGIN_OVER_ITS_PLACE;
+  return `${fields.select('holesOver', 'Over its place', choices, chosen)}<p class="layout-hint">The holes of one side over the middle of the face rest on its slot, to bolt them into the profile; the offset across then measures to them.</p>`;
 }
 
 /** The hand that uses a peripheral's grip, chosen on it rather than on its type. */

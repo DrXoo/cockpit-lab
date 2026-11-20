@@ -117,6 +117,9 @@ test('the fields of a peripheral change the values of its operation', () => {
   assert.throws(() => change('typeId', 'generic-seat'), /swap/);
   assert.deepEqual(change('hand', 'left'), { hand: 'left' });
   assert.throws(() => change('hand', 'both'), /both/);
+  assert.deepEqual(change('holesOver', 'left'), { holesOver: 'left' });
+  assert.deepEqual(change('holesOver', 'origin'), { holesOver: null });
+  assert.throws(() => change('holesOver', 'middle'), /middle/);
 });
 
 test('a value typed in the adjustment changes its axis, travel or position', () => {

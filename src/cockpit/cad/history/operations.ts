@@ -29,7 +29,11 @@ import {
   type PeripheralCategory,
 } from '../parts/catalog.ts';
 import { fabricationProcess } from '../parts/fabrication.ts';
-import type { MountingPattern } from '../parts/mounting-pattern.ts';
+import {
+  PATTERN_SIDES,
+  type MountingPattern,
+  type PatternSide,
+} from '../parts/mounting-pattern.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {
@@ -197,6 +201,11 @@ export interface MountPeripheral extends PeripheralShape {
   facing: Face;
   /** For a peripheral with a grip, the hand that uses it, chosen on it rather than its type. */
   hand?: Hand;
+  /**
+   * The side of its mounting pattern whose holes stand on its place, rather than its origin:
+   * `acrossMm` then measures to the line along them.
+   */
+  holesOver?: PatternSide;
   adjustment?: Adjustment;
 }
 
@@ -317,6 +326,8 @@ export interface PeripheralValues {
   contactPoints: readonly ContactPoint[];
   backrestDeg: number;
   hand: Hand;
+  /** The side whose holes stand on its place, or null for its origin. */
+  holesOver: PatternSide | null;
 }
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
@@ -427,6 +438,7 @@ function peripheralMadeBy(operation: MountPeripheral): PeripheralPart {
     category: operation.category,
     ...copiedPeripheral(operation),
     ...(operation.hand === undefined ? {} : { hand: operation.hand }),
+    ...(operation.holesOver === undefined ? {} : { holesOver: operation.holesOver }),
     facing: operation.facing,
     placement: {
       kind: 'attachment',
@@ -639,6 +651,8 @@ function checkPeripheral(operation: MountPeripheral) {
   )
     throw new Error(`A backrest leans back between 0 and ${MAX_BACKREST_DEG}°.`);
   checkHand(operation);
+  if (operation.holesOver !== undefined && !PATTERN_SIDES.includes(operation.holesOver))
+    throw new Error(`Unknown side of a mounting pattern: ${operation.holesOver}`);
   if (
     !DATA_SOURCE_KINDS.includes(operation.source.kind) ||
     typeof operation.source.reference !== 'string'

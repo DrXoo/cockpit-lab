@@ -83,7 +83,7 @@ The part under the pointer is outlined, and its label shows after half a second 
 
 ## Fit mode
 
-**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. A selected part with an adjustment, of the frame or a peripheral, has only the arrow along its travel; a peripheral without one has the move handles of a part that hangs from another. Its type is swapped in its inspector, as a foot's is; when its own values were edited, a confirmation says the new type's values take their place first. The inspector of a peripheral with a grip chooses the hand that holds it, under **Held by**.
+**Fit** is a toggle in the toolbar of the view, which belongs to the session (stage 5, see [mini-cad.md](mini-cad.md)). Selecting a peripheral's step in the history turns it on; turning it off unselects a peripheral. A selected part with an adjustment, of the frame or a peripheral, has only the arrow along its travel; a peripheral without one has the move handles of a part that hangs from another. Its type is swapped in its inspector, as a foot's is; when its own values were edited, a confirmation says the new type's values take their place first. The inspector of a peripheral with a grip chooses the hand that holds it, under **Held by**. Under **Over its place**, the inspector of a peripheral chooses what stands on the place it is mounted at: its mounting origin, or the holes of its left or right side, which then rest on the slot in the middle of the face, as a seat on one of two rails does.
 
 | | Designing (Fit off) | Fit on |
 | --- | --- | --- |

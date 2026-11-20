@@ -68,6 +68,17 @@ test('the inspector of a peripheral sets its type and the values copied from it'
   assert.doesNotMatch(html, /id="part-hand"/, 'pedals have no grip');
 });
 
+test('the inspector of a peripheral chooses what rests on its place: its origin or the holes of a side', () => {
+  const history = editPeripheral(railWithPedals(), 'part-2', { holesOver: 'right' });
+  const html = partInspectorHTML(history, history[1]);
+  const sides = captured(/id="part-holesOver"[^]*?<\/select>/, html, 0);
+  assert.deepEqual(
+    [...sides.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]),
+    ['origin', 'left', 'right'],
+  );
+  assert.match(sides, /<option value="right" selected>Its right holes<\/option>/);
+});
+
 test('the inspector of a peripheral with a grip chooses the hand that uses it', () => {
   const history = withPeripheral(railHistory(), 'part-1', 'generic-throttle');
   const html = partInspectorHTML(history, history[1]);

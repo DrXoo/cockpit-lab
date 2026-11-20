@@ -5,6 +5,7 @@
 // Every part is replayed at the center of its travel; the fitted pose moves it along it.
 import {
   anchorWhereItIs,
+  crossFace,
   faceAxis,
   resolveAssembly,
   type Axis,
@@ -16,6 +17,7 @@ import {
   type ResolvedPart,
 } from '../parts/assembly.ts';
 import { CAD_CONTACT_MM } from '../analysis/interference.ts';
+import { sideLineMm } from '../parts/mounting-pattern.ts';
 import {
   adjustmentOf,
   AXES,
@@ -352,8 +354,29 @@ function withPeripheral(
   const onAnEnd = parent.kind === 'profile' && parent.axis === normal;
   if (onAnEnd && (operation.alongMm !== 0 || operation.acrossMm !== 0))
     return `${operation.name} is mounted on an end of ${parent.name}, which has only its center to mount on.`;
+  const sideMisfit = misfitHolesOver(operation, parent);
+  if (sideMisfit) return sideMisfit;
   const withIt = [...parts, partMadeBy(operation)];
   return misfitOnItsFace(operation, resolveAssembly(withIt)) ?? withIt;
+}
+
+/**
+ * Why a peripheral cannot rest the holes of the side it names on its place, or null: that side
+ * needs holes, and the line along them must run along the part, as a profile's slot does.
+ */
+function misfitHolesOver(
+  operation: MountPeripheral,
+  parent: ProfilePart | PlatePart,
+): string | null {
+  const side = operation.holesOver;
+  if (side === undefined) return null;
+  if (sideLineMm(operation.mountingPattern, side) === null)
+    return `${operation.name} has no holes on its ${side} side to rest on ${parent.name}.`;
+  const along = parent.kind === 'profile' ? parent.axis : parent.depthAxis;
+  const across = faceAxis(crossFace(operation.face, operation.facing));
+  if (across === along)
+    return `${operation.name} faces across ${parent.name}: its ${side} holes would run across it, and only a line along it rests on it.`;
+  return null;
 }
 
 /** Whether two boxes have some area in common across `normal`, more than mere contact. */

@@ -35,6 +35,7 @@ const PART_FIELDS = [
   'contactYMm',
   'contactZMm',
   'hand',
+  'holesOver',
 ] as const;
 export type PartField = (typeof PART_FIELDS)[number];
 

@@ -22,7 +22,7 @@ import {
   type ProfileOperation,
   type ProfileValues,
 } from '../cad/history/history.ts';
-import type { Hole } from '../cad/parts/mounting-pattern.ts';
+import { PATTERN_SIDES, type Hole, type PatternSide } from '../cad/parts/mounting-pattern.ts';
 import { START_FIELDS, type AdjustmentField, type PartField } from './part-fields.ts';
 
 /** The change one field of the inspector makes to the values of a profile's operation. */
@@ -71,6 +71,7 @@ export function partChange(
     case 'contactYMm':
     case 'contactZMm':
     case 'hand':
+    case 'holesOver':
       throw new Error(`A profile has no ${field}`);
     case 'startX':
     case 'startY':
@@ -171,6 +172,8 @@ export function peripheralChange(
       return contactChange('z');
     case 'hand':
       return { hand: handOf(value) };
+    case 'holesOver':
+      return { holesOver: value === ORIGIN_OVER_ITS_PLACE ? null : patternSideOf(value) };
     case 'typeId':
       throw new Error("A peripheral's type is swapped, not edited: use swapPeripheralType.");
     case 'name':
@@ -231,6 +234,15 @@ export function adjustmentChange(field: AdjustmentField, value: string): Partial
     case 'runsOn':
       return { runsOn: guideOf(value) };
   }
+}
+
+/** The choice of a peripheral's origin, rather than the holes of a side, over its place. */
+export const ORIGIN_OVER_ITS_PLACE = 'origin';
+
+function patternSideOf(value: string): PatternSide {
+  const side = PATTERN_SIDES.find((known) => known === value);
+  if (!side) throw new Error(`Unknown side of a mounting pattern: ${value}`);
+  return side;
 }
 
 function handOf(value: string): Hand {

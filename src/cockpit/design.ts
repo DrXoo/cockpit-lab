@@ -19,7 +19,12 @@ import {
   type PeripheralCategory,
 } from './cad/parts/catalog.ts';
 import { DEFAULT_PROCESS_ID } from './cad/parts/fabrication.ts';
-import type { Hole, MountingPattern } from './cad/parts/mounting-pattern.ts';
+import {
+  PATTERN_SIDES,
+  type Hole,
+  type MountingPattern,
+  type PatternSide,
+} from './cad/parts/mounting-pattern.ts';
 import {
   ADJUSTMENT_GUIDES,
   checkedHistory,
@@ -357,6 +362,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     'acrossMm',
     'facing',
     'hand',
+    'holesOver',
     'adjustment',
   ]);
   if (typeof data.name !== 'string') throw new Error('A part name must be text');
@@ -382,6 +388,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
     facing: face(data.facing),
     ...(data.hand === undefined ? {} : { hand: hand(data.hand) }),
+    ...(data.holesOver === undefined ? {} : { holesOver: patternSide(data.holesOver) }),
     ...peripheralAdjustment(data.adjustment),
   };
 }
@@ -456,6 +463,12 @@ function peripheralCategory(value: unknown): PeripheralCategory {
 function contactRole(value: unknown): ContactRole {
   const known = CONTACT_ROLES.find((candidate) => candidate === value);
   if (!known) throw new Error(`Unknown contact point: ${value}`);
+  return known;
+}
+
+function patternSide(value: unknown): PatternSide {
+  const known = PATTERN_SIDES.find((side) => side === value);
+  if (!known) throw new Error(`Unknown side of a mounting pattern: ${value}`);
   return known;
 }
 

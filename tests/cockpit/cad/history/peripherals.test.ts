@@ -370,3 +370,61 @@ test('a peripheral swapped for another type keeps a name the user gave it', () =
   assert.throws(() => swapPeripheralType(named, 'part-1', 'generic-seat'), /not a peripheral/);
   assert.throws(() => swapPeripheralType(named, 'part-2', 'generic-hotas'), /not in the catalog/);
 });
+
+test('a peripheral can rest the holes of one side over its place, so they bolt into the profile', () => {
+  const rail = railHistory();
+  const seat = peripheralType('generic-seat');
+  const halfWidthMm = seat.envelope.widthMm / 2;
+  // The seat's left holes are 180 mm across from its origin, towards +X.
+  const onLeft = boxOf(
+    withPeripheral(rail, 'part-1', 'generic-seat', { holesOver: 'left' }),
+    'part-2',
+  );
+  assert.equal(onLeft.min.x, -180 - halfWidthMm);
+  assert.equal(onLeft.max.x, -180 + halfWidthMm);
+  const onRight = boxOf(
+    withPeripheral(rail, 'part-1', 'generic-seat', { holesOver: 'right', acrossMm: 10 }),
+    'part-2',
+  );
+  assert.equal(onRight.min.x, 190 - halfWidthMm);
+  // The offset across still keeps those holes over the face.
+  assert.throws(
+    () => withPeripheral(rail, 'part-1', 'generic-seat', { holesOver: 'left', acrossMm: 30 }),
+    /off the side of Rail/,
+  );
+});
+
+test('resting on one side needs holes on that side, in a line along the profile', () => {
+  const rail = railHistory();
+  const leftOnly = { holes: [{ xMm: 100, yMm: 0, diameterMm: 8.5 }] };
+  assert.throws(
+    () =>
+      withPeripheral(rail, 'part-1', 'generic-seat', {
+        mountingPattern: leftOnly,
+        holesOver: 'right',
+      }),
+    /no holes on its right/,
+  );
+  // Facing along +X, its sides' holes run across the rail, which they cannot all rest on.
+  assert.throws(
+    () => withPeripheral(rail, 'part-1', 'generic-seat', { facing: '+x', holesOver: 'left' }),
+    /left holes would run across it/,
+  );
+});
+
+test('choosing the side it rests on puts those holes over the middle of the face', () => {
+  const history = withPeripheral(railHistory(), 'part-1', 'generic-seat', { acrossMm: 15 });
+  const onLeft = mounted(editPeripheral(history, 'part-2', { holesOver: 'left' }));
+  assert.equal(onLeft.holesOver, 'left');
+  assert.equal(onLeft.acrossMm, 0);
+  const back = mounted(editPeripheral(history, 'part-2', { holesOver: null }));
+  assert.equal(back.holesOver, undefined);
+  assert.equal(back.acrossMm, 0);
+  // Any other edit keeps the side it rests on.
+  const renamed = mounted(
+    editPeripheral(editPeripheral(history, 'part-2', { holesOver: 'left' }), 'part-2', {
+      name: 'Seat',
+    }),
+  );
+  assert.equal(renamed.holesOver, 'left');
+});
