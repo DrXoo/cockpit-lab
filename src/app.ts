@@ -1,4 +1,4 @@
-import { steps, createProject } from './project.ts';
+import { createProject } from './project.ts';
 import { NOTHING_AROUND } from './cockpit-editor-view.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import { CockpitEditor } from './cockpit-editor/editor.ts';
@@ -8,19 +8,18 @@ import { HandleDragging } from './cockpit-editor/handle-dragging.ts';
 import { CockpitToolbar } from './cockpit-editor/toolbar.ts';
 import { bindCockpitKeys } from './cockpit-editor/keys.ts';
 import { bindHistoryPanel, historyPanelHTML } from './cockpit-editor/history-panel.ts';
-import { creationControls, progressHTML } from './setup-editor.ts';
+import { creationControls } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
-import { roomControls, roomItem, roomItems, roomTarget } from './room-editor.ts';
+import { roomControls } from './room-editor.ts';
 import { evaluate } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { Project } from './project.ts';
-import { activeLayout, hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
+import { hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
 import { activeArmPose } from './arm-poses.ts';
-import { validationBanner } from './inspector-view.ts';
-import { sectionOfStep, setupButtons } from './setup-actions.ts';
+import { sectionOfStep } from './setup-actions.ts';
 import { deskPanelHTML } from './settings-panels.ts';
 import { createProjectStore } from './project-storage.ts';
 import { ProjectSession } from './project-session.ts';
@@ -35,7 +34,13 @@ import {
   type Section,
   type Workspace,
 } from './sections.ts';
-import { noRoomSelection, type RoomSelection } from './room-editing/selection.ts';
+import {
+  noRoomSelection,
+  panelTarget,
+  targetAfterLayoutChange,
+  targetAfterSwitch,
+  type RoomSelection,
+} from './room-editing/selection.ts';
 import type { RoomEditorHost } from './room-editing/host.ts';
 import { RoomItems } from './room-editing/room-items.ts';
 import { GuidedSetup } from './room-editing/guided-setup.ts';
@@ -48,6 +53,7 @@ import { drawIcons } from './icons.ts';
 import { ColorTheme } from './theme.ts';
 import { showSaveStatus, toast } from './notices.ts';
 import { bindDialogs } from './dialogs.ts';
+import { isGuided, renderPageChrome, type PageChrome } from './page-chrome.ts';
 import { ProjectFiles } from './project-files.ts';
 
 drawIcons();
@@ -172,11 +178,7 @@ function openProject(opened: Project) {
 function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
   project.changeLayouts(change);
   roomSelection.armPose = activeArmPose(project.state)?.id ?? '';
-  if (
-    roomSelection.target.startsWith('furniture:') &&
-    !roomItem(project.state, roomSelection.target)
-  )
-    roomSelection.target = '';
+  roomSelection.target = targetAfterLayoutChange(roomSelection.target, project.state);
   renderControls();
   refresh();
   syncSceneEditing();
@@ -190,108 +192,34 @@ function syncSceneEditing() {
     isRoomSection(section),
   );
 }
-/** The inspector card that holds an element. */
-function inspectorSectionOf(selector: string): HTMLElement {
-  const card = $(selector).closest<HTMLElement>('.inspector-section');
-  if (!card) throw new Error(`${selector} is not inside an inspector section`);
-  return card;
-}
+/** Shows the parts of the page that follow the editor shown and the guided setup. */
 function renderWorkflow() {
-  const inCockpit = editor() === 'cockpit',
-    guided = !inCockpit && project.setup.step !== 'complete',
-    step = steps.find((s) => s.id === project.setup.step),
-    shown = shownConfig();
-  const stepLabel = step?.label ?? '';
-  document.body.dataset.guided = String(guided);
-  document.body.dataset.editor = editor();
-  $$('.editor-switch button').forEach((button) => {
-    const active = dataOf(button, 'editor') === editor();
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  $$<HTMLButtonElement>('.config-tabs button').forEach(
-    (tab) => (tab.hidden = dataOf(tab, 'inEditor') !== editor()),
-  );
-  $('#setupProgress').hidden = !guided;
-  $('#setupProgress').innerHTML = guided ? progressHTML(project.setup) : '';
-  $('#setupActions').hidden = !guided;
-  $('.config-tabs').hidden = guided || inCockpit;
-  layoutPicker.render(guided || inCockpit);
-  $('.cockpit-area').hidden = !inCockpit;
-  $('#exportCockpit').hidden = !cockpitEditor.hasDesign();
-  const heading = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Settings';
-  $('.panel-heading h2').textContent = heading;
-  $('#controls').setAttribute('aria-label', guided ? (step?.title ?? '') : heading);
-  $('#setupGuide').hidden = !guided;
-  $('#setupGuideTitle').textContent = step?.title || '';
-  $('#setupGuideHint').textContent = step?.hint || '';
-  const buttons = setupButtons(project.setup, project.state);
-  $<HTMLButtonElement>('#setupBack').disabled = buttons.backDisabled;
-  $('#setupNext').textContent = buttons.nextLabel;
-  $<HTMLButtonElement>('#setupNext').disabled = buttons.nextDisabled;
-  $('#setupSkip').hidden = buttons.skipHidden;
-  $('#setupSkip').textContent = buttons.skipLabel;
-  const hasScene = inCockpit ? cockpitEditor.hasParts() : shown.roomEnabled || shown.deskEnabled;
-  $('#emptyScene').hidden = hasScene;
-  $('#emptySceneTitle').textContent = inCockpit
-    ? 'Your cockpit starts here'
-    : 'Your space starts here';
-  $('#emptySceneHint').textContent = inCockpit
-    ? 'Add a profile to start the design.'
-    : 'Set up your room to start arranging it.';
-  $('[data-view="desk"]').hidden = !shown.deskEnabled;
-  $('[data-view="side"]').hidden = !inCockpit;
-  $('#inspectorTitle').textContent = inCockpit ? 'Inspector' : 'Checks';
-  $('[data-workspace="checks"]').textContent = inCockpit ? 'Inspector' : 'Checks';
-  $('#partInspector').hidden = !inCockpit || !cockpitEditor.hasParts();
-  $('#layoutBtn').hidden = inCockpit;
-  $('#measureBtn').hidden = !inCockpit || !cockpitEditor.hasParts();
-  $('#fitModeBtn').hidden = !inCockpit || !cockpitEditor.hasParts();
-  $('#fitModeBtn').classList.toggle('active', cockpitEditor.session.fitting);
-  $('#fitModeBtn').setAttribute('aria-pressed', String(cockpitEditor.session.fitting));
-  $<HTMLButtonElement>('#layoutBtn').disabled = !hasScene;
-  $('#layoutBtn').classList.toggle('active', roomSelection.editing);
-  $('#layoutBtn').setAttribute('aria-pressed', String(roomSelection.editing));
-  $('#validationBanner').hidden = inCockpit;
-  inspectorSectionOf('#deskSizeTag').hidden =
-    !shown.deskEnabled || (guided && project.setup.step !== 'desk');
-  inspectorSectionOf('#deskSizeTag').querySelector('h3')!.lastChild!.textContent =
-    shown.monitorEnabled ? 'Desk and monitor' : 'Desk';
-  inspectorSectionOf('#matTag').hidden =
-    !shown.deskEnabled ||
-    !evaluation.desktopItems.length ||
-    (guided && project.setup.step !== 'desk');
-  $('.reach-card').hidden = !(shown.deskEnabled && shown.monitorEnabled);
-  $('#editArmBtn').hidden = !(shown.deskEnabled && shown.monitorEnabled);
-  const metrics = $$('.metrics>div');
-  metrics[0].hidden = !shown.roomEnabled;
-  metrics[1].hidden = !shown.deskEnabled;
-  $('.scene-legend').hidden = !shown.deskEnabled;
-  $('.metrics').hidden = !shown.roomEnabled && !shown.deskEnabled;
-  $('.scene-badge').hidden = !hasScene;
-  $('.viewport-note').hidden = !hasScene;
-  $('.view-toolbar').hidden = !hasScene;
-  $('.build-note').hidden = !hasScene;
-  const sceneTitle = guided ? stepLabel : inCockpit ? 'Cockpit design' : 'Your room';
-  $('#sceneTitle').textContent =
-    !guided && !inCockpit && project.library.layouts.length > 1
-      ? `${sceneTitle} · ${activeLayout(project.library).name}`
-      : sceneTitle;
+  const page: PageChrome = {
+    editor: editor(),
+    setup: project.setup,
+    state: project.state,
+    shown: shownConfig(),
+    evaluation,
+    library: project.library,
+    layoutEditing: roomSelection.editing,
+    cockpit: {
+      hasDesign: cockpitEditor.hasDesign(),
+      hasParts: cockpitEditor.hasParts(),
+      fitting: cockpitEditor.session.fitting,
+    },
+  };
+  renderPageChrome(page);
+  layoutPicker.render(isGuided(page) || page.editor === 'cockpit');
 }
 function renderControls() {
-  const guided = editor() === 'room' && project.setup.step !== 'complete',
+  const guided = isGuided({ editor: editor(), setup: project.setup }),
     stage = guided ? project.setup.step : section === 'furniture' ? 'furniture' : 'openings';
-  if ((stage === 'openings' || stage === 'furniture') && isRoomSection(section)) {
-    const items = roomItems(project.state, stage);
-    if (!items.some((v) => roomTarget(v) === roomSelection.target))
-      roomSelection.target = items[0] ? roomTarget(items[0]) : '';
-  }
-  if (
-    section === 'desk' &&
-    !evaluation.desktopItems.some((i) => i.id === roomSelection.target) &&
-    roomSelection.target !== 'desk'
-  )
-    roomSelection.target = 'desk';
+  roomSelection.target = panelTarget(roomSelection.target, {
+    section,
+    stage,
+    state: project.state,
+    desktopItemIds: evaluation.desktopItems.map((item) => item.id),
+  });
   let html = '';
   if (editor() === 'cockpit') {
     html = historyPanelHTML(cockpitEditor);
@@ -334,17 +262,7 @@ function switchSection(value: Section) {
   lastSection[editor()] = value;
   // The other editor shows another configuration, so the panels need its evaluation.
   if (editorChanged) evaluation = evaluate(shownConfig());
-  if (
-    value === 'desk' &&
-    (roomSelection.target.startsWith('feature:') || roomSelection.target.startsWith('furniture:'))
-  )
-    roomSelection.target = 'desk';
-  if (
-    value === 'room' &&
-    !roomItem(project.state, roomSelection.target) &&
-    roomSelection.target !== 'desk'
-  )
-    roomSelection.target = 'desk';
+  roomSelection.target = targetAfterSwitch(roomSelection.target, value, project.state);
   $$<HTMLButtonElement>('.config-tabs button').forEach((b) => {
     const active = dataOf(b, 'section') === section;
     b.classList.toggle('active', active);
