@@ -1,11 +1,11 @@
 // The app's composition root: it opens the project saved in this browser, builds the editors
 // and their controllers around the workbench, and draws the 3D view when WebGL allows it.
-import { CockpitEditor } from './cockpit-editor/editor.ts';
-import { HandleDragging } from './cockpit-editor/handle-dragging.ts';
-import { CockpitInspector } from './cockpit-editor/inspector.ts';
-import { bindCockpitKeys } from './cockpit-editor/keys.ts';
-import { CockpitToolbar } from './cockpit-editor/toolbar.ts';
-import { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
+import { CockpitEditor } from './cockpit/editor/editor.ts';
+import { HandleDragging } from './cockpit/editor/handle-dragging.ts';
+import { CockpitInspector } from './cockpit/editor/inspector.ts';
+import { bindCockpitKeys } from './cockpit/editor/keys.ts';
+import { CockpitToolbar } from './cockpit/editor/toolbar.ts';
+import { CockpitViewOverlays } from './cockpit/editor/view-overlays.ts';
 import type { RoomConfig } from './room/config.ts';
 import { bindDialogs } from './app/dialogs.ts';
 import { $ } from './ui/dom.ts';

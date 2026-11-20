@@ -8,8 +8,8 @@ import {
   getSavedProject,
   fixturePath,
 } from './support.ts';
-import { emptyDesign } from '../src/cockpit-design.ts';
-import { cockpitFileData } from '../src/cockpit-file.ts';
+import { emptyDesign } from '../src/cockpit/design.ts';
+import { cockpitFileData } from '../src/cockpit/file.ts';
 
 // A cockpit file moves a design from one project to another (CONTEXT.md, docs/adr/0001).
 

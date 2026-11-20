@@ -1,0 +1,98 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  MOTEDIS_SERIES_40_SLOT_8,
+  connectorType,
+  connectorFits,
+  fastenersOf,
+  footType,
+  profileSection,
+  profileSystem,
+  boltLengthFor,
+  fastenerType,
+  plateBoltType,
+  sheetType,
+  sheetTypes,
+} from '../../../../src/cockpit/cad/parts/catalog.ts';
+
+test('the first profile system is Motedis series 40, I-type, slot 8', () => {
+  const system = MOTEDIS_SERIES_40_SLOT_8;
+  assert.equal(system.supplier, 'Motedis');
+  assert.equal(system.series, 40);
+  assert.equal(system.slotType, 'I');
+  assert.equal(system.slotWidthMm, 8);
+  assert.deepEqual(
+    system.sections.map((section) => [section.id, section.widthMm, section.heightMm]),
+    [
+      ['40x40', 40, 40],
+      ['40x80', 40, 80],
+      ['40x120', 40, 120],
+    ],
+  );
+});
+
+test('every catalog section says where its dimensions come from', () => {
+  for (const section of MOTEDIS_SERIES_40_SLOT_8.sections) {
+    assert.equal(section.source.kind, 'data sheet', section.id);
+    assert.match(section.source.reference, /^https:\/\/www\.motedis\./, section.id);
+  }
+});
+
+test('a section is found by system and id, and an unknown one is an error', () => {
+  assert.equal(profileSystem('motedis-40-i-slot-8'), MOTEDIS_SERIES_40_SLOT_8);
+  assert.throws(() => profileSystem('item-45'), /item-45/);
+  assert.equal(profileSection(MOTEDIS_SERIES_40_SLOT_8, '40x80').heightMm, 80);
+  assert.throws(() => profileSection(MOTEDIS_SERIES_40_SLOT_8, '45x45'), /45x45/);
+});
+
+test('the 40 corner bracket fits the series 40 slot 8 system', () => {
+  const bracket = connectorType('corner-bracket-40');
+  assert.ok(connectorFits(bracket, MOTEDIS_SERIES_40_SLOT_8));
+  assert.ok(!connectorFits(bracket, { ...MOTEDIS_SERIES_40_SLOT_8, id: 'other-system' }));
+  assert.throws(() => connectorType('angle-45'), /angle-45/);
+});
+
+test('a corner bracket needs two M8 bolts and T-nuts per leg', () => {
+  assert.deepEqual(fastenersOf(connectorType('corner-bracket-40')), [
+    { id: 'bolt-m8', quantity: 4 },
+    { id: 't-nut-slot-8-m8', quantity: 4 },
+  ]);
+});
+
+test('feet come as leveling feet or locking casters, sized from the parametric drawing', () => {
+  const leveling = footType('leveling-foot');
+  assert.deepEqual([leveling.heightMm, leveling.widthMm, leveling.depthMm], [60, 72, 72]);
+  const caster = footType('locking-caster');
+  assert.deepEqual([caster.heightMm, caster.widthMm, caster.depthMm], [60, 40, 66]);
+  for (const type of [leveling, caster]) assert.equal(type.source.kind, 'estimated');
+  assert.throws(() => footType('wheel'), /wheel/);
+});
+
+test('plates are cut from aluminium sheet of the stocked thicknesses, estimated until verified', () => {
+  assert.deepEqual(
+    sheetTypes().map((sheet) => sheet.thicknessMm),
+    [3, 4, 5, 6, 8, 10],
+  );
+  const sheet = sheetType('aluminium-8');
+  assert.equal(sheet.name, 'Aluminium sheet, 8 mm');
+  assert.equal(sheet.source.kind, 'estimated');
+  assert.throws(() => sheetType('steel-8'), /not in the catalog/);
+});
+
+test('a plate is bolted into T-nuts of the slot, with an estimated M8 bolt', () => {
+  const bolt = plateBoltType('plate-bolt-m8');
+  assert.deepEqual(bolt.fitsSystems, [MOTEDIS_SERIES_40_SLOT_8.id]);
+  assert.equal(bolt.tNutId, 't-nut-slot-8-m8');
+  assert.equal(bolt.source.kind, 'estimated');
+  assert.throws(() => plateBoltType('rivet'), /not in the catalog/);
+});
+
+test('a plate bolt is the shortest stocked length through the plate and into its T-nut', () => {
+  const bolt = plateBoltType('plate-bolt-m8');
+  assert.deepEqual(
+    [3, 4, 5, 6, 8, 10].map((thicknessMm) => boltLengthFor(bolt, thicknessMm)),
+    [12, 12, 16, 16, 16, 20],
+  );
+  assert.equal(fastenerType('bolt-m8x16').name, 'M8 × 16 bolt');
+  assert.equal(fastenerType('bolt-m8x16').source?.kind, 'estimated');
+});

@@ -6,16 +6,16 @@ import { allOfKind, ofKind, present } from '../support/lookups.ts';
 import { ROOT } from '../../src/scene/render-list.ts';
 import { defaults, evaluate } from '../../src/room/model.ts';
 import { degToRad } from '../../src/shared/geometry.ts';
-import { NOTHING_AROUND } from '../../src/cockpit-editor-view.ts';
-import { resolveAssembly } from '../../src/cad/assembly.ts';
+import { NOTHING_AROUND } from '../../src/cockpit/editor/editor-view.ts';
+import { resolveAssembly } from '../../src/cockpit/cad/parts/assembly.ts';
 import {
   addAnchoredProfile,
   draftGrowth,
   editDraft,
   editProfile,
   replayHistory,
-} from '../../src/cad/history.ts';
-import { partHandles } from '../../src/cad/handles.ts';
+} from '../../src/cockpit/cad/history/history.ts';
+import { partHandles } from '../../src/cockpit/cad/interaction/handles.ts';
 
 const options: RenderOptions = {
   view: 'iso',

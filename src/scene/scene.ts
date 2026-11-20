@@ -6,8 +6,8 @@ import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
 import type { RoomConfig } from '../room/config.ts';
 import type { CockpitEvaluation } from '../room/evaluate.ts';
 import { inversePoint } from '../shared/geometry.ts';
-import { hitAlongRay, type PartHit } from '../cad/picking.ts';
-import type { Face, ResolvedPart } from '../cad/assembly.ts';
+import { hitAlongRay, type PartHit } from '../cockpit/cad/interaction/picking.ts';
+import type { Face, ResolvedPart } from '../cockpit/cad/parts/assembly.ts';
 
 /** A point on the page, in CSS pixels from its top left corner. */
 export interface PagePoint {
@@ -19,13 +19,17 @@ import {
   pickLayoutItem,
   type LayoutGrab,
 } from '../room/editing/layout-picking.ts';
-import type { CockpitDrawing } from '../render-cad.ts';
+import type { CockpitDrawing } from '../cockpit/render/cad.ts';
 import type { ArmHandle } from '../room/render/desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
-import { drawHover } from '../render-hover.ts';
-import { distanceAlongAxis, type Handle, type HandleModifiers } from '../cad/handles.ts';
-import type { JointMarker } from '../cad/joint-markers.ts';
-import { handleBallMm } from '../render-handles.ts';
+import { drawHover } from '../cockpit/render/hover.ts';
+import {
+  distanceAlongAxis,
+  type Handle,
+  type HandleModifiers,
+} from '../cockpit/cad/interaction/handles.ts';
+import type { JointMarker } from '../cockpit/cad/interaction/joint-markers.ts';
+import { handleBallMm } from '../cockpit/render/handles.ts';
 import { renderModel } from './render-model.ts';
 import {
   cameraPose,

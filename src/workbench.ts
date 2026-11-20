@@ -1,13 +1,13 @@
 // The page the user works in: which editor, tab, view and, on narrow screens, panel it shows,
 // and showing them again as the project changes. The editors' controllers do the editing; the
 // workbench moves between them and is the host they ask to show what changed.
-import type { Axis } from './cad/assembly.ts';
-import type { CockpitEditor, CockpitEditorHost } from './cockpit-editor/editor.ts';
-import { bindHistoryPanel, historyPanelHTML } from './cockpit-editor/history-panel.ts';
-import type { CockpitInspector } from './cockpit-editor/inspector.ts';
-import type { CockpitToolbar } from './cockpit-editor/toolbar.ts';
-import type { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
-import { NOTHING_AROUND } from './cockpit-editor-view.ts';
+import type { Axis } from './cockpit/cad/parts/assembly.ts';
+import type { CockpitEditor, CockpitEditorHost } from './cockpit/editor/editor.ts';
+import { bindHistoryPanel, historyPanelHTML } from './cockpit/editor/history-panel.ts';
+import type { CockpitInspector } from './cockpit/editor/inspector.ts';
+import type { CockpitToolbar } from './cockpit/editor/toolbar.ts';
+import type { CockpitViewOverlays } from './cockpit/editor/view-overlays.ts';
+import { NOTHING_AROUND } from './cockpit/editor/editor-view.ts';
 import { activeArmPose } from './room/arm-poses.ts';
 import type { RoomConfig } from './room/config.ts';
 import { $, $$, $optional, dataOf, replaceKeepingFocus } from './ui/dom.ts';
@@ -19,7 +19,7 @@ import { isGuided, renderPageChrome, type PageChrome } from './app/page-chrome.t
 import { createProject, type Project } from './project/project.ts';
 import type { ProjectSession } from './project/session.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project/summary.ts';
-import type { CockpitDrawing } from './render-cad.ts';
+import type { CockpitDrawing } from './cockpit/render/cad.ts';
 import type { DeskControls } from './room/editing/desk-controls.ts';
 import type { GuidedSetup } from './room/editing/guided-setup.ts';
 import type { RoomEditorHost } from './room/editing/host.ts';

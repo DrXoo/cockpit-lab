@@ -7,11 +7,11 @@ import {
   drawLayoutSelection,
   type LayoutSelection,
 } from '../room/render/annotations.ts';
-import { drawCadProfiles, drawConnectors, type CockpitDrawing } from '../render-cad.ts';
-import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../render-cad-dimensions.ts';
-import { drawMeasurement } from '../render-measurement.ts';
-import { drawDriver } from '../render-driver.ts';
-import { drawHandleStems, drawSnapGuide } from '../render-handles.ts';
+import { drawCadProfiles, drawConnectors, type CockpitDrawing } from '../cockpit/render/cad.ts';
+import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../cockpit/render/dimensions.ts';
+import { drawMeasurement } from '../cockpit/render/measurement.ts';
+import { drawDriver } from '../cockpit/render/driver.ts';
+import { drawHandleStems, drawSnapGuide } from '../cockpit/render/handles.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from '../room/render/desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
 import { drawRoom } from '../room/render/room.ts';

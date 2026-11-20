@@ -20,7 +20,7 @@ import {
   readDesign,
   type CockpitDesign,
   type CockpitDesignData,
-} from '../cockpit-design.ts';
+} from '../cockpit/design.ts';
 
 export type StepId = 'room' | 'openings' | 'furniture' | 'desk';
 export type SetupStep = StepId | 'complete';

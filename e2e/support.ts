@@ -9,9 +9,9 @@ import {
   editProfile,
   type Operation,
   type ProfileValues,
-} from '../src/cad/history.ts';
-import { cockpitFileData } from '../src/cockpit-file.ts';
-import { DEFAULT_DRIVER } from '../src/cad/driver.ts';
+} from '../src/cockpit/cad/history/history.ts';
+import { cockpitFileData } from '../src/cockpit/file.ts';
+import { DEFAULT_DRIVER } from '../src/cockpit/cad/driver/driver.ts';
 
 export const STORAGE_KEY = 'cockpit-lab-v5';
 

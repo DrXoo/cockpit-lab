@@ -2,7 +2,7 @@
 import type { RoomConfig } from '../room/config.ts';
 import type { CockpitEvaluation } from '../room/evaluate.ts';
 import { degToRad, type PlanPoint, type Point3 } from '../shared/geometry.ts';
-import { cornersMm, type ResolvedPart } from '../cad/assembly.ts';
+import { cornersMm, type ResolvedPart } from '../cockpit/cad/parts/assembly.ts';
 import { MM_PER_CM } from '../shared/units.ts';
 
 /** The side view only shows a cockpit design on its own. */

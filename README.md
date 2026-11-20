@@ -70,23 +70,23 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/ui/dom.ts`, `src/ui/icons.ts`, `src/app/dialogs.ts`, `src/app/notices.ts`, `src/app/theme.ts` | Finding and replacing parts of the page, its icons, closing dialogs, toasts and the save status, and the color theme |
 | `src/room/editing/dom-input.ts`, `src/room/setting-change.ts` | Validating what the panels send, and applying a setting change |
 | `src/project/project.ts`, `src/project/storage.ts`, `src/project/session.ts` | Project format, browser storage, and the open project with its autosave |
-| `src/cockpit-file.ts`, `src/app/project-files.ts` | Cockpit files: a cockpit design on its own, to move it between projects; exporting and opening project and cockpit files |
+| `src/cockpit/file.ts`, `src/app/project-files.ts` | Cockpit files: a cockpit design on its own, to move it between projects; exporting and opening project and cockpit files |
 | `src/room/layouts.ts`, `src/room/editing/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
 | `src/shared/user-text.ts` | Cleaning names typed by users |
 | `src/room/editing/setup-editor.ts`, `src/room/editing/setup-actions.ts` | Guided setup steps and rules |
 | `src/room/actions.ts` | Adding, editing, deleting and placing room items |
 | `src/room/editing/controls-view.ts`, `src/room/editing/settings-panels.ts` | Setting controls and the desk panel of the room editor |
-| `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/shared/undo.ts` | The cockpit design as its design history and how files store it, the HTML of the cockpit editor's history panel and inspector and reading their fields, and undo and redo of its edits |
-| `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
-| `src/render-hover.ts`, `src/hover-view.ts` | What marks the part or face under the pointer in the cockpit editor, and the label that names it |
-| `src/cad/handles.ts`, `src/render-handles.ts` | The handles that resize the selected profile by dragging in the view, and their stems |
-| `src/render-cad-dimensions.ts`, `src/render-measurement.ts`, `src/measure-view.ts` | The length of the selected part, and the measure tool's drawing and readout |
+| `src/cockpit/design.ts`, `src/cockpit/editor/editor-view.ts`, `src/shared/undo.ts` | The cockpit design as its design history and how files store it, the HTML of the cockpit editor's history panel and inspector and reading their fields, and undo and redo of its edits |
+| `src/cad/`, `src/cockpit/checks.ts`, `src/cockpit/render/cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
+| `src/cockpit/render/hover.ts`, `src/cockpit/editor/hover-view.ts` | What marks the part or face under the pointer in the cockpit editor, and the label that names it |
+| `src/cockpit/cad/interaction/handles.ts`, `src/cockpit/render/handles.ts` | The handles that resize the selected profile by dragging in the view, and their stems |
+| `src/cockpit/render/dimensions.ts`, `src/cockpit/render/measurement.ts`, `src/cockpit/editor/measure-view.ts` | The length of the selected part, and the measure tool's drawing and readout |
 | `src/project/summary.ts`, `src/room/editing/inspector-view.ts`, `src/ui/check-view.ts`, `src/ui/html.ts` | Summary, validation banner, metrics and checks |
 | `src/room/model.ts` | Public entry point of the room model |
 | `src/room/config.ts` | Room settings, ranges, defaults and validation |
 | `src/room/evaluate.ts` | Envelopes, interferences and checks for a room configuration |
 | `src/shared/interference.ts` | How far two volumes overlap and which part reaches into which item |
-| `src/room/layout.ts`, `src/room/desk.ts`, `src/room/monitor-arm.ts`, `src/anatomy.ts` | Desk placement, desk, monitor arm and the seated posture model |
+| `src/room/layout.ts`, `src/room/desk.ts`, `src/room/monitor-arm.ts`, `src/cockpit/cad/driver/anatomy.ts` | Desk placement, desk, monitor arm and the seated posture model |
 | `src/room/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
 | `src/room/parts.ts`, `src/room/field-spec.ts` | Desk accessories to buy and per-setting ranges |
 | `src/shared/geometry.ts`, `src/shared/units.ts`, `src/shared/checks.ts` | Plan geometry, cm/mm units and the check type |

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_DRIVER } from '../../src/cad/driver.ts';
-import type { CockpitDesign } from '../../src/cockpit-design.ts';
+import { DEFAULT_DRIVER } from '../../src/cockpit/cad/driver/driver.ts';
+import type { CockpitDesign } from '../../src/cockpit/design.ts';
 import { activeLayout, duplicateLayout, layoutConfig } from '../../src/room/layouts.ts';
 import { createProject, type Project } from '../../src/project/project.ts';
 import type { ProjectStore } from '../../src/project/storage.ts';

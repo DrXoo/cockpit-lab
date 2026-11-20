@@ -22,7 +22,7 @@ import {
   editArm,
   moveArmJoint,
 } from '../../src/room/model.ts';
-import { solveJoint } from '../../src/anatomy.ts';
+import { solveJoint } from '../../src/cockpit/cad/driver/anatomy.ts';
 import type { ArmBend, MonitorMode, RoomConfig } from '../../src/room/config.ts';
 import type { DesktopItemId } from '../../src/room/desk.ts';
 import { withId } from '../support/lookups.ts';

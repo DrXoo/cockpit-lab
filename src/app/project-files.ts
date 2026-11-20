@@ -4,9 +4,9 @@ import {
   cockpitFileData,
   PARAMETRIC_COCKPIT_FILE_MESSAGE,
   readCockpitFile,
-} from '../cockpit-file.ts';
-import type { CockpitDesign } from '../cockpit-design.ts';
-import type { CockpitEditor } from '../cockpit-editor/editor.ts';
+} from '../cockpit/file.ts';
+import type { CockpitDesign } from '../cockpit/design.ts';
+import type { CockpitEditor } from '../cockpit/editor/editor.ts';
 import { $ } from '../ui/dom.ts';
 import {
   projectData,

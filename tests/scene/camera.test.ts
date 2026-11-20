@@ -10,13 +10,13 @@ import {
 } from '../../src/scene/camera.ts';
 import type { RoomConfig } from '../../src/room/config.ts';
 import { defaults, evaluate, sanitize } from '../../src/room/model.ts';
-import { NOTHING_AROUND } from '../../src/cockpit-editor-view.ts';
+import { NOTHING_AROUND } from '../../src/cockpit/editor/editor-view.ts';
 import {
   resolveAssembly,
   type Part,
   type ProfilePart,
   type Vec3Mm,
-} from '../../src/cad/assembly.ts';
+} from '../../src/cockpit/cad/parts/assembly.ts';
 
 const framingOf = (state: RoomConfig) => {
   const evaluation = evaluate(state);

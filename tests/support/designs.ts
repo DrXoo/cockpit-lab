@@ -11,9 +11,9 @@ import {
   type PeripheralValues,
   type PlateValues,
   type ProfileValues,
-} from '../../src/cad/history.ts';
-import { draftPeripheral, editPeripheralDraft } from '../../src/cad/peripherals.ts';
-import { draftPlate, editPlateDraft } from '../../src/cad/plates.ts';
+} from '../../src/cockpit/cad/history/history.ts';
+import { draftPeripheral, editPeripheralDraft } from '../../src/cockpit/cad/history/peripherals.ts';
+import { draftPlate, editPlateDraft } from '../../src/cockpit/cad/history/plates.ts';
 
 /** A 40 × 40 rail named Rail, 1000 mm long, running along z from the origin: part-1. */
 export function railHistory(): Operation[] {
