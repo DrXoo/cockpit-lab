@@ -7,7 +7,7 @@ import { bindHistoryPanel, historyPanelHTML } from './cockpit/editor/history-pan
 import type { CockpitInspector } from './cockpit/editor/inspector.ts';
 import type { CockpitToolbar } from './cockpit/editor/toolbar.ts';
 import type { CockpitViewOverlays } from './cockpit/editor/view-overlays.ts';
-import { NOTHING_AROUND } from './cockpit/editor/editor-view.ts';
+import { NOTHING_AROUND } from './room/config.ts';
 import { activeArmPose } from './room/arm-poses.ts';
 import type { RoomConfig } from './room/config.ts';
 import { $, $$, $optional, dataOf, replaceKeepingFocus } from './ui/dom.ts';

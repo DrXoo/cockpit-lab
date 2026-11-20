@@ -6,7 +6,7 @@ import { allOfKind, ofKind, present } from '../support/lookups.ts';
 import { ROOT } from '../../src/scene/render-list.ts';
 import { defaults, evaluate } from '../../src/room/model.ts';
 import { degToRad } from '../../src/shared/geometry.ts';
-import { NOTHING_AROUND } from '../../src/cockpit/editor/editor-view.ts';
+import { NOTHING_AROUND } from '../../src/room/config.ts';
 import { resolveAssembly } from '../../src/cockpit/cad/parts/assembly.ts';
 import {
   addAnchoredProfile,

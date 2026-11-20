@@ -150,6 +150,21 @@ export const defaults: RoomConfig = {
   aisle: 60,
 };
 
+/** What surrounds a cockpit design in its own workspace: nothing. */
+export const NOTHING_AROUND: RoomConfig = {
+  ...defaults,
+  roomEnabled: false,
+  deskEnabled: false,
+  monitorEnabled: false,
+  keyboardEnabled: false,
+  pcEnabled: false,
+  mouseEnabled: false,
+  matEnabled: false,
+  roomFeatures: [],
+  roomFurniture: [],
+  armPoses: [],
+};
+
 const BOOLEAN_SETTINGS = [
   'roomEnabled',
   'roomFullWalls',

@@ -62,24 +62,8 @@ import {
 } from '../cad/history/history.ts';
 import { differsFromItsType } from '../cad/history/peripherals.ts';
 import type { Hole } from '../cad/parts/plate.ts';
-import { defaults, type RoomConfig } from '../../room/config.ts';
 import { round } from '../../shared/geometry.ts';
 import { escapeHTML } from '../../ui/html.ts';
-
-/** What surrounds a design in its own workspace: nothing. */
-export const NOTHING_AROUND: RoomConfig = {
-  ...defaults,
-  roomEnabled: false,
-  deskEnabled: false,
-  monitorEnabled: false,
-  keyboardEnabled: false,
-  pcEnabled: false,
-  mouseEnabled: false,
-  matEnabled: false,
-  roomFeatures: [],
-  roomFurniture: [],
-  armPoses: [],
-};
 
 export interface DesignPanel {
   history: readonly Operation[];
