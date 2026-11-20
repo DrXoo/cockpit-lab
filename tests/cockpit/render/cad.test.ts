@@ -345,8 +345,34 @@ test('in Fit, a seat is drawn as a base and a backrest that fill its envelope', 
     [-depthMm / 2, depthMm / 2],
   ]);
   // The backrest is at the back, where the driver leans.
-  const tallest = allOfKind(primitives, 'box').reduce((a, b) => (b.size[1] > a.size[1] ? b : a));
-  assert.ok(tallest.position[2] < 0);
+  const highest = allOfKind(primitives, 'box').reduce((a, b) =>
+    b.position[1] + b.size[1] / 2 > a.position[1] + a.size[1] / 2 ? b : a,
+  );
+  assert.ok(highest.position[2] < 0);
+});
+
+test('a seat stands on a side bracket under each side of its holes, a bolt in every hole', () => {
+  const seat = peripheralOf('generic-seat');
+  const primitives = drawFitting([seat]);
+  const bolts = allOfKind(primitives, 'tube');
+  assert.equal(bolts.length, seat.mountingPattern.holes.length);
+  const brackets = allOfKind(primitives, 'box').filter((box) => box.material === 'silver');
+  const feet = brackets.filter((box) => box.position[1] - box.size[1] / 2 === 0);
+  assert.equal(feet.length, 2);
+  for (const hole of seat.mountingPattern.holes) {
+    const xCm = hole.xMm / 10;
+    const zCm = hole.yMm / 10;
+    assert.ok(
+      bolts.some((bolt) => bolt.from[0] === xCm && bolt.from[2] === zCm && bolt.from[1] === 0),
+      `a bolt in the hole at ${hole.xMm}, ${hole.yMm}`,
+    );
+    const under = (box: (typeof feet)[number], axis: 0 | 2, valueCm: number) =>
+      Math.abs(box.position[axis] - valueCm) < box.size[axis] / 2;
+    assert.ok(
+      feet.some((foot) => under(foot, 0, xCm) && under(foot, 2, zCm)),
+      `a bracket under the hole at ${hole.xMm}, ${hole.yMm}`,
+    );
+  }
 });
 
 test('a wheel base has its rim on the side of the driver, within its envelope', () => {

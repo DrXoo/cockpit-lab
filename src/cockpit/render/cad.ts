@@ -19,6 +19,7 @@ import {
   type PeripheralCategory,
 } from '../cad/parts/catalog.ts';
 import type { PlacedConnector } from '../cad/parts/connectors.ts';
+import type { Hole } from '../cad/parts/mounting-pattern.ts';
 import { pointOnPlate, type PlateHole } from '../cad/parts/plate-holes.ts';
 import type { MeasureDrawing } from './measurement.ts';
 import type { Handle } from '../cad/interaction/handles.ts';
@@ -159,9 +160,35 @@ interface PeripheralShapes {
   tubes: ShapeTube[];
 }
 
-/** A seat as drawn: a cushion this share of its height, and a backrest this share of its depth. */
-const SEAT_CUSHION_HEIGHT_SHARE = 0.25;
-const SEAT_BACKREST_DEPTH_SHARE = 0.2;
+/**
+ * A bucket seat as drawn, in mm of its frame: a shell on an aluminium side bracket under each
+ * side of its mounting holes, an L whose foot takes the bolts and whose upright holds the shell.
+ * Typical of the kind, not of a product.
+ */
+const SEAT_LOOK = {
+  bracketFootWidthMm: 40,
+  bracketThicknessMm: 5,
+  bracketUprightHeightMm: 120,
+  /** How far a bracket runs past the front and back holes of its side. */
+  bracketPastHolesMm: 60,
+  /** A bolt head's diameter for each mm of its hole's, about an M8 socket head's 13 mm. */
+  boltHeadPerHoleDiameter: 1.5,
+  boltHeadHeightMm: 13,
+  panBottomMm: 40,
+  panTopMm: 120,
+  cushionTopMm: 140,
+  /** The thigh bolsters rise from just over the brackets. */
+  bolsterBottomMm: 130,
+  bolsterTopMm: 250,
+  /** Where the backrest's front is at its bottom and top, from the seat's back. */
+  backrestFrontLowMm: 160,
+  backrestFrontHighMm: 70,
+  backrestThicknessMm: 60,
+  backrestSegments: 5,
+  backrestHalfWidthMm: 200,
+  /** The shoulder wings stand this far in front of the backrest, on every segment but the top. */
+  wingDepthMm: 70,
+};
 /** A wheel base as drawn: a body behind the rim, this share of the envelope across and up. */
 const WHEEL_BODY_WIDTH_SHARE = 0.5;
 const WHEEL_BODY_HEIGHT_SHARE = 0.65;
@@ -261,17 +288,8 @@ function peripheralShapes(part: PeripheralPart): PeripheralShapes {
     material,
   });
   switch (part.category) {
-    case 'seat': {
-      const cushionTop = heightMm * SEAT_CUSHION_HEIGHT_SHARE;
-      const backrestFront = back + depthMm * SEAT_BACKREST_DEPTH_SHARE;
-      return {
-        boxes: [
-          shape([-halfWidth, 0, back], [halfWidth, cushionTop, front], 'seat'),
-          shape([-halfWidth, cushionTop, back], [halfWidth, heightMm, backrestFront], 'seat'),
-        ],
-        tubes: [],
-      };
-    }
+    case 'seat':
+      return seatShapes(part);
     case 'wheel-base': {
       const bodyHalfWidth = (widthMm * WHEEL_BODY_WIDTH_SHARE) / 2;
       const bodyBack = back + depthMm * WHEEL_BODY_START_SHARE;
@@ -314,6 +332,115 @@ function peripheralShapes(part: PeripheralPart): PeripheralShapes {
     case 'throttle':
       return handControlShapes(part, HAND_CONTROL_LOOKS[part.category]);
   }
+}
+
+/**
+ * A bucket seat: a side bracket under each side of its mounting holes with a bolt in every hole,
+ * a pan between the brackets' uprights with its cushion, thigh bolsters out to its width, and a
+ * backrest leaning back in steps with shoulder wings, all within its envelope.
+ */
+function seatShapes(part: PeripheralPart): PeripheralShapes {
+  const { widthMm, heightMm, depthMm } = part.envelope;
+  const look = SEAT_LOOK;
+  const halfWidth = widthMm / 2;
+  const back = -depthMm / 2;
+  const front = depthMm / 2;
+  const box = (min: Vec3Mm, max: Vec3Mm, material: PaletteMaterial): ShapeBox => ({
+    min,
+    max,
+    material,
+  });
+  const brackets = seatBrackets(part.mountingPattern.holes);
+  const panHalfWidth = Math.min(halfWidth, ...brackets.map((bracket) => bracket.innerMm));
+  const bolsters = [-1, 1].map((side) =>
+    box(
+      { x: side * panHalfWidth, y: look.bolsterBottomMm, z: back + look.backrestFrontLowMm },
+      { x: side * halfWidth, y: look.bolsterTopMm, z: front },
+      'seat',
+    ),
+  );
+  const backrest = Array.from({ length: look.backrestSegments }, (_, index) => {
+    const share = index / (look.backrestSegments - 1);
+    const frontFromBack =
+      look.backrestFrontLowMm + share * (look.backrestFrontHighMm - look.backrestFrontLowMm);
+    const step = (heightMm - look.cushionTopMm) / look.backrestSegments;
+    const low = look.cushionTopMm + index * step;
+    const high = low + step;
+    const segment = box(
+      { x: -look.backrestHalfWidthMm, y: low, z: back },
+      { x: look.backrestHalfWidthMm, y: high, z: back + frontFromBack },
+      'seat',
+    );
+    const isTop = index === look.backrestSegments - 1;
+    const wings = isTop
+      ? []
+      : [-1, 1].map((side) =>
+          box(
+            { x: side * look.backrestHalfWidthMm, y: low, z: back },
+            { x: side * halfWidth, y: high, z: back + frontFromBack + look.wingDepthMm },
+            'seat',
+          ),
+        );
+    return [segment, ...wings];
+  });
+  return {
+    boxes: [
+      ...brackets.flatMap((bracket) => bracket.boxes),
+      box(
+        { x: -panHalfWidth, y: look.panBottomMm, z: back },
+        { x: panHalfWidth, y: look.panTopMm, z: front },
+        'seat',
+      ),
+      box(
+        { x: -panHalfWidth, y: look.panTopMm, z: back + look.backrestFrontLowMm },
+        { x: panHalfWidth, y: look.cushionTopMm, z: front },
+        'fabric',
+      ),
+      ...bolsters,
+      ...backrest.flat(),
+    ],
+    tubes: part.mountingPattern.holes.map((hole) => ({
+      fromMm: { x: hole.xMm, y: 0, z: hole.yMm },
+      toMm: { x: hole.xMm, y: look.bracketThicknessMm + look.boltHeadHeightMm, z: hole.yMm },
+      radiusMm: (hole.diameterMm * look.boltHeadPerHoleDiameter) / 2,
+      material: 'dark',
+    })),
+  };
+}
+
+/** A seat's side bracket: its foot and upright, and how far from the middle its upright is. */
+interface SeatBracket {
+  boxes: ShapeBox[];
+  innerMm: number;
+}
+
+/**
+ * An L bracket under each side of a seat's holes: its foot centered on them, from before the
+ * back ones to past the front ones, and its upright on the foot's edge towards the middle.
+ */
+function seatBrackets(holes: readonly Hole[]): SeatBracket[] {
+  const look = SEAT_LOOK;
+  return [-1, 1].flatMap((side) => {
+    const ofSide = holes.filter((hole) => Math.sign(hole.xMm) === side);
+    if (ofSide.length === 0) return [];
+    const centerMm = ofSide.reduce((sum, hole) => sum + hole.xMm, 0) / ofSide.length;
+    const backMm = Math.min(...ofSide.map((hole) => hole.yMm)) - look.bracketPastHolesMm;
+    const frontMm = Math.max(...ofSide.map((hole) => hole.yMm)) + look.bracketPastHolesMm;
+    const inner = centerMm - (side * look.bracketFootWidthMm) / 2;
+    const outer = centerMm + (side * look.bracketFootWidthMm) / 2;
+    const foot: ShapeBox = {
+      min: { x: Math.min(inner, outer), y: 0, z: backMm },
+      max: { x: Math.max(inner, outer), y: look.bracketThicknessMm, z: frontMm },
+      material: 'silver',
+    };
+    const uprightOuter = inner + side * look.bracketThicknessMm;
+    const upright: ShapeBox = {
+      min: { x: Math.min(inner, uprightOuter), y: look.bracketThicknessMm, z: backMm },
+      max: { x: Math.max(inner, uprightOuter), y: look.bracketUprightHeightMm, z: frontMm },
+      material: 'silver',
+    };
+    return [{ boxes: [foot, upright], innerMm: Math.abs(inner) }];
+  });
 }
 
 /**
