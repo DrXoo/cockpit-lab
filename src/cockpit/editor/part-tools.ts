@@ -2,9 +2,11 @@
 // what the Delete key does to it. Both depend on whether the design is being fitted.
 import { makesAPart, makesAProfile, type Operation } from '../cad/history/history.ts';
 
-/** An action on the selected part, from the toolbar of the view. */
-export type PartTool =
-  'grow' | 'plate' | 'foot' | 'remove' | 'mount-seat' | 'mount-wheel-base' | 'mount-pedals';
+/**
+ * An action on the selected part, from the toolbar of the view. `mount` mounts a peripheral of
+ * any type in the catalog on it.
+ */
+export type PartTool = 'grow' | 'plate' | 'foot' | 'remove' | 'mount';
 
 /** Whether the design is being fitted to the driver, in the Fit mode of the view. */
 export interface Mode {
@@ -26,10 +28,7 @@ export function partToolsOf(
 ): PartTool[] {
   if (!operation || failure !== undefined || !makesAPart(operation)) return [];
   if (isAPeripheral(operation)) return fitting ? ['remove'] : [];
-  if (fitting)
-    return makesAProfile(operation) || operation.kind === 'add-plate'
-      ? ['mount-seat', 'mount-wheel-base', 'mount-pedals']
-      : [];
+  if (fitting) return makesAProfile(operation) || operation.kind === 'add-plate' ? ['mount'] : [];
   return makesAProfile(operation) ? ['grow', 'plate', 'foot', 'remove'] : ['remove'];
 }
 

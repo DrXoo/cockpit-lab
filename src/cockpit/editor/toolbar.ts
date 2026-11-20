@@ -4,14 +4,18 @@ import { partToolsOf, type PartTool } from './part-tools.ts';
 import { $ } from '../../ui/dom.ts';
 import type { CockpitEditor } from './editor.ts';
 
-const PART_TOOL_BUTTONS: Record<PartTool, string> = {
+const PART_TOOL_BUTTONS: Record<Exclude<PartTool, 'mount'>, string> = {
   grow: '#growProfile',
   plate: '#putPlate',
   foot: '#addFoot',
   remove: '#removePart',
-  'mount-seat': '#mountSeat',
-  'mount-wheel-base': '#mountWheelBase',
-  'mount-pedals': '#mountPedals',
+};
+
+/** The button that mounts a peripheral of each type in the catalog, as the markup names it. */
+const MOUNT_BUTTONS: Readonly<Record<string, string>> = {
+  'generic-seat': '#mountSeat',
+  'generic-wheel-base': '#mountWheelBase',
+  'generic-pedals': '#mountPedals',
 };
 
 export class CockpitToolbar {
@@ -27,11 +31,8 @@ export class CockpitToolbar {
     );
     $('#growProfile').addEventListener('click', () => editor.startGrowth());
     $('#putPlate').addEventListener('click', () => editor.startPlate());
-    $('#mountSeat').addEventListener('click', () => editor.startMounting('generic-seat'));
-    $('#mountWheelBase').addEventListener('click', () =>
-      editor.startMounting('generic-wheel-base'),
-    );
-    $('#mountPedals').addEventListener('click', () => editor.startMounting('generic-pedals'));
+    for (const [typeId, selector] of Object.entries(MOUNT_BUTTONS))
+      $(selector).addEventListener('click', () => editor.startMounting(typeId));
     $('#fitModeBtn').addEventListener('click', () => editor.setFitting(!editor.session.fitting));
     $('#addFoot').addEventListener('click', () => editor.addFootUnderSelected());
     $('#removePart').addEventListener('click', () => editor.removeSelectedPart());
@@ -48,6 +49,8 @@ export class CockpitToolbar {
       : [];
     for (const [tool, selector] of Object.entries(PART_TOOL_BUTTONS))
       $(selector).hidden = !tools.some((offeredTool) => offeredTool === tool);
+    for (const selector of Object.values(MOUNT_BUTTONS))
+      $(selector).hidden = !tools.includes('mount');
     $('#partTools').hidden = tools.length === 0;
   }
 }
