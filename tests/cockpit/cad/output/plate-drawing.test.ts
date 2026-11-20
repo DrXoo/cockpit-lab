@@ -70,7 +70,9 @@ test('an arrow says which way up the page is on the cockpit, and the side it is 
   const shown = texts(drawingOf(referenceWheelBase()).svg);
   assert.ok(shown.includes('↑ front'), shown.join(', '));
   assert.ok(
-    shown.includes('Reference plate · 200 × 150 mm · Aluminium sheet, 5 mm · seen from above'),
+    shown.includes(
+      'Reference plate · 200 × 150 mm · Aluminium sheet, 5 mm · Laser or water-jet cutting · seen from above',
+    ),
     shown.join(', '),
   );
   const below = texts(drawingOf(referenceWheelBase('-y')).svg);
@@ -153,4 +155,27 @@ test('a hole with a problem is marked ⚠ in the drawing, and its description sa
     described,
     /^Wheel base, hole 1: mounting hole ⌀8 mm, .* · ⚠ Wheel base, hole 1 crosses the edge$/,
   );
+});
+
+test('a 100 mm scale bar under the drawing checks a print against the plate', () => {
+  const { svg } = drawingOf(referenceWheelBase());
+  const bar = present(/<g class="scale-bar">(.*?)<\/g>/.exec(svg)?.[1], 'the scale bar');
+  const [x1, , x2] = present(
+    /<line x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)"/.exec(bar)?.slice(1).map(Number),
+    'the line of the scale bar',
+  );
+  assert.equal(Math.abs(present(x2, 'its end') - present(x1, 'its start')), 100);
+  assert.ok(texts(bar).includes('100 mm'), texts(bar).join(', '));
+});
+
+test('the template to print sets its text at 3.5 mm, and its size in mm is that of its view box', () => {
+  const { plate, holes } = drawingOf(referenceWheelBase());
+  const svg = plateDrawingSvg(plate, holes, [], { forPrint: true });
+  const sizes = new Set([...svg.matchAll(/font-size="([\d.]+)"/g)].map((match) => match[1]));
+  assert.deepEqual([...sizes], ['3.5']);
+  const [, , viewWidth, viewHeight] = present(
+    /viewBox="([^"]+)"/.exec(svg)?.[1]?.split(' '),
+    'the view box',
+  );
+  assert.match(svg, new RegExp(`width="${viewWidth}mm" height="${viewHeight}mm"`));
 });

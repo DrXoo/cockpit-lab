@@ -1,17 +1,23 @@
 // The drawing of a plate: its outline and holes at 1:1 in mm, seen from its face away from the
 // profile with its depth up the page (plate-holes.ts), with its size, the position of each row
-// and column of holes from the bottom left corner, and an arrow saying which way up the page is
-// on the cockpit, and a ⚠ beside each hole with a problem (hole-problems.ts). The editor shows it and the plate's exports start from it. Its lines and text
-// take the color of the page around it (currentColor).
+// and column of holes from the bottom left corner, an arrow saying which way up the page is on
+// the cockpit, a ⚠ beside each hole with a problem (hole-problems.ts) and a 100 mm scale bar.
+// The editor shows it, and printed at 1:1 it is the plate's drilling template. Its lines and
+// text take the color of the page around it (currentColor), black on a page of their own.
 import { problemsOfHole, type HoleProblem } from '../analysis/hole-problems.ts';
 import type { Face, PlatePart } from '../parts/assembly.ts';
 import { sheetType } from '../parts/catalog.ts';
+import { fabricationProcess } from '../parts/fabrication.ts';
 import { plateView, type PlateHole, type PlateHoleKind } from '../parts/plate-holes.ts';
 
 /** Text as tall as this share of the plate's longer side, within the sizes below, in mm. */
 const TEXT_SHARE_OF_PLATE = 1 / 30;
 const MIN_TEXT_MM = 4;
 const MAX_TEXT_MM = 12;
+/** Text of a template to print, as tall as the common lettering of technical drawings (ISO 3098). */
+const PRINT_TEXT_MM = 3.5;
+/** The length of the scale bar, to measure on a print. */
+const SCALE_BAR_MM = 100;
 /** A rough width of a character of the drawing's text, as a share of its height. */
 const CHARACTER_WIDTH_SHARE = 0.6;
 /** The longest dimension a margin makes room for, in characters: "1234.5". */
@@ -63,20 +69,32 @@ function holeWhereText(plate: PlatePart, hole: PlateHole): string {
   return `${hole.source}: ${KIND_NAMES[hole.kind]} ⌀${diameter} mm, ${where}`;
 }
 
+export interface DrawingOptions {
+  /**
+   * As a template to print at 1:1, with its text a fixed height; on screen, the text follows the
+   * plate's size so that it reads at any zoom.
+   */
+  forPrint?: boolean;
+}
+
 /** The drawing of a plate with its holes and their problems, as an SVG document in mm. */
 export function plateDrawingSvg(
   plate: PlatePart,
   holes: readonly PlateHole[],
   problems: readonly HoleProblem[] = [],
+  { forPrint = false }: DrawingOptions = {},
 ): string {
-  const layout = layoutOf(plate);
+  const layout = layoutOf(plate, forPrint);
   const caption = captionOf(plate);
   const { textMm } = layout;
   const left = -plate.widthMm / 2 - layout.leftMarginMm;
   const top = -plate.depthMm / 2 - layout.topMarginMm;
+  const bottom = plate.depthMm / 2 + layout.bottomMarginMm;
   const contentWidthMm = layout.leftMarginMm + plate.widthMm + layout.rightMarginMm;
   const captionWidthMm = caption.length * CHARACTER_WIDTH_SHARE * textMm + textMm;
-  const widthMm = Math.max(contentWidthMm, captionWidthMm);
+  const scaleBarWidthMm =
+    SCALE_BAR_MM + (SCALE_BAR_LABEL.length * CHARACTER_WIDTH_SHARE + 2) * textMm;
+  const widthMm = Math.max(contentWidthMm, captionWidthMm, scaleBarWidthMm);
   const heightMm = layout.topMarginMm + plate.depthMm + layout.bottomMarginMm;
   const parts = [
     outline(plate, layout),
@@ -87,15 +105,10 @@ export function plateDrawingSvg(
       holeShape(plate, hole, index, problemsOfHole(problems, index), layout),
     ),
     orientation(plate, layout, left),
-    text(
-      caption,
-      left + textMm / 2,
-      plate.depthMm / 2 + layout.bottomMarginMm - textMm / 2,
-      layout,
-      {
-        className: 'plate-caption',
-      },
-    ),
+    text(caption, left + textMm / 2, bottom - 3.5 * textMm, layout, {
+      className: 'plate-caption',
+    }),
+    scaleBar(left + textMm / 2, bottom - textMm, layout),
   ];
   const viewBox = [left, top, widthMm, heightMm].map(number).join(' ');
   return `<svg xmlns="http://www.w3.org/2000/svg" class="plate-drawing" viewBox="${viewBox}" width="${number(widthMm)}mm" height="${number(heightMm)}mm" font-family="sans-serif" font-size="${number(textMm)}" fill="none" stroke="currentColor" stroke-width="${number(textMm / 12)}">${parts.join('')}</svg>`;
@@ -110,23 +123,38 @@ interface Layout {
   bottomMarginMm: number;
 }
 
-function layoutOf(plate: PlatePart): Layout {
+function layoutOf(plate: PlatePart, forPrint: boolean): Layout {
   const longerSideMm = Math.max(plate.widthMm, plate.depthMm);
-  const textMm = Math.min(Math.max(longerSideMm * TEXT_SHARE_OF_PLATE, MIN_TEXT_MM), MAX_TEXT_MM);
+  const textMm = forPrint
+    ? PRINT_TEXT_MM
+    : Math.min(Math.max(longerSideMm * TEXT_SHARE_OF_PLATE, MIN_TEXT_MM), MAX_TEXT_MM);
   const dimensionMm = LONGEST_DIMENSION_CHARACTERS * CHARACTER_WIDTH_SHARE * textMm;
   return {
     textMm,
     leftMarginMm: 2 * textMm + dimensionMm,
     rightMarginMm: 4 * textMm,
     topMarginMm: 4 * textMm,
-    bottomMarginMm: 2 * textMm + dimensionMm + 2 * textMm,
+    // The columns of holes, the caption and the scale bar.
+    bottomMarginMm: 2 * textMm + dimensionMm + 5 * textMm,
   };
 }
 
 function captionOf(plate: PlatePart): string {
   const sheet = sheetType(plate.sheetId).name;
+  const process = fabricationProcess(plate.processId).name;
   const seenFrom = SEEN_FROM_NAMES[plateView(plate).seenFrom];
-  return `${plate.name} · ${lengthText(plate.widthMm)} × ${lengthText(plate.depthMm)} mm · ${sheet} · seen from ${seenFrom}`;
+  return `${plate.name} · ${lengthText(plate.widthMm)} × ${lengthText(plate.depthMm)} mm · ${sheet} · ${process} · seen from ${seenFrom}`;
+}
+
+const SCALE_BAR_LABEL = `${SCALE_BAR_MM} mm`;
+
+/** A bar 100 mm long from `x`, on the line at `y`, with a tick at each end and its length beside it. */
+function scaleBar(x: number, y: number, layout: Layout): string {
+  const { textMm } = layout;
+  const end = x + SCALE_BAR_MM;
+  const ticks = `${line(x, y - textMm / 2, x, y)}${line(end, y - textMm / 2, end, y)}`;
+  const label = text(SCALE_BAR_LABEL, end + textMm / 2, y, layout);
+  return `<g class="scale-bar">${line(x, y, end, y)}${ticks}${label}</g>`;
 }
 
 function outline(plate: PlatePart, { textMm }: Layout): string {
