@@ -28,6 +28,7 @@ import {
 import { editPlate, editPlateDraft } from '../cad/history/plates.ts';
 import { cadChecks } from '../checks.ts';
 import { checkRowHTML } from '../../ui/check-view.ts';
+import { downloadText } from '../../ui/download.ts';
 import {
   adjustmentChange,
   footChange,
@@ -44,7 +45,7 @@ import { partsToBuyHTML } from './parts-view.ts';
 import { $, dataOf, replaceKeepingFocus } from '../../ui/dom.ts';
 import { driverHTML } from './driver-view.ts';
 import { MM_PER_CM } from '../../shared/units.ts';
-import type { CockpitEditor } from './editor.ts';
+import type { CockpitEditor, PlateFile, PlateFiles } from './editor.ts';
 import { bindJointActions } from './joint-actions.ts';
 
 /** The inspector's title: the step selected, or the kind of part about to be added. */
@@ -122,6 +123,7 @@ export class CockpitInspector {
     // Fitting, any part that hangs from another can slide, the frame's as well.
     if (operation && fitting && isAdjustable(operation))
       this.bindAdjustment(body, operation.partId);
+    this.bindPlateExports(body);
     // A step the mode of the view locks has nothing else to change.
     if (!operation || !editor.changeableInMode(operation)) return;
     $('#deleteStep').addEventListener('click', () => editor.deleteSelectedStep());
@@ -134,6 +136,22 @@ export class CockpitInspector {
     });
     if (operation.kind === 'mount-peripheral') this.bindMountingHoles(body, operation.partId);
     bindJointActions(body, editor);
+  }
+
+  /** Downloads the selected plate's DXF or template from the buttons of its inspector. */
+  private bindPlateExports(container: HTMLElement) {
+    const download = (pick: (files: PlateFiles) => PlateFile) => {
+      const files = this.editor.plateFiles();
+      if (files === null) return;
+      const file = pick(files);
+      downloadText(file.filename, file.text, file.mediaType);
+    };
+    container
+      .querySelector('#exportPlateDxf')
+      ?.addEventListener('click', () => download((files) => files.dxf));
+    container
+      .querySelector('#exportPlateSvg')
+      ?.addEventListener('click', () => download((files) => files.template));
   }
 
   /** The checks and the parts to buy of the whole design, wherever the history marker is. */

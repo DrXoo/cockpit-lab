@@ -34,6 +34,11 @@ export function platePanelHTML(history: readonly Operation[], draft: AddPlate): 
   return `<div class="part-inspector" id="platePanel"><p class="layout-hint">A new plate on <strong>${escapeHTML(nameOf(history, draft.parentId))}</strong>. Click a face of it in the view, or choose one here.</p>${plateFieldsHTML('plate', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmPlate">Add the plate</button><button class="button button-light" id="cancelPlate">Cancel</button></div></div>`;
 }
 
+/** The files to have a plate made, from the design as it is at the history marker. */
+export function plateExportsHTML(): string {
+  return `<div class="plate-exports" id="plateExports"><p class="layout-hint">Files to have it made: a DXF for a cutting shop, and a template to print at 1:1 and drill through.</p><div class="grow-actions"><button class="button button-light" id="exportPlateDxf" title="Outline, holes and slots in mm, for laser or water-jet cutting"><i data-icon="download"></i>DXF</button><button class="button button-light" id="exportPlateSvg" title="Print at 100% and check the 100 mm scale bar before drilling"><i data-icon="download"></i>SVG template</button></div></div>`;
+}
+
 /** The values of a plate: its sheet, how it is made, its size and where its center is on its profile. */
 export function plateFieldsHTML(
   prefix: string,

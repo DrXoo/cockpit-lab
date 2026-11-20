@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import { test, expect, openApp, importProject, getSavedProject } from './support.ts';
 
@@ -581,6 +582,31 @@ test('a selected plate is shown as a drawing with its holes, in place of the 3D 
   await page.locator('[data-view="top"]').click();
   await expect(page.locator('#plateDrawingView')).toBeHidden();
   await expect(page.locator('#drawingView')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test("a plate's inspector downloads its DXF and its drilling template", async ({ page }) => {
+  await startDesign(page);
+  await page.locator('[data-operation="op-1"]').click();
+  await page.locator('#putPlate').click();
+  await page.locator('#confirmPlate').click();
+  await page.locator('[data-joint-two-bolts="part-2@part-1"]').click();
+  await page.locator('[data-part="part-2"]').click();
+
+  const [dxf] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#exportPlateDxf').click(),
+  ]);
+  expect(dxf.suggestedFilename()).toMatch(/ - Aluminium sheet, \d+ mm - .+\.dxf$/);
+  const dxfText = await readFile(await dxf.path(), 'utf8');
+  expect(dxfText.match(/^CIRCLE$/gm)).toHaveLength(2);
+
+  const [template] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#exportPlateSvg').click(),
+  ]);
+  expect(template.suggestedFilename()).toMatch(/\.svg$/);
+  const svg = await readFile(await template.path(), 'utf8');
+  expect(svg).toContain('class="scale-bar"');
 });
 
 test('fitting, a seat on a plate runs on its rails or in slots, which the plate drawing shows', async ({

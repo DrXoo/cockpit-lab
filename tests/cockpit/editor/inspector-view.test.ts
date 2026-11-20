@@ -101,3 +101,18 @@ test('in Fit, a peripheral sliding on a plate runs on its rails or in slots of t
   const onAProfile = partInspectorHTML(onRail, onRail[1], undefined, [], [], fitting);
   assert.doesNotMatch(onAProfile, /id="adjustmentRunsOn"/, 'on a profile it slides on T-nuts');
 });
+
+test("a plate's inspector exports its DXF and its template, in Fit as well, but not while its step fails", () => {
+  const history = plateHistory();
+  const plate = history[1];
+  for (const html of [
+    partInspectorHTML(history, plate),
+    partInspectorHTML(history, plate, undefined, [], [], fitting),
+  ]) {
+    assert.match(html, /id="exportPlateDxf"/);
+    assert.match(html, /id="exportPlateSvg"/);
+  }
+  const failed = partInspectorHTML(history, plate, 'It rests on a part that was deleted.');
+  assert.doesNotMatch(failed, /id="exportPlate/);
+  assert.doesNotMatch(partInspectorHTML(history, history[0]), /id="exportPlate/);
+});

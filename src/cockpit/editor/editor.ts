@@ -26,6 +26,8 @@ import type { Axis } from '../cad/parts/assembly.ts';
 import { holesOfPlate, holesOfPlates } from '../cad/parts/plate-holes.ts';
 import { plateHoleProblems, problemsOfHole } from '../cad/analysis/hole-problems.ts';
 import { holeDescription, plateDrawingSvg } from '../cad/output/plate-drawing.ts';
+import { plateDxf } from '../cad/output/plate-dxf.ts';
+import { plateFileName } from '../cad/output/plate-files.ts';
 import type { Handle, HandleModifiers } from '../cad/interaction/handles.ts';
 import { withDraft, type Draft } from '../cad/history/drafts.ts';
 import { jointsOfPart, touchingParts, type JointOfPart } from '../cad/history/fastening.ts';
@@ -57,6 +59,23 @@ export interface CockpitEditorHost {
   /** The axis the view looks along, or null in 3D. */
   sightAxis(): Axis | null;
 }
+
+/** A file the editor hands the user to download. */
+export interface PlateFile {
+  filename: string;
+  text: string;
+  mediaType: string;
+}
+
+/** What a plate is exported to: its DXF for a cutting shop and its drilling template. */
+export interface PlateFiles {
+  dxf: PlateFile;
+  template: PlateFile;
+}
+
+/** The media type IANA registers for DXF. */
+const DXF_MEDIA_TYPE = 'image/vnd.dxf';
+const SVG_MEDIA_TYPE = 'image/svg+xml';
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -160,18 +179,50 @@ export class CockpitEditor {
    * where the design puts them; null for any other selection.
    */
   plateDrawing(): { svg: string; descriptions: string[] } | null {
+    const selected = this.selectedPlate();
+    if (selected === null) return null;
+    const { plate, holes, problems } = selected;
+    return {
+      svg: plateDrawingSvg(plate, holes, problems),
+      descriptions: holes.map((hole, index) =>
+        holeDescription(plate, hole, problemsOfHole(problems, index)),
+      ),
+    };
+  }
+
+  /**
+   * The files to have the selected plate made, as it is at the history marker: its DXF for a
+   * cutting shop and its drilling template; null for any other selection.
+   */
+  plateFiles(): PlateFiles | null {
+    const selected = this.selectedPlate();
+    if (selected === null) return null;
+    const { plate, holes, problems } = selected;
+    return {
+      dxf: {
+        filename: plateFileName(plate, 'dxf'),
+        text: plateDxf(plate, holes),
+        mediaType: DXF_MEDIA_TYPE,
+      },
+      template: {
+        filename: plateFileName(plate, 'svg'),
+        text: plateDrawingSvg(plate, holes, problems, { forPrint: true }),
+        mediaType: SVG_MEDIA_TYPE,
+      },
+    };
+  }
+
+  /** The selected plate at the history marker, with its holes where the design puts them. */
+  private selectedPlate() {
     const partId = this.selectedPartId();
     if (partId === null) return null;
     const design = replayDesign(this.history(), this.at());
-    const part = design.resolved.get(partId)?.part;
-    if (part?.kind !== 'plate') return null;
-    const holes = holesOfPlate(design, partId);
-    const problems = plateHoleProblems(design, partId);
+    const plate = design.resolved.get(partId)?.part;
+    if (plate?.kind !== 'plate') return null;
     return {
-      svg: plateDrawingSvg(part, holes, problems),
-      descriptions: holes.map((hole, index) =>
-        holeDescription(part, hole, problemsOfHole(problems, index)),
-      ),
+      plate,
+      holes: holesOfPlate(design, partId),
+      problems: plateHoleProblems(design, partId),
     };
   }
 

@@ -23,7 +23,7 @@ import { jointsHTML, type TouchingPart } from './joints-view.ts';
 import type { AdjustmentField } from './part-fields.ts';
 import { isAPeripheral, type Mode } from './part-tools.ts';
 import { peripheralInspectorHTML } from './peripheral-view.ts';
-import { plateFieldsHTML } from './plate-view.ts';
+import { plateExportsHTML, plateFieldsHTML } from './plate-view.ts';
 import { profileFieldsHTML } from './profile-view.ts';
 
 /**
@@ -47,6 +47,8 @@ export function partInspectorHTML(
     failure === undefined
       ? ''
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
+  // A failed plate step makes no plate to export.
+  const exports = failure === undefined ? plateExportsHTML() : '';
   switch (operation.kind) {
     case 'remove-part':
       return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
@@ -59,7 +61,7 @@ export function partInspectorHTML(
     case 'add-foot':
       return partFieldsHTML(footFieldsHTML(history, operation));
     case 'add-plate':
-      return partFieldsHTML(plateFieldsHTML('part', history, operation));
+      return partFieldsHTML(`${plateFieldsHTML('part', history, operation)}${exports}`);
     case 'add-anchored-profile':
     case 'grow-profile':
       return partFieldsHTML(
@@ -87,7 +89,8 @@ function lockedStepHTML(
       ? ''
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)}</p>`;
   const adjustment = isAdjustable(operation) ? adjustmentHTML(history, operation) : '';
-  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p>${failed}${adjustment}</div>`;
+  const exports = operation.kind === 'add-plate' && failure === undefined ? plateExportsHTML() : '';
+  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p>${failed}${adjustment}${exports}</div>`;
 }
 
 /**
