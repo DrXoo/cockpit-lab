@@ -13,6 +13,7 @@ import {
   type ProfileValues,
 } from '../../src/cockpit/cad/history/history.ts';
 import { draftPeripheral, editPeripheralDraft } from '../../src/cockpit/cad/history/peripherals.ts';
+import type { MountingPattern } from '../../src/cockpit/cad/parts/mounting-pattern.ts';
 import { draftPlate, editPlateDraft } from '../../src/cockpit/cad/history/plates.ts';
 
 /** `count` anchored 40 × 40 profiles with the values the editor gives them: part-1 onwards. */
@@ -60,6 +61,42 @@ export function withPeripheral(
 ): Operation[] {
   const draft = draftPeripheral(history, parentId, typeId);
   return addOperation(history, editPeripheralDraft(history, draft, changes));
+}
+
+/**
+ * The mounting pattern of the reference case in docs/mini-cad.md: four 6.5 mm holes 120 × 80 mm
+ * apart. A test case, not a manufacturer's pattern.
+ */
+export const REFERENCE_PATTERN: MountingPattern = {
+  holes: [
+    { xMm: -60, yMm: -40, diameterMm: 6.5 },
+    { xMm: 60, yMm: -40, diameterMm: 6.5 },
+    { xMm: 60, yMm: 40, diameterMm: 6.5 },
+    { xMm: -60, yMm: 40, diameterMm: 6.5 },
+  ],
+};
+
+/**
+ * The rail with the reference plate of docs/mini-cad.md, 200 × 150 × 5 mm and named Reference
+ * plate, on the middle of its top (part-2), changed as given.
+ */
+export function referencePlate(changes: Partial<PlateValues> = {}): Operation[] {
+  return withPlate(railHistory(), 'part-1', {
+    name: 'Reference plate',
+    widthMm: 200,
+    depthMm: 150,
+    sheetId: 'aluminium-5',
+    ...changes,
+  });
+}
+
+/** The reference plate on `face` of the rail, with a Wheel base at its center on the reference pattern (part-3). */
+export function referenceWheelBase(face: '+y' | '-y' = '+y'): Operation[] {
+  return withPeripheral(referencePlate({ face }), 'part-2', 'generic-wheel-base', {
+    name: 'Wheel base',
+    face,
+    mountingPattern: REFERENCE_PATTERN,
+  });
 }
 
 /**

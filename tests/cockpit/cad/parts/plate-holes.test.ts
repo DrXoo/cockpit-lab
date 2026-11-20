@@ -5,29 +5,10 @@ import { fastenWithBolts } from '../../../../src/cockpit/cad/history/fastening.t
 import { addAdjustment, editAdjustment } from '../../../../src/cockpit/cad/history/adjustments.ts';
 import { holesOfPlate, plateView } from '../../../../src/cockpit/cad/parts/plate-holes.ts';
 import { plateBoltType } from '../../../../src/cockpit/cad/parts/catalog.ts';
-import { railHistory, withPeripheral, withPlate } from '../../../support/designs.ts';
+import { REFERENCE_PATTERN, referencePlate, withPeripheral } from '../../../support/designs.ts';
 import { ofKind, present } from '../../../support/lookups.ts';
 
-// Reference case from docs/mini-cad.md: a test case, not a manufacturer's pattern.
-const referencePattern = {
-  holes: [
-    { xMm: -60, yMm: -40, diameterMm: 6.5 },
-    { xMm: 60, yMm: -40, diameterMm: 6.5 },
-    { xMm: 60, yMm: 40, diameterMm: 6.5 },
-    { xMm: -60, yMm: 40, diameterMm: 6.5 },
-  ],
-};
 const ONE_HOLE = { holes: [{ xMm: 0, yMm: 0, diameterMm: 8 }] };
-
-/** The rail (part-1), 1000 mm along z, with a 200 × 150 plate on the middle of its top (part-2). */
-function referencePlate(changes: Parameters<typeof withPlate>[2] = {}): Operation[] {
-  return withPlate(railHistory(), 'part-1', {
-    name: 'Reference plate',
-    widthMm: 200,
-    depthMm: 150,
-    ...changes,
-  });
-}
 
 const plateIn = (history: readonly Operation[]) =>
   ofKind(replayDesign(history).resolved.get('part-2')?.part, 'plate');
@@ -60,7 +41,7 @@ test('a plate under its profile is seen from below, so its holes are mirrored', 
 
 test('a peripheral at the center of the reference plate puts its pattern there, seen from above', () => {
   const history = withPeripheral(referencePlate(), 'part-2', 'generic-wheel-base', {
-    mountingPattern: referencePattern,
+    mountingPattern: REFERENCE_PATTERN,
   });
   // Its pattern is measured on its underside, X across towards the driver's left (+X): seen
   // from above, that is to the left of the page.
