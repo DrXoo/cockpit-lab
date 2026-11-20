@@ -1,15 +1,24 @@
 // Where a connector sits on its joint, and whether it fits there. A corner bracket fastens a
 // profile that meets a face end on, or lies across it: one leg lies against a side of the joined
-// profile, the other on the face it meets, both from the joint's corner. It fits when both legs
-// rest on their parts.
+// profile, the other on the face it meets, both from the joint's corner. Across a crossing it can
+// also stand beside the met profile, under the joined one. It fits when both legs rest on their
+// parts.
 // Bolts fasten a plate to a profile: through the plate into T-nuts in the slots it covers, their
 // heads on the plate. A geometric check of the approximate model only.
-import { faceAxis, type Axis, type BoxMm, type Face, type ResolvedPart } from './assembly.ts';
+import {
+  faceAxis,
+  oppositeFace,
+  type Axis,
+  type BoxMm,
+  type Face,
+  type ResolvedPart,
+} from './assembly.ts';
 import {
   connectorFits,
   connectorType,
   plateBoltType,
   profileSystem,
+  type ConnectorType,
   type PlateBoltType,
 } from './catalog.ts';
 import type { Connector, Joint } from './joints.ts';
@@ -18,7 +27,7 @@ import type { Connector, Joint } from './joints.ts';
 export interface PlacedConnector extends Connector {
   /** Names the connector by its type and its part, for the checks. */
   name: string;
-  /** The face of the met part the connector's other leg lies on. */
+  /** The face the connector's other leg lies on: the met part's, or the joined part's when it stands beside the met one. */
   toFace: Face;
   /** The box both legs take up, in the frame of the joint's parts. */
   box: BoxMm;
@@ -42,36 +51,63 @@ export function placedConnector(
   connector: Connector,
 ): PlacedConnector | string {
   const type = connectorType(connector.typeId);
-  const { side } = connector;
-  const normal = faceAxis(joint.toFace);
-  const misfit = `A ${type.name} on side ${side} of ${joined.part.name} would not rest on`;
-  if (joined.part.kind !== 'profile')
-    return `A ${type.name} fastens a profile, and ${joined.part.name} is not one.`;
   for (const part of [joined.part, met.part])
     if (part.kind === 'profile' && !connectorFits(type, profileSystem(part.systemId)))
       return `A ${type.name} does not fit the profiles of ${part.name}.`;
-  const endOn = joined.part.axis === normal;
+  if (standsBesideMet(joint, joined, connector.side))
+    return bracketBeside(type, connector, met, joined, oppositeFace(joint.toFace));
+  return bracketBeside(type, connector, joined, met, joint.toFace);
+}
+
+/**
+ * Whether a bracket on `side` of a joint stands beside the met part rather than the joined one.
+ * Across a crossing, a side along the joined profile is one of the met part: the bracket hangs
+ * against it, its other leg under the joined profile.
+ */
+export function standsBesideMet(joint: Joint, joined: ResolvedPart, side: Face): boolean {
+  const { part } = joined;
+  const lyingAcross = part.kind === 'profile' && part.axis !== faceAxis(joint.toFace);
+  return lyingAcross && faceAxis(side) === part.axis;
+}
+
+/**
+ * A bracket against side `side` of `beside`, its other leg on face `toFace` of `on`, which
+ * `beside` meets; or why it does not fit there.
+ */
+function bracketBeside(
+  type: ConnectorType,
+  connector: Connector,
+  beside: ResolvedPart,
+  on: ResolvedPart,
+  toFace: Face,
+): PlacedConnector | string {
+  const { side } = connector;
+  const misfit = `A ${type.name} on side ${side} of ${beside.part.name} would not rest on`;
+  if (beside.part.kind !== 'profile')
+    return `A ${type.name} fastens a profile, and ${beside.part.name} is not one.`;
+  const normal = faceAxis(toFace);
+  const endOn = beside.part.axis === normal;
   const across = faceAxis(side);
   if (across === normal)
     return endOn
-      ? `${misfit} ${joined.part.name}: that side is its end.`
-      : `${misfit} ${met.part.name}: that side of ${joined.part.name} is parallel to its face.`;
-  if (across === joined.part.axis) return `${misfit} ${joined.part.name}: that side is its end.`;
+      ? `${misfit} ${beside.part.name}: that side is its end.`
+      : `${misfit} ${on.part.name}: that side of ${beside.part.name} is parallel to its face.`;
+  if (across === beside.part.axis) return `${misfit} ${beside.part.name}: that side is its end.`;
   const third = AXES.find((axis) => axis !== normal && axis !== across) ?? 'x';
-  const box = bracketBox(joined.box, met.box, joint.toFace, side, type);
-  // End on, the bracket is centered on the joined profile's section; lying across, on where the
-  // two profiles cross.
-  const center = endOn ? middle(joined.box, third) : middleOfOverlap(joined.box, met.box, third);
+  const box = bracketBox(beside.box, on.box, toFace, side, type);
+  // End on, the bracket is centered on the profile's section; lying across, on where the two
+  // profiles cross.
+  const center = endOn ? middle(beside.box, third) : middleOfOverlap(beside.box, on.box, third);
   box.min[third] = center - type.widthMm / 2;
   box.max[third] = center + type.widthMm / 2;
-  if (!within(box, joined.box, [normal, third])) return `${misfit} ${joined.part.name}.`;
-  if (!within(box, met.box, [across, third])) return `${misfit} ${met.part.name}.`;
+  if (!within(box, beside.box, [normal, third])) return `${misfit} ${beside.part.name}.`;
+  if (!within(box, on.box, [across, third])) return `${misfit} ${on.part.name}.`;
   return {
     ...connector,
-    name: `${type.name} of ${joined.part.name}`,
-    toFace: joint.toFace,
+    name: `${type.name} of ${beside.part.name}`,
+    toFace,
     box,
-    tiltDeg: joined.tiltDeg,
+    tiltDeg: beside.tiltDeg,
   };
 }
 

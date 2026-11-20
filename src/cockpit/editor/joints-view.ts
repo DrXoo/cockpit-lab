@@ -1,6 +1,7 @@
 // The joints of a part, with their connectors, as the inspector lists them and as the card of a
 // joint marker in the view shows one.
 import type { JointOfPart } from '../cad/history/fastening.ts';
+import type { Face } from '../cad/parts/assembly.ts';
 import { MAX_BOLTS_PER_SLOT } from '../cad/history/history.ts';
 import { escapeHTML } from '../../ui/html.ts';
 import { boltCount, SIDE_FACE_NAMES } from './design-text.ts';
@@ -65,7 +66,7 @@ function jointHTML(joint: JointOfPart, fieldPrefix = 'bolts'): string {
   const sides = joint.fittingSides
     .map((side) => {
       const on = joint.sides.includes(side);
-      return `<button class="text-button joint-side" data-joint="${id}" data-side="${side}" aria-pressed="${on}" title="${on ? 'Take away the bracket on this side' : 'Put a corner bracket on this side'}">${on ? '✓' : '+'} ${SIDE_FACE_NAMES[side]}</button>`;
+      return `<button class="text-button joint-side" data-joint="${id}" data-side="${side}" aria-pressed="${on}" title="${on ? 'Take away the bracket on this side' : 'Put a corner bracket on this side'}">${on ? '✓' : '+'} ${escapeHTML(sideName(joint, side))}</button>`;
     })
     .join('');
   const missingAlong = joint.alongSides.some((side) => !joint.sides.includes(side));
@@ -74,9 +75,19 @@ function jointHTML(joint: JointOfPart, fieldPrefix = 'bolts'): string {
     : '';
   const choices =
     joint.fittingSides.length === 0
-      ? '<p class="layout-hint">No connector in the catalog fits this joint yet: a corner bracket needs a part that meets a face end on, with room for its legs.</p>'
+      ? '<p class="layout-hint">No connector in the catalog fits this joint yet: a corner bracket needs a profile that meets the other part end on or lies across it, with room for its legs on both.</p>'
       : `<div class="joint-sides">${sides}</div>${quick}`;
   return `<div class="joint-row" data-joint-row="${id}"><p class="joint-name"><strong>${escapeHTML(joint.partName)} to ${escapeHTML(joint.toPartName)}</strong><small>${status}</small></p>${choices}</div>`;
+}
+
+/**
+ * The side of a bracket, naming the profile it stands beside when a joint has corners beside
+ * both, as a crossing does.
+ */
+function sideName(joint: JointOfPart, side: Face): string {
+  if (joint.besideMetSides.length === 0) return SIDE_FACE_NAMES[side];
+  const beside = joint.besideMetSides.includes(side) ? joint.toPartName : joint.partName;
+  return `${SIDE_FACE_NAMES[side]}, beside ${beside}`;
 }
 
 /** A plate's joint to a profile: the bolts in each slot it covers, or why it takes none. */

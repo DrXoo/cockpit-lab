@@ -5,7 +5,12 @@
 import type { Axis, Face, Part, ResolvedPart } from '../parts/assembly.ts';
 import { faceAxis } from '../parts/assembly.ts';
 import { plateBoltType } from '../parts/catalog.ts';
-import { coveredSlots, placedBolts, placedConnector } from '../parts/connectors.ts';
+import {
+  coveredSlots,
+  placedBolts,
+  placedConnector,
+  standsBesideMet,
+} from '../parts/connectors.ts';
 import {
   addOperation,
   changeOperation,
@@ -41,10 +46,12 @@ export interface JointOfPart {
   toPartName: string;
   /** The sides of the joined part that have a connector. */
   sides: Face[];
-  /** The sides of the joined part where a corner bracket fits. */
+  /** The sides where a corner bracket fits: of the joined part, or of the met one in `besideMetSides`. */
   fittingSides: Face[];
   /** The sides that fit along the part it meets, where the quick action puts two brackets. */
   alongSides: Face[];
+  /** The fitting sides where the bracket stands beside the part met instead, as across a crossing. */
+  besideMetSides: Face[];
   /**
    * For a plate's joint to a profile, the bolts in each slot (0 without them) and the slots the
    * plate covers; null for joints that bolts do not fasten.
@@ -79,7 +86,7 @@ function bracketMisfit({ joint, joined, met }: JointAtStep, side: Face): string 
   return typeof placed === 'string' ? placed : null;
 }
 
-/** The sides of the joined part where a corner bracket fits the joint. */
+/** The sides where a corner bracket fits the joint, beside the joined part or the met one. */
 export function fittingSides(
   history: readonly Operation[],
   jointId: string,
@@ -117,6 +124,7 @@ export function jointsOfPart(
         sides: choices.filter(isBracket).map(({ side }) => side),
         fittingSides: fitting,
         alongSides: alongSides(found, fitting),
+        besideMetSides: fitting.filter((side) => standsBesideMet(joint, found.joined, side)),
         bolts: boltsOf(found, choices),
       };
     });

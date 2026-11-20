@@ -994,6 +994,23 @@ test('a profile about to grow is dragged by its handles, measured, and added as 
     .toMatchObject({ reachesId: 'part-2', lengthMm: 760, alongMm: 250 });
 });
 
+test('a bracket of a crossing goes beside either profile from the card in the view', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.keyboard.press('r');
+  await page.locator('#confirmGrowth').click();
+  await page.locator('[data-joint-marker="part-2@part-1"]').click();
+  const card = page.locator('#jointCard');
+  await expect(card.locator('[data-side]')).toHaveCount(3);
+  await card.locator('[data-side="+x"]').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'fasten-joint', connectors: [{ side: '+x' }] });
+  await expect(card.locator('[data-side="+x"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('a joint without connectors is marked in the view, and its card fastens it', async ({
   page,
 }) => {

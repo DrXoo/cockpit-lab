@@ -22,6 +22,7 @@ const plateJoint = (bolts: JointOfPart['bolts']): JointOfPart => ({
   sides: [],
   fittingSides: [],
   alongSides: [],
+  besideMetSides: [],
   bolts,
 });
 
@@ -97,4 +98,32 @@ test('the card of two parts that only touch joins them', () => {
   assert.match(html, /<strong>A and C<\/strong><small>\+ Touching, without a joint/);
   assert.match(html, /data-join="part-2" data-join-from="part-1"[^>]*>.*Join to C/);
   assert.match(html, /data-joint-more="part-1"/);
+});
+
+test('the corners of a crossing say which profile each bracket stands beside', () => {
+  const crossing: JointOfPart = {
+    jointId: 'part-3@part-1',
+    partName: 'C',
+    toPartName: 'A',
+    sides: ['+z'],
+    fittingSides: ['+x', '+z', '-z'],
+    alongSides: ['+z', '-z'],
+    besideMetSides: ['+x'],
+    bolts: null,
+  };
+  const html = jointCardHTML({ kind: 'joint', partId: 'part-3', joint: crossing });
+  assert.match(html, /data-side="\+x" aria-pressed="false"[^>]*>\+ [^<]*, beside A</);
+  assert.match(html, /data-side="\+z" aria-pressed="true"[^>]*>✓ [^<]*, beside C</);
+});
+
+test('a joint no bracket fits says what a bracket needs', () => {
+  const history = railAndUpright();
+  const [joint] = jointsOfB(history);
+  const html = jointCardHTML({
+    kind: 'joint',
+    partId: 'part-2',
+    joint: { ...joint, fittingSides: [], alongSides: [] },
+  });
+  assert.match(html, /No connector in the catalog fits this joint yet/);
+  assert.match(html, /or lies across it/);
 });

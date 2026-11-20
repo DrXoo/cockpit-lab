@@ -128,6 +128,7 @@ test('the joints of a part list their connectors and the sides that fit', () => 
     sides: ['-z'],
     fittingSides: ['+z', '-z'],
     alongSides: ['+z', '-z'],
+    besideMetSides: [],
     bolts: null,
   });
 });
@@ -162,7 +163,6 @@ function crossing() {
 const CROSSING = 'part-3@part-1';
 
 test('a profile lying across another takes a corner bracket on each side along the other', () => {
-  assert.deepEqual(fittingSides(crossing(), CROSSING), ['+z', '-z']);
   const history = fastenWithBrackets(crossing(), CROSSING);
   const design = replayDesign(history);
   assert.deepEqual(
@@ -189,14 +189,33 @@ test('a bracket of a crossing stands against the side of C, over the width of A'
   });
 });
 
-test('a crossing near the end of the part below has no bracket on the side past the end', () => {
-  const history = editProfile(crossing(), 'part-3', { alongMm: 980 });
-  assert.deepEqual(fittingSides(history, CROSSING), ['-z']);
+test('a crossing has a corner beside each profile on each side, where the legs rest', () => {
+  // C starts at A's right edge, so there is no room under C to the right of A.
+  assert.deepEqual(fittingSides(crossing(), CROSSING), ['+x', '+z', '-z']);
+  const [joint] = jointsOfPart(crossing(), 'part-3');
+  assert.deepEqual(joint.besideMetSides, ['+x']);
+  assert.deepEqual(joint.alongSides, ['+z', '-z'], 'the quick action stays beside C');
 });
 
-test('a profile that crosses only part of the width below has no room for a bracket', () => {
+test('a bracket beside the part below hangs against its side, under the part on top', () => {
+  const history = setConnector(crossing(), CROSSING, '+x', true);
+  const [left] = connectorsOf(history);
+  assert.equal(left.name, '40 corner bracket of A');
+  assert.deepEqual(left.box, {
+    min: { x: 20, y: 0, z: 682 },
+    max: { x: 60, y: 40, z: 718 },
+  });
+  assert.deepEqual(replayDesign(history).failures.size, 0);
+});
+
+test('a crossing near the end of the part below has no bracket on the side past the end', () => {
+  const history = editProfile(crossing(), 'part-3', { alongMm: 980 });
+  assert.deepEqual(fittingSides(history, CROSSING), ['+x', '-z']);
+});
+
+test('a profile that crosses only part of the width below has room only underneath it', () => {
   const history = editProfile(crossing(), 'part-3', { acrossMm: 0 });
-  assert.deepEqual(fittingSides(history, CROSSING), []);
+  assert.deepEqual(fittingSides(history, CROSSING), ['+x']);
 });
 
 test('connectors take part in interference', () => {

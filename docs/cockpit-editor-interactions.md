@@ -73,7 +73,7 @@ A marker at the middle of where the two parts of a joint touch shows its state w
 - ✓ for a fastened joint, only on the joints of the selected part;
 - \+ between two parts that touch without a joint.
 
-Clicking a marker opens a card beside it that names the two parts and the joint's state ("✓ 4 bolts, 2 in each slot"), with the quick action that fits it: **Two corner brackets**, **Two in each slot** with the bolts in each slot to type, or **Join to …** for parts that only touch. **More in the inspector** selects the part and shows its joints there, side by side. Escape or a click elsewhere closes the card without selecting anything.
+Clicking a marker opens a card beside it that names the two parts and the joint's state ("✓ 4 bolts, 2 in each slot"), with the quick action that fits it: **Two corner brackets**, **Two in each slot** with the bolts in each slot to type, or **Join to …** for parts that only touch. A crossing lists each of its corners, named by the profile its bracket stands beside, to put a bracket on or take it off. **More in the inspector** selects the part and shows its joints there, side by side. Escape or a click elsewhere closes the card without selecting anything.
 
 The card stays open after a quick action, showing the joint as it then is; two parts joined from it show their new joint. Markers are hidden while a part is about to be added, a measurement is taken or a change waits, as a click in the view does something else then. A marker that would lie on the center of the selected part, where its move arrows start, is drawn just beside it, on the side its arrows leave free.
 
