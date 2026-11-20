@@ -124,10 +124,18 @@ interface ShapeBox {
   material: PaletteMaterial;
 }
 
-/** A wheel rim, a ring across the peripheral's front, in its own frame. */
-interface Rim {
-  centerMm: Vec3Mm;
+/** A tube of a peripheral's drawing, such as a segment of a wheel's rim, in its own frame. */
+interface ShapeTube {
+  fromMm: Vec3Mm;
+  toMm: Vec3Mm;
   radiusMm: number;
+  material: PaletteMaterial;
+}
+
+/** What a peripheral is drawn as: boxes and tubes in its own frame. */
+interface PeripheralShapes {
+  boxes: ShapeBox[];
+  tubes: ShapeTube[];
 }
 
 /** A seat as drawn: a cushion this share of its height, and a backrest this share of its depth. */
@@ -158,7 +166,7 @@ function drawPeripheral(
   look: PeripheralLook,
 ): void {
   if (resolved.part.kind !== 'peripheral') return;
-  const { boxes, rim } = peripheralShapes(resolved.part);
+  const { boxes, tubes } = peripheralShapes(resolved.part);
   const materialOf = (own: PaletteMaterial): PaletteMaterial => (look === 'own' ? own : look);
   const inFrameCm = (localMm: Vec3Mm): Vec3 => {
     const point = peripheralPointInFrame(resolved, localMm);
@@ -171,21 +179,36 @@ function drawPeripheral(
     const middle: Vec3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
     r.box(...size, ...middle, materialOf(shape.material), frame);
   }
-  if (!rim) return;
+  for (const tube of tubes)
+    r.tube(
+      inFrameCm(tube.fromMm),
+      inFrameCm(tube.toMm),
+      cm(tube.radiusMm),
+      materialOf(tube.material),
+      frame,
+    );
+}
+
+/** A wheel's rim as a ring of tubes across the peripheral's front, centered on `centerMm`. */
+function rimTubes(centerMm: Vec3Mm, radiusMm: number): ShapeTube[] {
   const ring = Array.from({ length: RIM_SEGMENTS + 1 }, (_, index) => {
     const angle = (2 * Math.PI * index) / RIM_SEGMENTS;
-    return inFrameCm({
-      x: rim.centerMm.x + rim.radiusMm * Math.cos(angle),
-      y: rim.centerMm.y + rim.radiusMm * Math.sin(angle),
-      z: rim.centerMm.z,
-    });
+    return {
+      x: centerMm.x + radiusMm * Math.cos(angle),
+      y: centerMm.y + radiusMm * Math.sin(angle),
+      z: centerMm.z,
+    };
   });
-  for (let index = 0; index < RIM_SEGMENTS; index++)
-    r.tube(ring[index], ring[index + 1], cm(RIM_TUBE_MM), materialOf('rubber'), frame);
+  return ring.slice(1).map((toMm, index) => ({
+    fromMm: ring[index],
+    toMm,
+    radiusMm: RIM_TUBE_MM,
+    material: 'rubber',
+  }));
 }
 
 /** The shapes of a peripheral of each kind, made from its envelope. */
-function peripheralShapes(part: PeripheralPart): { boxes: ShapeBox[]; rim: Rim | null } {
+function peripheralShapes(part: PeripheralPart): PeripheralShapes {
   const { widthMm, heightMm, depthMm } = part.envelope;
   const halfWidth = widthMm / 2;
   const back = -depthMm / 2;
@@ -208,7 +231,7 @@ function peripheralShapes(part: PeripheralPart): { boxes: ShapeBox[]; rim: Rim |
           shape([-halfWidth, 0, back], [halfWidth, cushionTop, front], 'seat'),
           shape([-halfWidth, cushionTop, back], [halfWidth, heightMm, backrestFront], 'seat'),
         ],
-        rim: null,
+        tubes: [],
       };
     }
     case 'wheel-base': {
@@ -226,10 +249,7 @@ function peripheralShapes(part: PeripheralPart): { boxes: ShapeBox[]; rim: Rim |
           ),
           shape([-shaft, axleY - shaft, rimZ], [shaft, axleY + shaft, bodyBack], 'dark'),
         ],
-        rim: {
-          centerMm: { x: 0, y: axleY, z: rimZ },
-          radiusMm: Math.min(widthMm, heightMm) / 2 - RIM_TUBE_MM,
-        },
+        tubes: rimTubes({ x: 0, y: axleY, z: rimZ }, Math.min(widthMm, heightMm) / 2 - RIM_TUBE_MM),
       };
     }
     case 'pedals': {
@@ -246,7 +266,7 @@ function peripheralShapes(part: PeripheralPart): { boxes: ShapeBox[]; rim: Rim |
       });
       return {
         boxes: [shape([-halfWidth, 0, back], [halfWidth, PEDAL_BASE_MM, front], 'dark'), ...pedals],
-        rim: null,
+        tubes: [],
       };
     }
   }
