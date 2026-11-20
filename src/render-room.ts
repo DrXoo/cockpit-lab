@@ -3,7 +3,7 @@
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, type PlanPoint } from './shared/geometry.ts';
-import type { MaterialRef, ParentRef, RenderList, Vec3 } from './render-list.ts';
+import type { MaterialRef, ParentRef, RenderList, Vec3 } from './scene/render-list.ts';
 import {
   wallFrame,
   type DoorGeometry,

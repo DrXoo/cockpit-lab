@@ -3,7 +3,7 @@
   "src/desk-editor.ts": 1,
   "src/dom-input.ts": 3,
   "src/monitor-arm.ts": 3,
-  "src/project.ts": 1,
+  "src/project/project.ts": 1,
   "src/room-actions.ts": 2,
   "src/room-editor.ts": 6,
   "src/room.ts": 1

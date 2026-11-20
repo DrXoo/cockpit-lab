@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, labelShownIn, type SceneLabel } from '../src/render-list.ts';
-import { ofKind } from './support/lookups.ts';
+import {
+  createRenderList,
+  ROOT,
+  labelShownIn,
+  type SceneLabel,
+} from '../../src/scene/render-list.ts';
+import { ofKind } from '../support/lookups.ts';
 
 test('primitives keep the order in which they were drawn, materials included', () => {
   const r = createRenderList();

@@ -10,8 +10,8 @@ import {
   type Vec3Mm,
 } from './cad/assembly.ts';
 import { round } from './shared/geometry.ts';
-import type { ParentRef, RenderList, SceneLabel, Vec3 } from './render-list.ts';
-import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
+import type { ParentRef, RenderList, SceneLabel, Vec3 } from './scene/render-list.ts';
+import { SIGHT_AXIS, type SceneView } from './scene/camera.ts';
 import { MM_PER_CM } from './shared/units.ts';
 
 /** How far a dimension stands off the face of the part it measures. */

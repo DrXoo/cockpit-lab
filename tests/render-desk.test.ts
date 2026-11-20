@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, type LinePrimitive, type RenderList } from '../src/render-list.ts';
+import {
+  createRenderList,
+  ROOT,
+  type LinePrimitive,
+  type RenderList,
+} from '../src/scene/render-list.ts';
 import type { RoomConfig } from '../src/config.ts';
 import type { CockpitEvaluation } from '../src/evaluate.ts';
 import { allOfKind, ofKind, present } from './support/lookups.ts';

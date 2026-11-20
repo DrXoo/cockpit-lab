@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
+import { createRenderList, ROOT } from '../src/scene/render-list.ts';
 import { drawHandleStems, handleBallMm } from '../src/render-handles.ts';
 import type { Handle } from '../src/cad/handles.ts';
 import { ofKind } from './support/lookups.ts';

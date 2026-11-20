@@ -1,6 +1,6 @@
 // Short notices to the user: a toast that fades by itself, and how saving went.
 import { $ } from '../ui/dom.ts';
-import type { SaveStatus } from '../project-session.ts';
+import type { SaveStatus } from '../project/session.ts';
 
 /** How long a toast stays before it fades. */
 const TOAST_SHOWN_MS = 3000;

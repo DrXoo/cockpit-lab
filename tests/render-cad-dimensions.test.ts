@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, type RenderList } from '../src/render-list.ts';
-import type { SceneView } from '../src/scene-camera.ts';
+import { createRenderList, ROOT, type RenderList } from '../src/scene/render-list.ts';
+import type { SceneView } from '../src/scene/camera.ts';
 import { allOfKind, ofKind } from './support/lookups.ts';
 import {
   resolveAssembly,

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, type Primitive } from '../src/render-list.ts';
+import { createRenderList, ROOT, type Primitive } from '../src/scene/render-list.ts';
 import { allOfKind, present } from './support/lookups.ts';
 import {
   resolveAssembly,

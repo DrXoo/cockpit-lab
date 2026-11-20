@@ -6,7 +6,7 @@
 import type { Handle, TravelHandle } from './cad/handles.ts';
 import type { SnapGuide } from './cad/snapping.ts';
 import type { Vec3Mm } from './cad/assembly.ts';
-import type { ParentRef, RenderList } from './render-list.ts';
+import type { ParentRef, RenderList } from './scene/render-list.ts';
 import { MM_PER_CM } from './shared/units.ts';
 
 /** How far a handle stands off the end it changes, so it never hides behind the part. */

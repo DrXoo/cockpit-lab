@@ -1,8 +1,8 @@
 // What the controllers of the room editor need from the page that holds them.
 import type { CockpitEvaluation } from '../evaluate.ts';
 import type { LayoutLibrary } from '../layouts.ts';
-import type { ProjectSession } from '../project-session.ts';
-import type { SceneView } from '../scene-camera.ts';
+import type { ProjectSession } from '../project/session.ts';
+import type { SceneView } from '../scene/camera.ts';
 import type { Section, Workspace } from '../app/sections.ts';
 import type { RoomSelection } from './selection.ts';
 

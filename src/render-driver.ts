@@ -4,7 +4,7 @@
 // otherwise be hidden in its cushion and backrest.
 import type { Vec3Mm } from './cad/assembly.ts';
 import type { DriverFigure } from './cad/driver.ts';
-import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
+import type { ParentRef, RenderList, Vec3 } from './scene/render-list.ts';
 import { MM_PER_CM } from './shared/units.ts';
 
 /** A limb as drawn: thin enough to see the seat and the wheel through the figure. */

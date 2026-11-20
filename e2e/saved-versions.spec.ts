@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { test, expect, openApp, readFixture, getState, getSavedProject } from './support.ts';
-import { projectConfig, projectData, readProject } from '../src/project.ts';
+import { projectConfig, projectData, readProject } from '../src/project/project.ts';
 
 /** The settings of a parametric cockpit, as versions before v5 saved it. */
 const PARAMETRIC_COCKPIT = { length: 145, width: 64, seatH: 32, preset: 'gt' };

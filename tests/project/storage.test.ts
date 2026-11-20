@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProjectStore, STORAGE_KEY, LEGACY_STORAGE_KEYS } from '../src/project-storage.ts';
+import { createProjectStore, STORAGE_KEY, LEGACY_STORAGE_KEYS } from '../../src/project/storage.ts';
 import {
   createProject,
   completeSetup,
   projectData,
   projectConfig,
   projectFromConfig,
-} from '../src/project.ts';
-import { defaults, sanitize } from '../src/model.ts';
-import type { Project } from '../src/project.ts';
-import { present } from './support/lookups.ts';
+} from '../../src/project/project.ts';
+import { defaults, sanitize } from '../../src/model.ts';
+import type { Project } from '../../src/project/project.ts';
+import { present } from '../support/lookups.ts';
 
 const [V4_STORAGE_KEY, V3_STORAGE_KEY, V2_STORAGE_KEY, V1_STORAGE_KEY] = LEGACY_STORAGE_KEYS;
 

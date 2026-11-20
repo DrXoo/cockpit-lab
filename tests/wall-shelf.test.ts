@@ -21,7 +21,7 @@ import {
   projectData,
   projectConfig,
   projectFromConfig,
-} from '../src/project.ts';
+} from '../src/project/project.ts';
 
 /** Room settings with furniture and features as a file holds them, before they are normalized. */
 type RawRoom = Partial<Omit<RoomConfig, 'roomFeatures' | 'roomFurniture'>> & RoomInput;

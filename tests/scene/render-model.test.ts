@@ -1,21 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderModel, type RenderModel, type RenderOptions } from '../src/render-model.ts';
-import type { RoomConfig } from '../src/config.ts';
-import { allOfKind, ofKind, present } from './support/lookups.ts';
-import { ROOT } from '../src/render-list.ts';
-import { defaults, evaluate } from '../src/model.ts';
-import { degToRad } from '../src/shared/geometry.ts';
-import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
-import { resolveAssembly } from '../src/cad/assembly.ts';
+import { renderModel, type RenderModel, type RenderOptions } from '../../src/scene/render-model.ts';
+import type { RoomConfig } from '../../src/config.ts';
+import { allOfKind, ofKind, present } from '../support/lookups.ts';
+import { ROOT } from '../../src/scene/render-list.ts';
+import { defaults, evaluate } from '../../src/model.ts';
+import { degToRad } from '../../src/shared/geometry.ts';
+import { NOTHING_AROUND } from '../../src/cockpit-editor-view.ts';
+import { resolveAssembly } from '../../src/cad/assembly.ts';
 import {
   addAnchoredProfile,
   draftGrowth,
   editDraft,
   editProfile,
   replayHistory,
-} from '../src/cad/history.ts';
-import { partHandles } from '../src/cad/handles.ts';
+} from '../../src/cad/history.ts';
+import { partHandles } from '../../src/cad/handles.ts';
 
 const options: RenderOptions = {
   view: 'iso',

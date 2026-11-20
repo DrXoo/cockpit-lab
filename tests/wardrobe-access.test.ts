@@ -20,7 +20,7 @@ import {
   projectData,
   projectConfig,
   projectFromConfig,
-} from '../src/project.ts';
+} from '../src/project/project.ts';
 
 const access = (more = {}) => ({
   id: 'armario',

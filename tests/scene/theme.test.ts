@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readSceneTheme, SCENE_THEME_TOKENS } from '../src/scene-theme.ts';
+import { readSceneTheme, SCENE_THEME_TOKENS } from '../../src/scene/theme.ts';
 
 const tokens: Readonly<Record<string, string>> = {
   '--scene-background': ' #101010 ',
@@ -30,7 +30,7 @@ test('a missing scene token fails loudly and names it', () => {
 });
 
 test('the stylesheet defines every scene token', () => {
-  const css = readFileSync(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../src/styles/theme.css', import.meta.url), 'utf8');
   for (const token of Object.values(SCENE_THEME_TOKENS))
     assert.match(css, new RegExp(`${token}:\\s*#[0-9a-f]{6};`), token);
 });

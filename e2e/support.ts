@@ -3,7 +3,7 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { projectConfig, readProject } from '../src/project.ts';
+import { projectConfig, readProject } from '../src/project/project.ts';
 import {
   addAnchoredProfile,
   editProfile,

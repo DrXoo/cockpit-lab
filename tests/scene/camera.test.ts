@@ -7,11 +7,16 @@ import {
   designBounds,
   floorHeightCm,
   type SceneView,
-} from '../src/scene-camera.ts';
-import type { RoomConfig } from '../src/config.ts';
-import { defaults, evaluate, sanitize } from '../src/model.ts';
-import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
-import { resolveAssembly, type Part, type ProfilePart, type Vec3Mm } from '../src/cad/assembly.ts';
+} from '../../src/scene/camera.ts';
+import type { RoomConfig } from '../../src/config.ts';
+import { defaults, evaluate, sanitize } from '../../src/model.ts';
+import { NOTHING_AROUND } from '../../src/cockpit-editor-view.ts';
+import {
+  resolveAssembly,
+  type Part,
+  type ProfilePart,
+  type Vec3Mm,
+} from '../../src/cad/assembly.ts';
 
 const framingOf = (state: RoomConfig) => {
   const evaluation = evaluate(state);

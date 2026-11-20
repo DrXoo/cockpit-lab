@@ -1,7 +1,7 @@
 // What the room editor has selected, and how it is being edited. It belongs to the session and
 // is never saved. The rules below keep the selection to what the panel shown can edit.
 import type { RoomConfig } from '../config.ts';
-import type { SetupStep } from '../project.ts';
+import type { SetupStep } from '../project/project.ts';
 import { roomItem, roomItems, roomTarget } from '../room-editor.ts';
 import { isRoomSection, type Section } from '../app/sections.ts';
 

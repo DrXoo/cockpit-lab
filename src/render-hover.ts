@@ -3,7 +3,7 @@
 // Parts are in mm in cockpit coordinates; the scene works in cm.
 import { faceAxis, type BoxMm, type Face, type ResolvedPart } from './cad/assembly.ts';
 import { degToRad } from './shared/geometry.ts';
-import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
+import type { ParentRef, RenderList, Vec3 } from './scene/render-list.ts';
 import { MM_PER_CM } from './shared/units.ts';
 
 /** How far the box around a hovered part stands off it on every side. */

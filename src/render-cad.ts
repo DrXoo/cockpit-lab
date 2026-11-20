@@ -2,7 +2,7 @@
 // in mm in cockpit coordinates; the scene works in cm. Parts at a tilt go into one group per tilt,
 // turned about the cockpit origin as their frame is (src/cad/assembly.ts).
 import { degToRad } from './shared/geometry.ts';
-import type { PaletteMaterial, ParentRef, RenderList, Vec3 } from './render-list.ts';
+import type { PaletteMaterial, ParentRef, RenderList, Vec3 } from './scene/render-list.ts';
 import {
   faceAxis,
   peripheralPointInFrame,

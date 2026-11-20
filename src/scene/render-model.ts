@@ -1,20 +1,20 @@
 // The whole scene as drawn for one configuration and view, ready for the Three.js adapter.
-import type { RoomConfig } from './config.ts';
-import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad } from './shared/geometry.ts';
+import type { RoomConfig } from '../config.ts';
+import type { CockpitEvaluation } from '../evaluate.ts';
+import { degToRad } from '../shared/geometry.ts';
 import {
   drawDeskDimensions,
   drawLayoutSelection,
   type LayoutSelection,
-} from './render-annotations.ts';
-import { drawCadProfiles, drawConnectors, type CockpitDrawing } from './render-cad.ts';
-import { drawPartLength, drawPlacementAlong, drawPlateSize } from './render-cad-dimensions.ts';
-import { drawMeasurement } from './render-measurement.ts';
-import { drawDriver } from './render-driver.ts';
-import { drawHandleStems, drawSnapGuide } from './render-handles.ts';
-import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from './render-desk.ts';
+} from '../render-annotations.ts';
+import { drawCadProfiles, drawConnectors, type CockpitDrawing } from '../render-cad.ts';
+import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../render-cad-dimensions.ts';
+import { drawMeasurement } from '../render-measurement.ts';
+import { drawDriver } from '../render-driver.ts';
+import { drawHandleStems, drawSnapGuide } from '../render-handles.ts';
+import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from '../render-desk.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
-import { drawRoom } from './render-room.ts';
+import { drawRoom } from '../render-room.ts';
 
 export interface RenderOptions extends LayoutSelection {
   /** The room floor follows the interface theme. */

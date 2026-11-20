@@ -1,9 +1,9 @@
 // Camera framing: what each view looks at and how much of the plan it shows.
-import type { RoomConfig } from './config.ts';
-import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad, type PlanPoint, type Point3 } from './shared/geometry.ts';
-import { cornersMm, type ResolvedPart } from './cad/assembly.ts';
-import { MM_PER_CM } from './shared/units.ts';
+import type { RoomConfig } from '../config.ts';
+import type { CockpitEvaluation } from '../evaluate.ts';
+import { degToRad, type PlanPoint, type Point3 } from '../shared/geometry.ts';
+import { cornersMm, type ResolvedPart } from '../cad/assembly.ts';
+import { MM_PER_CM } from '../shared/units.ts';
 
 /** The side view only shows a cockpit design on its own. */
 export type SceneView = 'iso' | 'top' | 'desk' | 'side';

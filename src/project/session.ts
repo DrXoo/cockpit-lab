@@ -1,11 +1,11 @@
 // The project open in the app: its layouts, the active layout as it is being edited and the
 // guided setup, saved in this browser as they change. The cockpit design is the cockpit
 // editor's; the session asks for it when it records the project.
-import type { CockpitDesign } from './cockpit-design.ts';
-import type { RoomConfig } from './config.ts';
-import { layoutConfig, type LayoutLibrary } from './layouts.ts';
+import type { CockpitDesign } from '../cockpit-design.ts';
+import type { RoomConfig } from '../config.ts';
+import { layoutConfig, type LayoutLibrary } from '../layouts.ts';
 import { recordProject, type Project, type SetupProgress } from './project.ts';
-import type { ProjectStore } from './project-storage.ts';
+import type { ProjectStore } from './storage.ts';
 
 /** How long saving waits for more changes, so a drag or typing saves once. */
 export const AUTOSAVE_DELAY_MS = 250;

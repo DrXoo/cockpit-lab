@@ -3,25 +3,25 @@
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
-import type { RoomConfig } from './config.ts';
-import type { CockpitEvaluation } from './evaluate.ts';
-import { inversePoint } from './shared/geometry.ts';
-import { hitAlongRay, type PartHit } from './cad/picking.ts';
-import type { Face, ResolvedPart } from './cad/assembly.ts';
+import type { RoomConfig } from '../config.ts';
+import type { CockpitEvaluation } from '../evaluate.ts';
+import { inversePoint } from '../shared/geometry.ts';
+import { hitAlongRay, type PartHit } from '../cad/picking.ts';
+import type { Face, ResolvedPart } from '../cad/assembly.ts';
 
 /** A point on the page, in CSS pixels from its top left corner. */
 export interface PagePoint {
   x: number;
   y: number;
 }
-import { draggedPosition, pickLayoutItem, type LayoutGrab } from './layout-picking.ts';
-import type { CockpitDrawing } from './render-cad.ts';
-import type { ArmHandle } from './render-desk.ts';
+import { draggedPosition, pickLayoutItem, type LayoutGrab } from '../layout-picking.ts';
+import type { CockpitDrawing } from '../render-cad.ts';
+import type { ArmHandle } from '../render-desk.ts';
 import { createRenderList, labelShownIn, ROOT, type SceneLabel } from './render-list.ts';
-import { drawHover } from './render-hover.ts';
-import { distanceAlongAxis, type Handle, type HandleModifiers } from './cad/handles.ts';
-import type { JointMarker } from './cad/joint-markers.ts';
-import { handleBallMm } from './render-handles.ts';
+import { drawHover } from '../render-hover.ts';
+import { distanceAlongAxis, type Handle, type HandleModifiers } from '../cad/handles.ts';
+import type { JointMarker } from '../cad/joint-markers.ts';
+import { handleBallMm } from '../render-handles.ts';
 import { renderModel } from './render-model.ts';
 import {
   cameraPose,
@@ -32,10 +32,10 @@ import {
   type Framing,
   type SceneBounds,
   type SceneView,
-} from './scene-camera.ts';
-import { readSceneTheme, type SceneTheme } from './scene-theme.ts';
+} from './camera.ts';
+import { readSceneTheme, type SceneTheme } from './theme.ts';
 import { addPrimitives, type Palette } from './three-adapter.ts';
-import { MM_PER_CM } from './shared/units.ts';
+import { MM_PER_CM } from '../shared/units.ts';
 
 type ArmJoint = ArmHandle['id'];
 

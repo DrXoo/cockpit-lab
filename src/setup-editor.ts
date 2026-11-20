@@ -1,6 +1,6 @@
 // Guided setup: the form of each step and the progress bar.
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';
-import { steps, type SetupProgress } from './project.ts';
+import { steps, type SetupProgress } from './project/project.ts';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { BooleanSetting, ControlTemplates } from './controls-view.ts';

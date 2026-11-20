@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { test, expect, openApp, importProject, getState, getEvaluation } from './support.ts';
-import { cameraPose, sceneBounds, viewHeight, type SceneView } from '../src/scene-camera.ts';
+import { cameraPose, sceneBounds, viewHeight, type SceneView } from '../src/scene/camera.ts';
 import { inversePoint, type PlanPoint } from '../src/shared/geometry.ts';
 
 /** Maps world plan points to page pixels for a plan view, from the camera framing. */

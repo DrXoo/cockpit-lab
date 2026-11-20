@@ -5,7 +5,7 @@
 import type { Axis, Vec3Mm } from './cad/assembly.ts';
 import type { Measurement } from './cad/measure.ts';
 import { round } from './shared/geometry.ts';
-import type { ParentRef, RenderList, SceneLabel, Vec3 } from './render-list.ts';
+import type { ParentRef, RenderList, SceneLabel, Vec3 } from './scene/render-list.ts';
 import { MM_PER_CM } from './shared/units.ts';
 
 /** A measurement as the view shows it: its clicked points, and what they measure once two. */

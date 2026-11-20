@@ -1,5 +1,5 @@
 // Guided setup: what each step does to the project and when the user can move on.
-import { advanceSetup, type SetupProgress, type SetupStep } from './project.ts';
+import { advanceSetup, type SetupProgress, type SetupStep } from './project/project.ts';
 import type { RoomConfig } from './config.ts';
 import { resizeDesk } from './desk.ts';
 import { normalizeRoom } from './room.ts';

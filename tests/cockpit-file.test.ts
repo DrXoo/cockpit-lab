@@ -13,7 +13,7 @@ import {
   projectFromConfig,
   recordProject,
   replaceCockpitDesign,
-} from '../src/project.ts';
+} from '../src/project/project.ts';
 
 const design = emptyDesign();
 /** A cockpit file through JSON, as it is downloaded and opened again. */

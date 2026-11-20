@@ -7,7 +7,7 @@ import {
   withRoomSize,
   withDesk,
 } from '../src/setup-actions.ts';
-import { createProject, projectConfig, steps, type SetupStep } from '../src/project.ts';
+import { createProject, projectConfig, steps, type SetupStep } from '../src/project/project.ts';
 
 const fresh = createProject();
 const freshConfig = projectConfig(fresh);

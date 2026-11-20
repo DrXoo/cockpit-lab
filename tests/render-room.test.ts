@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, type MaterialRef, type RenderList } from '../src/render-list.ts';
+import {
+  createRenderList,
+  ROOT,
+  type MaterialRef,
+  type RenderList,
+} from '../src/scene/render-list.ts';
 import { allOfKind, ofKind, present } from './support/lookups.ts';
 import { drawRoom } from '../src/render-room.ts';
 import { defaults, evaluate, sanitize } from '../src/model.ts';

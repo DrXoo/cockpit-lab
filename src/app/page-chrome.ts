@@ -5,7 +5,7 @@ import type { RoomConfig } from '../config.ts';
 import { $, $$, dataOf } from '../ui/dom.ts';
 import type { CockpitEvaluation } from '../evaluate.ts';
 import { activeLayout, type LayoutLibrary } from '../layouts.ts';
-import { steps, type SetupProgress } from '../project.ts';
+import { steps, type SetupProgress } from '../project/project.ts';
 import type { Editor } from './sections.ts';
 import { setupButtons } from '../setup-actions.ts';
 import { progressHTML } from '../setup-editor.ts';

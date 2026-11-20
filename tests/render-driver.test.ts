@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
+import { createRenderList, ROOT } from '../src/scene/render-list.ts';
 import { drawDriver } from '../src/render-driver.ts';
 import type { DriverFigure } from '../src/cad/driver.ts';
 

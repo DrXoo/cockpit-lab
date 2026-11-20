@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT } from '../src/render-list.ts';
+import { createRenderList, ROOT } from '../src/scene/render-list.ts';
 import { resolveAssembly, type Face, type ProfilePart } from '../src/cad/assembly.ts';
 import { present } from './support/lookups.ts';
 import { drawHover } from '../src/render-hover.ts';

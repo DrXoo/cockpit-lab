@@ -3,8 +3,8 @@
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { degToRad, transformPoint, type Placement, type PlanPoint } from './shared/geometry.ts';
-import type { ParentRef, RenderList, SceneLabel } from './render-list.ts';
-import type { SceneView } from './scene-camera.ts';
+import type { ParentRef, RenderList, SceneLabel } from './scene/render-list.ts';
+import type { SceneView } from './scene/camera.ts';
 
 export interface LayoutSelection {
   view: SceneView;

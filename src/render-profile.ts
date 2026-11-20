@@ -1,5 +1,5 @@
 // Aluminium profiles as drawn: an outlined bar with slot grooves along its length.
-import type { BoxPrimitive, ParentRef, RenderList } from './render-list.ts';
+import type { BoxPrimitive, ParentRef, RenderList } from './scene/render-list.ts';
 
 export type ProfileAxis = 'x' | 'y' | 'z';
 export type ProfileSection = '40x40' | '40x80';

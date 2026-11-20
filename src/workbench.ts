@@ -16,9 +16,9 @@ import { hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
 import { evaluate } from './model.ts';
 import { toast } from './app/notices.ts';
 import { isGuided, renderPageChrome, type PageChrome } from './app/page-chrome.ts';
-import { createProject, type Project } from './project.ts';
-import type { ProjectSession } from './project-session.ts';
-import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
+import { createProject, type Project } from './project/project.ts';
+import type { ProjectSession } from './project/session.ts';
+import { SUMMARY_HEADING, summaryHTML } from './project/summary.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import type { DeskControls } from './room-editing/desk-controls.ts';
 import type { GuidedSetup } from './room-editing/guided-setup.ts';
@@ -35,8 +35,8 @@ import {
 } from './room-editing/selection.ts';
 import type { SettingControls } from './room-editing/settings-controls.ts';
 import { roomControls } from './room-editor.ts';
-import type { CockpitScene } from './scene.ts';
-import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
+import type { CockpitScene } from './scene/scene.ts';
+import { SIGHT_AXIS, type SceneView } from './scene/camera.ts';
 import {
   editorOf,
   editorOfSection,
