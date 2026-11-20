@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { movedFiles } from '../scripts/move.ts';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { movedFiles, typeScriptStringLiterals } from '../scripts/move.ts';
 
 /** The files a move changes, as an object for comparison. */
 function move(
@@ -101,6 +104,42 @@ test('documents follow the paths they name from the root and the links they hold
     'docs/development.md': 'See [units](../src/shared/units.ts#L3) and (src/shared/units.ts).\n',
     'scripts/casts-baseline.json': '{\n  "src/shared/units.ts": 2\n}\n',
   });
+});
+
+test('in TypeScript, only whole string literals are paths: a path quoted inside one is text', () => {
+  const files = {
+    'src/units.ts': 'export const MM_PER_CM = 10;\n',
+    'tests/move.test.ts': [
+      "import { MM_PER_CM } from '../src/units.ts';",
+      'const fixture = "import { MM_PER_CM } from \'../src/units.ts\';";',
+      'const template = `see ../src/units.ts and ${"\'../src/units.ts\'"}`;',
+      '',
+    ].join('\n'),
+  };
+  const folder = mkdtempSync(join(tmpdir(), 'cockpit-lab-move-'));
+  writeFileSync(
+    join(folder, 'tsconfig.json'),
+    JSON.stringify({ compilerOptions: { noEmit: true, allowImportingTsExtensions: true } }),
+  );
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(folder, path)), { recursive: true });
+    writeFileSync(join(folder, path), text);
+  }
+  const literals = typeScriptStringLiterals(join(folder, 'tsconfig.json'), folder);
+
+  const changed = movedFiles(
+    new Map(Object.entries(files)),
+    new Map([['src/units.ts', 'src/shared/units.ts']]),
+    literals,
+  );
+
+  assert.equal(
+    changed.get('tests/move.test.ts'),
+    files['tests/move.test.ts'].replace(
+      "from '../src/units.ts';\nconst",
+      "from '../src/shared/units.ts';\nconst",
+    ),
+  );
 });
 
 test('a move from a file that is not there, or onto one that is, is refused', () => {
