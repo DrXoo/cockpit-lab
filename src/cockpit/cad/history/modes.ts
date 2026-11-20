@@ -13,6 +13,11 @@ export interface Mode {
   name: string;
   /** The roots of the subassemblies it takes off; every other part is on. */
   takenOff: readonly string[];
+  /**
+   * Where each adjustment is in this mode, by the id of its part. The first mode keeps none, as
+   * its positions are those the operations store (`mode-positions.ts`).
+   */
+  positionsMm?: Readonly<Record<string, number>>;
 }
 
 /** How a subassembly is in a mode: on, taken off, or off because a subassembly holding it is. */

@@ -37,6 +37,7 @@ import { DEFAULT_DRIVER, driverOfStature, type Driver } from './cad/driver/drive
 import { jointIdOf } from './cad/parts/joints.ts';
 import type { Subassembly } from './cad/history/subassemblies.ts';
 import type { Mode } from './cad/history/modes.ts';
+import { checkedModePositions } from './cad/history/mode-positions.ts';
 import { cleanUserText } from '../shared/user-text.ts';
 
 export type { Operation } from './cad/history/history.ts';
@@ -99,7 +100,7 @@ export function readDesign(data: unknown): CockpitDesign {
     data.subassemblies === undefined ? undefined : readSubassemblies(data.subassemblies);
   if (subassemblies) design.subassemblies = subassemblies;
   if (data.modes === undefined) return design;
-  const modes = readModes(data.modes, subassemblies ?? []);
+  const modes = checkedModePositions(design.history, readModes(data.modes, subassemblies ?? []));
   return { ...design, modes, ...readShownMode(data.shownModeId, modes) };
 }
 
@@ -108,13 +109,16 @@ function readModes(data: unknown, subassemblies: readonly Subassembly[]): Mode[]
   if (!Array.isArray(data)) throw new Error('Invalid modes in the cockpit design');
   const roots = new Set(subassemblies.map(({ rootId }) => rootId));
   const modes = data.map((value): Mode => {
-    const stored = recordOf(value, 'mode', ['id', 'name', 'takenOff']);
+    const stored = recordOf(value, 'mode', ['id', 'name', 'takenOff', 'positionsMm']);
     if (typeof stored.name !== 'string') throw new Error("A mode's name must be text");
     const { takenOff } = stored;
     if (!Array.isArray(takenOff))
       throw new Error('A mode needs the list of the subassemblies it takes off');
     const name = cleanUserText(stored.name, 'Mode', MAX_PART_NAME_LENGTH);
-    return { id: identifier(stored.id), name, takenOff: takenOff.map(subassemblyRoot) };
+    const mode: Mode = { id: identifier(stored.id), name, takenOff: takenOff.map(subassemblyRoot) };
+    return stored.positionsMm === undefined
+      ? mode
+      : { ...mode, positionsMm: readPositions(stored.positionsMm) };
   });
   const ids = modes.map(({ id }) => id);
   const repeated = ids.find((id, index) => ids.indexOf(id) !== index);
@@ -127,6 +131,15 @@ function readModes(data: unknown, subassemblies: readonly Subassembly[]): Mode[]
       throw new Error(`A mode takes off ${rootId}, which roots no subassembly`);
     return rootId;
   }
+}
+
+/** Where a mode puts each adjustment, in mm by the id of its part. */
+function readPositions(value: unknown): Record<string, number> {
+  if (!isPlainRecord(value)) throw new Error('Invalid positions of a mode');
+  const positions: Record<string, number> = {};
+  for (const [partId, positionMm] of Object.entries(value))
+    positions[partId] = millimetres(positionMm, 'position along a travel');
+  return positions;
 }
 
 /** The mode shown, one of the design's; all the parts are shown when it names none. */

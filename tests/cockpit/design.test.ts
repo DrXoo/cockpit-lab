@@ -20,6 +20,8 @@ import {
   type Operation,
   type RemovePart,
 } from '../../src/cockpit/cad/history/history.ts';
+import { addAdjustment, editAdjustment } from '../../src/cockpit/cad/history/adjustments.ts';
+import { deckHistory } from '../support/designs.ts';
 
 const designWith = (count: number): CockpitDesign => {
   let history: Operation[] = [];
@@ -107,6 +109,45 @@ test('a design stores its modes and the mode shown beside the history, and reads
   assert.deepEqual(stored(design).modes, design.modes);
   assert.equal(stored(design).shownModeId, 'mode-2');
   assert.deepEqual(readDesign(stored(design)), design);
+});
+
+/** The deck design, its wheel base (part-4) 20 mm along a 100 mm travel, with two modes. */
+function fittedInTwoModes(flight: unknown): Record<string, unknown> {
+  const history = editAdjustment(addAdjustment(deckHistory(), 'part-4'), 'part-4', {
+    positionMm: 20,
+  });
+  return {
+    ...stored({ history, driver: { statureMm: 1750 } }),
+    subassemblies: [{ name: 'Deck', rootId: 'part-2' }],
+    modes: [{ id: 'mode-1', name: 'Racing', takenOff: [] }, flight],
+  };
+}
+
+test('a later mode stores where each adjustment is in it, and reads it back', () => {
+  const data = fittedInTwoModes({
+    id: 'mode-2',
+    name: 'Flight',
+    takenOff: [],
+    positionsMm: { 'part-4': -30 },
+  });
+
+  assert.deepEqual(stored(readDesign(data)), data);
+});
+
+test('a later mode stored without positions takes those of the operations', () => {
+  const data = fittedInTwoModes({ id: 'mode-2', name: 'Flight', takenOff: [] });
+
+  assert.deepEqual(readDesign(data).modes?.[1]?.positionsMm, { 'part-4': 20 });
+});
+
+test('stored positions must be numbers of adjustments the design has, within their travel', () => {
+  const flight = (positionsMm: unknown) => () =>
+    readDesign(fittedInTwoModes({ id: 'mode-2', name: 'Flight', takenOff: [], positionsMm }));
+
+  assert.throws(flight([]), /positions/);
+  assert.throws(flight({ 'part-4': '3' }), /number/);
+  assert.throws(flight({ 'part-3': 0 }), /no adjustment/);
+  assert.throws(flight({ 'part-4': 80 }), /travel/);
 });
 
 test('a design without modes stores none, and shows all its parts', () => {
