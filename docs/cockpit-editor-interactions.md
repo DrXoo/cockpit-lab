@@ -91,7 +91,7 @@ The part under the pointer is outlined, and its label shows after half a second 
 | Peripherals | Drawn grey, as a reference: never outlined or picked, and a click goes to what is behind | Drawn as they are; mounted, swapped and removed |
 | Toolbar of a selected plate or profile | Grow a profile, put a plate, add a foot, remove | Mount a seat, a wheel base or pedals, as a preview with handles |
 | Toolbar of a selected peripheral | — | Remove it |
-| Inspector of a selected attached part | Its values | Its adjustment: axis and travel; a peripheral's type and own values |
+| Inspector of a selected attached part | Its values | Its adjustment: axis and travel, and for a peripheral on a plate whether it runs on its own rails or in slots of the plate; a peripheral's type and own values |
 | Handles | Move, end and edge handles | One arrow along the selected part's travel, kept within it, on a bar from end to end with its center marked; a peripheral without an adjustment, its move handles |
 | Driver | — | The figure on the seat, drawn over the parts; with nothing selected, the panel's stature, knee, hip and elbow angles, reach warnings and eye point |
 
