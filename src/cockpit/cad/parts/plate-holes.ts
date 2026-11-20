@@ -10,6 +10,7 @@ import {
   crossFace,
   faceAxis,
   peripheralPointInFrame,
+  type Axis,
   type Face,
   type PlatePart,
   type ResolvedPart,
@@ -31,6 +32,19 @@ export interface PlateHole {
   diameterMm: number;
   /** What puts it there, as the drawing names it: "Bucket seat, hole 2". */
   source: string;
+  /**
+   * For a hole that is a slot, the way it runs on the drawing and its length end to end; it is
+   * as wide as the diameter, and centered where the hole would be.
+   */
+  slot?: { along: 'x' | 'y'; lengthMm: number };
+}
+
+/** How a part slides along its adjustment, as its holes need it. */
+export interface SlidingPart {
+  axis: Axis;
+  travelMm: number;
+  /** For a peripheral, whether it slides on its own rails or in slots of its plate. */
+  runsOn?: 'rails' | 'slots';
 }
 
 /** The ways a plate's drawing looks along, as faces of the frame of its tilt. */
@@ -48,6 +62,8 @@ export interface PlateHoleSources {
   resolved: ReadonlyMap<string, ResolvedPart>;
   joints: readonly Joint[];
   connectors: readonly PlacedConnector[];
+  /** The adjustment of each part that has one, by its id. */
+  adjustments: ReadonlyMap<string, SlidingPart>;
 }
 
 export function plateView(plate: PlatePart): PlateView {
@@ -61,7 +77,11 @@ export function holesOfPlate(design: PlateHoleSources, plateId: string): PlateHo
   const plate = design.resolved.get(plateId);
   if (plate?.part.kind !== 'plate') throw new Error(`Part ${plateId} is not a plate.`);
   const onPlate = drawnOn(plate, plate.part);
-  return [...mountingHoles(design, plateId, onPlate), ...fasteningHoles(design, plateId, onPlate)];
+  const slotAlong = slotDirection(plate.part);
+  return [
+    ...mountingHoles(design, plateId, onPlate, slotAlong),
+    ...fasteningHoles(design, plateId, onPlate),
+  ];
 }
 
 /** The holes of every plate in a design, by the plate's id. */
@@ -99,20 +119,44 @@ function drawnOn(plate: ResolvedPart, part: PlatePart): DrawnOn {
   });
 }
 
-function mountingHoles(design: PlateHoleSources, plateId: string, onPlate: DrawnOn): PlateHole[] {
+/** The way a slot along an axis of the plate's face runs on its drawing. */
+type SlotDirection = (axis: Axis) => 'x' | 'y';
+
+function slotDirection(plate: PlatePart): SlotDirection {
+  const right = faceAxis(plateView(plate).right);
+  return (axis) => (axis === right ? 'x' : 'y');
+}
+
+/**
+ * The holes of the mounting pattern of each peripheral on the plate. One that slides in slots
+ * of the plate makes each a slot along its travel, as long as the travel and the hole.
+ */
+function mountingHoles(
+  design: PlateHoleSources,
+  plateId: string,
+  onPlate: DrawnOn,
+  slotAlong: SlotDirection,
+): PlateHole[] {
   const holes: PlateHole[] = [];
   for (const peripheral of design.resolved.values()) {
     const { part } = peripheral;
     if (part.kind !== 'peripheral' || part.placement.kind !== 'attachment') continue;
     if (part.placement.parentId !== plateId) continue;
+    const sliding = design.adjustments.get(part.id);
+    const inSlots = sliding?.runsOn === 'slots' ? sliding : undefined;
     part.mountingPattern.holes.forEach((hole, index) => {
       // A pattern lies on the peripheral's underside: X across it, Y towards its front.
       const pointMm = peripheralPointInFrame(peripheral, { x: hole.xMm, y: 0, z: hole.yMm });
+      const slot = inSlots && {
+        along: slotAlong(inSlots.axis),
+        lengthMm: inSlots.travelMm + hole.diameterMm,
+      };
       holes.push({
         kind: 'mounting',
         ...onPlate(pointMm),
         diameterMm: hole.diameterMm,
         source: `${part.name}, hole ${index + 1}`,
+        ...(slot ? { slot } : {}),
       });
     });
   }

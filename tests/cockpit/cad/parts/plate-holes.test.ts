@@ -95,6 +95,41 @@ test('holes stay where a peripheral is at the center of its travel', () => {
   assert.deepEqual(holesOf(history), [{ xMm: 0, yMm: 0, diameterMm: 8 }]);
 });
 
+test('a peripheral sliding in slots turns each mounting hole into a slot along its travel', () => {
+  let history = withPeripheral(referencePlate(), 'part-2', 'generic-wheel-base', {
+    mountingPattern: ONE_HOLE,
+  });
+  history = addAdjustment(history, 'part-3');
+  history = editAdjustment(history, 'part-3', { travelMm: 60, positionMm: 20 });
+  const [slot] = holesOfPlate(replayDesign(history), 'part-2');
+  // Along the way it faces, the plate's depth, up the page; as long as the travel and the hole.
+  assert.deepEqual(present(slot, 'the slot').slot, { along: 'y', lengthMm: 68 });
+  assert.deepEqual([slot.xMm || 0, slot.yMm || 0, slot.diameterMm], [0, 0, 8]);
+  const across = editAdjustment(history, 'part-3', { axis: 'x' });
+  assert.deepEqual(holesOfPlate(replayDesign(across), 'part-2')[0]?.slot, {
+    along: 'x',
+    lengthMm: 68,
+  });
+});
+
+test('a peripheral on its own rails keeps round holes, as one without an adjustment does', () => {
+  let history = withPeripheral(referencePlate(), 'part-2', 'generic-wheel-base', {
+    mountingPattern: ONE_HOLE,
+  });
+  assert.equal(holesOfPlate(replayDesign(history), 'part-2')[0]?.slot, undefined);
+  history = addAdjustment(history, 'part-3');
+  history = editAdjustment(history, 'part-3', { runsOn: 'rails' });
+  assert.equal(holesOfPlate(replayDesign(history), 'part-2')[0]?.slot, undefined);
+  const plateSliding = addAdjustment(
+    fastenWithBolts(referencePlate(), 'part-2@part-1', 2),
+    'part-2',
+  );
+  assert.ok(
+    holesOfPlate(replayDesign(plateSliding), 'part-2').every((hole) => hole.slot === undefined),
+    'a plate slides on T-nuts in its profile’s slot, and has no slots of its own for its bolts',
+  );
+});
+
 test('each bolt fastening the plate to a profile puts a fastening hole of its clearance diameter', () => {
   let history = referencePlate();
   history = fastenWithBolts(history, 'part-2@part-1', 2);

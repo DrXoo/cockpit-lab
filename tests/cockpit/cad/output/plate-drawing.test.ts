@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { replayDesign, type Operation } from '../../../../src/cockpit/cad/history/history.ts';
 import { fastenWithBolts } from '../../../../src/cockpit/cad/history/fastening.ts';
+import { addAdjustment, editAdjustment } from '../../../../src/cockpit/cad/history/adjustments.ts';
 import { holesOfPlate } from '../../../../src/cockpit/cad/parts/plate-holes.ts';
 import {
   holeDescription,
@@ -122,4 +123,26 @@ test('a name typed by the user is escaped in the drawing', () => {
   const design = replayDesign(history);
   const svg = plateDrawingSvg(ofKind(design.resolved.get('part-2')?.part, 'plate'), []);
   assert.ok(svg.includes('Plate A &amp; B ·'));
+});
+
+test('a slot is drawn as two straight sides and two half circles, centered where its hole would be', () => {
+  let history = referenceDesign();
+  history = addAdjustment(history, 'part-3');
+  history = editAdjustment(history, 'part-3', { travelMm: 60 });
+  const { svg, holes, plate } = drawingOf(history);
+  assert.doesNotMatch(svg, /<circle/);
+  const outlines = [...svg.matchAll(/<path class="slot-outline" d="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+  assert.equal(outlines.length, 4);
+  // The first hole, 60 mm right of the center and 40 mm below it, slides up and down the page,
+  // 66.5 mm end to end: straight from 10 to 70 down the SVG, half circles at both ends.
+  assert.equal(
+    outlines[0],
+    'M 56.75 10 L 56.75 70 A 3.25 3.25 0 0 0 63.25 70 L 63.25 10 A 3.25 3.25 0 0 0 56.75 10 Z',
+  );
+  assert.equal(
+    holeDescription(plate, present(holes[0], 'the first slot')),
+    'Wheel base, hole 1: mounting slot 6.5 mm wide and 66.5 mm long, centered 160 mm from the left edge and 35 mm from the bottom edge',
+  );
 });

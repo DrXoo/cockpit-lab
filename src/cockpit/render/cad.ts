@@ -335,21 +335,60 @@ export function drawPlateHoles(
     if (plate?.part.kind !== 'plate') continue;
     const normal = faceAxis(plate.part.normal);
     const lengthMm = plate.box.max[normal] - plate.box.min[normal] + 2 * HOLE_PROUD_MM;
-    for (const hole of holes) {
-      const center = pointOnPlate(plate, hole.xMm, hole.yMm);
-      const plug = r.cylinder(
-        cm(hole.diameterMm / 2),
-        cm(lengthMm),
-        cm(center.x),
-        cm(center.y),
-        cm(center.z),
-        'dark',
-        frameOf(plate.tiltDeg),
-        HOLE_SEGMENTS,
-      );
-      plug.rotation = [...CYLINDER_ALONG[normal]];
-    }
+    const frame = frameOf(plate.tiltDeg);
+    for (const hole of holes) drawHole(r, frame, plate, hole, normal, lengthMm);
   }
+}
+
+/** A round hole as one plug; a slot as a bar between its straight sides and a plug at each end. */
+function drawHole(
+  r: RenderList,
+  frame: ParentRef,
+  plate: ResolvedPart,
+  hole: PlateHole,
+  normal: Axis,
+  lengthMm: number,
+): void {
+  const plug = (xMm: number, yMm: number) => {
+    const center = pointOnPlate(plate, xMm, yMm);
+    const drawn = r.cylinder(
+      cm(hole.diameterMm / 2),
+      cm(lengthMm),
+      cm(center.x),
+      cm(center.y),
+      cm(center.z),
+      'dark',
+      frame,
+      HOLE_SEGMENTS,
+    );
+    drawn.rotation = [...CYLINDER_ALONG[normal]];
+  };
+  if (!hole.slot) {
+    plug(hole.xMm, hole.yMm);
+    return;
+  }
+  const halfStraightMm = (hole.slot.lengthMm - hole.diameterMm) / 2;
+  const [dx, dy] = hole.slot.along === 'x' ? [halfStraightMm, 0] : [0, halfStraightMm];
+  const ends = [
+    pointOnPlate(plate, hole.xMm - dx, hole.yMm - dy),
+    pointOnPlate(plate, hole.xMm + dx, hole.yMm + dy),
+  ];
+  const center = pointOnPlate(plate, hole.xMm, hole.yMm);
+  const size: Vec3Mm = { x: hole.diameterMm, y: hole.diameterMm, z: hole.diameterMm };
+  for (const axis of AXES) if (ends[0][axis] !== ends[1][axis]) size[axis] = 2 * halfStraightMm;
+  size[normal] = lengthMm;
+  r.box(
+    cm(size.x),
+    cm(size.y),
+    cm(size.z),
+    cm(center.x),
+    cm(center.y),
+    cm(center.z),
+    'dark',
+    frame,
+  );
+  plug(hole.xMm - dx, hole.yMm - dy);
+  plug(hole.xMm + dx, hole.yMm + dy);
 }
 
 /**

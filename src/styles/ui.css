@@ -168,12 +168,15 @@ button:disabled {
   cursor: pointer;
   color: var(--accent-text);
 }
-.plate-drawing-sheet .plate-hole circle {
+.plate-drawing-sheet .plate-hole circle,
+.plate-drawing-sheet .plate-hole path {
   fill: transparent;
   pointer-events: all;
 }
 .plate-drawing-sheet .plate-hole:hover circle,
-.plate-drawing-sheet .plate-hole.chosen circle {
+.plate-drawing-sheet .plate-hole:hover path,
+.plate-drawing-sheet .plate-hole.chosen circle,
+.plate-drawing-sheet .plate-hole.chosen path {
   fill: var(--accent-surface-strong);
 }
 .plate-drawing-sheet .plate-orientation {

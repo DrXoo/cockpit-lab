@@ -59,10 +59,12 @@ export interface ReplayedDesign {
   connectors: PlacedConnector[];
   /** The design as fitted: each adjusted part where it is along its travel. */
   fitted: FittedPose;
+  /** The adjustment of each part in the design that has one, by its id. */
+  adjustments: Map<string, Adjustment>;
 }
 
 /** A design replayed with its parts at the centers of their travels, before it is fitted. */
-type DesignAtCenter = Omit<ReplayedDesign, 'fitted'>;
+type DesignAtCenter = Omit<ReplayedDesign, 'fitted' | 'adjustments'>;
 
 /** Replays the first `upTo` operations: all of them unless the history marker is back. */
 export function replayDesign(
@@ -85,12 +87,25 @@ export function replayDesign(
           ...design,
           connectors: connectors.placed,
           fitted: fittedPose(steps, design.resolved, connectors.placed),
+          adjustments: adjustmentsIn(steps, design.resolved),
         };
       for (const [id, reason] of connectors.misfits) lateFailures.set(id, reason);
       continue;
     }
     for (const [id, reason] of found) lateFailures.set(id, reason);
   }
+}
+
+function adjustmentsIn(
+  steps: readonly Operation[],
+  resolved: ReadonlyMap<string, ResolvedPart>,
+): Map<string, Adjustment> {
+  const adjustments = new Map<string, Adjustment>();
+  for (const operation of steps.filter(makesAPart)) {
+    const adjustment = adjustmentOf(operation);
+    if (adjustment && resolved.has(operation.partId)) adjustments.set(operation.partId, adjustment);
+  }
+  return adjustments;
 }
 
 /** The parts the history makes, replayed in full. */

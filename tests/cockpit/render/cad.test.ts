@@ -204,6 +204,33 @@ test('a plate hole is drawn as a dark plug through the plate, standing just prou
   assert.equal(plug.material, 'dark');
 });
 
+test('a slot is drawn as a dark bar through the plate with a round plug at each end', () => {
+  const r = createRenderList();
+  const resolved = resolveAssembly([profile('rail'), plateOn('rail')]);
+  const slot = {
+    kind: 'mounting' as const,
+    xMm: 0,
+    yMm: 0,
+    diameterMm: 10,
+    source: 'Wheel base, hole 1',
+    slot: { along: 'y' as const, lengthMm: 110 },
+  };
+  drawPlateHoles(r, ROOT, resolved, new Map([['plate', [slot]]]));
+  const [bar] = allOfKind(r.primitives, 'box');
+  // Up the drawing is the plate's depth, +Z: the bar runs along it, as long as the straight sides.
+  assert.deepEqual([bar.size[0], bar.size[2]], [1, 10]);
+  assert.deepEqual(bar.position, [-28, 14.4, 60]);
+  assert.equal(bar.material, 'dark');
+  const plugs = allOfKind(r.primitives, 'cylinder');
+  assert.deepEqual(
+    plugs.map((plug) => plug.position),
+    [
+      [-28, 14.4, 55],
+      [-28, 14.4, 65],
+    ],
+  );
+});
+
 test('a hole through a plate on the side of a profile is turned along its normal', () => {
   const r = createRenderList();
   const sidePlate: PlatePart = {

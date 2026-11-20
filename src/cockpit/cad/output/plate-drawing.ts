@@ -37,12 +37,20 @@ const KIND_NAMES: Record<PlateHoleKind, string> = {
   mounting: 'mounting hole',
   fastening: 'fastening hole',
 };
+const SLOT_NAMES: Record<PlateHoleKind, string> = {
+  mounting: 'mounting slot',
+  fastening: 'fastening slot',
+};
 
 /** What the drawing says about a hole when it is pointed at. */
 export function holeDescription(plate: PlatePart, hole: PlateHole): string {
   const fromLeft = lengthText(hole.xMm + plate.widthMm / 2);
   const fromBottom = lengthText(hole.yMm + plate.depthMm / 2);
-  return `${hole.source}: ${KIND_NAMES[hole.kind]} ⌀${lengthText(hole.diameterMm)} mm, ${fromLeft} mm from the left edge and ${fromBottom} mm from the bottom edge`;
+  const where = `${fromLeft} mm from the left edge and ${fromBottom} mm from the bottom edge`;
+  const diameter = lengthText(hole.diameterMm);
+  if (hole.slot)
+    return `${hole.source}: ${SLOT_NAMES[hole.kind]} ${diameter} mm wide and ${lengthText(hole.slot.lengthMm)} mm long, centered ${where}`;
+  return `${hole.source}: ${KIND_NAMES[hole.kind]} ⌀${diameter} mm, ${where}`;
 }
 
 /** The drawing of a plate with its holes, as an SVG document in mm. */
@@ -167,8 +175,34 @@ function holeShape(plate: PlatePart, hole: PlateHole, index: number, { textMm }:
   const markMm = radiusMm + textMm / 2;
   const centerMark = `${line(x - markMm, y, x + markMm, y)}${line(x, y - markMm, x, y + markMm)}`;
   const title = `<title>${escaped(holeDescription(plate, hole))}</title>`;
-  const circle = `<circle cx="${number(x)}" cy="${number(y)}" r="${number(radiusMm)}"/>`;
-  return `<g class="plate-hole" data-hole="${index}" data-kind="${hole.kind}">${title}${circle}<g class="center-mark" stroke-width="${number(textMm / 20)}">${centerMark}</g></g>`;
+  const shape = hole.slot
+    ? `<path class="slot-outline" d="${slotPath(x, y, radiusMm, hole.slot)}"/>`
+    : `<circle cx="${number(x)}" cy="${number(y)}" r="${number(radiusMm)}"/>`;
+  return `<g class="plate-hole" data-hole="${index}" data-kind="${hole.kind}">${title}${shape}<g class="center-mark" stroke-width="${number(textMm / 20)}">${centerMark}</g></g>`;
+}
+
+/**
+ * The outline of a slot centered on `x`, `y` of the SVG: its two straight sides and a half
+ * circle at each end, drawn in one turn.
+ */
+function slotPath(
+  x: number,
+  y: number,
+  radiusMm: number,
+  slot: NonNullable<PlateHole['slot']>,
+): string {
+  const halfStraightMm = (slot.lengthMm - 2 * radiusMm) / 2;
+  const arc = (toX: number, toY: number) =>
+    `A ${number(radiusMm)} ${number(radiusMm)} 0 0 0 ${number(toX)} ${number(toY)}`;
+  const at = (pointX: number, pointY: number) => `${number(pointX)} ${number(pointY)}`;
+  if (slot.along === 'y') {
+    const [left, right] = [x - radiusMm, x + radiusMm];
+    const [top, bottom] = [y - halfStraightMm, y + halfStraightMm];
+    return `M ${at(left, top)} L ${at(left, bottom)} ${arc(right, bottom)} L ${at(right, top)} ${arc(left, top)} Z`;
+  }
+  const [left, right] = [x - halfStraightMm, x + halfStraightMm];
+  const [top, bottom] = [y - radiusMm, y + radiusMm];
+  return `M ${at(left, bottom)} L ${at(right, bottom)} ${arc(right, top)} L ${at(left, top)} ${arc(left, bottom)} Z`;
 }
 
 /** In the top left corner, which way up the page is on the cockpit: "↑ front". */
