@@ -63,16 +63,20 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | Path | Responsibility |
 | --- | --- |
 | `src/index.html`, `src/styles.css`, `src/ui.css` | Markup and styles |
-| `src/app.ts` | DOM wiring: events, panels and exports |
+| `src/app.ts` | Composition root: opens the saved project, builds the editors' controllers around the workbench and draws the 3D view |
+| `src/workbench.ts`, `src/sections.ts`, `src/page-chrome.ts` | The page the user works in: which editor, tab, view and panel it shows, refreshing it, and what each editor and setup step shows or hides; the host both editors' controllers ask |
+| `src/cockpit-editor/` | The cockpit editor: its session (selection, history marker, undo, part being added, Fit, measuring) as pure state in `session.ts`, its commands without DOM in `editor.ts`, and one controller per part of the page (inspector, toolbar, keys, history panel, view overlays, handle dragging) |
+| `src/room-editing/` | The room editor: its selection and the rules that keep it to the panel shown, and one controller per part of the page (setting controls, room items, guided setup, desk and arm, layout picker, room checks, dragging in the plan), all through `RoomEditorHost` |
+| `src/dom.ts`, `src/icons.ts`, `src/dialogs.ts`, `src/notices.ts`, `src/theme.ts` | Finding and replacing parts of the page, its icons, closing dialogs, toasts and the save status, and the color theme |
 | `src/dom-input.ts`, `src/setting-change.ts` | Validating what the panels send, and applying a setting change |
-| `src/project.ts`, `src/project-storage.ts` | Project format and autosave |
-| `src/cockpit-file.ts` | Cockpit files: a cockpit design on its own, to move it between projects |
+| `src/project.ts`, `src/project-storage.ts`, `src/project-session.ts` | Project format, browser storage, and the open project with its autosave |
+| `src/cockpit-file.ts`, `src/project-files.ts` | Cockpit files: a cockpit design on its own, to move it between projects; exporting and opening project and cockpit files |
 | `src/layouts.ts`, `src/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
 | `src/user-text.ts` | Cleaning names typed by users |
 | `src/setup-editor.ts`, `src/setup-actions.ts` | Guided setup steps and rules |
 | `src/room-actions.ts` | Adding, editing, deleting and placing room items |
 | `src/controls-view.ts`, `src/settings-panels.ts` | Setting controls and the desk panel of the room editor |
-| `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/undo.ts` | The cockpit design as its design history and how files store it, the cockpit editor's history panel and inspector, and undo and redo of its edits |
+| `src/cockpit-design.ts`, `src/cockpit-editor-view.ts`, `src/undo.ts` | The cockpit design as its design history and how files store it, the HTML of the cockpit editor's history panel and inspector and reading their fields, and undo and redo of its edits |
 | `src/cad/`, `src/cad-checks.ts`, `src/render-cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
 | `src/render-hover.ts`, `src/hover-view.ts` | What marks the part or face under the pointer in the cockpit editor, and the label that names it |
 | `src/cad/handles.ts`, `src/render-handles.ts` | The handles that resize the selected profile by dragging in the view, and their stems |
