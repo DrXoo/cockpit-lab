@@ -2,9 +2,9 @@
 // the seated posture against their ranges, the reach warnings and the eye point.
 import type { DriverAngle, DriverJoint, Driver, SeatedDriver } from './cad/driver.ts';
 import { MAX_STATURE_MM, MIN_STATURE_MM } from './cad/driver.ts';
-import { round } from './geometry.ts';
-import { escapeHTML } from './html.ts';
-import { MM_PER_CM } from './units.ts';
+import { round } from './shared/geometry.ts';
+import { escapeHTML } from './ui/html.ts';
+import { MM_PER_CM } from './shared/units.ts';
 
 const JOINT_NAMES: Record<DriverJoint, string> = { knee: 'Knee', hip: 'Hip', elbow: 'Elbow' };
 

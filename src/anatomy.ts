@@ -1,5 +1,5 @@
 // Approximate seated posture in the cockpit's side plane, from average body proportions.
-import { clamp, degToRad } from './geometry.ts';
+import { clamp, degToRad } from './shared/geometry.ts';
 
 /** A point in the cockpit's side (sagittal) plane: Z forward, Y up. */
 export interface SidePoint {

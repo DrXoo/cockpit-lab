@@ -31,7 +31,7 @@ import { jointMarkers, type JointMarker } from '../cad/joint-markers.ts';
 import type { PartHit } from '../cad/picking.ts';
 import { nextMeasurePicks } from '../cad/measure.ts';
 import type { CockpitDesign } from '../cockpit-design.ts';
-import { noEdits, recordEdit, redo, undo, type Edits } from '../undo.ts';
+import { noEdits, recordEdit, redo, undo, type Edits } from '../shared/undo.ts';
 
 /** A change made with a handle, waiting to be confirmed. */
 export interface PendingChange {

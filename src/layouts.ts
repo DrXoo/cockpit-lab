@@ -13,7 +13,7 @@ import {
   type WallId,
   type WallShelf,
 } from './room.ts';
-import { cleanUserText } from './user-text.ts';
+import { cleanUserText } from './shared/user-text.ts';
 
 /** Settings that place things in the room or on the desk, or pose the monitor arm, and the saved arm poses. */
 const LAYOUT_SETTING_KEYS = [

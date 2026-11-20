@@ -1,5 +1,5 @@
 // Room settings: ranges, defaults and validation of saved data. Lengths in cm.
-import { clamp } from './geometry.ts';
+import { clamp } from './shared/geometry.ts';
 import { normalizeRoom, type FurnitureItem, type RoomFeature } from './room.ts';
 import { readArmPoses, type ArmPose } from './arm-poses.ts';
 

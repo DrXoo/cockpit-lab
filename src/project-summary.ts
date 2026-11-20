@@ -1,12 +1,12 @@
 // The printable project summary: the room, the desk with its accessories and monitor, and the
 // checks. Lengths in cm.
-import { escapeHTML as esc } from './html.ts';
-import { checkLineHTML } from './check-view.ts';
+import { escapeHTML as esc } from './ui/html.ts';
+import { checkLineHTML } from './ui/check-view.ts';
 import { steps, type SetupProgress } from './project.ts';
 import type { RoomConfig, MonitorMode } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { wallFrame } from './room.ts';
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 import { wrapAngle } from './monitor-arm.ts';
 
 export const SUMMARY_HEADING = { title: 'Project summary', kicker: 'YOUR SPACE' };

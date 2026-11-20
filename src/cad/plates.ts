@@ -1,6 +1,6 @@
 // Putting plates on profiles in a design history (docs/adr/0005): a new plate ready to add, a
 // plate moved to a face clicked in the view, and the edits of a plate's step. Lengths are in mm.
-import { cleanUserText } from '../user-text.ts';
+import { cleanUserText } from '../shared/user-text.ts';
 import { faceAxis, type Axis, type Face, type Vec3Mm } from './assembly.ts';
 import { adjustmentOnFace } from './travel.ts';
 import {

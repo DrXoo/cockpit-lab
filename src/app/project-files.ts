@@ -4,13 +4,13 @@ import {
   cockpitFileData,
   PARAMETRIC_COCKPIT_FILE_MESSAGE,
   readCockpitFile,
-} from './cockpit-file.ts';
-import type { CockpitDesign } from './cockpit-design.ts';
-import type { CockpitEditor } from './cockpit-editor/editor.ts';
-import { $ } from './dom.ts';
-import { projectData, readProject, replaceCockpitDesign, type Project } from './project.ts';
-import type { ProjectSession, SaveStatus } from './project-session.ts';
-import { STORAGE_KEY } from './project-storage.ts';
+} from '../cockpit-file.ts';
+import type { CockpitDesign } from '../cockpit-design.ts';
+import type { CockpitEditor } from '../cockpit-editor/editor.ts';
+import { $ } from '../ui/dom.ts';
+import { projectData, readProject, replaceCockpitDesign, type Project } from '../project.ts';
+import type { ProjectSession, SaveStatus } from '../project-session.ts';
+import { STORAGE_KEY } from '../project-storage.ts';
 
 /** Generous for a full project: 20 layouts of 30 pieces of furniture export to about 100 kB. */
 const MAX_PROJECT_FILE_BYTES = 500_000;

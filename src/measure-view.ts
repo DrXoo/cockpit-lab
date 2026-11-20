@@ -3,7 +3,7 @@
 // +Y up and +Z to the front.
 import type { Axis } from './cad/assembly.ts';
 import type { Measurement } from './cad/measure.ts';
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 
 /** Measurements are shown to the tenth of a mm, as the design history shows lengths. */
 const MEASURE_DECIMALS = 1;

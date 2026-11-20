@@ -1,6 +1,6 @@
 // Templates of the setting controls. They read the state and evaluation they are given, so the
 // same markup can be produced and tested outside the browser.
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 import type { RoomConfig, NumericField } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { fieldSpec } from './field-spec.ts';

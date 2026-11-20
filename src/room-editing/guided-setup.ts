@@ -1,6 +1,6 @@
 // The guided setup of a new room: one step after another, the room's size first, each saved as
 // it is filled in, with the progress at the top of the side panel.
-import { $, $optional, dataOf } from '../dom.ts';
+import { $, $optional, dataOf } from '../ui/dom.ts';
 import { steps, type StepId } from '../project.ts';
 import { nextSetupStep, sectionOfStep, withDesk, withRoomSize } from '../setup-actions.ts';
 import type { RoomEditorHost } from './host.ts';

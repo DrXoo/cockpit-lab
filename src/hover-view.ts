@@ -2,7 +2,7 @@
 // that tells it apart, as "Left rail · 40 × 80 · 1200 mm".
 import type { ResolvedPart } from './cad/assembly.ts';
 import { profileSection, profileSystem, sheetType } from './cad/catalog.ts';
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 
 /** Lengths are shown to the tenth of a mm, as the design history shows them. */
 const LENGTH_DECIMALS = 1;

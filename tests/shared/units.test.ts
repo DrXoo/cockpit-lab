@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cmToMm, mmToCm, roundMm, MM_PER_CM } from '../src/units.ts';
+import { cmToMm, mmToCm, roundMm, MM_PER_CM } from '../../src/shared/units.ts';
 
 test('cm and mm convert explicitly in both directions', () => {
   assert.equal(MM_PER_CM, 10);

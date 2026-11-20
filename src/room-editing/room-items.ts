@@ -1,6 +1,6 @@
 // The room's own items in the side panel: its openings, the wardrobe access and the furniture,
 // added, selected, moved, turned, hidden in a layout and deleted.
-import { $, $optional, dataOf } from '../dom.ts';
+import { $, $optional, dataOf } from '../ui/dom.ts';
 import { roomItemType } from '../dom-input.ts';
 import { activeLayout, hideFurniture, showFurniture } from '../layouts.ts';
 import { clamp, round } from '../model.ts';
@@ -15,7 +15,7 @@ import {
   updateRoomItem,
 } from '../room-actions.ts';
 import { isFeature, roomItem, roomValue } from '../room-editor.ts';
-import { isRoomSection } from '../sections.ts';
+import { isRoomSection } from '../app/sections.ts';
 import type { RoomEditorHost } from './host.ts';
 import { controlsAll, setRangeFill } from './settings-controls.ts';
 

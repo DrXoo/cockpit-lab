@@ -2,7 +2,7 @@
 // Labels are positioned in world coordinates, whatever group their lines belong to.
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad, transformPoint, type Placement, type PlanPoint } from './geometry.ts';
+import { degToRad, transformPoint, type Placement, type PlanPoint } from './shared/geometry.ts';
 import type { ParentRef, RenderList, SceneLabel } from './render-list.ts';
 import type { SceneView } from './scene-camera.ts';
 

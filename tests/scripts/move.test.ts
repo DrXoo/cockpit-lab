@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { movedFiles, typeScriptStringLiterals } from '../scripts/move.ts';
+import { movedFiles, typeScriptStringLiterals } from '../../scripts/move.ts';
 
 /** The files a move changes, as an object for comparison. */
 function move(

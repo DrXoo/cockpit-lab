@@ -2,7 +2,7 @@
 // Everything is in world coordinates; the room's measurements go to the dimensions group.
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad, type PlanPoint } from './geometry.ts';
+import { degToRad, type PlanPoint } from './shared/geometry.ts';
 import type { MaterialRef, ParentRef, RenderList, Vec3 } from './render-list.ts';
 import {
   wallFrame,

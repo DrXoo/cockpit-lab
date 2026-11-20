@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rectangle, type Solid } from '../src/geometry.ts';
-import { solidOverlap, findInterferences, describeInterference } from '../src/interference.ts';
+import { rectangle, type Solid } from '../../src/shared/geometry.ts';
+import {
+  solidOverlap,
+  findInterferences,
+  describeInterference,
+} from '../../src/shared/interference.ts';
 
 const ORIGIN = { x: 0, z: 0, angle: 0 };
 const TOLERANCE = { heightCm: 0.1, planCm: 0.1 };

@@ -1,7 +1,7 @@
 // The driver a cockpit design is made for (CONTEXT.md: Driver). Only the stature is stored: the
 // posture follows from where the design puts the seat, the wheel and the pedals. Lengths in mm.
 import { postureFrom, type SidePoint } from '../anatomy.ts';
-import { MM_PER_CM } from '../units.ts';
+import { MM_PER_CM } from '../shared/units.ts';
 import { faceAxis, type ResolvedPart, type Vec3Mm } from './assembly.ts';
 import { cadContacts } from './posture.ts';
 

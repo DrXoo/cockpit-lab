@@ -1,5 +1,5 @@
 // Room tab: the editor of the room, its openings and its furniture. Lengths in cm.
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 import {
   wallFrame,
   wallNames,
@@ -9,7 +9,7 @@ import {
 } from './room.ts';
 import type { RoomConfig } from './config.ts';
 import type { ControlTemplates } from './controls-view.ts';
-import { escapeHTML } from './html.ts';
+import { escapeHTML } from './ui/html.ts';
 
 export { escapeHTML };
 

@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SVGRenderer } from 'three/examples/jsm/renderers/SVGRenderer.js';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { inversePoint } from './geometry.ts';
+import { inversePoint } from './shared/geometry.ts';
 import { hitAlongRay, type PartHit } from './cad/picking.ts';
 import type { Face, ResolvedPart } from './cad/assembly.ts';
 
@@ -35,7 +35,7 @@ import {
 } from './scene-camera.ts';
 import { readSceneTheme, type SceneTheme } from './scene-theme.ts';
 import { addPrimitives, type Palette } from './three-adapter.ts';
-import { MM_PER_CM } from './units.ts';
+import { MM_PER_CM } from './shared/units.ts';
 
 type ArmJoint = ArmHandle['id'];
 

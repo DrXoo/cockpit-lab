@@ -30,7 +30,7 @@ test('a missing scene token fails loudly and names it', () => {
 });
 
 test('the stylesheet defines every scene token', () => {
-  const css = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
   for (const token of Object.values(SCENE_THEME_TOKENS))
     assert.match(css, new RegExp(`${token}:\\s*#[0-9a-f]{6};`), token);
 });

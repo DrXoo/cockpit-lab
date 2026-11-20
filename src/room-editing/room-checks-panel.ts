@@ -1,8 +1,8 @@
 // The room editor's side of the inspector: the room's and the desk's checks, their sizes, the
 // monitor arm's reach and the space the layout leaves free.
-import { checkRowHTML } from '../check-view.ts';
+import { checkRowHTML } from '../ui/check-view.ts';
 import type { RoomConfig } from '../config.ts';
-import { $ } from '../dom.ts';
+import { $ } from '../ui/dom.ts';
 import type { CockpitEvaluation } from '../evaluate.ts';
 import { metricsView, validationBanner } from '../inspector-view.ts';
 import { round } from '../model.ts';

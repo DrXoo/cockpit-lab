@@ -9,10 +9,10 @@ import {
   type Placement,
   type Point3,
   type Solid,
-} from './geometry.ts';
+} from './shared/geometry.ts';
 import { evaluateRoom, type Obstacle, type RoomEvaluation } from './room.ts';
-import type { NamedSolid } from './interference.ts';
-import type { Check, CheckLevel } from './checks.ts';
+import type { NamedSolid } from './shared/interference.ts';
+import type { Check, CheckLevel } from './shared/checks.ts';
 import type { RoomConfig } from './config.ts';
 import { deskBounds, getDesktopItems } from './desk.ts';
 import { deskPose as deskPoseOf } from './layout.ts';

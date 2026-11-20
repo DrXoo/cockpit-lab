@@ -1,7 +1,7 @@
 // The color theme, a preference of this browser rather than of the design: the system's, light
 // or dark, cycled by the theme button and remembered while the browser lets it store data.
-import { $ } from './dom.ts';
-import { drawIcons } from './icons.ts';
+import { $ } from '../ui/dom.ts';
+import { drawIcons } from '../ui/icons.ts';
 import {
   nextThemePreference,
   parseThemePreference,

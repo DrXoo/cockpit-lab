@@ -1,5 +1,5 @@
 // Markup for choosing among a project's layouts.
-import { escapeHTML } from './html.ts';
+import { escapeHTML } from './ui/html.ts';
 import type { LayoutLibrary } from './layouts.ts';
 
 /** One option per layout, in their order, with the active one selected. */

@@ -9,7 +9,7 @@ import {
   unitFor,
   type ControlTemplates,
 } from '../controls-view.ts';
-import { $, $$ } from '../dom.ts';
+import { $, $$ } from '../ui/dom.ts';
 import { booleanSetting, choiceSetting, numericField } from '../dom-input.ts';
 import { clamp, fieldSpec, round } from '../model.ts';
 import { normalizeRoom } from '../room.ts';

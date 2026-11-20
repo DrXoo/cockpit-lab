@@ -2,7 +2,7 @@
 // on each side, bolts in each slot, and joining parts that only touch.
 import { fastenWithBolts, fastenWithBrackets, joinParts, setConnector } from '../cad/fastening.ts';
 import { faceOf, QUICK_BOLTS_PER_SLOT } from '../cockpit-editor-view.ts';
-import { dataOf } from '../dom.ts';
+import { dataOf } from '../ui/dom.ts';
 import type { CockpitEditor } from './editor.ts';
 
 /** Binds the joint actions in `container` to the editor. */

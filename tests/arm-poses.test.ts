@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults, sanitize } from '../src/model.ts';
 import { monitorGeometry, wrapAngle } from '../src/monitor-arm.ts';
-import type { PlanPoint } from '../src/geometry.ts';
+import type { PlanPoint } from '../src/shared/geometry.ts';
 import type { RoomConfig } from '../src/config.ts';
 import {
   MAX_ARM_POSES,

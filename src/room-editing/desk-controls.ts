@@ -12,7 +12,7 @@ import {
 } from '../arm-poses.ts';
 import type { RoomConfig } from '../config.ts';
 import { monitorPositionHTML } from '../desk-editor.ts';
-import { $, $optional, dataOf } from '../dom.ts';
+import { $, $optional, dataOf } from '../ui/dom.ts';
 import { numericField } from '../dom-input.ts';
 import { deskBounds, desktopTargets, resizeDesk, updateDeskItem } from '../model.ts';
 import { armReachHint } from '../settings-panels.ts';

@@ -10,12 +10,12 @@ import type { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
 import { NOTHING_AROUND } from './cockpit-editor-view.ts';
 import { activeArmPose } from './arm-poses.ts';
 import type { RoomConfig } from './config.ts';
-import { $, $$, $optional, dataOf, replaceKeepingFocus } from './dom.ts';
+import { $, $$, $optional, dataOf, replaceKeepingFocus } from './ui/dom.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import { hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
 import { evaluate } from './model.ts';
-import { toast } from './notices.ts';
-import { isGuided, renderPageChrome, type PageChrome } from './page-chrome.ts';
+import { toast } from './app/notices.ts';
+import { isGuided, renderPageChrome, type PageChrome } from './app/page-chrome.ts';
 import { createProject, type Project } from './project.ts';
 import type { ProjectSession } from './project-session.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
@@ -46,7 +46,7 @@ import {
   type Editor,
   type Section,
   type Workspace,
-} from './sections.ts';
+} from './app/sections.ts';
 import { sectionOfStep } from './setup-actions.ts';
 import { creationControls } from './setup-editor.ts';
 import { deskPanelHTML } from './settings-panels.ts';

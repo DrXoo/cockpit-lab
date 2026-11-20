@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const css = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../../src/styles/theme.css', import.meta.url), 'utf8');
 
 /** The `--token: #hex` pairs of the block that starts with `opening`. */
 function tokensOf(opening: string): Record<string, string> {

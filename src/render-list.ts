@@ -1,7 +1,7 @@
 // The vocabulary of the render model: what the scene draws, as plain data in drawing order.
 // The Three.js adapter turns each primitive into an object. Drawing order matters because
 // Three.js breaks ties between overlapping transparent objects by creation order.
-import type { PlanPoint, Point3 } from './geometry.ts';
+import type { PlanPoint, Point3 } from './shared/geometry.ts';
 import type { SceneView } from './scene-camera.ts';
 
 export type Vec3 = [x: number, y: number, z: number];

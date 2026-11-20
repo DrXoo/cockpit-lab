@@ -2,8 +2,8 @@
 // that add a profile, undo and redo.
 import { replayDesign } from '../cad/history.ts';
 import { designPanelHTML } from '../cockpit-editor-view.ts';
-import { dataOf } from '../dom.ts';
-import { canRedo, canUndo } from '../undo.ts';
+import { dataOf } from '../ui/dom.ts';
+import { canRedo, canUndo } from '../shared/undo.ts';
 import type { CockpitEditor } from './editor.ts';
 
 export function historyPanelHTML(editor: CockpitEditor): string {

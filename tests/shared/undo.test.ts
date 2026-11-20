@@ -9,8 +9,8 @@ import {
   redo,
   undo,
   type Edits,
-} from '../src/undo.ts';
-import { present } from './support/lookups.ts';
+} from '../../src/shared/undo.ts';
+import { present } from '../support/lookups.ts';
 
 const undone = <T>(edits: Edits<T>, value: T) => present(undo(edits, value), 'an edit to undo');
 const redone = <T>(edits: Edits<T>, value: T) => present(redo(edits, value), 'an edit to redo');

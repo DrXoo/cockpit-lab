@@ -30,7 +30,7 @@ import {
 } from './cad/history.ts';
 import { DEFAULT_DRIVER, driverOfStature, type Driver } from './cad/driver.ts';
 import { jointIdOf } from './cad/joints.ts';
-import { cleanUserText } from './user-text.ts';
+import { cleanUserText } from './shared/user-text.ts';
 
 export type { Operation } from './cad/history.ts';
 

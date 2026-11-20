@@ -5,7 +5,7 @@ import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
 import type { BooleanSetting, ControlTemplates } from './controls-view.ts';
 import { roomControls } from './room-editor.ts';
-import { escapeHTML as esc } from './html.ts';
+import { escapeHTML as esc } from './ui/html.ts';
 
 const number = (
   id: string,

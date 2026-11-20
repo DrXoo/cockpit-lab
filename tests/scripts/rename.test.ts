@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { renamedSources, type RenameRequest } from '../scripts/rename.ts';
+import { renamedSources, type RenameRequest } from '../../scripts/rename.ts';
 
 const TSCONFIG = JSON.stringify({
   compilerOptions: {

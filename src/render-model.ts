@@ -1,7 +1,7 @@
 // The whole scene as drawn for one configuration and view, ready for the Three.js adapter.
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad } from './geometry.ts';
+import { degToRad } from './shared/geometry.ts';
 import {
   drawDeskDimensions,
   drawLayoutSelection,

@@ -1,11 +1,11 @@
 // Arranging the layout by dragging in the plan: the room's items, the desk's, and the monitor
 // arm's elbow and VESA mount. The layout button turns it on and off.
-import { $ } from '../dom.ts';
+import { $ } from '../ui/dom.ts';
 import { numericField } from '../dom-input.ts';
 import { clamp, clampEdge, desktopTargets, moveArmJoint, placeDeskItem, round } from '../model.ts';
 import { moveRoomTarget } from '../room.ts';
 import { roomItem } from '../room-editor.ts';
-import { isRoomSection } from '../sections.ts';
+import { isRoomSection } from '../app/sections.ts';
 import type { RoomEditorHost } from './host.ts';
 
 /** How far from the room's origin the desk and the arm can be dragged, in cm. */

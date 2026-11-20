@@ -3,8 +3,8 @@
 // failed and, once a part slides, what meets at the ends of its travels and the spans its
 // adjustments would stretch or squeeze. Each is one check that lists what it found, so a design
 // with many problems still reads at a glance.
-import type { Check } from './checks.ts';
-import { round } from './geometry.ts';
+import type { Check } from './shared/checks.ts';
+import { round } from './shared/geometry.ts';
 import type { Axis, ResolvedPart } from './cad/assembly.ts';
 import type { PlacedConnector } from './cad/connectors.ts';
 import { cockpitInterferences, type CadInterference } from './cad/interference.ts';

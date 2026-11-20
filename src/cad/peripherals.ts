@@ -1,7 +1,7 @@
 // Mounting peripherals on profiles and plates in a design history (docs/adr/0005): a new
 // peripheral ready to mount, one moved to a face clicked in the view, the edits of its step and
 // swapping its type. Lengths are in mm.
-import { cleanUserText } from '../user-text.ts';
+import { cleanUserText } from '../shared/user-text.ts';
 import {
   faceAxis,
   type Axis,

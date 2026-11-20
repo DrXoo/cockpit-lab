@@ -27,7 +27,7 @@ import {
 } from '../cad/peripherals.ts';
 import { editPlate, editPlateDraft } from '../cad/plates.ts';
 import { cadChecks } from '../cad-checks.ts';
-import { checkRowHTML } from '../check-view.ts';
+import { checkRowHTML } from '../ui/check-view.ts';
 import {
   adjustmentChange,
   adjustmentField,
@@ -43,9 +43,9 @@ import {
   type PartField,
 } from '../cockpit-editor-view.ts';
 import { partsToBuyHTML } from '../cockpit-parts-view.ts';
-import { $, dataOf, replaceKeepingFocus } from '../dom.ts';
+import { $, dataOf, replaceKeepingFocus } from '../ui/dom.ts';
 import { driverHTML } from '../driver-view.ts';
-import { MM_PER_CM } from '../units.ts';
+import { MM_PER_CM } from '../shared/units.ts';
 import type { CockpitEditor } from './editor.ts';
 import { bindJointActions } from './joint-actions.ts';
 

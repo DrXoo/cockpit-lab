@@ -1,5 +1,5 @@
 // How a check is shown. Every level has a symbol as well as a color.
-import type { Check, CheckLevel } from './checks.ts';
+import type { Check, CheckLevel } from '../shared/checks.ts';
 import { escapeHTML } from './html.ts';
 
 const MARKS: Record<CheckLevel, string> = { ok: '✓', warning: '!', error: '×' };

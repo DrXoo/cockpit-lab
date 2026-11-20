@@ -3,7 +3,7 @@
 import type { RoomConfig } from '../config.ts';
 import type { SetupStep } from '../project.ts';
 import { roomItem, roomItems, roomTarget } from '../room-editor.ts';
-import { isRoomSection, type Section } from '../sections.ts';
+import { isRoomSection, type Section } from '../app/sections.ts';
 
 export interface RoomSelection {
   /**

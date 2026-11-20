@@ -10,8 +10,8 @@ import {
   type PlanPoint,
   type Point3,
   type Solid,
-} from './geometry.ts';
-import type { Check, CheckLevel } from './checks.ts';
+} from './shared/geometry.ts';
+import type { Check, CheckLevel } from './shared/checks.ts';
 import {
   describeInterference,
   findInterferences,
@@ -19,8 +19,8 @@ import {
   type ContactTolerance,
   type Interference,
   type NamedSolid,
-} from './interference.ts';
-import { cleanUserText } from './user-text.ts';
+} from './shared/interference.ts';
+import { cleanUserText } from './shared/user-text.ts';
 
 export type WallId = 'north' | 'east' | 'south' | 'west';
 export type FurnitureType =

@@ -2,7 +2,7 @@
 // takes the value once a handle is let go.
 import type { Draft } from '../cad/drafts.ts';
 import type { Handle, HandleModifiers } from '../cad/handles.ts';
-import { $ } from '../dom.ts';
+import { $ } from '../ui/dom.ts';
 import type { CockpitEditor } from './editor.ts';
 
 export class HandleDragging {

@@ -4,7 +4,7 @@ import {
   nextThemePreference,
   parseThemePreference,
   resolveTheme,
-} from '../src/theme-preference.ts';
+} from '../../src/app/theme-preference.ts';
 
 test('a stored preference is read back', () => {
   assert.equal(parseThemePreference('light'), 'light');

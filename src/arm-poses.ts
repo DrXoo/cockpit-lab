@@ -1,6 +1,6 @@
 // Arm poses: named positions of the monitor arm that the user records and goes back to. A pose
 // stores the joints themselves, so going back to it never works the angles out again.
-import { clamp } from './geometry.ts';
+import { clamp } from './shared/geometry.ts';
 import {
   fields,
   type ClampMount,
@@ -9,7 +9,7 @@ import {
   type MonitorMode,
 } from './config.ts';
 import { monitorGeometry, setMonitorMode, wrapAngle } from './monitor-arm.ts';
-import { cleanUserText } from './user-text.ts';
+import { cleanUserText } from './shared/user-text.ts';
 
 export const MAX_ARM_POSES = 12;
 export const MAX_ARM_POSE_NAME_LENGTH = 40;

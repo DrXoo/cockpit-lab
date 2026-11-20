@@ -1,6 +1,6 @@
 // The layout picker of the room editor: the layout shown, and duplicating, renaming and
 // deleting it, each named or confirmed in its dialog.
-import { $ } from '../dom.ts';
+import { $ } from '../ui/dom.ts';
 import {
   activeLayout,
   deleteLayout,

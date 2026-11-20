@@ -1,5 +1,5 @@
 // The desk: tabletop bounds, the arm anchor and the items placed on it. Lengths in cm.
-import { clamp, degToRad, rectangle, round, transformPoint } from './geometry.ts';
+import { clamp, degToRad, rectangle, round, transformPoint } from './shared/geometry.ts';
 import { defaults, type ClampSide, type RoomConfig, type NumericField } from './config.ts';
 import { deskPose } from './layout.ts';
 

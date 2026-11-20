@@ -1,5 +1,5 @@
 // Changes to the room's openings and furniture, as pure state transitions. Lengths in cm.
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 import { furnitureNames, normalizeRoom, officeChairPlacement, type FurnitureType } from './room.ts';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';

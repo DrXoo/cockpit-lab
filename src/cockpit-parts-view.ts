@@ -11,7 +11,7 @@ import {
 } from './cad/catalog.ts';
 import type { DataSource } from './cad/catalog.ts';
 import type { PartsToBuy } from './cad/parts-to-buy.ts';
-import { escapeHTML } from './html.ts';
+import { escapeHTML } from './ui/html.ts';
 
 interface BuyLine {
   kind: 'cut' | 'plate' | 'connector' | 'fastener' | 'foot';

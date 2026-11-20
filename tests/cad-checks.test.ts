@@ -7,7 +7,7 @@ import {
   type ProfilePart,
   type Vec3Mm,
 } from '../src/cad/assembly.ts';
-import type { Check } from '../src/checks.ts';
+import type { Check } from '../src/shared/checks.ts';
 import {
   addAnchoredProfile,
   addOperation,

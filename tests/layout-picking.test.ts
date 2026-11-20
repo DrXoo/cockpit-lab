@@ -4,7 +4,7 @@ import { pickLayoutItem, draggedPosition } from '../src/layout-picking.ts';
 import { defaults, evaluate, sanitize, transformPoint } from '../src/model.ts';
 import type { RoomConfig } from '../src/config.ts';
 import type { CockpitEvaluation } from '../src/evaluate.ts';
-import type { PlanPoint } from '../src/geometry.ts';
+import type { PlanPoint } from '../src/shared/geometry.ts';
 import type { PickOptions } from '../src/layout-picking.ts';
 import { present, withId } from './support/lookups.ts';
 

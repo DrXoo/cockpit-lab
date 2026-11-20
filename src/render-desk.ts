@@ -2,7 +2,7 @@
 // The desk and its objects are drawn in the desk frame; the monitor and arm in world coordinates.
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { degToRad, overlapDepth, type PlanPoint, type Point3 } from './geometry.ts';
+import { degToRad, overlapDepth, type PlanPoint, type Point3 } from './shared/geometry.ts';
 import { clampEdge } from './desk.ts';
 import type { ParentRef, RenderList, Vec3 } from './render-list.ts';
 import { profileBeam } from './render-profile.ts';

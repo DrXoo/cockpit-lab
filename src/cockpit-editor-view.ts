@@ -63,8 +63,8 @@ import {
 import { differsFromItsType } from './cad/peripherals.ts';
 import type { Hole } from './cad/plate.ts';
 import { defaults, type RoomConfig } from './config.ts';
-import { round } from './geometry.ts';
-import { escapeHTML } from './html.ts';
+import { round } from './shared/geometry.ts';
+import { escapeHTML } from './ui/html.ts';
 
 /** What surrounds a design in its own workspace: nothing. */
 export const NOTHING_AROUND: RoomConfig = {

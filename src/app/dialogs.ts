@@ -1,6 +1,6 @@
 // What every dialog of the page does alike: its close buttons, named by `data-close`, and a
 // click on the backdrop around it close it.
-import { $, $$, dataOf } from './dom.ts';
+import { $, $$, dataOf } from '../ui/dom.ts';
 
 export function bindDialogs() {
   $$('[data-close]').forEach((button) =>

@@ -5,7 +5,7 @@ import type { RoomConfig } from '../src/config.ts';
 import { allOfKind, ofKind, present } from './support/lookups.ts';
 import { ROOT } from '../src/render-list.ts';
 import { defaults, evaluate } from '../src/model.ts';
-import { degToRad } from '../src/geometry.ts';
+import { degToRad } from '../src/shared/geometry.ts';
 import { NOTHING_AROUND } from '../src/cockpit-editor-view.ts';
 import { resolveAssembly } from '../src/cad/assembly.ts';
 import {

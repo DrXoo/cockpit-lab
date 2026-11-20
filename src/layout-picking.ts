@@ -1,7 +1,7 @@
 // What the pointer grabs in the plan views, and where the dragged item goes.
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { clamp, inversePoint, round, type PlanPoint } from './geometry.ts';
+import { clamp, inversePoint, round, type PlanPoint } from './shared/geometry.ts';
 
 /** An item being dragged: where the pointer started and where the item was. */
 export interface LayoutGrab {

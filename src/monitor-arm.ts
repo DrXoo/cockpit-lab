@@ -1,4 +1,4 @@
-import { clamp, degToRad, transformPoint, type PlanPoint } from './geometry.ts';
+import { clamp, degToRad, transformPoint, type PlanPoint } from './shared/geometry.ts';
 import type { RoomConfig, MonitorMode, ArmBend } from './config.ts';
 import { deskPose } from './layout.ts';
 

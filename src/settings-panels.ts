@@ -1,5 +1,5 @@
 // The Desk panel of the room editor: the desktop, its accessories, the monitor and its arm.
-import { round } from './geometry.ts';
+import { round } from './shared/geometry.ts';
 import { bindControls, groupHTML as group, type ControlView } from './controls-view.ts';
 import { accessoryControls } from './setup-editor.ts';
 import { armPosesHTML, deskElementControls } from './desk-editor.ts';

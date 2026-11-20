@@ -1,7 +1,7 @@
 // Draws the profiles, plates, feet, peripherals and connectors of a CAD cockpit design. Parts are
 // in mm in cockpit coordinates; the scene works in cm. Parts at a tilt go into one group per tilt,
 // turned about the cockpit origin as their frame is (src/cad/assembly.ts).
-import { degToRad } from './geometry.ts';
+import { degToRad } from './shared/geometry.ts';
 import type { PaletteMaterial, ParentRef, RenderList, Vec3 } from './render-list.ts';
 import {
   faceAxis,
@@ -18,7 +18,7 @@ import type { MeasureDrawing } from './render-measurement.ts';
 import type { Handle } from './cad/handles.ts';
 import type { SnapGuide } from './cad/snapping.ts';
 import type { JointMarker } from './cad/joint-markers.ts';
-import { MM_PER_CM } from './units.ts';
+import { MM_PER_CM } from './shared/units.ts';
 import type { DriverFigure } from './cad/driver.ts';
 
 /** A cockpit design as the scene shows it: its resolved parts and the one selected. */

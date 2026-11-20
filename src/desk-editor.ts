@@ -10,7 +10,7 @@ import {
   monitorPositionOf,
   type MonitorPosition,
 } from './arm-poses.ts';
-import { escapeHTML } from './html.ts';
+import { escapeHTML } from './ui/html.ts';
 
 const AUTOMATIC_POSITION_LABELS: Record<(typeof AUTOMATIC_MONITOR_MODES)[number], string> = {
   desk: 'On the desk',

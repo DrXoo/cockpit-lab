@@ -2,7 +2,7 @@
 // part, and checking that the history still fits together (docs/adr/0005). Editing a part
 // changes the values of the operation that made it, so the history stays the only record of the
 // design. The operations themselves are in operations.ts. Lengths are in mm.
-import { cleanUserText } from '../user-text.ts';
+import { cleanUserText } from '../shared/user-text.ts';
 import {
   cornersMm,
   faceAxis,

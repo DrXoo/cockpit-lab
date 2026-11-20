@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { baselineProblems, unexplainedCasts } from '../scripts/check-casts.ts';
+import { baselineProblems, unexplainedCasts } from '../../scripts/check-casts.ts';
 
 test('a type assertion is found on its line', () => {
   assert.deepEqual(unexplainedCasts('const a = 1;\nconst b = value as Mm;\n'), [2]);

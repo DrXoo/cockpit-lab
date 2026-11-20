@@ -8,7 +8,7 @@ export {
   rectangle,
   overlapDepth,
   polygonDistance,
-} from './geometry.ts';
+} from './shared/geometry.ts';
 export * from './config.ts';
 export * from './layout.ts';
 export * from './desk.ts';

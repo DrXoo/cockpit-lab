@@ -9,7 +9,7 @@ import {
   overlapDepth,
   polygonDistance,
   type Point3,
-} from '../src/geometry.ts';
+} from '../../src/shared/geometry.ts';
 
 const near = (actual: number, expected: number, tolerance = 1e-9) =>
   assert.ok(Math.abs(actual - expected) < tolerance, `${actual} ≉ ${expected}`);

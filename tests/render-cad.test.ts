@@ -11,7 +11,7 @@ import {
   type ProfilePart,
 } from '../src/cad/assembly.ts';
 import { drawCadProfiles, drawConnectors } from '../src/render-cad.ts';
-import { degToRad } from '../src/geometry.ts';
+import { degToRad } from '../src/shared/geometry.ts';
 import { peripheralType } from '../src/cad/catalog.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
