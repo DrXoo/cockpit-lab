@@ -4,7 +4,7 @@ The record of each finished stage and slice of [the plan](mini-cad.md): what was
 
 ## 1. Parts model, catalog and conversion, read only
 
-Done in November 2026 (`src/cad/`). The conversion puts two 40 corner brackets on every joint, and the feet, peripheral envelopes, bracket fasteners and adjustment travels are estimates from the drawing until real parts are chosen; each says so in its data source. Every base reports the parts its parametric drawing left crossing or unsupported, for stage 2 to fix.
+Done in November 2026 (`src/cockpit/cad/`). The conversion puts two 40 corner brackets on every joint, and the feet, peripheral envelopes, bracket fasteners and adjustment travels are estimates from the drawing until real parts are chosen; each says so in its data source. Every base reports the parts its parametric drawing left crossing or unsupported, for stage 2 to fix.
 
 ## 2. Profile editor on a design history
 

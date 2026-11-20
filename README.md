@@ -60,46 +60,28 @@ These checks are approximate. They don't validate loads, stiffness or structural
 
 ## Project structure
 
+The source is grouped by area first: the room, the cockpit design and the project each have a folder. Inside an area, the folder itself holds the domain, pure modules without DOM or Three.js; `editing/` or `editor/` holds the editor's controllers and the HTML they show, and `render/` what the scene draws. Those two depend on the domain, never the other way round. Tests mirror the folders of `src/` in `tests/`.
+
 | Path | Responsibility |
 | --- | --- |
-| `src/index.html`, `src/styles/styles.css`, `src/styles/ui.css` | Markup and styles |
-| `src/app.ts` | Composition root: opens the saved project, builds the editors' controllers around the workbench and draws the 3D view |
-| `src/workbench.ts`, `src/app/sections.ts`, `src/app/page-chrome.ts` | The page the user works in: which editor, tab, view and panel it shows, refreshing it, and what each editor and setup step shows or hides; the host both editors' controllers ask |
-| `src/cockpit-editor/` | The cockpit editor: its session (selection, history marker, undo, part being added, Fit, measuring) as pure state in `session.ts`, its commands without DOM in `editor.ts`, and one controller per part of the page (inspector, toolbar, keys, history panel, view overlays, handle dragging) |
-| `src/room-editing/` | The room editor: its selection and the rules that keep it to the panel shown, and one controller per part of the page (setting controls, room items, guided setup, desk and arm, layout picker, room checks, dragging in the plan), all through `RoomEditorHost` |
-| `src/ui/dom.ts`, `src/ui/icons.ts`, `src/app/dialogs.ts`, `src/app/notices.ts`, `src/app/theme.ts` | Finding and replacing parts of the page, its icons, closing dialogs, toasts and the save status, and the color theme |
-| `src/room/editing/dom-input.ts`, `src/room/setting-change.ts` | Validating what the panels send, and applying a setting change |
-| `src/project/project.ts`, `src/project/storage.ts`, `src/project/session.ts` | Project format, browser storage, and the open project with its autosave |
-| `src/cockpit/file.ts`, `src/app/project-files.ts` | Cockpit files: a cockpit design on its own, to move it between projects; exporting and opening project and cockpit files |
-| `src/room/layouts.ts`, `src/room/editing/layouts-view.ts` | Layouts: what each arrangement of the room places, what they share, and the layout picker |
-| `src/shared/user-text.ts` | Cleaning names typed by users |
-| `src/room/editing/setup-editor.ts`, `src/room/editing/setup-actions.ts` | Guided setup steps and rules |
-| `src/room/actions.ts` | Adding, editing, deleting and placing room items |
-| `src/room/editing/controls-view.ts`, `src/room/editing/settings-panels.ts` | Setting controls and the desk panel of the room editor |
-| `src/cockpit/design.ts`, `src/cockpit/editor/editor-view.ts`, `src/shared/undo.ts` | The cockpit design as its design history and how files store it, the HTML of the cockpit editor's history panel and inspector and reading their fields, and undo and redo of its edits |
-| `src/cad/`, `src/cockpit/checks.ts`, `src/cockpit/render/cad.ts` | The cockpit parts model in mm: catalog, assembly, design history, plates on profiles, joints and connectors, support, interference, cuts and parts to buy, their checks and their drawing |
-| `src/cockpit/render/hover.ts`, `src/cockpit/editor/hover-view.ts` | What marks the part or face under the pointer in the cockpit editor, and the label that names it |
-| `src/cockpit/cad/interaction/handles.ts`, `src/cockpit/render/handles.ts` | The handles that resize the selected profile by dragging in the view, and their stems |
-| `src/cockpit/render/dimensions.ts`, `src/cockpit/render/measurement.ts`, `src/cockpit/editor/measure-view.ts` | The length of the selected part, and the measure tool's drawing and readout |
-| `src/project/summary.ts`, `src/room/editing/inspector-view.ts`, `src/ui/check-view.ts`, `src/ui/html.ts` | Summary, validation banner, metrics and checks |
-| `src/room/model.ts` | Public entry point of the room model |
-| `src/room/config.ts` | Room settings, ranges, defaults and validation |
-| `src/room/evaluate.ts` | Envelopes, interferences and checks for a room configuration |
-| `src/shared/interference.ts` | How far two volumes overlap and which part reaches into which item |
-| `src/room/layout.ts`, `src/room/desk.ts`, `src/room/monitor-arm.ts`, `src/cockpit/cad/driver/anatomy.ts` | Desk placement, desk, monitor arm and the seated posture model |
-| `src/room/arm-poses.ts` | Saved arm poses: recording, going back to and validating them |
-| `src/room/parts.ts`, `src/room/field-spec.ts` | Desk accessories to buy and per-setting ranges |
-| `src/shared/geometry.ts`, `src/shared/units.ts`, `src/shared/checks.ts` | Plan geometry, cm/mm units and the check type |
-| `src/room/room.ts`, `src/room/editing/room-editor.ts`, `src/room/editing/desk-editor.ts` | Room, furniture and desk model and editors |
-| `src/scene/scene.ts` | Three.js scene, labels and interaction, with an SVG fallback |
-| `src/scene/render-model.ts`, `src/scene/render-list.ts` | Render model: what the scene draws, as plain data in drawing order |
-| `src/room/render/desk.ts`, `src/room/render/room.ts`, `src/room/render/profile.ts` | Drawings of the desk and monitor, the room and aluminium profiles |
-| `src/room/render/annotations.ts` | Measurements, labels and the selection outline |
-| `src/scene/three-adapter.ts` | Turns the render model into Three.js objects |
-| `src/scene/camera.ts`, `src/room/editing/layout-picking.ts` | Camera framing for each view, and what a drag in the plan grabs |
-| `tests/` | Unit tests |
+| `src/index.html`, `src/app.ts` | The page, and the composition root: opens the saved project, builds the editors' controllers around the workbench and draws the 3D view |
+| `src/workbench.ts` | The page the user works in: which editor, tab, view and panel it shows, and refreshing it; the host both editors' controllers ask |
+| `src/app/` | The page's shell around the editors: its sections, header and chrome, notices, dialogs, color theme, and opening and exporting files |
+| `src/shared/` | What every area uses: plan geometry, cm/mm units, the check type, interference between volumes, cleaning names typed by users, undo and redo |
+| `src/ui/` | DOM helpers: finding and replacing parts of the page, icons, building HTML safely, and how a check is shown |
+| `src/styles/` | The style sheets and the color tokens of both themes |
+| `src/scene/` | The 3D view both editors share: the Three.js scene and its interaction, camera framing, canvas colors, and the render model (what the scene draws, as plain data in drawing order) with the adapter that turns it into Three.js objects |
+| `src/project/` | The project format and its migrations, browser storage, the open project with its autosave, and the printable summary |
+| `src/room/` | The room model in cm: room, furniture and openings, the desk and its accessories, the monitor arm and its saved poses, layouts, settings with their ranges, and the room's envelopes and checks (`evaluate.ts`) |
+| `src/room/editing/` | The room editor: its selection, one controller per part of the page (setting controls, room items, guided setup, desk and arm, layout picker, room checks, dragging in the plan) through `RoomEditorHost`, and the HTML of its panels |
+| `src/room/render/` | Drawings of the room, the desk and monitor, aluminium profiles, and the measurements, labels and selection outline |
+| `src/cockpit/` | The cockpit design as its design history and how files store it, cockpit files, and the checks a design gets |
+| `src/cockpit/cad/` | The cockpit parts model in mm, by subject: `parts/` (catalog, assembly, plates, joints, connectors), `history/` (operations, replay, editing the history, drafts, adjustments and travel, fastening, plates and peripherals), `analysis/` (interference, support, measuring), `interaction/` (handles, snapping, picking, joint markers), `output/` (cuts and parts to buy) and `driver/` (stature, posture, anatomy) |
+| `src/cockpit/editor/` | The cockpit editor: its session (selection, history marker, undo, part being added, Fit, measuring) as pure state in `session.ts`, its commands without DOM in `editor.ts`, one controller per part of the page, and the HTML of its history, inspector, parts list and labels |
+| `src/cockpit/render/` | Drawings of the cockpit design: its parts, dimensions, driver, handles, hover and measurement |
+| `tests/` | Unit tests, in the folders of the modules they test; `tests/support/` builds designs and reads values for them, `tests/scripts/` tests the scripts |
 | `e2e/` | End-to-end tests and the project files they use |
-| `scripts/` | Project checks and development tools (look, rename) |
+| `scripts/` | Project checks and development tools (look, move, rename) |
 | `vite.config.js` | Dev server and build configuration |
 | `docs/` | Detailed documentation and the mini CAD plan |
 
