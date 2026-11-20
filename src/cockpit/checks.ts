@@ -3,7 +3,9 @@
 // failed and, once a part slides, what meets at the ends of its travels and the spans its
 // adjustments would stretch or squeeze, and, once it has a plate, what is wrong with the holes of
 // its plates for how they are made. Each is one check that lists what it found, so a design
-// with many problems still reads at a glance.
+// with many problems still reads at a glance. In a design with modes, what depends on the parts
+// on the cockpit, as interference, support and the driver's reach, is checked in the mode shown,
+// and the other modes say how many problems they have; the rest belongs to the whole design.
 import type { Check } from '../shared/checks.ts';
 import { round } from '../shared/geometry.ts';
 import type { Axis, ResolvedPart } from './cad/parts/assembly.ts';
@@ -24,6 +26,9 @@ import {
   spansReachingSubassemblies,
   type Subassembly,
 } from './cad/history/subassemblies.ts';
+import { designInMode, partsOffIn, type Mode } from './cad/history/modes.ts';
+import type { ReplayedDesign } from './cad/history/replay.ts';
+import { seatedDriver, type Driver } from './cad/driver/driver.ts';
 
 /** A design replayed from its history, with the steps that failed. */
 export interface DesignToCheck {
@@ -40,6 +45,27 @@ export interface DesignToCheck {
   adjustments?: ReadonlyMap<string, SlidingPart>;
   /** Its subassemblies; none when left out. */
   subassemblies?: readonly Subassembly[];
+  /** The driver it is fitted to; its reach is not checked when left out. */
+  driver?: Driver;
+}
+
+/** A design replayed in full, with what it keeps beside its history. */
+export interface DesignInModes {
+  history: readonly Operation[];
+  replayed: ReplayedDesign;
+  subassemblies: readonly Subassembly[];
+  modes: readonly Mode[];
+  /** The mode the view shows, or null for all the parts. */
+  shownModeId: string | null;
+  driver?: Driver;
+}
+
+/** The checks that depend on which parts are on the cockpit. */
+interface PartsOnChecks {
+  interference: Check;
+  support: Check;
+  alongTravels: Check[];
+  driver: Check[];
 }
 
 /** The shortest way out, in the frame of the part it was measured on. */
@@ -75,24 +101,129 @@ function listCheck(
   };
 }
 
-export function cadChecks(design: DesignToCheck): Check[] {
-  // Parts reach into each other where the driver has them, along their travels.
-  const shown = design.fitted ?? design;
-  const fitted = design.history.some((operation) => adjustmentOf(operation) !== undefined)
-    ? [travelInterferenceCheck(design), fittedSpansCheck(design)]
-    : [];
+/**
+ * The checks of a design in the mode the view shows. Without modes every part is on; with all
+ * the parts shown, only the checks of the whole design apply, and each mode says how many
+ * problems it has.
+ */
+export function designChecks(design: DesignInModes): Check[] {
+  const { history, replayed, subassemblies, modes, driver } = design;
+  const whole: DesignToCheck = {
+    history,
+    ...replayed,
+    subassemblies,
+    ...(driver ? { driver } : {}),
+  };
+  if (modes.length === 0) return cadChecks(whole);
+  const applied = appliedSubassemblies(subassemblies, replayed.resolved);
+  const inMode = (mode: Mode): DesignToCheck => ({
+    ...whole,
+    ...designInMode(replayed, partsOffIn(mode, applied)),
+  });
+  const shown = modes.find((mode) => mode.id === design.shownModeId) ?? null;
+  const others = modes.filter((mode) => mode !== shown);
+  const checks = cadChecks(whole, { onCockpit: shown ? inMode(shown) : null });
+  if (others.length === 0) return checks;
+  const problems = others.map((mode) => ({
+    name: mode.name,
+    checks: allOf(partsOnChecks(inMode(mode))),
+  }));
+  return [...checks, modesCheck(problems, shown !== null)];
+}
+
+/**
+ * The checks of a design. Those that depend on which parts are on the cockpit are of
+ * `onCockpit`, the design itself unless given, and left out when it is null.
+ */
+export function cadChecks(
+  design: DesignToCheck,
+  { onCockpit = design }: { onCockpit?: DesignToCheck | null } = {},
+): Check[] {
+  const on = onCockpit ? partsOnChecks(onCockpit) : null;
   return [
-    interferenceCheck(shown.resolved, shown.connectors ?? []),
-    supportCheck(design.resolved, design.joints ?? jointsOf(design.resolved)),
+    ...(on ? [on.interference, on.support] : []),
     pendingJointsCheck(
       design.resolved,
       design.joints ?? jointsOf(design.resolved),
       design.connectors ?? [],
     ),
     failedStepsCheck(design),
-    ...fitted,
+    ...(on?.alongTravels ?? []),
     ...plateHoleChecks(design),
     ...subassemblyChecks(design),
+    ...(on?.driver ?? []),
+  ];
+}
+
+function partsOnChecks(design: DesignToCheck): PartsOnChecks {
+  // Parts reach into each other where the driver has them, along their travels.
+  const shown = design.fitted ?? design;
+  const adjusted = design.history.some((operation) => adjustmentOf(operation) !== undefined);
+  return {
+    interference: interferenceCheck(shown.resolved, shown.connectors ?? []),
+    support: supportCheck(design.resolved, design.joints ?? jointsOf(design.resolved)),
+    alongTravels: adjusted ? [travelInterferenceCheck(design), fittedSpansCheck(design)] : [],
+    driver: driverReachCheck(design),
+  };
+}
+
+const allOf = (checks: PartsOnChecks): Check[] => [
+  checks.interference,
+  checks.support,
+  ...checks.alongTravels,
+  ...checks.driver,
+];
+
+const itemCount = (check: Check): number => check.items?.length ?? 0;
+
+/** How many problems each mode has, and in which checks, for the modes not shown. */
+function modesCheck(modes: { name: string; checks: Check[] }[], aModeIsShown: boolean): Check {
+  const items = modes.flatMap(({ name, checks }) => {
+    const warned = checks.filter((check) => itemCount(check) > 0);
+    const total = warned.reduce((sum, check) => sum + itemCount(check), 0);
+    if (total === 0) return [];
+    const where = warned.map((check) => `${check.label}: ${itemCount(check)}`);
+    return [`${name}: ${total} ${total === 1 ? 'problem' : 'problems'} — ${where.join(', ')}`];
+  });
+  return listCheck(
+    'cad-modes',
+    aModeIsShown ? 'Problems in other modes' : 'Problems in the modes',
+    items,
+    {
+      found: 'Show a mode in the view to see its problems and the parts it has on.',
+      none: aModeIsShown
+        ? 'The other modes have no problems with the parts they have on.'
+        : 'No mode has problems with the parts it has on.',
+    },
+  );
+}
+
+/** Once the driver sits in the design, what the legs, the arms and the hands do not reach. */
+function driverReachCheck({ resolved, fitted, driver }: DesignToCheck): Check[] {
+  if (!driver) return [];
+  const seated = seatedDriver((fitted ?? { resolved }).resolved, driver);
+  if (seated.kind !== 'seated') return [];
+  const { legs, arms, grips } = seated.reach;
+  const items = [
+    ...(legs ? [] : ['The legs do not reach the pedals']),
+    ...(arms === false ? ['The arms do not reach the wheel'] : []),
+    ...grips
+      .filter(({ shortByMm }) => shortByMm > 0)
+      // Rounded up, so a grip just out of reach never reads as 0 mm beyond it.
+      .map(
+        ({ name, hand, shortByMm }) =>
+          `${name}: ${Math.ceil(shortByMm)} mm beyond the reach of the ${hand} hand`,
+      ),
+    ...seated.doubledGrips.map(
+      ({ hand, names }) =>
+        `The ${hand} hand has more than one grip to hold, ${names.join(', ')}, and holds neither`,
+    ),
+  ];
+  return [
+    listCheck('cad-driver-reach', "Driver's reach", items, {
+      found: 'Move the peripherals along their travels in Fit, or mount them closer to the driver.',
+      none: 'The driver reaches the pedals and whatever the hands hold.',
+    }),
   ];
 }
 

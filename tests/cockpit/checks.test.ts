@@ -10,6 +10,7 @@ import {
 import type { Check } from '../../src/shared/checks.ts';
 import {
   addAnchoredProfile,
+  addFoot,
   addOperation,
   deleteOperation,
   draftGrowth,
@@ -18,10 +19,12 @@ import {
   replayDesign,
   type Operation,
 } from '../../src/cockpit/cad/history/history.ts';
-import { cadChecks } from '../../src/cockpit/checks.ts';
+import { cadChecks, designChecks } from '../../src/cockpit/checks.ts';
+import type { Mode } from '../../src/cockpit/cad/history/modes.ts';
 import { addAdjustment, editAdjustment } from '../../src/cockpit/cad/history/adjustments.ts';
 import { editPlate } from '../../src/cockpit/cad/history/plates.ts';
 import {
+  deckHistory,
   growthTowardsRail,
   railHistory,
   withGrowth,
@@ -262,4 +265,101 @@ test('a design with subassemblies lists the spans outside one that reach into it
   );
   assert.equal(found.level, 'warning');
   assert.deepEqual(found.items, ['B reaches C, in Side rail']);
+});
+
+/**
+ * The deck history with a Post grown out of the rail where the Deck is (part-5), so the two
+ * reach into each other, each the root of a subassembly, and modes that take off one or none.
+ */
+function interchangeable() {
+  const history = withGrowth(deckHistory(), 'part-1', { name: 'Post', face: '+y', alongMm: 500 });
+  const subassemblies = [
+    { name: 'Wheel deck', rootId: 'part-2' },
+    { name: 'Stick post', rootId: 'part-5' },
+  ];
+  const modes: Mode[] = [
+    { id: 'mode-1', name: 'Racing', takenOff: ['part-5'] },
+    { id: 'mode-2', name: 'Flight', takenOff: ['part-2'] },
+    { id: 'mode-3', name: 'Both', takenOff: [] },
+  ];
+  return { history, subassemblies, modes };
+}
+
+/** The items a check lists, failing the test when the design does not get the check. */
+const itemsOf = (check: Check | undefined, what: string): readonly string[] =>
+  present(present(check, what).items, what);
+
+const checksInModes = (shownModeId: string | null, modes = interchangeable().modes) => {
+  const { history, subassemblies } = interchangeable();
+  return byId(
+    designChecks({ history, replayed: replayDesign(history), subassemblies, modes, shownModeId }),
+  );
+};
+
+test('a design without modes is checked with every part on', () => {
+  const checks = checksInModes(null, []);
+  assert.match(itemsOf(checks['cad-interference'], 'interference').join(), /Post|Deck/);
+  assert.equal(checks['cad-modes'], undefined);
+});
+
+test('the mode shown is checked with only the parts it has on', () => {
+  const checks = checksInModes('mode-1');
+  assert.deepEqual(present(checks['cad-interference'], 'interference').items, []);
+  assert.ok(
+    itemsOf(checks['cad-support'], 'support').every((name) => name !== 'Post'),
+    'a part taken off is not unsupported',
+  );
+});
+
+test('the mode shown says how many problems each other mode has, and in which checks', () => {
+  const others = present(checksInModes('mode-1')['cad-modes'], 'the problems of other modes');
+  assert.equal(others.label, 'Problems in other modes');
+  assert.equal(others.level, 'warning');
+  const [flight, both] = others.items ?? [];
+  assert.match(present(flight, 'Flight'), /^Flight: \d+ problems? — Unsupported parts: \d+$/);
+  assert.match(present(both, 'Both'), /^Both: \d+ problems — Parts reaching into each other: 1, /);
+});
+
+test('all parts shows the checks of the whole design and each mode’s problems', () => {
+  const checks = checksInModes(null);
+  assert.equal(checks['cad-interference'], undefined);
+  assert.equal(checks['cad-support'], undefined);
+  assert.ok(checks['cad-pending-joints'] && checks['cad-failed-steps']);
+  const modes = present(checks['cad-modes'], 'the problems of the modes');
+  assert.equal(modes.label, 'Problems in the modes');
+  assert.deepEqual(
+    (modes.items ?? []).map((item) => item.split(':')[0]),
+    ['Racing', 'Flight', 'Both'],
+  );
+});
+
+test('a mode whose parts all fit has no problems to count', () => {
+  const { history } = interchangeable();
+  const standing = addFoot(history, 'part-1').history;
+  const checks = byId(
+    designChecks({
+      history: standing,
+      replayed: replayDesign(standing),
+      subassemblies: interchangeable().subassemblies,
+      modes: interchangeable().modes.slice(0, 2),
+      shownModeId: 'mode-1',
+    }),
+  );
+  const others = present(checks['cad-modes'], 'the problems of other modes');
+  assert.equal(others.level, 'ok');
+  assert.deepEqual(others.items, []);
+});
+
+test('once the driver sits in the design, what the driver does not reach is listed', () => {
+  const seatedWithPedalsAt = (alongMm: number) => {
+    const seated = withPeripheral(railHistory(), 'part-1', 'generic-seat', { alongMm: 100 });
+    const history = withPeripheral(seated, 'part-1', 'generic-pedals', { alongMm });
+    const driver = { statureMm: 1750 };
+    return byId(cadChecks({ history, ...replayDesign(history), driver }))['cad-driver-reach'];
+  };
+  assert.deepEqual(present(seatedWithPedalsAt(700), 'the reach').items, []);
+  assert.deepEqual(present(seatedWithPedalsAt(1000), 'the reach').items, [
+    'The legs do not reach the pedals',
+  ]);
+  assert.equal(checksOfHistory(railHistory())['cad-driver-reach'], undefined);
 });
