@@ -22,7 +22,7 @@ Every attachment and each end of a span make a joint, unresolved until it has co
 
 ## The driver in the CAD
 
-Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate on T-nuts in its profiles' slots; the editor shows the design's adjustments, and anything else about the posture changes by editing parts.
+Peripherals carry contact points: the hip and backrest on the seat, the hands on the wheel and grips, the heels on the pedals. The driver's posture, and so the eye point, follow from where the design mounts them. With a wheel on, both hands are on it; without one, each hand holds its stick or throttle, reached from its own shoulder, and every grip has its reach checked. An attachment can be an adjustment, with a travel, such as a seat on its rails or a wheel plate on T-nuts in its profiles' slots; the editor shows the design's adjustments, and anything else about the posture changes by editing parts.
 
 A design is replayed with every part at the center of its travel, and the fitted pose then moves each adjusted part, and what hangs from it, to its position (`src/cockpit/cad/history/travel.ts`). The design at the centers is what is built and bought: joints, connectors, cuts, parts to buy, the checks of every step, the drafts' parents and snapping. The fitted pose is what the driver sits in: the drawing, the handles, the joint markers' positions, measuring and interference. A new consumer of the geometry picks one of the two for that reason.
 
