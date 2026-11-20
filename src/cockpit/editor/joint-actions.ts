@@ -6,7 +6,8 @@ import {
   joinParts,
   setConnector,
 } from '../cad/history/fastening.ts';
-import { faceOf, QUICK_BOLTS_PER_SLOT } from './editor-view.ts';
+import { faceOf } from './field-changes.ts';
+import { QUICK_BOLTS_PER_SLOT } from './joints-view.ts';
 import { dataOf } from '../../ui/dom.ts';
 import type { CockpitEditor } from './editor.ts';
 

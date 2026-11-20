@@ -1,6 +1,6 @@
 // The toolbar of the view in the cockpit editor: the actions on the selected part, Fit and the
 // measure tool.
-import { partToolsOf, type PartTool } from './editor-view.ts';
+import { partToolsOf, type PartTool } from './part-tools.ts';
 import { $ } from '../../ui/dom.ts';
 import type { CockpitEditor } from './editor.ts';
 

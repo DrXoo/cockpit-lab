@@ -30,18 +30,16 @@ import { cadChecks } from '../checks.ts';
 import { checkRowHTML } from '../../ui/check-view.ts';
 import {
   adjustmentChange,
-  adjustmentField,
   footChange,
-  growPanelHTML,
   partChange,
-  partField,
-  partInspectorHTML,
   peripheralChange,
-  peripheralPanelHTML,
   plateChange,
-  platePanelHTML,
-  type PartField,
-} from './editor-view.ts';
+} from './field-changes.ts';
+import { adjustmentField, partField, type PartField } from './part-fields.ts';
+import { partInspectorHTML } from './inspector-view.ts';
+import { growPanelHTML } from './profile-view.ts';
+import { platePanelHTML } from './plate-view.ts';
+import { peripheralPanelHTML } from './peripheral-view.ts';
 import { partsToBuyHTML } from './parts-view.ts';
 import { $, dataOf, replaceKeepingFocus } from '../../ui/dom.ts';
 import { driverHTML } from './driver-view.ts';

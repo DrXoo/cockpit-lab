@@ -2,23 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   adjustmentChange,
-  adjustmentField,
-  deleteKeyAction,
-  designPanelHTML,
   footChange,
-  growPanelHTML,
-  jointCardHTML,
   partChange,
-  partField,
-  partInspectorHTML,
-  partToolsOf,
-  plateChange,
-  platePanelHTML,
   peripheralChange,
-  peripheralPanelHTML,
-  type DesignPanel,
+  plateChange,
+} from '../../../src/cockpit/editor/field-changes.ts';
+import {
+  adjustmentField,
+  partField,
   type PartField,
-} from '../../../src/cockpit/editor/editor-view.ts';
+} from '../../../src/cockpit/editor/part-fields.ts';
+import { designPanelHTML, type DesignPanel } from '../../../src/cockpit/editor/history-view.ts';
+import { partInspectorHTML } from '../../../src/cockpit/editor/inspector-view.ts';
+import { jointCardHTML } from '../../../src/cockpit/editor/joints-view.ts';
+import { deleteKeyAction, partToolsOf } from '../../../src/cockpit/editor/part-tools.ts';
+import { growPanelHTML } from '../../../src/cockpit/editor/profile-view.ts';
+import { platePanelHTML } from '../../../src/cockpit/editor/plate-view.ts';
+import { peripheralPanelHTML } from '../../../src/cockpit/editor/peripheral-view.ts';
 import type { JointOfPart } from '../../../src/cockpit/cad/history/fastening.ts';
 import { ofKind, present } from '../../support/lookups.ts';
 import { draftPlate } from '../../../src/cockpit/cad/history/plates.ts';

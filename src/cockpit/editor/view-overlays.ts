@@ -6,7 +6,7 @@ import { draftCornersMm } from '../cad/history/drafts.ts';
 import { dragReadout, type DragReadout } from '../cad/interaction/handles.ts';
 import { operationMaking } from '../cad/history/history.ts';
 import type { PartHit } from '../cad/interaction/picking.ts';
-import { jointCardHTML } from './editor-view.ts';
+import { jointCardHTML } from './joints-view.ts';
 import { $, $optional, dataOf, replaceKeepingFocus } from '../../ui/dom.ts';
 import { hoverLabel } from './hover-view.ts';
 import { measureReadout } from './measure-view.ts';

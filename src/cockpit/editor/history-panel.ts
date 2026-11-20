@@ -1,7 +1,7 @@
 // The side panel of the cockpit editor: the design history with its marker, and the buttons
 // that add a profile, undo and redo.
 import { replayDesign } from '../cad/history/history.ts';
-import { designPanelHTML } from './editor-view.ts';
+import { designPanelHTML } from './history-view.ts';
 import { dataOf } from '../../ui/dom.ts';
 import { canRedo, canUndo } from '../../shared/undo.ts';
 import type { CockpitEditor } from './editor.ts';

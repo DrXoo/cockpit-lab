@@ -30,7 +30,7 @@ import type { JointMarker } from '../cad/interaction/joint-markers.ts';
 import { measureBetween, pickInCockpit } from '../cad/analysis/measure.ts';
 import type { PartHit } from '../cad/interaction/picking.ts';
 import type { CockpitDesign } from '../design.ts';
-import type { JointCard, TouchingPart } from './editor-view.ts';
+import type { JointCard, TouchingPart } from './joints-view.ts';
 import type { CockpitDrawing } from '../render/cad.ts';
 import type { MeasureDrawing } from '../render/measurement.ts';
 import * as editing from './session.ts';

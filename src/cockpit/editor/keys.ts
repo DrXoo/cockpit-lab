@@ -1,7 +1,7 @@
 // The keys of the cockpit editor. Escape drops what is waiting, being measured or being added;
 // Enter confirms it; Delete removes the selected part; Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z)
 // undo and redo. In a text field they keep editing its text.
-import { deleteKeyAction } from './editor-view.ts';
+import { deleteKeyAction } from './part-tools.ts';
 import type { CockpitEditor } from './editor.ts';
 
 const dialogOpen = (): boolean => document.querySelector('dialog[open]') !== null;
