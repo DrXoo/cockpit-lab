@@ -1,10 +1,4 @@
-import { steps, createProject, readProject, projectData, replaceCockpitDesign } from './project.ts';
-import {
-  cockpitFileData,
-  PARAMETRIC_COCKPIT_FILE_MESSAGE,
-  readCockpitFile,
-} from './cockpit-file.ts';
-import type { CockpitDesign } from './cockpit-design.ts';
+import { steps, createProject } from './project.ts';
 import { NOTHING_AROUND } from './cockpit-editor-view.ts';
 import type { CockpitDrawing } from './render-cad.ts';
 import { CockpitEditor } from './cockpit-editor/editor.ts';
@@ -38,7 +32,7 @@ import { numericField } from './dom-input.ts';
 import { validationBanner, metricsView } from './inspector-view.ts';
 import { sectionOfStep, setupButtons } from './setup-actions.ts';
 import { deskPanelHTML } from './settings-panels.ts';
-import { createProjectStore, STORAGE_KEY } from './project-storage.ts';
+import { createProjectStore } from './project-storage.ts';
 import { ProjectSession } from './project-session.ts';
 import { checkRowHTML } from './check-view.ts';
 import { $, $$, $optional, dataOf, replaceKeepingFocus } from './dom.ts';
@@ -61,6 +55,7 @@ import { LayoutPicker } from './room-editing/layout-picker.ts';
 import { SettingControls } from './room-editing/settings-controls.ts';
 import { drawIcons } from './icons.ts';
 import { ColorTheme } from './theme.ts';
+import { ProjectFiles } from './project-files.ts';
 
 drawIcons();
 
@@ -108,14 +103,6 @@ if (loaded.status === 'loaded') {
   setSaveStatus('Design restored from this browser');
 } else if (loaded.status === 'unavailable')
   setSaveStatus('This browser blocks saving · export a JSON file', 'error');
-/**
- * Explains that the project held a parametric cockpit, which was left out because it is retired
- * (docs/adr/0004). A project restored from this browser keeps the earlier version's saved copy.
- */
-function reportLeftOutCockpit({ fromBrowser }: { fromBrowser: boolean }) {
-  $('#leftOutCockpitKept').hidden = !fromBrowser;
-  $<HTMLDialogElement>('#leftOutCockpitDialog').showModal();
-}
 if (project.setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(project.setup.step);
 if (project.setup.step !== 'complete' && project.state.roomEnabled) roomSelection.editing = true;
@@ -157,6 +144,29 @@ const roomItemControls = new RoomItems(roomHost);
 const guidedSetup = new GuidedSetup(roomHost);
 const deskControls = new DeskControls(roomHost, settingControls);
 const layoutPicker = new LayoutPicker(roomHost);
+const projectFiles = new ProjectFiles({
+  project,
+  cockpitEditor,
+  openProject: (opened) => openProject(opened),
+  showOpenedProject: () => {
+    renderControls();
+    refresh();
+    $<HTMLDialogElement>('#summaryDialog').close();
+    if (!project.state.roomEnabled && cockpitEditor.hasDesign()) startWithCockpit();
+    else if (project.setup.step !== 'complete') guidedSetup.enterStep(project.setup.step);
+    else {
+      switchSection('room');
+      setActiveView('iso');
+    }
+  },
+  showImportedDesign: () => {
+    renderControls();
+    refresh();
+    setActiveView('iso');
+  },
+  toast: (message) => toast(message),
+  showSaveStatus: (message, status) => setSaveStatus(message, status),
+});
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(message: string) {
   $('#toast').textContent = message;
@@ -414,33 +424,6 @@ function refresh() {
   cockpitToolbar.render();
   scene?.update(shown, evaluation, cockpitDrawing());
 }
-function download(filename: string, text: string, type: string) {
-  const blob = new Blob([text], { type }),
-    a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-/** Explains that the saved design could not be read and where it is kept. */
-function reportUnreadableSave(keptAs: string, text: string) {
-  $('#unreadableKept').textContent =
-    keptAs === STORAGE_KEY
-      ? `it stays in this browser, and automatic saving is off so that nothing replaces it. Export a JSON file to keep new changes.`
-      : `it stays in this browser as "${keptAs}", and new changes are saved separately.`;
-  $('#downloadUnreadable').onclick = () =>
-    download('cockpit-lab-unreadable-design.json', text, 'application/json');
-  $<HTMLDialogElement>('#unreadableDialog').showModal();
-  setSaveStatus('The saved design could not be opened · it was kept', 'error');
-}
-function exportConfig() {
-  download(
-    'cockpit-lab-design.json',
-    JSON.stringify(projectData(project.recorded()), null, 2),
-    'application/json',
-  );
-  toast('JSON exported. Use Open JSON to bring this design back.');
-}
 function summary() {
   $('#summaryTitle').textContent = SUMMARY_HEADING.title;
   $('#summaryDialog .section-kicker').textContent = SUMMARY_HEADING.kicker;
@@ -587,96 +570,7 @@ $$<HTMLDialogElement>('dialog').forEach((d) =>
     }
   }),
 );
-$('#saveConfig').addEventListener('click', exportConfig);
 $('#printBtn').addEventListener('click', () => window.print());
-$('#importBtn').addEventListener('click', () => $('#importFile').click());
-$('#loadConfig').addEventListener('click', () => $('#importFile').click());
-/** Generous for a full project: 20 layouts of 30 pieces of furniture export to about 100 kB. */
-const MAX_PROJECT_FILE_BYTES = 500_000;
-const importFile = $<HTMLInputElement>('#importFile');
-importFile.addEventListener('change', async () => {
-  const file = importFile.files?.[0];
-  if (!file) return;
-  try {
-    if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('File too large');
-    const data: unknown = JSON.parse(await file.text());
-    if (isCockpitFile(data)) {
-      toast('This is a cockpit file: import it from the Cockpit editor.');
-      return;
-    }
-    const opened = readProject(data);
-    openProject(opened.project);
-    project.saveNow();
-    renderControls();
-    refresh();
-    $<HTMLDialogElement>('#summaryDialog').close();
-    if (!project.state.roomEnabled && cockpitEditor.hasDesign()) startWithCockpit();
-    else if (project.setup.step !== 'complete') guidedSetup.enterStep(project.setup.step);
-    else {
-      switchSection('room');
-      setActiveView('iso');
-    }
-    if (opened.parametricCockpitLeftOut) reportLeftOutCockpit({ fromBrowser: false });
-    else toast('Design loaded');
-  } catch {
-    toast('Could not load the file: use a JSON file exported by Cockpit Lab.');
-  } finally {
-    importFile.value = '';
-  }
-});
-/** Whether a file is a cockpit file rather than a project, from its own description. */
-const isCockpitFile = (data: unknown): boolean =>
-  typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'cockpit';
-$('#exportCockpit').addEventListener('click', () => {
-  if (cockpitEditor.session.design === null) return;
-  download(
-    'cockpit-lab-cockpit.json',
-    JSON.stringify(cockpitFileData(cockpitEditor.session.design), null, 2),
-    'application/json',
-  );
-  toast('Cockpit file exported. Import it from the Cockpit editor of another project.');
-});
-const importCockpitFile = $<HTMLInputElement>('#importCockpitFile');
-$('#importCockpit').addEventListener('click', () => importCockpitFile.click());
-/** A design read from a cockpit file, waiting for the user to confirm it replaces theirs. */
-let importedDesign: CockpitDesign | null = null;
-importCockpitFile.addEventListener('change', async () => {
-  const file = importCockpitFile.files?.[0];
-  if (!file) return;
-  try {
-    if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('File too large');
-    const design = readCockpitFile(JSON.parse(await file.text()));
-    if (cockpitEditor.hasDesign()) {
-      importedDesign = design;
-      $<HTMLDialogElement>('#replaceCockpitDialog').showModal();
-    } else useImportedDesign(design);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    toast(
-      message === 'This is not a cockpit file'
-        ? 'This is a project file: open it with Open JSON.'
-        : message === PARAMETRIC_COCKPIT_FILE_MESSAGE
-          ? 'This cockpit file holds a cockpit of the retired configurator, which is not converted. Design it again from parts.'
-          : 'Could not import the file: use a cockpit file exported by Cockpit Lab.',
-    );
-  } finally {
-    importCockpitFile.value = '';
-  }
-});
-$('#confirmReplaceCockpit').addEventListener('click', () => {
-  $<HTMLDialogElement>('#replaceCockpitDialog').close();
-  if (importedDesign) useImportedDesign(importedDesign);
-  importedDesign = null;
-});
-/** Makes an imported design the project's, in the cockpit editor and in the room. */
-function useImportedDesign(design: CockpitDesign) {
-  openProject(replaceCockpitDesign(project.recorded(), design));
-  project.saveNow();
-  renderControls();
-  refresh();
-  setActiveView('iso');
-  toast('Cockpit file imported.');
-}
 window.addEventListener('pagehide', () => {
   project.saveNow();
 });
@@ -684,9 +578,9 @@ $('#newProject').addEventListener('click', () => $<HTMLDialogElement>('#resetDia
 if (project.setup.step !== 'complete') showWorkspace('config');
 renderControls();
 refresh();
-if (loaded.status === 'unreadable') reportUnreadableSave(loaded.keptAs, loaded.text);
+if (loaded.status === 'unreadable') projectFiles.reportUnreadableSave(loaded.keptAs, loaded.text);
 if (loaded.status === 'loaded' && loaded.parametricCockpitLeftOut)
-  reportLeftOutCockpit({ fromBrowser: true });
+  projectFiles.reportLeftOutCockpit({ fromBrowser: true });
 try {
   scene = new CockpitScene($('#viewport'), $('#sceneLabels'));
   scene.update(shownConfig(), evaluation, cockpitDrawing());
