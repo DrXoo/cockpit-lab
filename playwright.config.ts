@@ -1,6 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
 const PORT = 5190;
+/** Relative to Vite's root (src/); node_modules/.cache is ignored by Git and by Prettier. */
+const E2E_BUILD_DIR = '../node_modules/.cache/e2e-build';
 
 /** Specs that compare screenshots with local references. */
 const VISUAL_SPECS = ['**/page-appearance.spec.ts', '**/rendering.spec.ts', '**/theme.spec.ts'];
@@ -46,8 +48,13 @@ export default defineConfig({
     { name: 'functional', testIgnore: VISUAL_SPECS },
     { name: 'visual', testMatch: VISUAL_SPECS, workers: VISUAL_WORKERS },
   ],
+  // The tests run against a build made when the run starts, not the dev server: editing src/
+  // during a run would otherwise reload the open pages through HMR and serve later tests a
+  // half-edited app. The build goes apart from dist/, which belongs to `npm run build`.
   webServer: {
-    command: `npx vite --port ${PORT} --strictPort`,
+    command:
+      `npx vite build --outDir ${E2E_BUILD_DIR} --emptyOutDir --logLevel warn` +
+      ` && npx vite preview --outDir ${E2E_BUILD_DIR} --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: false,
     timeout: 60_000,
