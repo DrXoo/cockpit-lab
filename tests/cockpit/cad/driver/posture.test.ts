@@ -77,3 +77,16 @@ test('a design without a seat or pedals cannot seat the driver, and says what to
 test('two parts that seat the driver cannot seat one', () => {
   assert.match(missingContact([seat(), seat({ id: 'second-seat' }), pedals]), /hip/);
 });
+
+test('grips for each hand leave the driver seated', () => {
+  const grip = (id: string, hand: 'left' | 'right') =>
+    peripheral(id, 'side-stick', [{ role: 'grip', offsetMm: { x: 0, y: 0, z: 0 } }], { hand });
+  const contacts = contactsOf([
+    seat(),
+    pedals,
+    wheel,
+    grip('stick', 'right'),
+    grip('throttle', 'left'),
+  ]);
+  assert.equal(contacts.heel.z - contacts.hip.z, 1000);
+});

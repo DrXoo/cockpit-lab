@@ -28,14 +28,77 @@ const boxOf = (history: readonly Operation[], partId: string) =>
 /** The peripheral the history mounts at its second step. */
 const mounted = (history: readonly Operation[]) => ofKind(history[1], 'mount-peripheral');
 
-test('the catalog has a generic seat, wheel base and pedal set, with estimated values', () => {
+test('the catalog has a generic seat, wheel base, pedal set and peripherals for the hands, with estimated values', () => {
   assert.deepEqual(
     peripheralTypes().map((type) => type.category),
-    ['seat', 'wheel-base', 'pedals'],
+    [
+      'seat',
+      'wheel-base',
+      'pedals',
+      'shifter',
+      'handbrake',
+      'center-stick',
+      'side-stick',
+      'throttle',
+    ],
   );
   for (const type of peripheralTypes()) assert.equal(type.source.kind, 'estimated');
   assert.equal(typeof peripheralType('generic-seat').backrestDeg, 'number');
-  assert.throws(() => peripheralType('generic-shifter'), /not in the catalog/);
+  assert.throws(() => peripheralType('generic-hotas'), /not in the catalog/);
+});
+
+test('a peripheral for the hands has a grip, used by the right hand except on a throttle', () => {
+  const hands = new Map(
+    peripheralTypes()
+      .filter((type) => type.contactPoints.some((contact) => contact.role === 'grip'))
+      .map((type) => [type.category, type.gripHand]),
+  );
+  assert.deepEqual(
+    hands,
+    new Map([
+      ['shifter', 'right'],
+      ['handbrake', 'right'],
+      ['center-stick', 'right'],
+      ['side-stick', 'right'],
+      ['throttle', 'left'],
+    ]),
+  );
+  assert.equal(peripheralType('generic-seat').gripHand, undefined);
+});
+
+test('a new peripheral with a grip takes the hand of its type, and the hand is edited on its step', () => {
+  const throttle = draftPeripheral(railHistory(), 'part-1', 'generic-throttle');
+  assert.equal(throttle.hand, 'left');
+  assert.equal('hand' in draftPeripheral(railHistory(), 'part-1', 'generic-pedals'), false);
+  const history = withPeripheral(railHistory(), 'part-1', 'generic-throttle');
+  assert.equal(mounted(editPeripheral(history, 'part-2', { hand: 'right' })).hand, 'right');
+});
+
+test('only a peripheral with a grip has a hand, and a grip needs one', () => {
+  const pedals = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
+  assert.throws(
+    () => editPeripheral(pedals, 'part-2', { hand: 'left' }),
+    /Only a peripheral with a grip/,
+  );
+  const shifter = mounted(withPeripheral(railHistory(), 'part-1', 'generic-shifter'));
+  const { hand: _hand, ...withoutHand } = shifter;
+  assert.throws(() => addOperation(railHistory(), withoutHand), /which hand/);
+  // @ts-expect-error: a hand is the left or the right, to check another is rejected.
+  assert.throws(() => addOperation(railHistory(), { ...shifter, hand: 'both' }), /which hand/);
+});
+
+test('the hand on a grip is not a value of its type, and swapping to another grip keeps it', () => {
+  const stick = editPeripheral(
+    withPeripheral(railHistory(), 'part-1', 'generic-side-stick'),
+    'part-2',
+    { hand: 'left' },
+  );
+  assert.equal(differsFromItsType(mounted(stick)), false);
+  const throttle = swapPeripheralType(stick, 'part-2', 'generic-throttle');
+  assert.equal(mounted(throttle).hand, 'left');
+  const pedals = swapPeripheralType(throttle, 'part-2', 'generic-pedals');
+  assert.equal('hand' in mounted(pedals), false);
+  assert.equal(mounted(swapPeripheralType(pedals, 'part-2', 'generic-shifter')).hand, 'right');
 });
 
 test('a new peripheral goes on top of a profile, centered and facing the front, with the values of its type', () => {
@@ -305,5 +368,5 @@ test('a peripheral swapped for another type keeps a name the user gave it', () =
   );
   assert.equal(mounted(swapPeripheralType(named, 'part-2', 'generic-seat')).name, 'Clutch side');
   assert.throws(() => swapPeripheralType(named, 'part-1', 'generic-seat'), /not a peripheral/);
-  assert.throws(() => swapPeripheralType(named, 'part-2', 'generic-shifter'), /not in the catalog/);
+  assert.throws(() => swapPeripheralType(named, 'part-2', 'generic-hotas'), /not in the catalog/);
 });

@@ -39,6 +39,16 @@ const ICON_PATHS: Record<string, string> = {
   foot: 'M9 2v8M5.5 10h7l1.5 3h-10ZM2 16h14',
   // Three pedals standing on their base.
   pedals: 'M2 15h14M4 15l1-8h2l-1 8M8 15l1-8h2l-1 8M12 15l1-8h2l-1 8',
+  // A round knob on a lever standing out of its base.
+  shifter: 'M11 4a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM9 6v7M4 13h10v3H4z',
+  // A lever leaning back from its base, with a handle across its top.
+  handbrake: 'M2 13h14v3H2zM6 13l6-8M10.5 3.5l3 3',
+  // A tall grip on a stick out of a low base.
+  centerStick: 'M7 2h4v6H7zM9 8v6M4 14h10v2H4z',
+  // A short stick on a base fixed to the side of the cockpit.
+  sideStick: 'M6 4h4v5H6zM8 9v4M3 13h10v3H3zM15 2v14',
+  // A handle across the top of a lever out of a tall base.
+  throttle: 'M3 11h12v5H3zM9 11V6M5 4h8v2H5z',
 };
 /** Draws every icon inside `root`; an unknown name draws the info icon. */
 export function drawIcons(root: ParentNode = document) {

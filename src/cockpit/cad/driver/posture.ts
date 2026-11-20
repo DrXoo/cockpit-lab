@@ -24,6 +24,12 @@ const MISSING_TEXT: Record<'hip' | 'heel', string> = {
   heel: "Mount pedals: they carry the driver's heels.",
 };
 
+/**
+ * The contacts the driver is seated on, each carried by one part at most. A grip is held by one
+ * hand, and a design may have one for each.
+ */
+const SEATING_ROLES: readonly ContactRole[] = ['hip', 'heel', 'hands'];
+
 interface Found {
   pointMm: Vec3Mm;
   holder: ResolvedPart;
@@ -39,7 +45,8 @@ export function cadContacts(
   const found = new Map<ContactRole, Found[]>();
   for (const part of resolved.values())
     for (const { role, pointMm } of contactPointsMm(part))
-      found.set(role, [...(found.get(role) ?? []), { pointMm, holder: part }]);
+      if (SEATING_ROLES.includes(role))
+        found.set(role, [...(found.get(role) ?? []), { pointMm, holder: part }]);
   for (const [role, all] of found)
     if (all.length > 1)
       return { reason: `The ${role} contact is on ${all.length} parts; the driver needs one.` };

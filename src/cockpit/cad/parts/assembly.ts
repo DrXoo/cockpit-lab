@@ -110,8 +110,13 @@ export interface PlatePart {
   placement: Anchor | Attachment;
 }
 
-export type ContactRole = 'hip' | 'heel' | 'hands';
-export const CONTACT_ROLES: readonly ContactRole[] = ['hip', 'heel', 'hands'];
+/** Where the driver meets a peripheral: the hip, the heels, both hands, or one hand's grip. */
+export type ContactRole = 'hip' | 'heel' | 'hands' | 'grip';
+export const CONTACT_ROLES: readonly ContactRole[] = ['hip', 'heel', 'hands', 'grip'];
+
+/** The driver's hand that uses a grip. */
+export type Hand = 'left' | 'right';
+export const HANDS: readonly Hand[] = ['left', 'right'];
 
 /** The box a peripheral takes, in its own frame: width across, height up, depth to its front. */
 export interface Envelope {
@@ -147,6 +152,8 @@ export interface PeripheralPart {
   /** For a seat, the backrest's angle back from upright. */
   backrestDeg?: number;
   source: DataSource;
+  /** For a peripheral with a grip, the hand that uses it. */
+  hand?: Hand;
   /**
    * The way the driver faces when using it, along the face it is mounted on: +Z, the front of
    * the cockpit, for a peripheral mounted as usual.

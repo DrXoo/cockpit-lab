@@ -40,7 +40,16 @@ test('the inspector of a peripheral sets its type and the values copied from it'
   const types = captured(/id="part-typeId"[^]*?<\/select>/, html, 0);
   assert.deepEqual(
     [...types.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]),
-    ['generic-seat', 'generic-wheel-base', 'generic-pedals'],
+    [
+      'generic-seat',
+      'generic-wheel-base',
+      'generic-pedals',
+      'generic-shifter',
+      'generic-handbrake',
+      'generic-center-stick',
+      'generic-side-stick',
+      'generic-throttle',
+    ],
   );
   assert.match(types, /<option value="generic-pedals" selected>Pedal set<\/option>/);
   assert.match(html, /id="part-widthMm"[^>]*value="400"/);
@@ -56,6 +65,20 @@ test('the inspector of a peripheral sets its type and the values copied from it'
   assert.match(html, /Heels/);
   assert.match(html, /id="part-contactZMm-heel"[^>]*data-part-item="heel"[^>]*value="-130"/);
   assert.doesNotMatch(html, /Edited from its type/);
+  assert.doesNotMatch(html, /id="part-hand"/, 'pedals have no grip');
+});
+
+test('the inspector of a peripheral with a grip chooses the hand that uses it', () => {
+  const history = withPeripheral(railHistory(), 'part-1', 'generic-throttle');
+  const html = partInspectorHTML(history, history[1]);
+  const hands = captured(/id="part-hand"[^]*?<\/select>/, html, 0);
+  assert.deepEqual(
+    [...hands.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]),
+    ['left', 'right'],
+  );
+  assert.match(hands, /<option value="left" selected>Left hand<\/option>/);
+  assert.match(html, /Grip/);
+  assert.match(html, /id="part-contactYMm-grip"[^>]*value="170"/);
 });
 
 test('the inspector of a seat sets its backrest, and says when its values are edited', () => {

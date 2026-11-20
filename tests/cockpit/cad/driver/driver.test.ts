@@ -22,6 +22,7 @@ const CATEGORY_OF: Record<ContactRole, PeripheralCategory> = {
   hip: 'seat',
   heel: 'pedals',
   hands: 'wheel-base',
+  grip: 'center-stick',
 };
 import { replayDesign } from '../../../../src/cockpit/cad/history/history.ts';
 import { railHistory, withGrowth, withPeripheral } from '../../../support/designs.ts';

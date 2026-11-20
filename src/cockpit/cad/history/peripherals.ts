@@ -58,6 +58,7 @@ export function draftPeripheral(
   const face: Face = part.kind === 'plate' ? part.normal : onAnUpright ? '+z' : '+y';
   const facing = facingAlong(face, USUAL_FACING);
   const adjustment = railsOf(type, facing, undefined);
+  const hand = type.gripHand;
   return checkedOperation({
     kind: 'mount-peripheral',
     ...nextIdentifiers(history),
@@ -71,6 +72,7 @@ export function draftPeripheral(
     alongMm: Math.round(extentAlong(parent) / 2),
     acrossMm: 0,
     facing,
+    ...(hand === undefined ? {} : { hand }),
     ...(adjustment === undefined ? {} : { adjustment }),
   });
 }
@@ -133,6 +135,7 @@ export function editPeripheralDraft(
   const facing = changes.facing ?? facingAlong(face, draft.facing);
   const adjustment = adjustmentTurnedWith(draft.adjustment, draft.facing, face, facing);
   const backrestDeg = changes.backrestDeg ?? draft.backrestDeg;
+  const hand = changes.hand ?? draft.hand;
   const edited: MountPeripheral = {
     ...draft,
     ...copiedPeripheral({
@@ -148,6 +151,7 @@ export function editPeripheralDraft(
     acrossMm: changes.acrossMm ?? draft.acrossMm,
     name: cleanUserText(changes.name, draft.name, MAX_PART_NAME_LENGTH),
     facing,
+    ...(hand === undefined ? {} : { hand }),
     ...(adjustment === undefined ? {} : { adjustment }),
   };
   return checkedOperation(onAnEndAtItsCenter(history, edited));
@@ -191,7 +195,8 @@ export function removeMountingHole(
 /**
  * Swaps the type of a mounted peripheral: it stays where it is mounted, facing the same way, and
  * takes the values of its new type in place of its own. A name that was its old type's becomes
- * the new type's; a name the user gave it stays.
+ * the new type's; a name the user gave it stays. A grip swapped for another stays with the hand
+ * that used it, which reaches the same place.
  */
 export function swapPeripheralType(
   history: readonly Operation[],
@@ -201,6 +206,7 @@ export function swapPeripheralType(
   const operation = peripheralStep(history, partId);
   const type = peripheralType(typeId);
   const adjustment = railsOf(type, operation.facing, operation.adjustment);
+  const hand = type.gripHand === undefined ? undefined : (operation.hand ?? type.gripHand);
   const swapped: MountPeripheral = {
     kind: 'mount-peripheral',
     id: operation.id,
@@ -215,6 +221,7 @@ export function swapPeripheralType(
     alongMm: operation.alongMm,
     acrossMm: operation.acrossMm,
     facing: operation.facing,
+    ...(hand === undefined ? {} : { hand }),
     ...(adjustment === undefined ? {} : { adjustment }),
   };
   return changeOperation(history, checkedOperation(swapped));

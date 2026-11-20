@@ -115,6 +115,8 @@ test('the fields of a peripheral change the values of its operation', () => {
   assert.throws(() => change('contactXMm', '0', 'hip'), /no hip contact point/);
   assert.throws(() => change('sheetId', 'aluminium-4'), /sheetId/);
   assert.throws(() => change('typeId', 'generic-seat'), /swap/);
+  assert.deepEqual(change('hand', 'left'), { hand: 'left' });
+  assert.throws(() => change('hand', 'both'), /both/);
 });
 
 test('a value typed in the adjustment changes its axis, travel or position', () => {

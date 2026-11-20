@@ -360,6 +360,37 @@ test('a wheel base has its rim on the side of the driver, within its envelope', 
   }
 });
 
+test('a peripheral for one hand is a base with a lever up to its grip, within its envelope', () => {
+  for (const typeId of [
+    'generic-shifter',
+    'generic-handbrake',
+    'generic-center-stick',
+    'generic-side-stick',
+    'generic-throttle',
+  ]) {
+    const control = peripheralOf(typeId, {
+      hand: present(peripheralType(typeId).gripHand, typeId),
+    });
+    const primitives = drawFitting([control]);
+    const { widthMm, heightMm, depthMm } = control.envelope;
+    const [x, y, z] = boundsMm(primitives);
+    assert.ok(x[0] >= -widthMm / 2 && x[1] <= widthMm / 2, typeId);
+    assert.ok(y[0] >= 0 && y[1] <= heightMm, typeId);
+    assert.ok(z[0] >= -depthMm / 2 && z[1] <= depthMm / 2, typeId);
+    const grip = present(
+      control.contactPoints.find((contact) => contact.role === 'grip'),
+      'grip',
+    );
+    const lever = allOfKind(primitives, 'tube');
+    assert.equal(lever.length, 1, typeId);
+    assert.deepEqual(
+      lever[0].to.map((value) => Math.round(value * 10)),
+      [grip.offsetMm.x, grip.offsetMm.y, grip.offsetMm.z],
+      `the lever of ${typeId} ends at its grip`,
+    );
+  }
+});
+
 test('a peripheral turned on its face is drawn turned', () => {
   const pedals = peripheralOf('generic-pedals', { facing: '-x' });
   const { widthMm, depthMm } = pedals.envelope;

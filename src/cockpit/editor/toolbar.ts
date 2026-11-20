@@ -16,6 +16,11 @@ const MOUNT_BUTTONS: Readonly<Record<string, string>> = {
   'generic-seat': '#mountSeat',
   'generic-wheel-base': '#mountWheelBase',
   'generic-pedals': '#mountPedals',
+  'generic-shifter': '#mountShifter',
+  'generic-handbrake': '#mountHandbrake',
+  'generic-center-stick': '#mountCenterStick',
+  'generic-side-stick': '#mountSideStick',
+  'generic-throttle': '#mountThrottle',
 };
 
 export class CockpitToolbar {

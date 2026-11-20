@@ -4,11 +4,13 @@
 import {
   CONTACT_ROLES,
   faceAxis,
+  HANDS,
   type Axis,
   type ContactPoint,
   type Envelope,
   type Face,
   type FootPart,
+  type Hand,
   type Part,
   type PeripheralPart,
   type PlatePart,
@@ -193,6 +195,8 @@ export interface MountPeripheral extends PeripheralShape {
   acrossMm: number;
   /** The way the driver faces when using it, along the face: +Z as usually mounted. */
   facing: Face;
+  /** For a peripheral with a grip, the hand that uses it, chosen on it rather than its type. */
+  hand?: Hand;
   adjustment?: Adjustment;
 }
 
@@ -312,6 +316,7 @@ export interface PeripheralValues {
   mountingPattern: MountingPattern;
   contactPoints: readonly ContactPoint[];
   backrestDeg: number;
+  hand: Hand;
 }
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
@@ -421,6 +426,7 @@ function peripheralMadeBy(operation: MountPeripheral): PeripheralPart {
     name: operation.name,
     category: operation.category,
     ...copiedPeripheral(operation),
+    ...(operation.hand === undefined ? {} : { hand: operation.hand }),
     facing: operation.facing,
     placement: {
       kind: 'attachment',
@@ -632,6 +638,7 @@ function checkPeripheral(operation: MountPeripheral) {
     (!Number.isFinite(backrestDeg) || backrestDeg < 0 || backrestDeg > MAX_BACKREST_DEG)
   )
     throw new Error(`A backrest leans back between 0 and ${MAX_BACKREST_DEG}°.`);
+  checkHand(operation);
   if (
     !DATA_SOURCE_KINDS.includes(operation.source.kind) ||
     typeof operation.source.reference !== 'string'
@@ -645,6 +652,15 @@ function checkPeripheral(operation: MountPeripheral) {
   if (!Number.isFinite(operation.acrossMm))
     throw new Error('An offset across a face must be a number of mm.');
   checkAdjustment(operation);
+}
+
+/** A peripheral with a grip says which hand uses it; one without has no hand. */
+function checkHand({ contactPoints, hand }: MountPeripheral) {
+  const hasAGrip = contactPoints.some((contact) => contact.role === 'grip');
+  if (!hasAGrip && hand !== undefined)
+    throw new Error('Only a peripheral with a grip is used by one hand.');
+  if (hasAGrip && !HANDS.some((known) => known === hand))
+    throw new Error('A peripheral with a grip needs which hand uses it: the left or the right.');
 }
 
 function checkEnvelope({ widthMm, heightMm, depthMm }: Envelope) {

@@ -1044,6 +1044,30 @@ test("a peripheral's inspector edits its own values, and swapping its type warns
   await expect(page.locator('#part-widthMm')).toHaveValue('540');
 });
 
+test('a peripheral for one hand is mounted from the toolbar and says which hand holds its grip', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountThrottle').click();
+  await expect(page.locator('#peripheralPanel')).toBeVisible();
+  await page.locator('#confirmPeripheral').click();
+  await expect(page.locator('#peripheralPanel')).toBeHidden();
+  const peripheral = async () => (await savedHistory(page))?.[1];
+  await expect
+    .poll(peripheral)
+    .toMatchObject({ typeId: 'generic-throttle', category: 'throttle', hand: 'left' });
+  await expect(page.locator('#part-hand')).toHaveValue('left');
+
+  await page.locator('#part-hand').selectOption('right');
+  await expect.poll(async () => (await peripheral())?.hand).toBe('right');
+  await page.locator('#part-typeId').selectOption('generic-side-stick');
+  await expect.poll(peripheral).toMatchObject({ category: 'side-stick', hand: 'right' });
+  await page.locator('#part-typeId').selectOption('generic-pedals');
+  await expect.poll(async () => (await peripheral())?.category).toBe('pedals');
+  await expect(page.locator('#part-hand')).toBeHidden();
+});
+
 test('fitting, a part slides along its adjustment, saved with the design without a step', async ({
   page,
 }) => {

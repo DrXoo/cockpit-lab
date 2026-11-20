@@ -189,6 +189,37 @@ test('a removal reads back, and must name the part it removes', () => {
   );
 });
 
+test('a peripheral with a grip reads back with the hand that uses it', () => {
+  const { history } = designWith(1);
+  const throttle: MountPeripheral = {
+    kind: 'mount-peripheral',
+    id: 'op-2',
+    partId: 'part-2',
+    name: 'Throttle',
+    typeId: 'generic-throttle',
+    category: 'throttle',
+    envelope: { widthMm: 200, heightMm: 200, depthMm: 260 },
+    mountingPattern: { holes: [] },
+    contactPoints: [{ role: 'grip', offsetMm: { x: 0, y: 170, z: 0 } }],
+    source: { kind: 'estimated', reference: 'Typical of the kind' },
+    parentId: 'part-1',
+    face: '+y',
+    fromEnd: 'start',
+    alongMm: 300,
+    acrossMm: 0,
+    facing: '+z',
+    hand: 'right',
+  };
+  const data = stored({ ...emptyDesign(), history: [...history, throttle] });
+  assert.deepEqual(readDesign(data).history[1], throttle);
+  const withThrottle = (changes: object) => ({
+    ...data,
+    history: [data.history[0], { ...throttle, ...changes }],
+  });
+  assert.throws(() => readDesign(withThrottle({ hand: 'both' })), /which hand/);
+  assert.throws(() => readDesign(withThrottle({ hand: undefined })), /which hand/);
+});
+
 test('a mounted peripheral reads back with the values copied from its type and its place', () => {
   const { history } = designWith(1);
   const pedals: MountPeripheral = {
@@ -232,7 +263,7 @@ test('a mounted peripheral reads back with the values copied from its type and i
       .typeId,
     'retired-pedals',
   );
-  assert.throws(() => readDesign(withPedals({ category: 'shifter' })), /shifter/);
+  assert.throws(() => readDesign(withPedals({ category: 'hotas' })), /hotas/);
   assert.throws(
     () => readDesign(withPedals({ envelope: { widthMm: 400, heightMm: 200 } })),
     /depth/,

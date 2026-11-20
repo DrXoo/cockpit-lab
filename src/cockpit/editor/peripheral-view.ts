@@ -1,7 +1,14 @@
 // A mounted peripheral in the inspector: its name, its type, where it is mounted, and the values
 // copied from its type; and the panel of a peripheral about to be mounted, shown in the view as
 // a preview, which only places it.
-import { faceAxis, type Axis, type ContactPoint, type ContactRole } from '../cad/parts/assembly.ts';
+import {
+  faceAxis,
+  HANDS,
+  type Axis,
+  type ContactPoint,
+  type ContactRole,
+  type Hand,
+} from '../cad/parts/assembly.ts';
 import { peripheralTypes } from '../cad/parts/catalog.ts';
 import {
   FACES,
@@ -40,7 +47,10 @@ const CONTACT_NAMES: Record<ContactRole, string> = {
   hip: 'Hip',
   heel: 'Heels',
   hands: 'Hands',
+  grip: 'Grip',
 };
+
+const HAND_NAMES: Record<Hand, string> = { left: 'Left hand', right: 'Right hand' };
 
 /** The panel of a peripheral about to be mounted, shown in the view as a preview. */
 export function peripheralPanelHTML(history: readonly Operation[], draft: MountPeripheral): string {
@@ -69,7 +79,7 @@ export function peripheralInspectorHTML(
       ? `The values of its type, ${ESTIMATED_PERIPHERAL_HINT}.`
       : 'The values of its type.';
   const type = `${fields.select('typeId', 'Type', types, peripheral.typeId)}<p class="layout-hint">${source}</p>`;
-  const place = peripheralPlaceHTML('part', history, peripheral);
+  const place = `${peripheralPlaceHTML('part', history, peripheral)}${handHTML(fields, peripheral)}`;
   const ownValues = `${envelopeHTML(fields, peripheral)}${mountingPatternHTML(peripheral.mountingPattern.holes)}${contactPointsHTML(peripheral.contactPoints)}`;
   return `${nameFieldHTML('part', peripheral.name)}${mountedOnHTML(history, peripheral)}${type}${place}${ownValues}`;
 }
@@ -117,6 +127,13 @@ function peripheralPlaceHTML(
     ? '<p class="layout-hint">On an end face it is mounted at the center of the end.</p>'
     : `${fields.select('fromEnd', 'Measured from', ends, peripheral.fromEnd)}${fields.number('alongMm', 'Distance to its mounting origin', peripheral.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', peripheral.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
   return `${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
+}
+
+/** The hand that uses a peripheral's grip, chosen on it rather than on its type. */
+function handHTML(fields: FieldTemplates, { hand }: MountPeripheral): string {
+  if (hand === undefined) return '';
+  const hands = HANDS.map((choice): [string, string] => [choice, HAND_NAMES[choice]]);
+  return `${fields.select('hand', 'Held by', hands, hand)}<p class="layout-hint">The driver's hand on its grip, kept when its type is swapped for another with a grip.</p>`;
 }
 
 /** A peripheral's envelope, and a seat's backrest, which leans back from upright. */

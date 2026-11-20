@@ -1,6 +1,13 @@
 // The changes a value typed in the inspector makes to the values of a part's operation, one
 // function per kind of part, and to a part's adjustment.
-import type { Axis, ContactPoint, Face, Vec3Mm } from '../cad/parts/assembly.ts';
+import {
+  HANDS,
+  type Axis,
+  type ContactPoint,
+  type Face,
+  type Hand,
+  type Vec3Mm,
+} from '../cad/parts/assembly.ts';
 import {
   ADJUSTMENT_GUIDES,
   AXES,
@@ -63,6 +70,7 @@ export function partChange(
     case 'contactXMm':
     case 'contactYMm':
     case 'contactZMm':
+    case 'hand':
       throw new Error(`A profile has no ${field}`);
     case 'startX':
     case 'startY':
@@ -161,6 +169,8 @@ export function peripheralChange(
       return contactChange('y');
     case 'contactZMm':
       return contactChange('z');
+    case 'hand':
+      return { hand: handOf(value) };
     case 'typeId':
       throw new Error("A peripheral's type is swapped, not edited: use swapPeripheralType.");
     case 'name':
@@ -221,6 +231,12 @@ export function adjustmentChange(field: AdjustmentField, value: string): Partial
     case 'runsOn':
       return { runsOn: guideOf(value) };
   }
+}
+
+function handOf(value: string): Hand {
+  const hand = HANDS.find((known) => known === value);
+  if (!hand) throw new Error(`Unknown hand: ${value}`);
+  return hand;
 }
 
 function guideOf(value: string): AdjustmentGuide {

@@ -63,6 +63,11 @@ export const CATEGORY_NAMES: Record<PeripheralCategory, string> = {
   seat: 'Seat',
   'wheel-base': 'Wheel base',
   pedals: 'Pedals',
+  shifter: 'Shifter',
+  handbrake: 'Handbrake',
+  'center-stick': 'Center stick',
+  'side-stick': 'Side stick',
+  throttle: 'Throttle',
 };
 
 /** What each kind of peripheral is called in a sentence. */
@@ -70,6 +75,11 @@ export const CATEGORY_NOUNS: Record<PeripheralCategory, string> = {
   seat: 'seat',
   'wheel-base': 'wheel base',
   pedals: 'pedal set',
+  shifter: 'shifter',
+  handbrake: 'handbrake',
+  'center-stick': 'center stick',
+  'side-stick': 'side stick',
+  throttle: 'throttle',
 };
 
 export const sectionName = (widthMm: number, heightMm: number) => `${widthMm} × ${heightMm}`;

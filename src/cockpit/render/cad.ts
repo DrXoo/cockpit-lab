@@ -12,7 +12,12 @@ import {
   type ResolvedPart,
   type Vec3Mm,
 } from '../cad/parts/assembly.ts';
-import { connectorType, isPlateBolt, profileSystem } from '../cad/parts/catalog.ts';
+import {
+  connectorType,
+  isPlateBolt,
+  profileSystem,
+  type PeripheralCategory,
+} from '../cad/parts/catalog.ts';
 import type { PlacedConnector } from '../cad/parts/connectors.ts';
 import { pointOnPlate, type PlateHole } from '../cad/parts/plate-holes.ts';
 import type { MeasureDrawing } from './measurement.ts';
@@ -154,6 +159,23 @@ const PEDAL_WIDTH_MM = 60;
 const PEDAL_DEPTH_SHARE = 0.1;
 const PEDAL_COUNT = 3;
 
+/** A peripheral for one hand as drawn: a base, a lever up to its grip and a knob or handle there. */
+interface HandControlLook {
+  /** The share of the envelope's height its base takes. */
+  baseHeightShare: number;
+  /** The size of the knob or handle around its grip: across, up and to its front. */
+  knobMm: Vec3Mm;
+}
+const HAND_CONTROL_LOOKS: Record<HandControlCategory, HandControlLook> = {
+  shifter: { baseHeightShare: 0.3, knobMm: { x: 50, y: 50, z: 50 } },
+  handbrake: { baseHeightShare: 0.25, knobMm: { x: 40, y: 70, z: 40 } },
+  'center-stick': { baseHeightShare: 0.15, knobMm: { x: 50, y: 110, z: 60 } },
+  'side-stick': { baseHeightShare: 0.3, knobMm: { x: 50, y: 100, z: 60 } },
+  throttle: { baseHeightShare: 0.55, knobMm: { x: 120, y: 50, z: 50 } },
+};
+type HandControlCategory = Exclude<PeripheralCategory, 'seat' | 'wheel-base' | 'pedals'>;
+const LEVER_RADIUS_MM = 10;
+
 /**
  * A peripheral as a few simple shapes filling its envelope, so its kind and the way it faces
  * can be told apart: a seat's cushion and backrest, a wheel base with its rim towards the
@@ -269,7 +291,50 @@ function peripheralShapes(part: PeripheralPart): PeripheralShapes {
         tubes: [],
       };
     }
+    case 'shifter':
+    case 'handbrake':
+    case 'center-stick':
+    case 'side-stick':
+    case 'throttle':
+      return handControlShapes(part, HAND_CONTROL_LOOKS[part.category]);
   }
+}
+
+/**
+ * A peripheral for one hand: a base over its whole footprint, a lever from the middle of the
+ * base's top to its grip, and a knob or handle around the grip, all kept within its envelope.
+ */
+function handControlShapes(part: PeripheralPart, look: HandControlLook): PeripheralShapes {
+  const { widthMm, heightMm, depthMm } = part.envelope;
+  const lowMm: Vec3Mm = { x: -widthMm / 2, y: 0, z: -depthMm / 2 };
+  const highMm: Vec3Mm = { x: widthMm / 2, y: heightMm, z: depthMm / 2 };
+  const baseTopMm = heightMm * look.baseHeightShare;
+  const base: ShapeBox = {
+    min: lowMm,
+    max: { ...highMm, y: baseTopMm },
+    material: 'dark',
+  };
+  const grip = part.contactPoints.find((contact) => contact.role === 'grip');
+  if (!grip) return { boxes: [base], tubes: [] };
+  const gripMm = grip.offsetMm;
+  const within = (axis: Axis, valueMm: number) =>
+    Math.min(Math.max(valueMm, lowMm[axis]), highMm[axis]);
+  const knobCorner = (sign: number): Vec3Mm => ({
+    x: within('x', gripMm.x + (sign * look.knobMm.x) / 2),
+    y: within('y', gripMm.y + (sign * look.knobMm.y) / 2),
+    z: within('z', gripMm.z + (sign * look.knobMm.z) / 2),
+  });
+  return {
+    boxes: [base, { min: knobCorner(-1), max: knobCorner(1), material: 'rubber' }],
+    tubes: [
+      {
+        fromMm: { x: 0, y: baseTopMm, z: 0 },
+        toMm: gripMm,
+        radiusMm: LEVER_RADIUS_MM,
+        material: 'silver',
+      },
+    ],
+  };
 }
 
 const sizeOf = (box: BoxMm): Vec3 => [

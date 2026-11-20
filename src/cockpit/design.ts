@@ -3,11 +3,13 @@
 // includes it (docs/adr/0004).
 import {
   CONTACT_ROLES,
+  HANDS,
   type Axis,
   type ContactPoint,
   type ContactRole,
   type Envelope,
   type Face,
+  type Hand,
   type Vec3Mm,
 } from './cad/parts/assembly.ts';
 import {
@@ -263,6 +265,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     'alongMm',
     'acrossMm',
     'facing',
+    'hand',
     'adjustment',
   ]);
   if (typeof data.name !== 'string') throw new Error('A part name must be text');
@@ -287,6 +290,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     alongMm: millimetres(data.alongMm, 'distance along a part'),
     acrossMm: millimetres(data.acrossMm, 'offset across a face'),
     facing: face(data.facing),
+    ...(data.hand === undefined ? {} : { hand: hand(data.hand) }),
     ...peripheralAdjustment(data.adjustment),
   };
 }
@@ -361,6 +365,13 @@ function peripheralCategory(value: unknown): PeripheralCategory {
 function contactRole(value: unknown): ContactRole {
   const known = CONTACT_ROLES.find((candidate) => candidate === value);
   if (!known) throw new Error(`Unknown contact point: ${value}`);
+  return known;
+}
+
+function hand(value: unknown): Hand {
+  const known = HANDS.find((candidate) => candidate === value);
+  if (!known)
+    throw new Error(`A grip is used by the left or the right hand: which hand is ${value}?`);
   return known;
 }
 

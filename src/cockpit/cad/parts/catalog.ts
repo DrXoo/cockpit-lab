@@ -1,7 +1,7 @@
 // The catalog of profile systems, connectors and fasteners the CAD builds with.
 // Every dimension records its source, so measured or estimated values are never
 // mistaken for a manufacturer's data sheet.
-import type { ContactPoint, Envelope } from './assembly.ts';
+import type { ContactPoint, Envelope, Hand } from './assembly.ts';
 import type { MountingPattern } from './mounting-pattern.ts';
 
 export interface DataSource {
@@ -145,11 +145,24 @@ const FOOT_TYPES: readonly FootType[] = [
 ];
 
 /** What a peripheral is, which decides how it is drawn and where the driver meets it. */
-export type PeripheralCategory = 'seat' | 'wheel-base' | 'pedals';
+export type PeripheralCategory =
+  | 'seat'
+  | 'wheel-base'
+  | 'pedals'
+  | 'shifter'
+  | 'handbrake'
+  | 'center-stick'
+  | 'side-stick'
+  | 'throttle';
 export const PERIPHERAL_CATEGORIES: readonly PeripheralCategory[] = [
   'seat',
   'wheel-base',
   'pedals',
+  'shifter',
+  'handbrake',
+  'center-stick',
+  'side-stick',
+  'throttle',
 ];
 
 /**
@@ -169,6 +182,8 @@ export interface PeripheralType {
   backrestDeg?: number;
   /** For a seat on sliders, how far its rails let it slide, end to end, the way it faces. */
   railTravelMm?: number;
+  /** For a type with a grip, the hand that usually uses it, until one is chosen. */
+  gripHand?: Hand;
   source: DataSource;
 }
 
@@ -194,9 +209,10 @@ const GENERIC_PERIPHERAL: DataSource = {
 };
 
 /**
- * The generic peripherals of stage 5, until named products come with verified catalogs. Each
- * faces the way the driver does: the seat's hip, the rim of the wheel and the heels on the pedals
- * lie towards its back (−Z).
+ * The generic peripherals of stages 5 and 7, until named products come with verified catalogs.
+ * Each faces the way the driver does: the seat's hip, the rim of the wheel and the heels on the
+ * pedals lie towards its back (−Z). The grip of a peripheral for one hand is the top of its lever
+ * or stick, over the middle of its base.
  */
 const PERIPHERAL_TYPES: readonly PeripheralType[] = [
   {
@@ -228,9 +244,62 @@ const PERIPHERAL_TYPES: readonly PeripheralType[] = [
     contactPoints: [{ role: 'heel', offsetMm: { x: 0, y: 30, z: -130 } }],
     source: GENERIC_PERIPHERAL,
   },
+  {
+    id: 'generic-shifter',
+    name: 'Shifter',
+    category: 'shifter',
+    envelope: { widthMm: 120, heightMm: 300, depthMm: 180 },
+    mountingPattern: holesAtCorners(70, 110, M6_CLEARANCE_MM),
+    contactPoints: [{ role: 'grip', offsetMm: { x: 0, y: 280, z: 0 } }],
+    gripHand: 'right',
+    source: GENERIC_PERIPHERAL,
+  },
+  {
+    id: 'generic-handbrake',
+    name: 'Handbrake',
+    category: 'handbrake',
+    envelope: { widthMm: 80, heightMm: 350, depthMm: 260 },
+    mountingPattern: holesAtCorners(40, 160, M6_CLEARANCE_MM),
+    contactPoints: [{ role: 'grip', offsetMm: { x: 0, y: 330, z: -50 } }],
+    gripHand: 'right',
+    source: GENERIC_PERIPHERAL,
+  },
+  {
+    id: 'generic-center-stick',
+    name: 'Center stick',
+    category: 'center-stick',
+    envelope: { widthMm: 200, heightMm: 500, depthMm: 200 },
+    mountingPattern: holesAtCorners(110, 110, M6_CLEARANCE_MM),
+    contactPoints: [{ role: 'grip', offsetMm: { x: 0, y: 440, z: 0 } }],
+    gripHand: 'right',
+    source: GENERIC_PERIPHERAL,
+  },
+  {
+    id: 'generic-side-stick',
+    name: 'Side stick',
+    category: 'side-stick',
+    envelope: { widthMm: 160, heightMm: 280, depthMm: 160 },
+    mountingPattern: holesAtCorners(80, 80, M6_CLEARANCE_MM),
+    contactPoints: [{ role: 'grip', offsetMm: { x: 0, y: 220, z: 0 } }],
+    gripHand: 'right',
+    source: GENERIC_PERIPHERAL,
+  },
+  {
+    id: 'generic-throttle',
+    name: 'Throttle',
+    category: 'throttle',
+    envelope: { widthMm: 200, heightMm: 200, depthMm: 260 },
+    mountingPattern: holesAtCorners(130, 170, M6_CLEARANCE_MM),
+    contactPoints: [{ role: 'grip', offsetMm: { x: 0, y: 170, z: 0 } }],
+    gripHand: 'left',
+    source: GENERIC_PERIPHERAL,
+  },
 ];
 
-/** Every peripheral type in the catalog: a seat, a wheel base and pedals. */
+/**
+ * Every peripheral type in the catalog: a seat, a wheel base and pedals, and a shifter, a
+ * handbrake, two sticks and a throttle for one hand each.
+ */
 export const peripheralTypes = (): readonly PeripheralType[] => PERIPHERAL_TYPES;
 
 export function peripheralType(id: string): PeripheralType {
