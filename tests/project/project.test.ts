@@ -24,7 +24,7 @@ import type { RoomConfig } from '../../src/room/config.ts';
 import { present, withId } from '../support/lookups.ts';
 import { duplicateLayout, hideFurniture } from '../../src/room/layouts.ts';
 import { emptyDesign } from '../../src/cockpit/design.ts';
-import { summaryHTML } from '../../src/project/summary.ts';
+import { summaryHTML } from '../../src/app/summary.ts';
 import { saveArmPose } from '../../src/room/arm-poses.ts';
 
 const configOf = (project: Project) => projectConfig(project);

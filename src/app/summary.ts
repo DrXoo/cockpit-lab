@@ -2,7 +2,7 @@
 // checks. Lengths in cm.
 import { escapeHTML as esc } from '../ui/html.ts';
 import { checkLineHTML } from '../ui/check-view.ts';
-import { steps, type SetupProgress } from './project.ts';
+import { steps, type SetupProgress } from '../project/project.ts';
 import type { RoomConfig, MonitorMode } from '../room/config.ts';
 import type { CockpitEvaluation } from '../room/evaluate.ts';
 import { wallFrame } from '../room/room.ts';

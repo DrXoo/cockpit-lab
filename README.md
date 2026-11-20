@@ -66,12 +66,12 @@ The source is grouped by area first: the room, the cockpit design and the projec
 | --- | --- |
 | `src/index.html`, `src/app.ts` | The page, and the composition root: opens the saved project, builds the editors' controllers around the workbench and draws the 3D view |
 | `src/workbench.ts` | The page the user works in: which editor, tab, view and panel it shows, and refreshing it; the host both editors' controllers ask |
-| `src/app/` | The page's shell around the editors: its sections, header and chrome, notices, dialogs, color theme, and opening and exporting files |
+| `src/app/` | The page's shell around the editors: its sections, header and chrome, notices, dialogs, color theme, opening and exporting files, and the printable summary |
 | `src/shared/` | What every area uses: plan geometry, cm/mm units, the check type, interference between volumes, cleaning names typed by users, undo and redo |
 | `src/ui/` | DOM helpers: finding and replacing parts of the page, icons, building HTML safely, and how a check is shown |
 | `src/styles/` | The style sheets and the color tokens of both themes |
 | `src/scene/` | The 3D view both editors share: the Three.js scene and its interaction, camera framing, canvas colors, and the render model (what the scene draws, as plain data in drawing order) with the adapter that turns it into Three.js objects |
-| `src/project/` | The project format and its migrations, browser storage, the open project with its autosave, and the printable summary |
+| `src/project/` | The project format and its migrations, browser storage, and the open project with its autosave |
 | `src/room/` | The room model in cm: room, furniture and openings, the desk and its accessories, the monitor arm and its saved poses, layouts, settings with their ranges, and the room's envelopes and checks (`evaluate.ts`) |
 | `src/room/editing/` | The room editor: its selection, one controller per part of the page (setting controls, room items, guided setup, desk and arm, layout picker, room checks, dragging in the plan) through `RoomEditorHost`, and the HTML of its panels |
 | `src/room/render/` | Drawings of the room, the desk and monitor, aluminium profiles, and the measurements, labels and selection outline |

@@ -18,7 +18,7 @@ import { toast } from './app/notices.ts';
 import { isGuided, renderPageChrome, type PageChrome } from './app/page-chrome.ts';
 import { createProject, type Project } from './project/project.ts';
 import type { ProjectSession } from './project/session.ts';
-import { SUMMARY_HEADING, summaryHTML } from './project/summary.ts';
+import { SUMMARY_HEADING, summaryHTML } from './app/summary.ts';
 import type { CockpitDrawing } from './cockpit/render/cad.ts';
 import type { DeskControls } from './room/editing/desk-controls.ts';
 import type { GuidedSetup } from './room/editing/guided-setup.ts';
