@@ -1,441 +1,95 @@
-import { createProject } from './project.ts';
-import { NOTHING_AROUND } from './cockpit-editor-view.ts';
-import type { CockpitDrawing } from './render-cad.ts';
+// The app's composition root: it opens the project saved in this browser, builds the editors
+// and their controllers around the workbench, and draws the 3D view when WebGL allows it.
 import { CockpitEditor } from './cockpit-editor/editor.ts';
-import { CockpitInspector } from './cockpit-editor/inspector.ts';
-import { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
 import { HandleDragging } from './cockpit-editor/handle-dragging.ts';
-import { CockpitToolbar } from './cockpit-editor/toolbar.ts';
+import { CockpitInspector } from './cockpit-editor/inspector.ts';
 import { bindCockpitKeys } from './cockpit-editor/keys.ts';
-import { bindHistoryPanel, historyPanelHTML } from './cockpit-editor/history-panel.ts';
-import { creationControls } from './setup-editor.ts';
-import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
-import { roomControls } from './room-editor.ts';
-import { evaluate } from './model.ts';
-import { CockpitScene } from './scene.ts';
-import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
+import { CockpitToolbar } from './cockpit-editor/toolbar.ts';
+import { CockpitViewOverlays } from './cockpit-editor/view-overlays.ts';
 import type { RoomConfig } from './config.ts';
+import { bindDialogs } from './dialogs.ts';
+import { $ } from './dom.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import type { Project } from './project.ts';
-import { hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
-import { activeArmPose } from './arm-poses.ts';
-import { sectionOfStep } from './setup-actions.ts';
-import { deskPanelHTML } from './settings-panels.ts';
-import { createProjectStore } from './project-storage.ts';
+import { drawIcons } from './icons.ts';
+import { showSaveStatus, toast } from './notices.ts';
+import { createProject } from './project.ts';
+import { ProjectFiles } from './project-files.ts';
 import { ProjectSession } from './project-session.ts';
-import { $, $$, $optional, dataOf, replaceKeepingFocus } from './dom.ts';
-import {
-  editorOf,
-  editorOfSection,
-  isRoomSection,
-  sectionOf,
-  workspaceOf,
-  type Editor,
-  type Section,
-  type Workspace,
-} from './sections.ts';
-import {
-  noRoomSelection,
-  panelTarget,
-  targetAfterLayoutChange,
-  targetAfterSwitch,
-  type RoomSelection,
-} from './room-editing/selection.ts';
-import type { RoomEditorHost } from './room-editing/host.ts';
-import { RoomItems } from './room-editing/room-items.ts';
-import { GuidedSetup } from './room-editing/guided-setup.ts';
+import { createProjectStore } from './project-storage.ts';
 import { DeskControls } from './room-editing/desk-controls.ts';
+import { GuidedSetup } from './room-editing/guided-setup.ts';
 import { LayoutPicker } from './room-editing/layout-picker.ts';
 import { PlanDragging } from './room-editing/plan-dragging.ts';
-import { renderRoomChecks } from './room-editing/room-checks-panel.ts';
+import { RoomItems } from './room-editing/room-items.ts';
 import { SettingControls } from './room-editing/settings-controls.ts';
-import { drawIcons } from './icons.ts';
+import { CockpitScene } from './scene.ts';
 import { ColorTheme } from './theme.ts';
-import { showSaveStatus, toast } from './notices.ts';
-import { bindDialogs } from './dialogs.ts';
-import { isGuided, renderPageChrome, type PageChrome } from './page-chrome.ts';
-import { ProjectFiles } from './project-files.ts';
+import { Workbench } from './workbench.ts';
 
 drawIcons();
 
-const colorTheme = new ColorTheme(() => scene?.applyTheme());
+const colorTheme = new ColorTheme(() => workbench.scene?.applyTheme());
 const store = createProjectStore(() => window.localStorage);
-const VIEWS: readonly string[] = ['iso', 'top', 'desk', 'side'];
-function viewOf(value: string): SceneView {
-  if (!VIEWS.includes(value)) throw new Error(`Unknown view: ${value}`);
-  return value as SceneView;
-}
 const newProject = createProject();
-const project = new ProjectSession(newProject, {
+const project: ProjectSession = new ProjectSession(newProject, {
   store,
-  cockpit: () => cockpitEditor.session.design,
+  cockpit: () => workbench.parts.cockpitEditor.session.design,
   showStatus: (message, status) => showSaveStatus(message, status),
 });
-let section: Section = 'room',
-  /** The tab each editor shows when it opens again. */
-  lastSection: Record<Editor, Section> = { cockpit: 'design', room: 'room' },
-  view: SceneView = 'top',
-  scene: CockpitScene | undefined;
-const roomSelection: RoomSelection = noRoomSelection();
-const cockpitEditor = new CockpitEditor(
-  {
-    refresh: () => refresh(),
-    renderControls: () => renderControls(),
-    renderInspector: () => cockpitInspector.render({ force: true }),
-    renderJointCard: () => cockpitOverlays.renderJointCard(),
-    saveSoon: () => project.saveSoon(),
-    frameDesign: () => setActiveView(view),
-    toast: (message) => toast(message),
-    sightAxis: () => SIGHT_AXIS[view],
-  },
-  newProject.cockpit,
-);
-const inCockpitEditor = () => editor() === 'cockpit';
-const cockpitInspector = new CockpitInspector(cockpitEditor, inCockpitEditor);
-const cockpitToolbar = new CockpitToolbar(cockpitEditor, inCockpitEditor);
-const cockpitOverlays = new CockpitViewOverlays(cockpitEditor, () => scene, inCockpitEditor);
+const workbench: Workbench = new Workbench(project, (host) => {
+  const cockpitEditor = new CockpitEditor(host, newProject.cockpit);
+  const inCockpitEditor = () => host.inCockpitEditor();
+  const settingControls = new SettingControls(host);
+  return {
+    cockpitEditor,
+    cockpitInspector: new CockpitInspector(cockpitEditor, inCockpitEditor),
+    cockpitToolbar: new CockpitToolbar(cockpitEditor, inCockpitEditor),
+    cockpitOverlays: new CockpitViewOverlays(cockpitEditor, () => host.scene, inCockpitEditor),
+    settingControls,
+    roomItems: new RoomItems(host),
+    guidedSetup: new GuidedSetup(host),
+    deskControls: new DeskControls(host, settingControls),
+    layoutPicker: new LayoutPicker(host),
+  };
+});
+const { cockpitEditor, cockpitOverlays } = workbench.parts;
 const handleDragging = new HandleDragging(cockpitEditor);
-bindCockpitKeys(cockpitEditor, inCockpitEditor);
-const loaded = store.load();
-if (loaded.status === 'loaded') {
-  openProject(loaded.project);
-  showSaveStatus('Design restored from this browser');
-} else if (loaded.status === 'unavailable')
-  showSaveStatus('This browser blocks saving · export a JSON file', 'error');
-if (project.setup.step === 'complete') view = 'iso';
-else section = sectionOfStep(project.setup.step);
-if (project.setup.step !== 'complete' && project.state.roomEnabled) roomSelection.editing = true;
-// A project with a cockpit design and no room yet opens where the design is edited.
-if (!project.state.roomEnabled && cockpitEditor.session.design !== null) {
-  section = 'design';
-  view = 'iso';
-}
-const editor = (): Editor => editorOfSection(section);
-/** What the scene draws of the cockpit design: only in the cockpit editor, on its own. */
-const cockpitDrawing = (): CockpitDrawing | null =>
-  editor() === 'cockpit' ? cockpitEditor.drawing() : null;
-/** What the scene and the checks show: the active layout, or the cockpit design on its own. */
-const shownConfig = (): RoomConfig => (editor() === 'cockpit' ? NOTHING_AROUND : project.state);
-let evaluation = evaluate(shownConfig());
-const roomHost: RoomEditorHost = {
-  project,
-  selection: roomSelection,
-  evaluation: () => evaluation,
-  section: () => section,
-  view: () => view,
-  refresh: () => refresh(),
-  renderControls: () => renderControls(),
-  renderWorkflow: () => renderWorkflow(),
-  switchSection: (next) => switchSection(next),
-  setActiveView: (next) => setActiveView(next),
-  showWorkspace: (next) => showWorkspace(next),
-  syncSceneEditing: () => syncSceneEditing(),
-  setLayoutEditing: (on, target, roomEditing) => scene?.setLayoutEditing(on, target, roomEditing),
-  pressLayoutButton: () => {
-    $('#layoutBtn').classList.add('active');
-    $('#layoutBtn').setAttribute('aria-pressed', 'true');
-  },
-  changeLayouts: (change) => changeLayouts(change),
-  startWithCockpit: () => startWithCockpit(),
-  toast: (message) => toast(message),
-};
-const settingControls = new SettingControls(roomHost);
-const roomItemControls = new RoomItems(roomHost);
-const guidedSetup = new GuidedSetup(roomHost);
-const deskControls = new DeskControls(roomHost, settingControls);
-const layoutPicker = new LayoutPicker(roomHost);
-const planDragging = new PlanDragging(roomHost);
+bindCockpitKeys(cockpitEditor, () => workbench.inCockpitEditor());
+const planDragging = new PlanDragging(workbench);
 const projectFiles = new ProjectFiles({
   project,
   cockpitEditor,
-  openProject: (opened) => openProject(opened),
-  showOpenedProject: () => {
-    renderControls();
-    refresh();
-    $<HTMLDialogElement>('#summaryDialog').close();
-    if (!project.state.roomEnabled && cockpitEditor.hasDesign()) startWithCockpit();
-    else if (project.setup.step !== 'complete') guidedSetup.enterStep(project.setup.step);
-    else {
-      switchSection('room');
-      setActiveView('iso');
-    }
-  },
-  showImportedDesign: () => {
-    renderControls();
-    refresh();
-    setActiveView('iso');
-  },
+  openProject: (opened) => workbench.openProject(opened),
+  showOpenedProject: () => workbench.showOpenedProject(),
+  showImportedDesign: () => workbench.showImportedDesign(),
   toast: (message) => toast(message),
   showSaveStatus: (message, status) => showSaveStatus(message, status),
 });
-/** Makes `project` the open one, editing its active layout. */
-function openProject(opened: Project) {
-  project.open(opened);
-  cockpitEditor.open(opened.cockpit);
-  roomSelection.armPose = activeArmPose(project.state)?.id ?? '';
-}
-/** Records the edits, applies `change` to the layouts and opens the resulting active layout. */
-function changeLayouts(change: (recorded: LayoutLibrary) => LayoutLibrary) {
-  project.changeLayouts(change);
-  roomSelection.armPose = activeArmPose(project.state)?.id ?? '';
-  roomSelection.target = targetAfterLayoutChange(roomSelection.target, project.state);
-  renderControls();
-  refresh();
-  syncSceneEditing();
-}
-/** Dragging in the plan arranges the room, so the cockpit editor has nothing to drag. */
-function syncSceneEditing() {
-  scene?.setPartPicking(editor() === 'cockpit');
-  scene?.setLayoutEditing(
-    editor() === 'room' && roomSelection.editing,
-    roomSelection.target,
-    isRoomSection(section),
-  );
-}
-/** Shows the parts of the page that follow the editor shown and the guided setup. */
-function renderWorkflow() {
-  const page: PageChrome = {
-    editor: editor(),
-    setup: project.setup,
-    state: project.state,
-    shown: shownConfig(),
-    evaluation,
-    library: project.library,
-    layoutEditing: roomSelection.editing,
-    cockpit: {
-      hasDesign: cockpitEditor.hasDesign(),
-      hasParts: cockpitEditor.hasParts(),
-      fitting: cockpitEditor.session.fitting,
-    },
-  };
-  renderPageChrome(page);
-  layoutPicker.render(isGuided(page) || page.editor === 'cockpit');
-}
-function renderControls() {
-  const guided = isGuided({ editor: editor(), setup: project.setup }),
-    stage = guided ? project.setup.step : section === 'furniture' ? 'furniture' : 'openings';
-  roomSelection.target = panelTarget(roomSelection.target, {
-    section,
-    stage,
-    state: project.state,
-    desktopItemIds: evaluation.desktopItems.map((item) => item.id),
-  });
-  let html = '';
-  if (editor() === 'cockpit') {
-    html = historyPanelHTML(cockpitEditor);
-  } else if (guided || (section === 'desk' && project.state.deskEnabled === false)) {
-    html = creationControls(
-      project.state,
-      evaluation,
-      guided ? project.setup : { ...project.setup, step: 'desk' },
-      roomSelection.target,
-      settingControls.templates(),
-      roomSelection.armPose,
-    );
-  } else if (isRoomSection(section)) {
-    const { range, toggle } = settingControls.templates();
-    html = roomControls(project.state, evaluation, roomSelection.target, range, toggle, {
-      mode: section === 'furniture' ? 'furniture' : 'room',
-      hiddenFurniture: hiddenFurnitureOf(project.library),
-      layoutCount: project.library.layouts.length,
-    });
-  } else {
-    html = deskPanelHTML(settingControls.view(), roomSelection.target, roomSelection.armPose);
-  }
-  if (editor() === 'cockpit') replaceKeepingFocus($('#controls'), html);
-  else $('#controls').innerHTML = html;
-  bindHistoryPanel($('#controls'), cockpitEditor);
-  roomItemControls.bind();
-  guidedSetup.bind();
-  $optional('#startWithCockpit')?.addEventListener('click', startWithCockpit);
-  $optional('#goRoom')?.addEventListener('click', () => {
-    switchSection('room');
-    setActiveView('top');
-  });
-  settingControls.bind();
-  deskControls.bind();
-}
-function switchSection(value: Section) {
-  const editorChanged = editorOfSection(value) !== editor();
-  if (editorChanged) cockpitEditor.stopMeasuring();
-  section = value;
-  lastSection[editor()] = value;
-  // The other editor shows another configuration, so the panels need its evaluation.
-  if (editorChanged) evaluation = evaluate(shownConfig());
-  roomSelection.target = targetAfterSwitch(roomSelection.target, value, project.state);
-  $$<HTMLButtonElement>('.config-tabs button').forEach((b) => {
-    const active = dataOf(b, 'section') === section;
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-selected', String(active));
-    b.tabIndex = active ? 0 : -1;
-  });
-  $('#controls').setAttribute('aria-labelledby', `tab-${value}`);
-  renderControls();
-  if (editorChanged) refresh();
-  else renderWorkflow();
-  $('#controls').scrollTop = 0;
-  syncSceneEditing();
-}
-/** Opens an editor at `target`, or at the tab it showed last, framing what it shows. */
-function showEditor(next: Editor, target: Section = lastSection[next]) {
-  const changed = next !== editor();
-  switchSection(target);
-  if (changed)
-    setActiveView(next === 'cockpit' || project.setup.step === 'complete' ? 'iso' : 'top');
-}
-$$('.editor-switch button').forEach((button) =>
-  button.addEventListener('click', () => showEditor(editorOf(dataOf(button, 'editor')))),
-);
-function refresh() {
-  const shown = shownConfig();
-  evaluation = evaluate(shown);
-  roomItemControls.sync();
-  settingControls.sync();
-  deskControls.sync();
-  renderRoomChecks(project.state, shown, evaluation);
-  renderWorkflow();
-  cockpitInspector.render();
-  cockpitInspector.renderChecks();
-  cockpitOverlays.render();
-  cockpitToolbar.render();
-  scene?.update(shown, evaluation, cockpitDrawing());
-}
-function summary() {
-  $('#summaryTitle').textContent = SUMMARY_HEADING.title;
-  $('#summaryDialog .section-kicker').textContent = SUMMARY_HEADING.kicker;
-  $('#summaryContent').innerHTML = summaryHTML(project.state, evaluation, project.setup);
-  $<HTMLDialogElement>('#summaryDialog').showModal();
-}
-$$('.config-tabs button').forEach((b) =>
-  b.addEventListener('click', () => {
-    const tab = sectionOf(dataOf(b, 'section'));
-    switchSection(tab);
-    if (isRoomSection(tab)) {
-      roomSelection.editing = true;
-      $('#layoutBtn').classList.add('active');
-      $('#layoutBtn').setAttribute('aria-pressed', 'true');
-      scene?.setLayoutEditing(true, roomSelection.target, true);
-      setActiveView('top');
-    }
-  }),
-);
-$('.config-tabs').addEventListener('keydown', (event) => {
-  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-    event.preventDefault();
-    const tabs = $$<HTMLButtonElement>('.config-tabs button:not([hidden])'),
-      i = tabs.findIndex((t) => dataOf(t, 'section') === section),
-      next =
-        event.key === 'Home'
-          ? 0
-          : event.key === 'End'
-            ? tabs.length - 1
-            : (i + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-    tabs[next].click();
-    tabs[next].focus();
-  }
-});
-$('#resetBtn').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
-/** Opens a new, empty project where the user chose to start it: the cockpit or the room. */
-function startNewProject(start: Editor) {
-  openProject(createProject());
-  roomSelection.target = '';
-  roomSelection.editing = false;
-  project.saveNow();
-  $<HTMLDialogElement>('#resetDialog').close();
-  if (start === 'room') {
-    guidedSetup.enterStep('room');
-    toast('New project. Start with your room.');
-    return;
-  }
-  startWithCockpit();
-  toast('New project. Its cockpit design starts empty.');
-}
-/** Opens the cockpit editor to design first; the room setup waits where it was. */
-function startWithCockpit() {
-  showEditor('cockpit', 'design');
-  refresh();
-  showWorkspace('config');
-}
-$('#newProjectRoom').addEventListener('click', () => startNewProject('room'));
-$('#newProjectCockpit').addEventListener('click', () => startNewProject('cockpit'));
-function setActiveView(next: SceneView) {
-  view = next;
-  $$('[data-view]').forEach((t) => {
-    const active = dataOf(t, 'view') === view;
-    t.classList.toggle('active', active);
-    t.setAttribute('aria-pressed', String(active));
-  });
-  scene?.setView(view);
-  // Which handles can be dragged depends on the view.
-  if (editor() === 'cockpit' && cockpitEditor.hasParts()) refresh();
-  $('.viewport-note span').textContent =
-    editor() === 'cockpit'
-      ? `Click a part to select it · ${view === 'iso' ? 'drag to orbit' : 'drag to pan'} · scroll to zoom`
-      : view === 'iso'
-        ? 'Drag to orbit · scroll to zoom'
-        : (view === 'top' || view === 'desk') && roomSelection.editing
-          ? roomSelection.target === 'arm'
-            ? 'Drag ELBOW or VESA · mount on the desktop'
-            : 'Drag an item · select and turn it in ' + (isRoomSection(section) ? 'Room' : 'Desk')
-          : 'Scroll to zoom · drag to pan';
-}
-$$('[data-view]').forEach((b) =>
-  b.addEventListener('click', () => setActiveView(viewOf(dataOf(b, 'view')))),
-);
-$('#dimensionBtn').addEventListener('click', () => {
-  const on = $('#dimensionBtn').getAttribute('aria-pressed') !== 'true';
-  $('#dimensionBtn').setAttribute('aria-pressed', String(on));
-  $('#dimensionBtn').setAttribute('aria-label', on ? 'Hide dimensions' : 'Show dimensions');
-  $('#dimensionBtn').classList.toggle('active', on);
-  scene?.setDimensions(on);
-});
-$('#fitBtn').addEventListener('click', () => scene?.setView(view));
-function showWorkspace(next: Workspace) {
-  document.body.dataset.workspace = next;
-  $$('.studio-nav button').forEach((button) => {
-    const active = dataOf(button, 'workspace') === next;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-}
-$$('.studio-nav button').forEach((button) =>
-  button.addEventListener('click', () => showWorkspace(workspaceOf(dataOf(button, 'workspace')))),
-);
-$('.skip-link').addEventListener('click', () => showWorkspace('config'));
-$('#adjustRoom').addEventListener('click', () => {
-  $('#tab-room').click();
-  showWorkspace('config');
-});
-$('#adjustDesk').addEventListener('click', () => {
-  switchSection('desk');
-  showWorkspace('config');
-});
-$('#adjustDesktop').addEventListener('click', () => {
-  roomSelection.target = 'arm';
-  switchSection('desk');
-  showWorkspace('config');
-  syncSceneEditing();
-  setActiveView('desk');
-});
-$('#helpBtn').addEventListener('click', () => $<HTMLDialogElement>('#helpDialog').showModal());
-$('#openSummary').addEventListener('click', summary);
 bindDialogs();
-$('#printBtn').addEventListener('click', () => window.print());
 window.addEventListener('pagehide', () => {
   project.saveNow();
 });
-$('#newProject').addEventListener('click', () => $<HTMLDialogElement>('#resetDialog').showModal());
-if (project.setup.step !== 'complete') showWorkspace('config');
-renderControls();
-refresh();
+
+const loaded = store.load();
+if (loaded.status === 'loaded') {
+  workbench.openProject(loaded.project);
+  showSaveStatus('Design restored from this browser');
+} else if (loaded.status === 'unavailable')
+  showSaveStatus('This browser blocks saving · export a JSON file', 'error');
+workbench.startWhereTheWorkIs();
+if (project.setup.step !== 'complete') workbench.showWorkspace('config');
+workbench.renderControls();
+workbench.refresh();
 if (loaded.status === 'unreadable') projectFiles.reportUnreadableSave(loaded.keptAs, loaded.text);
 if (loaded.status === 'loaded' && loaded.parametricCockpitLeftOut)
   projectFiles.reportLeftOutCockpit({ fromBrowser: true });
+
 try {
-  scene = new CockpitScene($('#viewport'), $('#sceneLabels'));
-  scene.update(shownConfig(), evaluation, cockpitDrawing());
-  setActiveView(view);
-  syncSceneEditing();
+  const scene = new CockpitScene($('#viewport'), $('#sceneLabels'));
+  workbench.scene = scene;
+  scene.update(workbench.shownConfig(), workbench.evaluation(), workbench.cockpitDrawing());
+  workbench.setActiveView(workbench.view());
+  workbench.syncSceneEditing();
   scene.onPartPick = (hit) => cockpitEditor.pickInView(hit);
   scene.onPartHover = (hit, pointer) => cockpitOverlays.hover(hit, pointer);
   scene.onHandleGrab = (handle) => handleDragging.grab(handle);
@@ -451,6 +105,7 @@ try {
   $('#webglFallback').hidden = false;
 }
 colorTheme.apply();
+
 declare global {
   interface Window {
     cockpitLab: { getState(): RoomConfig; getEvaluation(): CockpitEvaluation };
@@ -460,5 +115,5 @@ declare global {
 // The end-to-end tests read the app through it (e2e/support.ts): keep its shape.
 window.cockpitLab = {
   getState: () => structuredClone(project.state),
-  getEvaluation: () => structuredClone(evaluation),
+  getEvaluation: () => structuredClone(workbench.evaluation()),
 };
