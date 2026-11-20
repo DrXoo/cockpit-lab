@@ -109,8 +109,12 @@ A **Plate hole** that a bolt fastening the plate to a profile goes through, over
 _Avoid_: plate bolt hole, frame hole
 
 **Contact point**:
-Where the driver meets a peripheral: the hip and backrest on the seat, the hands on the wheel or grips, the heels on the pedals.
+Where the driver meets a peripheral: the hip and backrest on the seat, both hands on the wheel, the heels on the pedals, or one hand on a **Grip**.
 _Avoid_: reference point, target
+
+**Grip**:
+The **Contact point** of a peripheral used with one hand, such as a stick, a throttle, a shifter or a handbrake. Which hand uses it is chosen on the peripheral, not worked out from where it is mounted.
+_Avoid_: handle (that is the editor's), lever
 
 **Foot**:
 A leveling foot or locking caster under a profile, through which a cockpit design stands on the floor.
@@ -139,6 +143,14 @@ _Avoid_: tuning, setup (that is the room's)
 **Anchored part**:
 A part placed on its own in the cockpit design, hanging from no other part.
 _Avoid_: root, absolute part, fixed part
+
+**Subassembly**:
+A named part of a cockpit design that can be taken off and put back as a whole, such as the wheel deck or a center stick: one part, its root, and everything that hangs from it.
+_Avoid_: component (that word is avoided for a part), module, group, body
+
+**Mode**:
+A named way of using a cockpit design, such as racing or flight, that says which **Subassemblies** are on the cockpit and where each **Adjustment** is, so each mode has its own **Fitting**. The user makes as many as they need.
+_Avoid_: configuration, preset, variant, layout (that is the room's)
 
 ### Room
 
@@ -183,9 +195,11 @@ _Avoid_: wizard, onboarding
 - A **Cockpit design** is changed only where it is designed, never from the room; the **Room** only places it.
 - An **Interference** between the cockpit and the room names the part of the cockpit, the item it reaches into and by how much, so the design can be fixed without the room in view.
 - A **Room**'s **Monitor arm** can point the monitor at the **Eye point** of the linked **Cockpit design**; the room needs nothing else from the cockpit's posture.
+- A **Room** shows the linked **Cockpit design** in one **Mode** at a time, chosen while looking at it and the same in every **Layout**, so the same cockpit can be tried in each mode without changing the layout; the room's checks also report the modes not shown.
 - Each **Layout** has its own **Arm poses**, because a pose only makes sense with that layout's arm mount and cockpit **Placement**. Duplicating a layout copies its poses.
 - A **Cockpit design** may carry a **Fixed monitor**; the **Monitor arm** stays part of the room either way.
 - The **Driver**'s posture, and so the **Eye point**, follow from the **Contact points** of the **Peripherals** where the design mounts them; the driver has no positions of its own.
+- With a wheel on, both of the **Driver**'s hands are on it. Without one, each hand goes to its main **Grip**, a stick or a throttle; a shifter or a handbrake only has its reach checked. Two main grips for the same hand in one **Mode** are reported.
 - The **Driver** is fitted through the **Adjustments** of a cockpit design; anything else about the posture changes by editing **Parts**.
 - Any **Part** with an **Attachment** can have an **Adjustment**, except a **Span**, whose length depends on the part it reaches, and a **Foot**, fastened by its own adapter; what hangs from the part moves with it. A span that would change its length when an adjustment moves a part it depends on is reported, not prevented.
 - An **Adjustment** has one axis of the face its part hangs from, a travel centered where the part is attached, and the part's current position along it. Moving the part along its travel never moves the holes, slots or joints its attachment makes.
@@ -204,6 +218,10 @@ _Avoid_: wizard, onboarding
 - Removing a **Part** is an **Operation**: from that step on, the parts that hang from it are anchored where they are, a **Span** that reached it keeps its length and reports the open end, and the removed part's **Feet**, **Joints** and their **Connectors** go with it. Earlier in the history the part is still there.
 - Deleting an **Operation** takes what it made out of the whole history. Later operations that relied on it become **Failed operations**; the others still apply. A failed operation adds nothing to the design.
 - An **Attachment** stays on its parent's face: its distance from the end is never more than the parent's length. A **Plate** is measured from its center, which may lie beyond the face, but the plate always rests on part of it.
+- A **Subassembly** is part of the cockpit design's one **Design history**. Its root hangs from a part outside it or is an **Anchored part**, and every part that hangs from the root belongs to it, including parts added later. Subassemblies can nest: a part belongs to the innermost one that holds it, and taking off a subassembly takes off those inside it. Removing the root ends the subassembly from that step on. Joints between a subassembly and the rest are undone while it is off, and their connectors are still bought. A part outside a subassembly that hangs from one of its parts, or a **Span** that reaches one, is reported, because taking the subassembly off would leave it without its parent.
+- A **Cockpit design** has any number of **Modes**, and one of them is shown and checked at a time. A design without modes has every part on. Parts outside every **Subassembly** are on in every mode, and a subassembly is on in a new mode until the user takes it off. A part taken off in a mode is still part of the design: it is built and bought once, whatever the modes.
+- **Interference**, travel, support and the driver's reach are checked in each **Mode** with only the parts it has on, and the mode shown says when another mode has problems. Two **Subassemblies** that overlap but are never on together are interchangeable, not interfering. Pending joints, failed operations, plate holes and the parts to buy belong to the whole design, whatever the modes.
+- Each **Mode** keeps the position of every **Adjustment** along its travel; fitting while a mode is shown changes that mode's positions, and a new mode starts with those of the mode shown. A subassembly is either on or taken off: moving one out of the way while it stays on the cockpit, by hinges or released brackets, is not modeled yet.
 - Moving or lengthening a **Part** carries along every part attached to it, directly or through others. A part that only touches another, without hanging from it, does not move with it.
 - The **Room setup** does not design a cockpit. After it, the room has no cockpit until the user adds the project's design to it, designing one first if there is none.
 - A new **Project** starts from the cockpit or from the room, as the user chooses; the other can be added later.

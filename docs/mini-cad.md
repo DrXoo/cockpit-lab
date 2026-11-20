@@ -46,7 +46,8 @@ All CAD dimensions are stored in mm. Each part has a stable identifier and a nam
 | Joint | The two parts and faces it joins, and its connectors |
 | Connector | Catalog type, side of the joint's corner; fasteners from its type |
 | Adjustment | The attachment it moves, and its travel |
-| Group/mode | Assembly, position in use, removal or storage |
+| Subassembly | Name and root part; its parts are what hangs from the root |
+| Mode | Name, the subassemblies it takes off, the position of each adjustment |
 
 The parts to buy group profiles by cut, a section and system at one length, and list the names of the parts under each. The domain model is the source of dimensions, exports and quantities; the 3D scene is a view of the model.
 
@@ -110,7 +111,7 @@ In the top and side views, the move handle shows only the arrows in the plane of
 
 Planned in November 2026. Designing the frame and fitting it to the driver are kept apart: the cockpit editor gets a **Fit** mode, where peripherals are mounted, adjustments are defined and moved along their travel, and the driver is fitted, while the frame can be selected but not moved or resized. Out of Fit, peripherals are drawn grey and cannot be picked, as a reference only. [cockpit-editor-interactions.md](cockpit-editor-interactions.md) describes the gestures.
 
-- **Peripherals.** A seat, a wheel base and pedals, each a generic type with estimated dimensions; named products come with the verified catalogs of stage 8, and shifters, handbrakes, sticks and HOTAS with stage 7. A peripheral hangs from a plate or a profile, its mounting face on any face of it, measured from its mounting origin with quarter turns about the face's normal, as a plate on a profile; it makes no joint and is supported by its parent. Mounting one copies its type's envelope, mounting pattern, contact points, backrest angle and rail travel into its operation, in mm, so a saved design never changes with the catalog. Swapping its type keeps where it is mounted and replaces those values, warning first when some were edited. It is drawn as simple shapes made from its envelope (a seat's base and backrest, a wheel base with its rim, pedals on a base), while interference uses the envelope.
+- **Peripherals.** A seat, a wheel base and pedals, each a generic type with estimated dimensions; named products come with the verified catalogs of stage 9, and shifters, handbrakes, sticks and HOTAS with stage 7. A peripheral hangs from a plate or a profile, its mounting face on any face of it, measured from its mounting origin with quarter turns about the face's normal, as a plate on a profile; it makes no joint and is supported by its parent. Mounting one copies its type's envelope, mounting pattern, contact points, backrest angle and rail travel into its operation, in mm, so a saved design never changes with the catalog. Swapping its type keeps where it is mounted and replaces those values, warning first when some were edited. It is drawn as simple shapes made from its envelope (a seat's base and backrest, a wheel base with its rim, pedals on a base), while interference uses the envelope.
 - **Adjustments.** Any part with an attachment can have one, except a span: an axis of the face it hangs from, a travel centered where it is attached, and its position along it, stored with its operation. The seat comes with the travel of its rails. Moving a part along its travel carries what hangs from it and never moves the holes, slots or joints its attachment makes. A travel that would take the part off its parent at either end is refused, where a peripheral, which slides on its mounting, only has to stay over part of its parent's face; interference is checked at the part's position and at both ends of its travel, one adjustment at a time with the others where they are; a span that would change length when an adjustment moves a part it depends on is reported.
 - **Driver.** The design stores the driver's stature, 175 cm unless changed; the proportions are the average ones of `anatomy.ts` and the torso follows the seat's backrest. In Fit, the driver is drawn as a simple figure on the seat's center plane, with the knee, hip and elbow angles against estimated GT ranges (knee 110–140°, hip 95–120°, elbow 90–130°) and warnings when legs or arms do not reach. The design works out the eye point and the editor shows it; the room's monitor arm aims at it once the room can include the cockpit design again (ADR 0004).
 - **Format.** Version 5 grows, without a new version: an optional driver, a mount-peripheral operation and optional adjustments on the operations that attach parts. Designs saved before open unchanged.
@@ -146,9 +147,31 @@ Built in slices, each usable in the browser when it lands:
 
 ### 7. Switching between racing and flight
 
-Model interchangeable plates, wheel, side or center stick, throttle and shifter/handbrake. Save positions for use and storage and check their travel. An item hidden in one mode still exists in the project's physical inventory.
+Planned in November 2026: one design carries what racing and flight need, and modes say which of it is on the cockpit and how it is fitted. Like components in other CAD programs, the parts that come and go are grouped, but in the design's one history ([ADR 0007](adr/0007-subassemblies-and-modes-sit-beside-the-design-history.md)). This stage completes the mini CAD.
 
-### 8. Verified catalogs
+- **Peripherals for the hands.** A shifter, a handbrake, a center stick, a side stick and a throttle, generic types with estimated dimensions like those of stage 5; a HOTAS is a stick and a throttle mounted apart. Each carries a grip, and the hand that uses it is chosen on the peripheral, with a default from its type: the right for a stick, a shifter and a handbrake, the left for a throttle.
+- **The driver's hands.** With a wheel on, both hands are on it, as now. Without one, each hand goes to its main grip, a stick or a throttle; a shifter or a handbrake only has its reach from the shoulder checked. Two main grips for the same hand are reported.
+- **Subassemblies.** A part made the root of a subassembly, with a name, takes with it everything that hangs from it, now and later. The root hangs from a part outside or is anchored; subassemblies nest, a part belonging to the innermost one. A part outside that hangs from a subassembly, or a span that reaches one, is reported. Removing the root ends the subassembly from that step on; joints to the rest are undone while it is off, and their connectors are still bought.
+- **Modes.** Any number, named by the user. Each says which subassemblies are taken off and where each adjustment is, so each has its own fitting; a new mode starts with everything on and the positions of the mode shown, and the first one with those stored in the operations. A design without modes has everything on, fitted as now. Interference, travel, support and the driver's reach are checked in the mode shown with only its parts on, and its checks say how many problems each other mode has; two subassemblies that overlap but are never on together are interchangeable, not interfering. Pending joints, failed operations, plate holes and the parts to buy belong to the whole design. A subassembly off in every mode is not reported. Moving a subassembly out of the way while it stays on the cockpit, by hinges, wheels on the profile or released brackets, needs hardware the catalog does not have and comes later.
+- **Seeing a mode.** The view's toolbar chooses All parts or a mode. All parts shows the whole design, as built and bought, with no driver or reach checks; a mode hides what it takes off, and selecting a step whose part is off shows it as a ghost, its inspector saying so. The design is edited the same way in any of them; Fit needs a mode, and turning it on with All parts shows the first. The mode shown is saved with the design.
+- **Managing them.** **Make subassembly** in a part's inspector; the root's inspector renames or ungroups it, without removing parts, and every part inside names its subassembly. Each step in the history is tagged with its subassembly. A **Modes** panel below the checks, whenever the design has subassemblies, lists them, nested ones indented, against the modes, each cell on ✓ or off, a nested one disabled where its parent is off; modes are renamed and deleted there.
+- **Format.** Version 5 grows, without a new version: optional subassemblies, modes and the mode shown beside the history, the hand of a peripheral's grip, and the new types. Designs saved before open unchanged, with no modes.
+
+Built in slices, each usable in the browser when it lands:
+
+1. **Peripherals for the hands.** The five types with their grips, the hand in the inspector, drawn as simple shapes; the format grows.
+2. **The driver's hands.** Hands on the main grips without a wheel, the reach of a shifter or handbrake, two grips for one hand.
+3. **Subassemblies.** Making one, membership and nesting, the history's tags and the inspector, and the report of parts that depend on one; the format grows.
+4. **Modes.** The toolbar's choice with All parts, the Modes panel, taken-off parts hidden and the ghost, the checks of each mode; the format grows.
+5. **Fitting in each mode.** Each mode's adjustment positions, and Fit needing a mode.
+
+After this stage the mini CAD is refined through real designs before the room takes it again.
+
+### 8. The cockpit in the room
+
+The room includes the cockpit design again ([ADR 0004](adr/0004-retire-the-parametric-cockpit-without-converting-it.md)): interference per named part with the room's items, and the monitor arm aimed at the eye point. The room shows the cockpit in one mode at a time, chosen while looking and the same in every layout, and its checks also report the modes not shown. Whether an arm pose remembers the mode it was recorded for is decided here.
+
+### 9. Verified catalogs
 
 Add verified device data sheets and other profile systems, and, where appropriate, import visual representations or CAD geometry from manufacturers. Tell measured references apart from approximations.
 

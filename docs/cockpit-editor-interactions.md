@@ -99,6 +99,12 @@ Moving a part along its travel changes no part and no cut: it is saved with the 
 
 Fitting with nothing selected, the panel is the driver's. The stature is typed in cm, from 140 to 210, and is an edit of the design that Ctrl+Z takes back. Each angle shows its value against its range with ✓ or ⚠ and words; legs that do not reach the pedals, or arms the wheel, are warned about, and a design without a seat or pedals says what to mount. The figure follows the parts along their travels.
 
+## Modes and subassemblies
+
+Planned for stage 7 (see [mini-cad.md](mini-cad.md)). The view's toolbar chooses **All parts** or one of the design's modes, and **New mode…**; a design without modes has only All parts. In a mode, the parts it takes off are not drawn or picked; selecting their step in the history draws them as a ghost, grey and translucent, and the inspector says they are off in that mode. Every edit works the same in All parts and in a mode. Turning Fit on with All parts shows the first mode, and moving a part along its travel changes the position of the mode shown.
+
+**Make subassembly** in the inspector of a part makes it a root, named after the part; the root's inspector renames it or ungroups it, and every part inside says which subassembly it is in. The **Modes** panel, below the checks whenever the design has a subassembly, has a row for each subassembly and a column for each mode, each cell a box with ✓ when on; a nested subassembly's row is indented and its box disabled where its parent is off. Modes are renamed and deleted in its column headings.
+
 ## Drawing of a plate
 
 **Drawing**, beside 3D, Top and Side, is offered while a plate is selected (stage 6). It replaces the view with the plate's drawing, seen from its face away from the profile with its depth up the page, and nothing in it is edited: to move a hole, edit what puts it there. Pointing at a hole names it below the drawing, with its kind, diameter and distances from the left and bottom edges, followed by each problem the design's checks find with it; a hole with a problem has a ⚠ beside it. Clicking a hole keeps its name shown. Choosing 3D, Top or Side, or selecting anything but a plate, goes back to the camera view. The holes are also drawn on the plate in the 3D views, as a reference.
