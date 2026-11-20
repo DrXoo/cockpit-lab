@@ -26,6 +26,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from '../parts/catalog.ts';
+import { fabricationProcess } from '../parts/fabrication.ts';
 import type { MountingPattern } from '../parts/mounting-pattern.ts';
 
 /** What every profile is made with, wherever it is placed. */
@@ -143,6 +144,8 @@ export interface AddPlate {
   partId: string;
   name: string;
   sheetId: string;
+  /** How it is cut and drilled, from the catalog of fabrication processes. */
+  processId: string;
   widthMm: number;
   depthMm: number;
   /** The axis its depth runs along: along the profile or across the face; its width the other. */
@@ -284,6 +287,7 @@ export interface FootValues {
 export interface PlateValues {
   name: string;
   sheetId: string;
+  processId: string;
   widthMm: number;
   depthMm: number;
   depthAxis: Axis;
@@ -396,6 +400,7 @@ function plateMadeBy(operation: AddPlate): PlatePart {
     widthMm: operation.widthMm,
     depthMm: operation.depthMm,
     sheetId: operation.sheetId,
+    processId: operation.processId,
     normal: operation.face,
     depthAxis: operation.depthAxis,
     placement: {
@@ -592,6 +597,7 @@ function checkFoot(operation: AddFoot) {
 
 function checkPlate(operation: AddPlate) {
   sheetType(operation.sheetId);
+  fabricationProcess(operation.processId);
   for (const sideMm of [operation.widthMm, operation.depthMm])
     if (!Number.isFinite(sideMm) || sideMm < MIN_PLATE_SIDE_MM || sideMm > MAX_PLATE_SIDE_MM)
       throw new Error(

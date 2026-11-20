@@ -2,6 +2,7 @@
 // plate moved to a face clicked in the view, and the edits of a plate's step. Lengths are in mm.
 import { cleanUserText } from '../../../shared/user-text.ts';
 import { faceAxis, type Axis, type Face, type Vec3Mm } from '../parts/assembly.ts';
+import { DEFAULT_PROCESS_ID } from '../parts/fabrication.ts';
 import { adjustmentOnFace } from './travel.ts';
 import {
   AXES,
@@ -20,7 +21,12 @@ import {
 } from './history.ts';
 
 /** A new plate: a square that a wheel base or a pedal set fits on, from a common sheet. */
-const NEW_PLATE = { sheetId: 'aluminium-8', widthMm: 300, depthMm: 300 } as const;
+const NEW_PLATE = {
+  sheetId: 'aluminium-8',
+  processId: DEFAULT_PROCESS_ID,
+  widthMm: 300,
+  depthMm: 300,
+} as const;
 
 /**
  * A plate ready to rest on a profile, not yet in the history: on the middle of the profile's

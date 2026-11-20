@@ -183,6 +183,7 @@ const plate: PlatePart = {
   widthMm: 400,
   depthMm: 300,
   sheetId: 'aluminium-5',
+  processId: 'laser-cutting',
   normal: '+y',
   depthAxis: 'z',
   placement: { kind: 'attachment', parentId: 'rail', face: '+y', alongMm: 600, fromEnd: 'start' },

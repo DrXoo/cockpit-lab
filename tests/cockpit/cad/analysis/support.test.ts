@@ -83,6 +83,7 @@ test('a peripheral on a plate is supported through the plate', () => {
     widthMm: 200,
     depthMm: 150,
     sheetId: 'aluminium-5',
+    processId: 'laser-cutting',
     normal: '+y',
     depthAxis: 'z',
     placement: {

@@ -287,7 +287,7 @@ test('a foot reads back with its type and its place under the profile', () => {
   assert.throws(() => readDesign(withFoot({ face: '-y' })), /face/);
 });
 
-test('a plate reads back with its sheet, its size and its place on the profile', () => {
+test('a plate reads back with its sheet, its process, its size and its place on the profile', () => {
   const { history } = designWith(1);
   const plate: AddPlate = {
     kind: 'add-plate',
@@ -295,6 +295,7 @@ test('a plate reads back with its sheet, its size and its place on the profile',
     partId: 'part-2',
     name: 'Wheel plate',
     sheetId: 'aluminium-8',
+    processId: 'hand-drilling',
     widthMm: 300,
     depthMm: 250,
     depthAxis: 'z',
@@ -311,6 +312,15 @@ test('a plate reads back with its sheet, its size and its place on the profile',
     history: [data.history[0], { ...plate, ...changes }],
   });
   assert.throws(() => readDesign(withPlate({ sheetId: 'steel-2' })), /steel-2/);
+  assert.throws(() => readDesign(withPlate({ processId: 'plasma' })), /plasma/);
+  const savedBefore: Record<string, unknown> = { ...plate };
+  delete savedBefore.processId;
+  const before = { ...data, history: [data.history[0], savedBefore] };
+  assert.equal(
+    ofKind(readDesign(before).history[1], 'add-plate').processId,
+    'laser-cutting',
+    'a plate saved before it had a process is laser cut',
+  );
   assert.throws(() => readDesign(withPlate({ widthMm: '300' })), /number/);
   assert.throws(() => readDesign(withPlate({ depthMm: 20 })), /between 50 and 1500/);
   assert.throws(() => readDesign(withPlate({ depthAxis: 'y' })), /depth/);

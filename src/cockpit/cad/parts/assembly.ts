@@ -101,6 +101,8 @@ export interface PlatePart {
   widthMm: number;
   depthMm: number;
   sheetId: string;
+  /** How it is cut and drilled, from the catalog of fabrication processes. */
+  processId: string;
   /** The way its thickness stands out of its underside: '+y' for a plate lying flat on top. */
   normal: Face;
   /** The axis its depth runs along, never its normal's. */

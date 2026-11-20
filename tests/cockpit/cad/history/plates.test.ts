@@ -31,6 +31,7 @@ test('a new plate rests on top of a profile, centered on its length, its depth a
     partId: 'part-2',
     name: 'Plate 2',
     sheetId: 'aluminium-8',
+    processId: 'laser-cutting',
     widthMm: 300,
     depthMm: 300,
     depthAxis: 'z',
@@ -63,9 +64,11 @@ test('its size, its sheet and the way its depth runs are edited as values of its
     widthMm: 200,
     depthMm: 400,
     sheetId: 'aluminium-4',
+    processId: 'hand-drilling',
     depthAxis: 'x',
   });
   assert.equal(ofKind(history[1], 'add-plate').name, 'Pedal plate');
+  assert.equal(ofKind(history[1], 'add-plate').processId, 'hand-drilling');
   assert.deepEqual(boxOf(history, 'part-2'), {
     min: { x: -200, y: 40, z: 400 },
     max: { x: 200, y: 44, z: 600 },
@@ -103,6 +106,10 @@ test('a plate takes only sizes and sheets the catalog has, its depth along its f
   assert.throws(
     () => withPlate(railHistory(), 'part-1', { sheetId: 'steel-8' }),
     /not in the catalog/,
+  );
+  assert.throws(
+    () => withPlate(railHistory(), 'part-1', { processId: 'plasma' }),
+    /plasma is not in the catalog/,
   );
   assert.throws(() => withPlate(railHistory(), 'part-1', { depthAxis: 'y' }), /depth/);
 });

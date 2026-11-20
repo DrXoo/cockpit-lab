@@ -299,6 +299,7 @@ const plate = (placement: Anchor | Attachment): PlatePart => ({
   widthMm: 400,
   depthMm: 300,
   sheetId: 'aluminium-5',
+  processId: 'laser-cutting',
   normal: 'face' in placement ? placement.face : '+y',
   depthAxis: 'z',
   placement,

@@ -98,6 +98,7 @@ const plateOn = (parentId: string): PlatePart => ({
   widthMm: 200,
   depthMm: 150,
   sheetId: 'aluminium-5',
+  processId: 'laser-cutting',
   normal: '+y',
   depthAxis: 'z',
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 200, fromEnd: 'start' },

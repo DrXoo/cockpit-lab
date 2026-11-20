@@ -16,6 +16,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from './cad/parts/catalog.ts';
+import { DEFAULT_PROCESS_ID } from './cad/parts/fabrication.ts';
 import type { Hole, MountingPattern } from './cad/parts/mounting-pattern.ts';
 import {
   ADJUSTMENT_GUIDES,
@@ -207,6 +208,7 @@ function readPlate(data: Record<string, unknown>): Operation {
     'partId',
     'name',
     'sheetId',
+    'processId',
     'widthMm',
     'depthMm',
     'depthAxis',
@@ -224,6 +226,8 @@ function readPlate(data: Record<string, unknown>): Operation {
     partId: identifier(data.partId),
     name: cleanUserText(data.name, 'Plate', MAX_PART_NAME_LENGTH),
     sheetId: text(data.sheetId, 'sheet'),
+    // A plate saved before it had a process is laser cut, as a new one is.
+    processId: data.processId === undefined ? DEFAULT_PROCESS_ID : text(data.processId, 'process'),
     widthMm: millimetres(data.widthMm, 'plate width'),
     depthMm: millimetres(data.depthMm, 'plate depth'),
     depthAxis: axis(data.depthAxis),

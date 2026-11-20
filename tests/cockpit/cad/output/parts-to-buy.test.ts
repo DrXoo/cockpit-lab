@@ -96,6 +96,7 @@ const plate = (id: string, widthMm: number, depthMm: number, sheetId: string): P
   widthMm,
   depthMm,
   sheetId,
+  processId: 'laser-cutting',
   normal: '+y',
   depthAxis: 'z',
   placement: {
