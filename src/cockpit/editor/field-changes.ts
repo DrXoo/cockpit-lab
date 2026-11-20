@@ -49,6 +49,7 @@ export function partChange(
       return { reachesId: value === '' ? null : value };
     case 'footTypeId':
     case 'sheetId':
+    case 'processId':
     case 'widthMm':
     case 'depthMm':
     case 'depthAxis':
@@ -100,6 +101,8 @@ export function plateChange(field: PartField, value: string): Partial<PlateValue
       return { name: value };
     case 'sheetId':
       return { sheetId: value };
+    case 'processId':
+      return { processId: value };
     case 'widthMm':
       return { widthMm: typedNumber(value) };
     case 'depthMm':

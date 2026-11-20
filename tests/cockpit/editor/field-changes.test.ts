@@ -79,6 +79,7 @@ test('the fields of a foot change the values of its operation', () => {
 test('the fields of a plate change the values of its operation', () => {
   assert.deepEqual(plateChange('name', 'Wheel plate'), { name: 'Wheel plate' });
   assert.deepEqual(plateChange('sheetId', 'aluminium-4'), { sheetId: 'aluminium-4' });
+  assert.deepEqual(plateChange('processId', 'hand-drilling'), { processId: 'hand-drilling' });
   assert.deepEqual(plateChange('widthMm', '250'), { widthMm: 250 });
   assert.deepEqual(plateChange('depthMm', ''), { depthMm: Number.NaN });
   assert.deepEqual(plateChange('depthAxis', 'x'), { depthAxis: 'x' });

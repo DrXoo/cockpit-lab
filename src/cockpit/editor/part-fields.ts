@@ -20,6 +20,7 @@ const PART_FIELDS = [
   'reachesId',
   'footTypeId',
   'sheetId',
+  'processId',
   'widthMm',
   'depthMm',
   'depthAxis',

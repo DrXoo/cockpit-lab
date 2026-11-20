@@ -81,3 +81,19 @@ export const leastGapBetweenHolesMm = (process: FabricationProcess, basis: Margi
 
 const marginMm = (margin: MaterialMargin, { thicknessMm, diameterMm }: MarginBasis): number =>
   margin.thicknesses * thicknessMm + margin.diameters * diameterMm;
+
+/** What a process wants around a plate's holes, in words, for the plate's sheet. */
+export function marginRuleText(process: FabricationProcess, thicknessMm: number): string {
+  const { edgeMargin, holeGap } = process;
+  const byThickness = edgeMargin.diameters === 0 && holeGap.diameters === 0;
+  if (byThickness && edgeMargin.thicknesses === holeGap.thicknesses)
+    return `At least ${edgeMargin.thicknesses * thicknessMm} mm of material beside each hole`;
+  const byDiameter = edgeMargin.thicknesses === 0 && holeGap.thicknesses === 0;
+  // From a hole's center: its radius plus the material beside it.
+  if (byDiameter)
+    return `${edgeMargin.diameters + 0.5} diameters from the edge to a hole’s center, ${holeGap.diameters + 1} between centers`;
+  return `${marginText(edgeMargin, thicknessMm)} of material to the edge, ${marginText(holeGap, thicknessMm)} between holes`;
+}
+
+const marginText = (margin: MaterialMargin, thicknessMm: number): string =>
+  `${margin.thicknesses * thicknessMm} mm and ${margin.diameters} diameters`;
