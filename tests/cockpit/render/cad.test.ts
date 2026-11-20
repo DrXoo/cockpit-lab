@@ -10,7 +10,11 @@ import {
   type PlatePart,
   type ProfilePart,
 } from '../../../src/cockpit/cad/parts/assembly.ts';
-import { drawCadProfiles, drawConnectors } from '../../../src/cockpit/render/cad.ts';
+import {
+  drawCadProfiles,
+  drawConnectors,
+  drawPlateHoles,
+} from '../../../src/cockpit/render/cad.ts';
 import { degToRad } from '../../../src/shared/geometry.ts';
 import { peripheralType } from '../../../src/cockpit/cad/parts/catalog.ts';
 
@@ -178,6 +182,40 @@ test('a selected plate, or one about to be added, is drawn as such', () => {
     bars(draw([profile('rail'), plateOn('rail')], null, 'plate'))[1].material,
     'preview',
   );
+});
+
+test('a plate hole is drawn as a dark plug through the plate, standing just proud of both faces', () => {
+  const r = createRenderList();
+  const resolved = resolveAssembly([profile('rail'), plateOn('rail')]);
+  const hole = {
+    kind: 'mounting' as const,
+    xMm: 50,
+    yMm: 100,
+    diameterMm: 9,
+    source: 'Seat, hole 1',
+  };
+  drawPlateHoles(r, ROOT, resolved, new Map([['plate', [hole]]]));
+  const [plug] = allOfKind(r.primitives, 'cylinder');
+  // Seen from above with its depth (+Z) up the page, the plate's right is the driver's (−X).
+  assert.deepEqual(plug.position, [-33, 14.4, 70]);
+  assert.equal(plug.radius, 0.45);
+  assert.ok(plug.length > 0.8 && plug.length < 0.9, `${plug.length} cm`);
+  assert.deepEqual(plug.rotation, [0, 0, 0]);
+  assert.equal(plug.material, 'dark');
+});
+
+test('a hole through a plate on the side of a profile is turned along its normal', () => {
+  const r = createRenderList();
+  const sidePlate: PlatePart = {
+    ...plateOn('rail'),
+    normal: '+x',
+    placement: { kind: 'attachment', parentId: 'rail', face: '+x', alongMm: 600, fromEnd: 'start' },
+  };
+  const resolved = resolveAssembly([profile('rail'), sidePlate]);
+  const hole = { kind: 'mounting' as const, xMm: 0, yMm: 0, diameterMm: 9, source: 'Seat, hole 1' };
+  drawPlateHoles(r, ROOT, resolved, new Map([['plate', [hole]]]));
+  const [plug] = allOfKind(r.primitives, 'cylinder');
+  assert.deepEqual(plug.rotation, [0, 0, Math.PI / 2]);
 });
 
 test('a corner bracket is drawn as an L: a plate against the part, one on the face it meets', () => {

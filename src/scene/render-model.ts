@@ -7,7 +7,12 @@ import {
   drawLayoutSelection,
   type LayoutSelection,
 } from '../room/render/annotations.ts';
-import { drawCadProfiles, drawConnectors, type CockpitDrawing } from '../cockpit/render/cad.ts';
+import {
+  drawCadProfiles,
+  drawConnectors,
+  drawPlateHoles,
+  type CockpitDrawing,
+} from '../cockpit/render/cad.ts';
 import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../cockpit/render/dimensions.ts';
 import { drawMeasurement } from '../cockpit/render/measurement.ts';
 import { drawDriver } from '../cockpit/render/driver.ts';
@@ -63,6 +68,8 @@ export function renderModel(
       { fitting: options.cockpit.fitting ?? false },
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
+    if (options.cockpit.plateHoles)
+      drawPlateHoles(r, ROOT, options.cockpit.resolved, options.cockpit.plateHoles);
     if (options.cockpit.driver) drawDriver(r, ROOT, options.cockpit.driver);
     const { resolved, selectedPartId, placedPartId = null } = options.cockpit;
     // While a part is placed on the selected profile, it is measured along it instead, and a

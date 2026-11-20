@@ -23,6 +23,7 @@ import {
   type ProfileValues,
 } from '../cad/history/history.ts';
 import type { Axis } from '../cad/parts/assembly.ts';
+import { holesOfPlates } from '../cad/parts/plate-holes.ts';
 import type { Handle, HandleModifiers } from '../cad/interaction/handles.ts';
 import { withDraft, type Draft } from '../cad/history/drafts.ts';
 import { jointsOfPart, touchingParts, type JointOfPart } from '../cad/history/fastening.ts';
@@ -131,11 +132,14 @@ export class CockpitEditor {
     const at = this.at();
     const shown = draft ? withDraft(history, draft, at) : history;
     const shownAt = draft ? at + 1 : at;
-    // The view shows the cockpit as fitted, each part where it is along its travel.
-    const { fitted } = replayDesign(shown, shownAt);
+    // The view shows the cockpit as fitted, each part where it is along its travel, and the
+    // holes where the design puts them, as fitting never moves them.
+    const design = replayDesign(shown, shownAt);
+    const { fitted } = design;
     return {
       resolved: fitted.resolved,
       connectors: fitted.connectors,
+      plateHoles: holesOfPlates(design),
       selectedPartId: this.selectedPartId(),
       previewPartId: draft?.partId ?? pendingChange?.partId ?? null,
       choosingFaceOf: draft?.parentId ?? null,

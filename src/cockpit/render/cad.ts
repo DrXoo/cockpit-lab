@@ -14,6 +14,7 @@ import {
 } from '../cad/parts/assembly.ts';
 import { connectorType, isPlateBolt, profileSystem } from '../cad/parts/catalog.ts';
 import type { PlacedConnector } from '../cad/parts/connectors.ts';
+import { pointOnPlate, type PlateHole } from '../cad/parts/plate-holes.ts';
 import type { MeasureDrawing } from './measurement.ts';
 import type { Handle } from '../cad/interaction/handles.ts';
 import type { SnapGuide } from '../cad/interaction/snapping.ts';
@@ -26,6 +27,8 @@ export interface CockpitDrawing {
   resolved: ReadonlyMap<string, ResolvedPart>;
   /** The connectors on its joints. */
   connectors?: readonly PlacedConnector[];
+  /** The holes of each plate, by its id, where the design puts them. */
+  plateHoles?: ReadonlyMap<string, readonly PlateHole[]>;
   selectedPartId: string | null;
   /** A part about to be added, drawn as a preview. */
   previewPartId?: string | null;
@@ -303,6 +306,49 @@ export function drawConnectors(
         'dark',
         frameOf(connector.tiltDeg),
       );
+  }
+}
+
+/** A hole stands this far out of both faces of its plate, so it shows over them. */
+const HOLE_PROUD_MM = 0.3;
+const HOLE_SEGMENTS = 20;
+/** Turns a cylinder, which stands along Y, to stand along an axis. */
+const CYLINDER_ALONG: Record<Axis, Vec3> = {
+  x: [0, 0, Math.PI / 2],
+  y: [0, 0, 0],
+  z: [Math.PI / 2, 0, 0],
+};
+
+/**
+ * Each hole of a plate as a dark plug through it, a reference of where it is cut. The holes are
+ * given by the plate's id, in its drawing's coordinates, so they move with the plate as fitted.
+ */
+export function drawPlateHoles(
+  r: RenderList,
+  parent: ParentRef,
+  resolved: ReadonlyMap<string, ResolvedPart>,
+  holesByPlate: ReadonlyMap<string, readonly PlateHole[]>,
+): void {
+  const frameOf = tiltFrames(r, parent);
+  for (const [plateId, holes] of holesByPlate) {
+    const plate = resolved.get(plateId);
+    if (plate?.part.kind !== 'plate') continue;
+    const normal = faceAxis(plate.part.normal);
+    const lengthMm = plate.box.max[normal] - plate.box.min[normal] + 2 * HOLE_PROUD_MM;
+    for (const hole of holes) {
+      const center = pointOnPlate(plate, hole.xMm, hole.yMm);
+      const plug = r.cylinder(
+        cm(hole.diameterMm / 2),
+        cm(lengthMm),
+        cm(center.x),
+        cm(center.y),
+        cm(center.z),
+        'dark',
+        frameOf(plate.tiltDeg),
+        HOLE_SEGMENTS,
+      );
+      plug.rotation = [...CYLINDER_ALONG[normal]];
+    }
   }
 }
 
