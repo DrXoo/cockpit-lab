@@ -19,6 +19,8 @@ export interface RoomEditorHost {
   renderControls(): void;
   /** Shows the parts of the page that depend on the editor, the tab and the setup step. */
   renderWorkflow(): void;
+  /** The view shown. */
+  view(): SceneView;
   switchSection(section: Section): void;
   setActiveView(view: SceneView): void;
   showWorkspace(workspace: Workspace): void;

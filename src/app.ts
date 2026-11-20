@@ -10,17 +10,8 @@ import { bindCockpitKeys } from './cockpit-editor/keys.ts';
 import { bindHistoryPanel, historyPanelHTML } from './cockpit-editor/history-panel.ts';
 import { creationControls, progressHTML } from './setup-editor.ts';
 import { SUMMARY_HEADING, summaryHTML } from './project-summary.ts';
-import { moveRoomTarget } from './room.ts';
 import { roomControls, roomItem, roomItems, roomTarget } from './room-editor.ts';
-import {
-  clamp,
-  round,
-  evaluate,
-  desktopTargets,
-  placeDeskItem,
-  clampEdge,
-  moveArmJoint,
-} from './model.ts';
+import { evaluate } from './model.ts';
 import { CockpitScene } from './scene.ts';
 import { SIGHT_AXIS, type SceneView } from './scene-camera.ts';
 import type { RoomConfig } from './config.ts';
@@ -28,13 +19,11 @@ import type { CockpitEvaluation } from './evaluate.ts';
 import type { Project } from './project.ts';
 import { activeLayout, hiddenFurnitureOf, type LayoutLibrary } from './layouts.ts';
 import { activeArmPose } from './arm-poses.ts';
-import { numericField } from './dom-input.ts';
-import { validationBanner, metricsView } from './inspector-view.ts';
+import { validationBanner } from './inspector-view.ts';
 import { sectionOfStep, setupButtons } from './setup-actions.ts';
 import { deskPanelHTML } from './settings-panels.ts';
 import { createProjectStore } from './project-storage.ts';
 import { ProjectSession } from './project-session.ts';
-import { checkRowHTML } from './check-view.ts';
 import { $, $$, $optional, dataOf, replaceKeepingFocus } from './dom.ts';
 import {
   editorOf,
@@ -52,6 +41,8 @@ import { RoomItems } from './room-editing/room-items.ts';
 import { GuidedSetup } from './room-editing/guided-setup.ts';
 import { DeskControls } from './room-editing/desk-controls.ts';
 import { LayoutPicker } from './room-editing/layout-picker.ts';
+import { PlanDragging } from './room-editing/plan-dragging.ts';
+import { renderRoomChecks } from './room-editing/room-checks-panel.ts';
 import { SettingControls } from './room-editing/settings-controls.ts';
 import { drawIcons } from './icons.ts';
 import { ColorTheme } from './theme.ts';
@@ -123,6 +114,7 @@ const roomHost: RoomEditorHost = {
   selection: roomSelection,
   evaluation: () => evaluation,
   section: () => section,
+  view: () => view,
   refresh: () => refresh(),
   renderControls: () => renderControls(),
   renderWorkflow: () => renderWorkflow(),
@@ -144,6 +136,7 @@ const roomItemControls = new RoomItems(roomHost);
 const guidedSetup = new GuidedSetup(roomHost);
 const deskControls = new DeskControls(roomHost, settingControls);
 const layoutPicker = new LayoutPicker(roomHost);
+const planDragging = new PlanDragging(roomHost);
 const projectFiles = new ProjectFiles({
   project,
   cockpitEditor,
@@ -387,36 +380,10 @@ $$('.editor-switch button').forEach((button) =>
 function refresh() {
   const shown = shownConfig();
   evaluation = evaluate(shown);
-  const e = evaluation;
   roomItemControls.sync();
-  $('#roomInspector').hidden = shown.roomEnabled === false;
-  $('#roomSizeTag').textContent = `${project.state.roomW} × ${project.state.roomD}`;
-  $('#roomChecks').innerHTML = [...e.extra.filter((c) => c.id === 'room'), ...e.room.checks]
-    .map(checkRowHTML)
-    .join('');
-  $('#desktopChecks').innerHTML = e.desktopChecks.map(checkRowHTML).join('');
-  $('#matTag').textContent = `${project.state.matWidth} × ${project.state.matDepth}`;
-  $('#deskSizeTag').textContent = `${project.state.deskWidth} × ${project.state.deskDepth}`;
   settingControls.sync();
-
   deskControls.sync();
-  $('#spaceChecks').innerHTML = [
-    ...e.spaceCheck,
-    ...e.extra.filter((c) => c.id !== 'room' && c.level !== 'ok'),
-  ]
-    .map(checkRowHTML)
-    .join('');
-  const banner = validationBanner(shown, e);
-  $('#validationBanner').className = banner.className;
-  $('#validationBanner').innerHTML = banner.html;
-  const maxReach = round(e.armPose.maxReach);
-  $('#reachValue').textContent = `${Math.round(e.reach)} / ${maxReach} cm`;
-  $('#reachMax').textContent = `Max. ${maxReach} cm`;
-  $('#reachMeter').style.width = `${Math.min(100, (e.reach / e.armPose.maxReach) * 100)}%`;
-  $('#reachMeter').classList.toggle('over', e.reach > e.armPose.maxReach);
-  const metrics = metricsView(shown, e);
-  $('#metricFootprint').innerHTML = metrics.footprintHTML;
-  $('#metricSpace').innerHTML = metrics.spaceHTML;
+  renderRoomChecks(project.state, shown, evaluation);
   renderWorkflow();
   cockpitInspector.render();
   cockpitInspector.renderChecks();
@@ -506,16 +473,6 @@ function setActiveView(next: SceneView) {
 $$('[data-view]').forEach((b) =>
   b.addEventListener('click', () => setActiveView(viewOf(dataOf(b, 'view')))),
 );
-$('#layoutBtn').addEventListener('click', () => {
-  roomSelection.editing = !roomSelection.editing;
-  $('#layoutBtn').classList.toggle('active', roomSelection.editing);
-  $('#layoutBtn').setAttribute('aria-pressed', String(roomSelection.editing));
-  syncSceneEditing();
-  if (roomSelection.editing) {
-    if (project.setup.step === 'complete' && !isRoomSection(section)) switchSection('desk');
-    setActiveView(desktopTargets.some((t) => t.id === roomSelection.target) ? 'desk' : 'top');
-  } else setActiveView(view);
-});
 $('#dimensionBtn').addEventListener('click', () => {
   const on = $('#dimensionBtn').getAttribute('aria-pressed') !== 'true';
   $('#dimensionBtn').setAttribute('aria-pressed', String(on));
@@ -593,40 +550,9 @@ try {
     handleDragging.drag(handle, movedMm, modifiers);
   scene.onHandleRelease = () => handleDragging.release();
   scene.onJointMarkerPick = (marker) => cockpitEditor.openJointCard(marker);
-  scene.onArmMove = (joint, x, z) => {
-    project.state = moveArmJoint(project.state, joint, x, z);
-    project.saveSoon();
-    refresh();
-  };
-  scene.onLayoutSelect = (target) => {
-    roomSelection.target = target;
-    if (project.setup.step === 'complete') {
-      switchSection(
-        target.startsWith('furniture:') ||
-          roomItem(project.state, target)?.type === 'wardrobeAccess'
-          ? 'furniture'
-          : target.startsWith('feature:')
-            ? 'room'
-            : 'desk',
-      );
-    } else if (section === 'desk' || isRoomSection(section)) renderControls();
-    syncSceneEditing();
-  };
-  scene.onLayoutMove = (target, x, z) => {
-    const item = desktopTargets.find((t) => t.id === target),
-      previousEdge = clampEdge(project.state);
-    if (target.startsWith('feature:') || target.startsWith('furniture:'))
-      project.state = moveRoomTarget(project.state, target, x, z);
-    else if (item) project.state = placeDeskItem(project.state, item.id, x, z);
-    else {
-      project.state[numericField(target + 'X')] = round(clamp(x, -1500, 1500));
-      project.state[numericField(target + 'Z')] = round(clamp(z, -1500, 1500));
-    }
-    project.saveSoon();
-    if (target === 'arm' && previousEdge !== clampEdge(project.state) && section === 'desk')
-      renderControls();
-    refresh();
-  };
+  scene.onArmMove = (joint, x, z) => planDragging.armMoved(joint, x, z);
+  scene.onLayoutSelect = (target) => planDragging.selected(target);
+  scene.onLayoutMove = (target, x, z) => planDragging.moved(target, x, z);
 } catch (error) {
   console.error(error);
   $('#webglFallback').hidden = false;
