@@ -2,9 +2,11 @@
 // function per kind of part, and to a part's adjustment.
 import type { Axis, ContactPoint, Face, Vec3Mm } from '../cad/parts/assembly.ts';
 import {
+  ADJUSTMENT_GUIDES,
   AXES,
   FACES,
   type Adjustment,
+  type AdjustmentGuide,
   type FootValues,
   type MountPeripheral,
   type ParentEnd,
@@ -213,7 +215,15 @@ export function adjustmentChange(field: AdjustmentField, value: string): Partial
       return { travelMm: typedNumber(value) };
     case 'positionMm':
       return { positionMm: typedNumber(value) };
+    case 'runsOn':
+      return { runsOn: guideOf(value) };
   }
+}
+
+function guideOf(value: string): AdjustmentGuide {
+  const guide = ADJUSTMENT_GUIDES.find((known) => known === value);
+  if (!guide) throw new Error(`Unknown adjustment guide: ${value}`);
+  return guide;
 }
 
 /** The face a value of the markup names. */

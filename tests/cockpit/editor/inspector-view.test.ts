@@ -85,3 +85,19 @@ test('in Fit, an attached part of the frame stays locked but gets an adjustment'
   const rail = partInspectorHTML(history, history[0], undefined, [], [], fitting);
   assert.doesNotMatch(rail, /id="addAdjustment"/, 'an anchored part does not slide');
 });
+
+test('in Fit, a peripheral sliding on a plate runs on its rails or in slots of the plate', () => {
+  const onPlate = withPeripheral(plateHistory(), 'part-2', 'generic-seat');
+  const seat = onPlate[2];
+  const html = partInspectorHTML(onPlate, seat, undefined, [], [], fitting);
+  const runsOn = captured(/<select id="adjustmentRunsOn".*?<\/select>/s, html, 0);
+  assert.match(runsOn, /data-adjustment-field="runsOn"/);
+  assert.deepEqual(
+    [...runsOn.matchAll(/value="(\w+)"/g)].map(([, value]) => value),
+    ['rails', 'slots'],
+  );
+  assert.match(runsOn, /value="rails" selected/);
+  const onRail = withPeripheral(railHistory(), 'part-1', 'generic-seat');
+  const onAProfile = partInspectorHTML(onRail, onRail[1], undefined, [], [], fitting);
+  assert.doesNotMatch(onAProfile, /id="adjustmentRunsOn"/, 'on a profile it slides on T-nuts');
+});

@@ -40,7 +40,7 @@ export type PartField = (typeof PART_FIELDS)[number];
 export const START_FIELDS: Record<Axis, PartField> = { x: 'startX', y: 'startY', z: 'startZ' };
 
 /** The values of an adjustment, as the markup names them in `data-adjustment-field`. */
-const ADJUSTMENT_FIELDS = ['axis', 'travelMm', 'positionMm'] as const;
+const ADJUSTMENT_FIELDS = ['axis', 'travelMm', 'positionMm', 'runsOn'] as const;
 export type AdjustmentField = (typeof ADJUSTMENT_FIELDS)[number];
 
 /** The inspector field a `data-part-field` names. */

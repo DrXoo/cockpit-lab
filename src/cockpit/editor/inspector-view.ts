@@ -4,11 +4,15 @@
 import { faceAxis } from '../cad/parts/assembly.ts';
 import type { JointOfPart } from '../cad/history/fastening.ts';
 import {
+  ADJUSTMENT_GUIDES,
   AXES,
   isAdjustable,
   MAX_TRAVEL_MM,
+  operationMaking,
   stepTitle,
   type AdjustableOperation,
+  type Adjustment,
+  type AdjustmentGuide,
   type Operation,
 } from '../cad/history/history.ts';
 import { round } from '../../shared/geometry.ts';
@@ -51,7 +55,7 @@ export function partInspectorHTML(
     case 'join-parts':
       return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
     case 'mount-peripheral':
-      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(operation) : ''}<div class="part-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(history, operation) : ''}<div class="part-actions">${deleteStep}</div></div>`;
     case 'add-foot':
       return partFieldsHTML(footFieldsHTML(history, operation));
     case 'add-plate':
@@ -82,7 +86,7 @@ function lockedStepHTML(
     failure === undefined
       ? ''
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)}</p>`;
-  const adjustment = isAdjustable(operation) ? adjustmentHTML(operation) : '';
+  const adjustment = isAdjustable(operation) ? adjustmentHTML(history, operation) : '';
   return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p>${failed}${adjustment}</div>`;
 }
 
@@ -91,7 +95,7 @@ function lockedStepHTML(
  * it is along it; or a button to give it one. A span takes its length from the part it reaches,
  * so it has none.
  */
-function adjustmentHTML(operation: AdjustableOperation): string {
+function adjustmentHTML(history: readonly Operation[], operation: AdjustableOperation): string {
   const heading = '<h4 class="buy-group">Adjustment</h4>';
   if (operation.kind === 'grow-profile' && operation.reachesId !== undefined)
     return `${heading}<p class="layout-hint" id="adjustmentNone">A span takes its length from the part it reaches, so it does not slide.</p>`;
@@ -106,7 +110,30 @@ function adjustmentHTML(operation: AdjustableOperation): string {
     )
     .join('');
   const halfMm = adjustment.travelMm / 2;
-  return `${heading}<div class="select-control"><label for="adjustmentAxis">Slides along</label><select id="adjustmentAxis" data-adjustment-field="axis">${axes}</select></div>${adjustmentNumberHTML('adjustmentTravel', 'travelMm', 'Travel', adjustment.travelMm, 1, MAX_TRAVEL_MM)}${adjustmentNumberHTML('adjustmentPosition', 'positionMm', 'Position', adjustment.positionMm, -halfMm, halfMm)}<p class="layout-hint">Centered where it is attached, towards + on its axis. Moving it along its travel changes no part or cut.</p><div class="part-actions"><button class="button button-light" id="removeAdjustment" title="Fix it at the center of its travel"><i data-icon="trash"></i>Remove the adjustment</button></div>`;
+  return `${heading}<div class="select-control"><label for="adjustmentAxis">Slides along</label><select id="adjustmentAxis" data-adjustment-field="axis">${axes}</select></div>${guideHTML(history, operation, adjustment)}${adjustmentNumberHTML('adjustmentTravel', 'travelMm', 'Travel', adjustment.travelMm, 1, MAX_TRAVEL_MM)}${adjustmentNumberHTML('adjustmentPosition', 'positionMm', 'Position', adjustment.positionMm, -halfMm, halfMm)}<p class="layout-hint">Centered where it is attached, towards + on its axis. Moving it along its travel changes no part or cut.</p><div class="part-actions"><button class="button button-light" id="removeAdjustment" title="Fix it at the center of its travel"><i data-icon="trash"></i>Remove the adjustment</button></div>`;
+}
+
+const GUIDE_NAMES: Record<AdjustmentGuide, string> = {
+  rails: 'Its own rails, bolted to the plate',
+  slots: 'Slots cut in the plate',
+};
+
+/**
+ * What a peripheral on a plate slides on: its own rails, or slots in the plate in place of its
+ * mounting holes. On a profile it slides on T-nuts in the slot, so there is nothing to choose.
+ */
+function guideHTML(
+  history: readonly Operation[],
+  operation: AdjustableOperation,
+  adjustment: Adjustment,
+): string {
+  if (operation.kind !== 'mount-peripheral' || adjustment.runsOn === undefined) return '';
+  if (operationMaking(history, operation.parentId)?.kind !== 'add-plate') return '';
+  const options = ADJUSTMENT_GUIDES.map(
+    (guide) =>
+      `<option value="${guide}"${guide === adjustment.runsOn ? ' selected' : ''}>${GUIDE_NAMES[guide]}</option>`,
+  ).join('');
+  return `<div class="select-control"><label for="adjustmentRunsOn">Runs on</label><select id="adjustmentRunsOn" data-adjustment-field="runsOn">${options}</select></div>`;
 }
 
 function adjustmentNumberHTML(

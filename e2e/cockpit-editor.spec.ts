@@ -582,6 +582,28 @@ test('a selected plate is shown as a drawing with its holes, in place of the 3D 
   await expect(page.locator('#drawingView')).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('fitting, a seat on a plate runs on its rails or in slots, which the plate drawing shows', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-operation="op-1"]').click();
+  await page.locator('#putPlate').click();
+  await page.locator('#confirmPlate').click();
+  await page.locator('#fitModeBtn').click();
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#mountSeat').click();
+  await page.locator('#confirmPeripheral').click();
+  await expect(page.locator('#adjustmentRunsOn')).toHaveValue('rails');
+  await page.locator('#adjustmentRunsOn').selectOption('slots');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'mount-peripheral', adjustment: { runsOn: 'slots' } });
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#drawingView').click();
+  await expect(page.locator('#plateDrawingSheet .slot-outline')).toHaveCount(4);
+  await expect(page.locator('#plateDrawingSheet circle')).toHaveCount(0);
+});
+
 test('Delete removes the selected part, and deletes a selected removal', async ({ page }) => {
   await startDesign(page);
   await page.locator('#viewport canvas').focus();
@@ -1019,7 +1041,7 @@ test('fitting, a part slides along its adjustment, saved with the design without
   await page.locator('#addAdjustment').click();
   await expect
     .poll(async () => (await seat())?.adjustment)
-    .toEqual({ axis: 'z', travelMm: 100, positionMm: 0 });
+    .toEqual({ axis: 'z', travelMm: 100, positionMm: 0, runsOn: 'rails' });
 
   // The frame stays locked, but a part that hangs from another can slide.
   await page.locator('[data-part="part-1"]').click();
