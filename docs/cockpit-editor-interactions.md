@@ -99,6 +99,10 @@ Moving a part along its travel changes no part and no cut: it is saved with the 
 
 Fitting with nothing selected, the panel is the driver's. The stature is typed in cm, from 140 to 210, and is an edit of the design that Ctrl+Z takes back. Each angle shows its value against its range with ✓ or ⚠ and words; legs that do not reach the pedals, or arms the wheel, are warned about, and a design without a seat or pedals says what to mount. The figure follows the parts along their travels.
 
+## Drawing of a plate
+
+**Drawing**, beside 3D, Top and Side, is offered while a plate is selected (stage 6). It replaces the view with the plate's drawing, seen from its face away from the profile with its depth up the page, and nothing in it is edited: to move a hole, edit what puts it there. Pointing at a hole names it below the drawing, with its kind, diameter and distances from the left and bottom edges; clicking it keeps that name shown. Choosing 3D, Top or Side, or selecting anything but a plate, goes back to the camera view. The holes are also drawn on the plate in the 3D views, as a reference.
+
 ## Keyboard
 
 | Key | Result |
