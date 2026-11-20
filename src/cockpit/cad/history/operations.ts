@@ -26,7 +26,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from '../parts/catalog.ts';
-import type { MountingPattern } from '../parts/plate.ts';
+import type { MountingPattern } from '../parts/mounting-pattern.ts';
 
 /** What every profile is made with, wherever it is placed. */
 export interface ProfileShape {

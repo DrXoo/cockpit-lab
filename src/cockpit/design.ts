@@ -16,7 +16,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from './cad/parts/catalog.ts';
-import type { Hole, MountingPattern } from './cad/parts/plate.ts';
+import type { Hole, MountingPattern } from './cad/parts/mounting-pattern.ts';
 import {
   checkedHistory,
   checkedOperation,

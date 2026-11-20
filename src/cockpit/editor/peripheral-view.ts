@@ -18,7 +18,7 @@ import {
   type Operation,
 } from '../cad/history/history.ts';
 import { differsFromItsType } from '../cad/history/peripherals.ts';
-import type { Hole } from '../cad/parts/plate.ts';
+import type { Hole } from '../cad/parts/mounting-pattern.ts';
 import { round } from '../../shared/geometry.ts';
 import { escapeHTML } from '../../ui/html.ts';
 import {

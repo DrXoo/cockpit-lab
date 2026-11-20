@@ -13,7 +13,7 @@ import {
   type ProfileOperation,
   type ProfileValues,
 } from '../cad/history/history.ts';
-import type { Hole } from '../cad/parts/plate.ts';
+import type { Hole } from '../cad/parts/mounting-pattern.ts';
 import { START_FIELDS, type AdjustmentField, type PartField } from './part-fields.ts';
 
 /** The change one field of the inspector makes to the values of a profile's operation. */

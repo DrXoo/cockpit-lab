@@ -14,7 +14,7 @@ import {
   type DataSource,
   type PeripheralCategory,
 } from './catalog.ts';
-import type { MountingPattern } from './plate.ts';
+import type { MountingPattern } from './mounting-pattern.ts';
 
 export type Axis = 'x' | 'y' | 'z';
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';

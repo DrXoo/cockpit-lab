@@ -2,7 +2,7 @@
 // Every dimension records its source, so measured or estimated values are never
 // mistaken for a manufacturer's data sheet.
 import type { ContactPoint, Envelope } from './assembly.ts';
-import type { MountingPattern } from './plate.ts';
+import type { MountingPattern } from './mounting-pattern.ts';
 
 export interface DataSource {
   kind: 'data sheet' | 'measured' | 'estimated';

@@ -34,7 +34,7 @@ import {
   type PeripheralShape,
   type Adjustment,
 } from './history.ts';
-import type { Hole, MountingPattern } from '../parts/plate.ts';
+import type { Hole, MountingPattern } from '../parts/mounting-pattern.ts';
 import { adjustmentTurnedWith, withinTravel } from './travel.ts';
 
 /** A peripheral faces the front of the cockpit, as the driver does, unless it cannot. */
