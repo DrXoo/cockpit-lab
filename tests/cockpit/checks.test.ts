@@ -248,6 +248,21 @@ test('the problems of a plate’s holes are listed under its name, one check for
   ]);
 });
 
+test('a design with a peripheral on a profile checks that its holes bolt into a slot', () => {
+  assert.equal(checksOfHistory(railHistory())['cad-peripheral-holes'], undefined, 'none');
+  const onPlate = withPeripheral(withPlate(railHistory(), 'part-1'), 'part-2', 'generic-pedals');
+  assert.equal(checksOfHistory(onPlate)['cad-peripheral-holes'], undefined, 'on a plate');
+  const check = present(
+    checksOfHistory(withPeripheral(railHistory(), 'part-1', 'generic-pedals'))[
+      'cad-peripheral-holes'
+    ],
+    'the check',
+  );
+  assert.equal(check.level, 'warning');
+  assert.equal(check.items?.length, 4);
+  assert.equal(check.items?.[0], 'Pedal set, hole 1 is over no profile to bolt into');
+});
+
 test('a design with subassemblies lists the spans outside one that reach into it', () => {
   // B (part-3) hangs from A (part-1) and spans to C (part-2).
   const history = editProfile(growthTowardsRail(), 'part-3', { reachesId: 'part-2' });

@@ -20,6 +20,7 @@ import {
   type HoleProblem,
   type HoleProblemKind,
 } from './cad/analysis/hole-problems.ts';
+import { peripheralHoleProblems } from './cad/analysis/peripheral-holes.ts';
 import type { SlidingPart } from './cad/parts/plate-holes.ts';
 import {
   appliedSubassemblies,
@@ -157,6 +158,7 @@ export function cadChecks(
     failedStepsCheck(design),
     ...(on?.alongTravels ?? []),
     ...plateHoleChecks(design),
+    ...peripheralHoleChecks(design),
     ...subassemblyChecks(design),
     ...(on?.driver ?? []),
   ];
@@ -323,6 +325,25 @@ function plateHoleChecks(design: DesignToCheck): Check[] {
       .map(({ plateName, problem }) => `${plateName}: ${problem.text}`);
     return listCheck(id, label, items, { found: foundText, none });
   });
+}
+
+/** Once a peripheral is mounted on a profile, its holes that miss the slot of a profile under them. */
+function peripheralHoleChecks({ resolved }: DesignToCheck): Check[] {
+  const onAProfile = [...resolved.values()].some(
+    ({ part }) =>
+      part.kind === 'peripheral' &&
+      part.placement.kind !== 'anchor' &&
+      resolved.get(part.placement.parentId)?.part.kind === 'profile',
+  );
+  if (!onAProfile) return [];
+  const items = peripheralHoleProblems(resolved).map((problem) => problem.text);
+  return [
+    listCheck('cad-peripheral-holes', 'Peripheral holes off a slot', items, {
+      found:
+        'A peripheral bolts into a profile through a T-nut in its slot. In its inspector, rest the holes of one side on the profile it is mounted on, and put a profile under the other side, as far from it as the holes are.',
+      none: 'Every hole of a peripheral on a profile is over a slot.',
+    }),
+  ];
 }
 
 /** The parts that would reach into each other with one adjusted part at an end of its travel. */

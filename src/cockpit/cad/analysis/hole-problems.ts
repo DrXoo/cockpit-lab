@@ -42,7 +42,7 @@ const MEASURE_TOLERANCE_MM = 0.01;
  * How far a bolt's hole may lie from a slot's center line and still take a T-nut in it:
  * estimated, as the bolt has about that much play in its hole and in the slot's opening.
  */
-const SLOT_ALIGNMENT_MM = 1;
+export const SLOT_ALIGNMENT_MM = 1;
 
 /** Every problem of a plate's holes: each hole's own first, in order, then those of pairs. */
 export function plateHoleProblems(design: PlateHoleSources, plateId: string): HoleProblem[] {
