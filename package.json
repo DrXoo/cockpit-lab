@@ -15,7 +15,7 @@
     "move": "node scripts/move.ts",
     "rename": "node scripts/rename.ts",
     "test": "node --test",
-    "check": "node scripts/check.mjs && node scripts/check-casts.ts && npm run typecheck && prettier --check .",
+    "check": "node scripts/check.mjs && node scripts/check-casts.ts && node scripts/check-layers.ts && npm run typecheck && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc -p .",
     "prepare": "git config core.hooksPath scripts/hooks",

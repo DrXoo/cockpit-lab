@@ -12,7 +12,7 @@ The Three.js license is kept; Three.js is now installed from npm and the build i
 2. Run `npm install` and then `npm run dev` in the integrated terminal.
 3. Open the address shown, usually `http://127.0.0.1:5173`.
 4. Save your changes; the page reloads by itself.
-5. Run `npm run check` (types, syntax, unexplained casts and formatting) and `npm test` before you commit, and `npm run test:e2e` when you change the interface or the 3D view. A new or changed screenshot test also needs a clean `npm run test:e2e:stress`.
+5. Run `npm run check` (types, syntax, unexplained casts, the direction of imports between folders and formatting) and `npm test` before you commit, and `npm run test:e2e` when you change the interface or the 3D view. A new or changed screenshot test also needs a clean `npm run test:e2e:stress`.
 
 Run `npm install` once after cloning: it also points Git at `scripts/hooks`, so every commit runs `npm run check` and `npm test` first and stops if they fail. `npm run dev` starts the Vite dev server, which only listens on the local interface, serves `src/` and reloads the page when you save. `npm run build` produces the static version in `dist/`, which is not versioned, and `npm run format` formats the code. `npm run look -- <walk.mjs>` builds the app, serves it on the preview port (4173, apart from the dev server's browser storage) and saves the screenshots a walk-through takes, in the Chrome the end-to-end tests use. `npm run rename -- <file>[:<line>] <old name> <new name>` renames a symbol through the type checker, so strings, comments and other symbols with the same name stay as they are; run the type check and the tests after it (limits at the top of `scripts/rename.ts`).
 

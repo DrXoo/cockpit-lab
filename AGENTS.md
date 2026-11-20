@@ -56,6 +56,7 @@ These principles serve readability and change. Don't add abstractions, layers or
 ## Architecture and build
 
 - The source lives in `src/`. Vite runs the dev server (`npm run dev`) and builds the app into `dist/` (`npm run build`). `dist/` is generated output: never edit it or commit it.
+- `src/` is grouped by area (`room/`, `cockpit/`, `project/`), with `shared/`, `ui/`, `app/` and `scene/` beside them (README: Project structure). An area's domain sits in its folder; its editor (`editing/`, `editor/`) and drawing (`render/`) depend on it, never the reverse. `npm run check` enforces that direction (`scripts/check-layers.ts`). Put a new module in the folder of what it is about, its test in the same folder under `tests/`, and move files with `npm run move` so every reference follows.
 - Third-party code comes from npm with exact pinned versions. Don't vendor copies into `src/`.
 - The source is TypeScript. `tsc` only type-checks it (`noEmit`): Vite builds the app, and Node runs the tests on the `.ts` files directly through type stripping. So:
   - import local modules with their `.ts` extension;
