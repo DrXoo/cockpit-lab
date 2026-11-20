@@ -6,6 +6,7 @@ import type { CockpitEditor, CockpitEditorHost } from './cockpit/editor/editor.t
 import { bindHistoryPanel, historyPanelHTML } from './cockpit/editor/history-panel.ts';
 import type { CockpitInspector } from './cockpit/editor/inspector.ts';
 import type { CockpitToolbar } from './cockpit/editor/toolbar.ts';
+import type { DrawingPanel, DrawingPanelHost } from './cockpit/editor/drawing-panel.ts';
 import type { CockpitViewOverlays } from './cockpit/editor/view-overlays.ts';
 import { NOTHING_AROUND } from './room/config.ts';
 import { activeArmPose } from './room/arm-poses.ts';
@@ -64,6 +65,7 @@ export interface WorkbenchParts {
   cockpitEditor: CockpitEditor;
   cockpitInspector: CockpitInspector;
   cockpitToolbar: CockpitToolbar;
+  drawingPanel: DrawingPanel;
   cockpitOverlays: CockpitViewOverlays;
   settingControls: SettingControls;
   roomItems: RoomItems;
@@ -72,7 +74,7 @@ export interface WorkbenchParts {
   layoutPicker: LayoutPicker;
 }
 
-export class Workbench implements CockpitEditorHost, RoomEditorHost {
+export class Workbench implements CockpitEditorHost, RoomEditorHost, DrawingPanelHost {
   declare readonly project: ProjectSession;
   declare readonly selection: RoomSelection;
   declare readonly parts: WorkbenchParts;
@@ -320,6 +322,7 @@ export class Workbench implements CockpitEditorHost, RoomEditorHost {
     parts.cockpitInspector.renderChecks();
     parts.cockpitOverlays.render();
     parts.cockpitToolbar.render();
+    parts.drawingPanel.render();
     this.scene?.update(shown, this.lastEvaluation, this.cockpitDrawing());
   }
 
@@ -346,8 +349,14 @@ export class Workbench implements CockpitEditorHost, RoomEditorHost {
     this.showWorkspace('config');
   }
 
+  /** Goes back to the camera view shown before the drawing of a plate. */
+  showCameraView() {
+    this.setActiveView(this.shownView);
+  }
+
   setActiveView(next: SceneView) {
     this.shownView = next;
+    this.parts.drawingPanel.hide();
     $$('[data-view]').forEach((button) => {
       const active = dataOf(button, 'view') === next;
       button.classList.toggle('active', active);

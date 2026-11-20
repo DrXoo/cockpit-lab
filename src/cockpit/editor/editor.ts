@@ -23,7 +23,8 @@ import {
   type ProfileValues,
 } from '../cad/history/history.ts';
 import type { Axis } from '../cad/parts/assembly.ts';
-import { holesOfPlates } from '../cad/parts/plate-holes.ts';
+import { holesOfPlate, holesOfPlates } from '../cad/parts/plate-holes.ts';
+import { holeDescription, plateDrawingSvg } from '../cad/output/plate-drawing.ts';
 import type { Handle, HandleModifiers } from '../cad/interaction/handles.ts';
 import { withDraft, type Draft } from '../cad/history/drafts.ts';
 import { jointsOfPart, touchingParts, type JointOfPart } from '../cad/history/fastening.ts';
@@ -150,6 +151,23 @@ export class CockpitEditor {
       placedPartId: draft?.partId ?? pendingChange?.partId ?? null,
       jointMarkers: editing.shownJointMarkers(this.current),
       fitting,
+    };
+  }
+
+  /**
+   * The drawing of the selected part when it is a plate at the history marker, with its holes
+   * where the design puts them; null for any other selection.
+   */
+  plateDrawing(): { svg: string; descriptions: string[] } | null {
+    const partId = this.selectedPartId();
+    if (partId === null) return null;
+    const design = replayDesign(this.history(), this.at());
+    const part = design.resolved.get(partId)?.part;
+    if (part?.kind !== 'plate') return null;
+    const holes = holesOfPlate(design, partId);
+    return {
+      svg: plateDrawingSvg(part, holes),
+      descriptions: holes.map((hole) => holeDescription(part, hole)),
     };
   }
 

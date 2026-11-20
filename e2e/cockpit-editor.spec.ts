@@ -550,6 +550,38 @@ test('a plate is joined to the profiles it touches and bolted into their slots',
   await expect.poll(async () => (await savedHistory(page))?.length).toBe(5);
 });
 
+test('a selected plate is shown as a drawing with its holes, in place of the 3D view', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('[data-operation="op-1"]').click();
+  await expect(page.locator('#drawingView')).toBeDisabled();
+  await page.locator('#putPlate').click();
+  await page.locator('#confirmPlate').click();
+  await page.locator('[data-joint-two-bolts="part-2@part-1"]').click();
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#drawingView').click();
+  await expect(page.locator('#drawingView')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-view="iso"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#plateDrawingView')).toBeVisible();
+  const holes = page.locator('#plateDrawingSheet [data-kind="fastening"]');
+  await expect(holes).toHaveCount(2);
+  const described = page.locator('#plateDrawingHole');
+  const hint = await described.textContent();
+  await holes.first().click();
+  await expect(holes.first()).toHaveClass(/chosen/);
+  await expect(described).not.toHaveText(hint ?? '');
+
+  await page.locator('[data-part="part-1"]').click();
+  await expect(page.locator('#plateDrawingView')).toBeHidden();
+  await expect(page.locator('[data-view="iso"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#drawingView').click();
+  await page.locator('[data-view="top"]').click();
+  await expect(page.locator('#plateDrawingView')).toBeHidden();
+  await expect(page.locator('#drawingView')).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('Delete removes the selected part, and deletes a selected removal', async ({ page }) => {
   await startDesign(page);
   await page.locator('#viewport canvas').focus();

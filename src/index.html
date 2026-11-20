@@ -200,7 +200,8 @@
             <button class="active" data-view="iso" aria-pressed="true">3D</button
             ><button data-view="top" aria-pressed="false">Top</button
             ><button data-view="desk" aria-pressed="false">Desk</button
-            ><button data-view="side" aria-pressed="false" hidden>Side</button>
+            ><button data-view="side" aria-pressed="false" hidden>Side</button
+            ><button id="drawingView" aria-pressed="false" hidden>Drawing</button>
           </div>
           <div class="part-tools" id="partTools" role="toolbar" aria-label="Selected part" hidden>
             <button
@@ -292,6 +293,10 @@
           </div>
         </div>
         <div class="viewport" id="viewport">
+          <div class="plate-drawing-view" id="plateDrawingView" hidden>
+            <div class="plate-drawing-sheet" id="plateDrawingSheet"></div>
+            <p class="plate-drawing-hole" id="plateDrawingHole" aria-live="polite"></p>
+          </div>
           <div id="emptyScene" class="empty-scene">
             <strong id="emptySceneTitle">Your space starts here</strong
             ><span id="emptySceneHint">Set up your room to start arranging it.</span>

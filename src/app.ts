@@ -5,6 +5,7 @@ import { HandleDragging } from './cockpit/editor/handle-dragging.ts';
 import { CockpitInspector } from './cockpit/editor/inspector.ts';
 import { bindCockpitKeys } from './cockpit/editor/keys.ts';
 import { CockpitToolbar } from './cockpit/editor/toolbar.ts';
+import { DrawingPanel } from './cockpit/editor/drawing-panel.ts';
 import { CockpitViewOverlays } from './cockpit/editor/view-overlays.ts';
 import type { RoomConfig } from './room/config.ts';
 import { bindDialogs } from './app/dialogs.ts';
@@ -44,6 +45,7 @@ const workbench: Workbench = new Workbench(project, (host) => {
     cockpitEditor,
     cockpitInspector: new CockpitInspector(cockpitEditor, inCockpitEditor),
     cockpitToolbar: new CockpitToolbar(cockpitEditor, inCockpitEditor),
+    drawingPanel: new DrawingPanel(cockpitEditor, host),
     cockpitOverlays: new CockpitViewOverlays(cockpitEditor, () => host.scene, inCockpitEditor),
     settingControls,
     roomItems: new RoomItems(host),

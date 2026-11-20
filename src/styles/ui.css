@@ -136,6 +136,55 @@ button:disabled {
   background: color-mix(in srgb, var(--surface-sunken) 86%, transparent);
   pointer-events: none;
 }
+.plate-drawing-view {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 64px 24px 16px;
+  background: var(--scene-background);
+  color: var(--text);
+}
+.plate-drawing-view[hidden] {
+  display: none;
+}
+.plate-drawing-sheet {
+  flex: 1;
+  min-height: 0;
+}
+.plate-drawing-sheet svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.plate-drawing-sheet .plate-dimensions,
+.plate-drawing-sheet .hole-columns,
+.plate-drawing-sheet .hole-rows {
+  color: var(--text-muted);
+}
+.plate-drawing-sheet .plate-hole {
+  cursor: pointer;
+  color: var(--accent-text);
+}
+.plate-drawing-sheet .plate-hole circle {
+  fill: transparent;
+  pointer-events: all;
+}
+.plate-drawing-sheet .plate-hole:hover circle,
+.plate-drawing-sheet .plate-hole.chosen circle {
+  fill: var(--accent-surface-strong);
+}
+.plate-drawing-sheet .plate-orientation {
+  font-weight: 600;
+}
+.plate-drawing-hole {
+  min-height: 1.5em;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
 .empty-scene strong {
   font-size: 23px;
   font-weight: 500;
@@ -609,6 +658,10 @@ select option {
 }
 .view-tabs button.active {
   color: var(--text);
+}
+.view-tabs button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
 }
 .scene-options {
   align-items: center;
