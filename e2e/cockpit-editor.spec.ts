@@ -256,6 +256,40 @@ test('a part changed so that what grows out of it would hang off fails that step
   await expect(page.locator('[data-operation="op-2"]')).not.toHaveClass(/failed/);
 });
 
+test('a part is made the root of a subassembly, renamed and ungrouped from its inspector', async ({
+  page,
+}) => {
+  await startDesign(page);
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  const savedSubassemblies = async () => (await getSavedProject(page))?.cockpit?.subassemblies;
+  await expect(page.locator('#ungroupSubassembly')).toHaveCount(0);
+
+  await page.locator('#makeSubassembly').click();
+  await expect.poll(savedSubassemblies).toEqual([{ name: '40 × 40 profile 2', rootId: 'part-2' }]);
+  await expect(page.locator('[data-operation="op-2"] [data-subassembly-tag]')).toBeVisible();
+  await expect(page.locator('[data-operation="op-1"] [data-subassembly-tag]')).toHaveCount(0);
+  await expect(page.locator('[data-check="cad-subassembly-dependents"]')).toHaveClass(/ok/);
+  await page.locator('#subassemblyName').fill('Wheel deck');
+  await page.locator('#subassemblyName').press('Enter');
+  await expect.poll(savedSubassemblies).toEqual([{ name: 'Wheel deck', rootId: 'part-2' }]);
+
+  // A part grown out of the root belongs to the subassembly, and can root a nested one.
+  await page.locator('#growProfile').click();
+  await page.locator('#confirmGrowth').click();
+  await expect(page.locator('[data-operation="op-3"] [data-subassembly-tag]')).toBeVisible();
+  await expect(page.locator('#makeSubassembly')).toBeVisible();
+
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#ungroupSubassembly').click();
+  await expect.poll(savedSubassemblies).toBeUndefined();
+  await expect(page.locator('[data-subassembly-tag]')).toHaveCount(0);
+  await expect(page.locator('[data-check="cad-subassembly-dependents"]')).toHaveCount(0);
+  expect(await savedHistory(page)).toHaveLength(3);
+  await page.locator('#undoEdit').click();
+  await expect.poll(savedSubassemblies).toEqual([{ name: 'Wheel deck', rootId: 'part-2' }]);
+});
+
 test('a profile can lie along a face instead of growing out of it', async ({ page }) => {
   await startDesign(page);
   await page.locator('#growProfile').click();

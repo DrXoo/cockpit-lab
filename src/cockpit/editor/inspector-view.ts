@@ -7,6 +7,7 @@ import {
   ADJUSTMENT_GUIDES,
   AXES,
   isAdjustable,
+  makesAPart,
   MAX_TRAVEL_MM,
   operationMaking,
   stepTitle,
@@ -25,6 +26,14 @@ import { isAPeripheral, type Mode } from './part-tools.ts';
 import { peripheralInspectorHTML } from './peripheral-view.ts';
 import { plateExportsHTML, plateFieldsHTML } from './plate-view.ts';
 import { profileFieldsHTML } from './profile-view.ts';
+import { subassemblyHTML } from './subassembly-view.ts';
+import type { AppliedSubassembly } from '../cad/history/subassemblies.ts';
+
+/** How the inspector shows a step: the mode of the view, and the subassemblies at the marker. */
+export interface PartInspectorOptions extends Mode {
+  /** The subassemblies that apply where the view shows the design; none when left out. */
+  subassemblies?: readonly AppliedSubassembly[];
+}
 
 /**
  * The inspector of the selected step: the values of the operation that made a part, with what
@@ -37,11 +46,17 @@ export function partInspectorHTML(
   failure?: string,
   joints: readonly JointOfPart[] = [],
   touching: readonly TouchingPart[] = [],
-  { fitting = false }: Mode = {},
+  { fitting = false, subassemblies = [] }: PartInspectorOptions = {},
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
-  if (fitting && !isAPeripheral(operation)) return lockedStepHTML(history, operation, failure);
+  // A failed step makes no part to group.
+  const subassembly =
+    failure === undefined && makesAPart(operation)
+      ? subassemblyHTML(subassemblies, operation.partId)
+      : '';
+  if (fitting && !isAPeripheral(operation))
+    return lockedStepHTML(history, operation, failure, subassembly);
   const deleteStep = `<button class="button button-light" id="deleteStep" title="Take this step out of the whole history"><i data-icon="trash"></i>Delete this step</button>`;
   const failed =
     failure === undefined
@@ -57,7 +72,7 @@ export function partInspectorHTML(
     case 'join-parts':
       return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
     case 'mount-peripheral':
-      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(history, operation) : ''}<div class="part-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(history, operation) : ''}${subassembly}<div class="part-actions">${deleteStep}</div></div>`;
     case 'add-foot':
       return partFieldsHTML(footFieldsHTML(history, operation));
     case 'add-plate':
@@ -71,7 +86,7 @@ export function partInspectorHTML(
 
   /** The fields of a part of the frame, with its joints and the deletion of its step. */
   function partFieldsHTML(fields: string): string {
-    return `<div class="part-inspector" id="partInspectorFields">${failed}${fields}${jointsHTML(joints, touching)}<div class="part-actions">${deleteStep}</div></div>`;
+    return `<div class="part-inspector" id="partInspectorFields">${failed}${fields}${jointsHTML(joints, touching)}${subassembly}<div class="part-actions">${deleteStep}</div></div>`;
   }
 }
 
@@ -83,6 +98,7 @@ function lockedStepHTML(
   history: readonly Operation[],
   operation: Operation,
   failure: string | undefined,
+  subassembly: string,
 ): string {
   const failed =
     failure === undefined
@@ -90,7 +106,7 @@ function lockedStepHTML(
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)}</p>`;
   const adjustment = isAdjustable(operation) ? adjustmentHTML(history, operation) : '';
   const exports = operation.kind === 'add-plate' && failure === undefined ? plateExportsHTML() : '';
-  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p>${failed}${adjustment}${exports}</div>`;
+  return `<div class="part-inspector" id="lockedPart"><p class="part-parent"><strong>${escapeHTML(stepTitle(history, operation))}</strong></p><p class="layout-hint">🔒 The frame is locked while fitting the driver: turn Fit off to change it.</p>${failed}${adjustment}${exports}${subassembly}</div>`;
 }
 
 /**

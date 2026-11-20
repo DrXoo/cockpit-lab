@@ -19,6 +19,11 @@ import {
   type HoleProblemKind,
 } from './cad/analysis/hole-problems.ts';
 import type { SlidingPart } from './cad/parts/plate-holes.ts';
+import {
+  appliedSubassemblies,
+  spansReachingSubassemblies,
+  type Subassembly,
+} from './cad/history/subassemblies.ts';
 
 /** A design replayed from its history, with the steps that failed. */
 export interface DesignToCheck {
@@ -33,6 +38,8 @@ export interface DesignToCheck {
   fitted?: FittedPose;
   /** The adjustment of each part that has one, by its id; none when left out. */
   adjustments?: ReadonlyMap<string, SlidingPart>;
+  /** Its subassemblies; none when left out. */
+  subassemblies?: readonly Subassembly[];
 }
 
 /** The shortest way out, in the frame of the part it was measured on. */
@@ -85,6 +92,27 @@ export function cadChecks(design: DesignToCheck): Check[] {
     failedStepsCheck(design),
     ...fitted,
     ...plateHoleChecks(design),
+    ...subassemblyChecks(design),
+  ];
+}
+
+/** Once the design has a subassembly, the parts outside one that depend on it. */
+function subassemblyChecks({ resolved, subassemblies = [] }: DesignToCheck): Check[] {
+  if (subassemblies.length === 0) return [];
+  const applied = appliedSubassemblies(subassemblies, resolved);
+  const nameOf = (id: string) => resolved.get(id)?.part.name ?? id;
+  const subassemblyName = (rootId: string) =>
+    applied.find((subassembly) => subassembly.rootId === rootId)?.name ?? rootId;
+  const items = spansReachingSubassemblies(applied, resolved).map(
+    ({ spanId, reachesId, rootId }) =>
+      `${nameOf(spanId)} reaches ${nameOf(reachesId)}, in ${subassemblyName(rootId)}`,
+  );
+  return [
+    listCheck('cad-subassembly-dependents', 'Parts depending on a subassembly', items, {
+      found:
+        'Taking the subassembly off would leave each of these spans with an open end. Grow the span out of a part of the subassembly, or have it reach a part outside.',
+      none: 'No part outside a subassembly depends on one.',
+    }),
   ];
 }
 

@@ -30,6 +30,8 @@ export interface DesignPanel {
   canRedo: boolean;
   /** Whether the design is being fitted, which locks the frame. */
   fitting?: boolean;
+  /** The name of the subassembly each step's part belongs to, by step id; none when left out. */
+  subassemblyTags?: ReadonlyMap<string, string>;
 }
 
 /** The history panel: the design's operations, the undo and redo of its edits, and its tools. */
@@ -71,7 +73,12 @@ function historyStepHTML(panel: DesignPanel, index: number) {
     failure === undefined
       ? ''
       : `<small class="history-failure">⚠ Failed: ${escapeHTML(failure)}</small>`;
-  return `<li><button class="${classes}" data-operation="${escapeHTML(operation.id)}"${part} aria-pressed="${selected}"${waiting ? ' disabled' : ''}><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(stepTitle(history, operation))}</strong><small>${stepDetail(history, operation)}</small>${failed}</span></button></li>`;
+  const subassembly = panel.subassemblyTags?.get(operation.id);
+  const tag =
+    subassembly === undefined
+      ? ''
+      : `<small class="history-subassembly" data-subassembly-tag>▣ In ${escapeHTML(subassembly)}</small>`;
+  return `<li><button class="${classes}" data-operation="${escapeHTML(operation.id)}"${part} aria-pressed="${selected}"${waiting ? ' disabled' : ''}><span class="history-number">${index + 1}</span><span class="history-text"><strong>${escapeHTML(stepTitle(history, operation))}</strong><small>${stepDetail(history, operation)}</small>${tag}${failed}</span></button></li>`;
 }
 
 function stepDetail(history: readonly Operation[], operation: Operation): string {

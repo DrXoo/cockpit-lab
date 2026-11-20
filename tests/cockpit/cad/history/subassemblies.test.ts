@@ -12,6 +12,7 @@ import {
   makeSubassembly,
   renameSubassembly,
   spansReachingSubassemblies,
+  subassemblyOfEachStep,
   ungroupSubassembly,
   type Subassembly,
 } from '../../../../src/cockpit/cad/history/subassemblies.ts';
@@ -124,4 +125,23 @@ test('a subassembly is renamed as its root says, and ungrouped without removing 
   ]);
   assert.deepEqual(renameSubassembly(subassemblies, 'part-2', '   '), subassemblies);
   assert.deepEqual(ungroupSubassembly(subassemblies, 'part-2'), []);
+});
+
+test('each step that makes a part is tagged with the subassembly the part belongs to', () => {
+  const history = deckHistory();
+  const subassemblies = makeSubassembly(makeSubassembly([], history, 'part-2'), history, 'part-3');
+  const tags = subassemblyOfEachStep(history, subassemblies, history.length);
+
+  assert.deepEqual(
+    history.map((operation) => tags.get(operation.id)?.rootId ?? null),
+    [null, 'part-2', 'part-3', 'part-3'],
+  );
+});
+
+test('steps after the history marker are tagged as the whole design has them', () => {
+  const history = deckHistory();
+  const subassemblies = makeSubassembly([], history, 'part-2');
+  const tags = subassemblyOfEachStep(history, subassemblies, 1);
+
+  assert.equal(tags.get(present(history[3], 'the wheel base step').id)?.name, 'Deck');
 });

@@ -16,6 +16,7 @@ export function historyPanelHTML(editor: CockpitEditor): string {
     canUndo: canUndo(session.edits),
     canRedo: canRedo(session.edits),
     fitting: session.fitting,
+    subassemblyTags: editor.subassemblyTags(),
   });
 }
 

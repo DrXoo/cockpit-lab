@@ -38,6 +38,7 @@ import type { CockpitDesign } from '../design.ts';
 import {
   appliedSubassemblies,
   makeSubassembly,
+  subassemblyOfEachStep,
   renameSubassembly,
   ungroupSubassembly,
   type AppliedSubassembly,
@@ -400,10 +401,22 @@ export class CockpitEditor {
     this.changeDesign({ ...editing.openDesign(this.current), driver });
   }
 
+  /** The design's subassemblies as stored, whether or not they apply at the marker. */
+  subassemblies(): readonly Subassembly[] {
+    return editing.designSubassemblies(this.current);
+  }
+
   /** The subassemblies that apply at the history marker, with their parts. */
   subassembliesShown(): AppliedSubassembly[] {
     const { resolved } = replayDesign(this.history(), this.at());
     return appliedSubassemblies(editing.designSubassemblies(this.current), resolved);
+  }
+
+  /** The name of the subassembly each step's part belongs to, by step id. */
+  subassemblyTags(): Map<string, string> {
+    const subassemblies = editing.designSubassemblies(this.current);
+    const tags = subassemblyOfEachStep(this.history(), subassemblies, this.at());
+    return new Map([...tags].map(([stepId, { name }]) => [stepId, name]));
   }
 
   /** Makes the selected part the root of a new subassembly, named after it. */

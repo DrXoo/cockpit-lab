@@ -1764,6 +1764,9 @@ select option {
   font-size: 11px;
   color: var(--warning);
 }
+.history-text .history-subassembly {
+  color: var(--accent-text);
+}
 .history-step.after-marker {
   opacity: 0.55;
   cursor: default;

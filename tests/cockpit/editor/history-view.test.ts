@@ -152,3 +152,13 @@ test('in Fit, the history adds no profile, as the frame is locked', () => {
   assert.match(panel({ history, fitting: true }), /id="addProfile"[^>]*disabled/);
   assert.doesNotMatch(panel({ history }), /id="addProfile"[^>]*disabled/);
 });
+
+test('a step is tagged with the subassembly its part belongs to', () => {
+  const history = withGrowth(railHistory(), 'part-1');
+  const html = panel({ history, subassemblyTags: new Map([['op-2', 'Wheel <deck>']]) });
+  assert.match(
+    stepOf(html, 'op-2'),
+    /<small class="history-subassembly" data-subassembly-tag>▣ In Wheel &lt;deck&gt;<\/small>/,
+  );
+  assert.doesNotMatch(stepOf(html, 'op-1'), /history-subassembly/);
+});

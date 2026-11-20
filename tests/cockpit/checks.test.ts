@@ -21,7 +21,14 @@ import {
 import { cadChecks } from '../../src/cockpit/checks.ts';
 import { addAdjustment, editAdjustment } from '../../src/cockpit/cad/history/adjustments.ts';
 import { editPlate } from '../../src/cockpit/cad/history/plates.ts';
-import { railHistory, withGrowth, withPeripheral, withPlate } from '../support/designs.ts';
+import {
+  growthTowardsRail,
+  railHistory,
+  withGrowth,
+  withPeripheral,
+  withPlate,
+} from '../support/designs.ts';
+import { present } from '../support/lookups.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const bar = (
@@ -236,4 +243,23 @@ test('the problems of a plate’s holes are listed under its name, one check for
   assert.deepEqual(checks['cad-holes-off-plate']?.items, [
     'Wheel plate: Wheel base, hole 1 crosses the edge',
   ]);
+});
+
+test('a design with subassemblies lists the spans outside one that reach into it', () => {
+  // B (part-3) hangs from A (part-1) and spans to C (part-2).
+  const history = editProfile(growthTowardsRail(), 'part-3', { reachesId: 'part-2' });
+  const checksWith = (subassemblies: { name: string; rootId: string }[]) =>
+    byId(cadChecks({ history, ...replayDesign(history), subassemblies }));
+
+  assert.equal(checksWith([])['cad-subassembly-dependents'], undefined);
+  assert.equal(
+    checksWith([{ name: 'Frame', rootId: 'part-1' }])['cad-subassembly-dependents']?.level,
+    'ok',
+  );
+  const found = present(
+    checksWith([{ name: 'Side rail', rootId: 'part-2' }])['cad-subassembly-dependents'],
+    'the check of parts depending on a subassembly',
+  );
+  assert.equal(found.level, 'warning');
+  assert.deepEqual(found.items, ['B reaches C, in Side rail']);
 });

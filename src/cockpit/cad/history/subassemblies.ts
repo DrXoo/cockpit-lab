@@ -3,7 +3,8 @@
 // its root part, and its parts are those that hang from the root in the design replayed.
 import type { ResolvedPart } from '../parts/assembly.ts';
 import { cleanUserText } from '../../../shared/user-text.ts';
-import { MAX_PART_NAME_LENGTH, operationMaking, type Operation } from './operations.ts';
+import { makesAPart, MAX_PART_NAME_LENGTH, operationMaking, type Operation } from './operations.ts';
+import { replayDesign } from './replay.ts';
 
 /** A subassembly as the design stores it. */
 export interface Subassembly {
@@ -72,6 +73,32 @@ export function spansReachingSubassemblies(
     const innermost = smallest(outside);
     return innermost ? [{ spanId: part.id, reachesId, rootId: innermost.rootId }] : [];
   });
+}
+
+/**
+ * The subassembly of each step that makes a part, by the step's id: the innermost one holding
+ * its part where the view shows the design, at the history marker `at`, or, for a step after
+ * it, in the whole design. A step whose part neither has, as it was removed, has none.
+ */
+export function subassemblyOfEachStep(
+  history: readonly Operation[],
+  subassemblies: readonly Subassembly[],
+  at: number,
+): Map<string, AppliedSubassembly> {
+  const tags = new Map<string, AppliedSubassembly>();
+  if (subassemblies.length === 0) return tags;
+  const shown = appliedSubassemblies(subassemblies, replayDesign(history, at).resolved);
+  const whole =
+    at < history.length
+      ? appliedSubassemblies(subassemblies, replayDesign(history).resolved)
+      : shown;
+  history.forEach((operation, index) => {
+    if (!makesAPart(operation)) return;
+    const applied = index < at ? shown : whole;
+    const found = innermostSubassembly(applied, operation.partId);
+    if (found) tags.set(operation.id, found);
+  });
+  return tags;
 }
 
 /** Makes a part the root of a new subassembly, named after it. */

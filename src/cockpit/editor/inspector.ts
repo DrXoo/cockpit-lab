@@ -106,7 +106,7 @@ export class CockpitInspector {
             failure,
             editor.jointsOfSelected(),
             editor.touchingSelected(),
-            { fitting },
+            { fitting, subassemblies: editor.subassembliesShown() },
           )
         : this.draftPanelHTML(history, draft);
     if (!force && html === this.shownHTML) return;
@@ -124,6 +124,8 @@ export class CockpitInspector {
     if (operation && fitting && isAdjustable(operation))
       this.bindAdjustment(body, operation.partId);
     this.bindPlateExports(body);
+    // Grouping parts changes none of them, so it works in either mode of the view.
+    if (operation && makesAPart(operation)) this.bindSubassembly(body, operation.partId);
     // A step the mode of the view locks has nothing else to change.
     if (!operation || !editor.changeableInMode(operation)) return;
     $('#deleteStep').addEventListener('click', () => editor.deleteSelectedStep());
@@ -136,6 +138,19 @@ export class CockpitInspector {
     });
     if (operation.kind === 'mount-peripheral') this.bindMountingHoles(body, operation.partId);
     bindJointActions(body, editor);
+  }
+
+  /** The buttons that make the selected part a subassembly's root or ungroup it, and its name. */
+  private bindSubassembly(container: HTMLElement, partId: string) {
+    const editor = this.editor;
+    container
+      .querySelector('#makeSubassembly')
+      ?.addEventListener('click', () => editor.makeSubassemblyOfSelected());
+    container
+      .querySelector('#ungroupSubassembly')
+      ?.addEventListener('click', () => editor.ungroupSubassembly(partId));
+    const name = container.querySelector<HTMLInputElement>('#subassemblyName');
+    name?.addEventListener('change', () => editor.renameSubassembly(partId, name.value));
   }
 
   /** Downloads the selected plate's DXF or template from the buttons of its inspector. */
@@ -167,7 +182,7 @@ export class CockpitInspector {
     $('#wholeDesignNote').hidden = editor.at() === history.length;
     this.showList(
       $('#cockpitChecks'),
-      cadChecks({ history, ...design })
+      cadChecks({ history, ...design, subassemblies: editor.subassemblies() })
         .map(checkRowHTML)
         .join(''),
     );
