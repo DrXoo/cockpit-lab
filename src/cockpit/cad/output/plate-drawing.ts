@@ -1,8 +1,9 @@
 // The drawing of a plate: its outline and holes at 1:1 in mm, seen from its face away from the
 // profile with its depth up the page (plate-holes.ts), with its size, the position of each row
 // and column of holes from the bottom left corner, and an arrow saying which way up the page is
-// on the cockpit. The editor shows it and the plate's exports start from it. Its lines and text
+// on the cockpit, and a ⚠ beside each hole with a problem (hole-problems.ts). The editor shows it and the plate's exports start from it. Its lines and text
 // take the color of the page around it (currentColor).
+import { problemsOfHole, type HoleProblem } from '../analysis/hole-problems.ts';
 import type { Face, PlatePart } from '../parts/assembly.ts';
 import { sheetType } from '../parts/catalog.ts';
 import { plateView, type PlateHole, type PlateHoleKind } from '../parts/plate-holes.ts';
@@ -42,8 +43,17 @@ const SLOT_NAMES: Record<PlateHoleKind, string> = {
   fastening: 'fastening slot',
 };
 
-/** What the drawing says about a hole when it is pointed at. */
-export function holeDescription(plate: PlatePart, hole: PlateHole): string {
+/** What the drawing says about a hole when it is pointed at, with what is wrong with it. */
+export function holeDescription(
+  plate: PlatePart,
+  hole: PlateHole,
+  problems: readonly HoleProblem[] = [],
+): string {
+  const warnings = problems.map((problem) => ` · ⚠ ${problem.text}`).join('');
+  return `${holeWhereText(plate, hole)}${warnings}`;
+}
+
+function holeWhereText(plate: PlatePart, hole: PlateHole): string {
   const fromLeft = lengthText(hole.xMm + plate.widthMm / 2);
   const fromBottom = lengthText(hole.yMm + plate.depthMm / 2);
   const where = `${fromLeft} mm from the left edge and ${fromBottom} mm from the bottom edge`;
@@ -53,8 +63,12 @@ export function holeDescription(plate: PlatePart, hole: PlateHole): string {
   return `${hole.source}: ${KIND_NAMES[hole.kind]} ⌀${diameter} mm, ${where}`;
 }
 
-/** The drawing of a plate with its holes, as an SVG document in mm. */
-export function plateDrawingSvg(plate: PlatePart, holes: readonly PlateHole[]): string {
+/** The drawing of a plate with its holes and their problems, as an SVG document in mm. */
+export function plateDrawingSvg(
+  plate: PlatePart,
+  holes: readonly PlateHole[],
+  problems: readonly HoleProblem[] = [],
+): string {
   const layout = layoutOf(plate);
   const caption = captionOf(plate);
   const { textMm } = layout;
@@ -69,7 +83,9 @@ export function plateDrawingSvg(plate: PlatePart, holes: readonly PlateHole[]): 
     sizeDimensions(plate, layout),
     holeColumns(plate, holes, layout),
     holeRows(plate, holes, layout),
-    ...holes.map((hole, index) => holeShape(plate, hole, index, layout)),
+    ...holes.map((hole, index) =>
+      holeShape(plate, hole, index, problemsOfHole(problems, index), layout),
+    ),
     orientation(plate, layout, left),
     text(
       caption,
@@ -168,17 +184,29 @@ function holeRows(plate: PlatePart, holes: readonly PlateHole[], layout: Layout)
   return `<g class="hole-rows">${marks.join('')}</g>`;
 }
 
-function holeShape(plate: PlatePart, hole: PlateHole, index: number, { textMm }: Layout): string {
+function holeShape(
+  plate: PlatePart,
+  hole: PlateHole,
+  index: number,
+  problems: readonly HoleProblem[],
+  layout: Layout,
+): string {
+  const { textMm } = layout;
   const x = hole.xMm;
   const y = -hole.yMm;
   const radiusMm = hole.diameterMm / 2;
   const markMm = radiusMm + textMm / 2;
   const centerMark = `${line(x - markMm, y, x + markMm, y)}${line(x, y - markMm, x, y + markMm)}`;
-  const title = `<title>${escaped(holeDescription(plate, hole))}</title>`;
+  const title = `<title>${escaped(holeDescription(plate, hole, problems))}</title>`;
   const shape = hole.slot
     ? `<path class="slot-outline" d="${slotPath(x, y, radiusMm, hole.slot)}"/>`
     : `<circle cx="${number(x)}" cy="${number(y)}" r="${number(radiusMm)}"/>`;
-  return `<g class="plate-hole" data-hole="${index}" data-kind="${hole.kind}">${title}${shape}<g class="center-mark" stroke-width="${number(textMm / 20)}">${centerMark}</g></g>`;
+  const className = problems.length ? 'plate-hole has-problem' : 'plate-hole';
+  // Above the right of the hole, clear of its center mark.
+  const warning = problems.length
+    ? text('⚠', x + markMm, y - markMm, layout, { className: 'hole-warning' })
+    : '';
+  return `<g class="${className}" data-hole="${index}" data-kind="${hole.kind}">${title}${shape}<g class="center-mark" stroke-width="${number(textMm / 20)}">${centerMark}</g>${warning}</g>`;
 }
 
 /**

@@ -603,6 +603,19 @@ test('fitting, a seat on a plate runs on its rails or in slots, which the plate 
   await page.locator('#drawingView').click();
   await expect(page.locator('#plateDrawingSheet .slot-outline')).toHaveCount(4);
   await expect(page.locator('#plateDrawingSheet circle')).toHaveCount(0);
+
+  await expect(page.locator('#cockpitChecks [data-check="cad-uncut-slots"]')).toHaveClass(/ok/);
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#part-processId').selectOption('hand-drilling');
+  await expect
+    .poll(async () => (await savedHistory(page))?.[1])
+    .toMatchObject({ kind: 'add-plate', processId: 'hand-drilling' });
+  await expect(page.locator('#cockpitChecks [data-check="cad-uncut-slots"]')).toHaveClass(
+    /warning/,
+  );
+  await page.locator('[data-view="iso"]').click();
+  await page.locator('#drawingView').click();
+  await expect(page.locator('#plateDrawingSheet .has-problem')).toHaveCount(4);
 });
 
 test('Delete removes the selected part, and deletes a selected removal', async ({ page }) => {

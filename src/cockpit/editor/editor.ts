@@ -24,6 +24,7 @@ import {
 } from '../cad/history/history.ts';
 import type { Axis } from '../cad/parts/assembly.ts';
 import { holesOfPlate, holesOfPlates } from '../cad/parts/plate-holes.ts';
+import { plateHoleProblems, problemsOfHole } from '../cad/analysis/hole-problems.ts';
 import { holeDescription, plateDrawingSvg } from '../cad/output/plate-drawing.ts';
 import type { Handle, HandleModifiers } from '../cad/interaction/handles.ts';
 import { withDraft, type Draft } from '../cad/history/drafts.ts';
@@ -165,9 +166,12 @@ export class CockpitEditor {
     const part = design.resolved.get(partId)?.part;
     if (part?.kind !== 'plate') return null;
     const holes = holesOfPlate(design, partId);
+    const problems = plateHoleProblems(design, partId);
     return {
-      svg: plateDrawingSvg(part, holes),
-      descriptions: holes.map((hole) => holeDescription(part, hole)),
+      svg: plateDrawingSvg(part, holes, problems),
+      descriptions: holes.map((hole, index) =>
+        holeDescription(part, hole, problemsOfHole(problems, index)),
+      ),
     };
   }
 

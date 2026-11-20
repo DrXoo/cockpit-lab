@@ -294,3 +294,7 @@ function inASlot({ from, to }: Stadium, profile: ProfileUnder): boolean {
     offsets.every((offsetMm) => Math.abs(offsetMm - lineMm) <= SLOT_ALIGNMENT_MM),
   );
 }
+
+/** The problems that name the hole at `index` of its plate. */
+export const problemsOfHole = (problems: readonly HoleProblem[], index: number): HoleProblem[] =>
+  problems.filter((problem) => problem.holeIndexes.includes(index));

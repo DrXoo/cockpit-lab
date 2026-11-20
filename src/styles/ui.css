@@ -179,6 +179,9 @@ button:disabled {
 .plate-drawing-sheet .plate-hole.chosen path {
   fill: var(--accent-surface-strong);
 }
+.plate-drawing-sheet .plate-hole.has-problem {
+  color: var(--warning);
+}
 .plate-drawing-sheet .plate-orientation {
   font-weight: 600;
 }
@@ -576,6 +579,10 @@ select option {
   font-size: 12px;
   max-width: 155px;
   border-color: var(--border-strong);
+}
+/* A process's name is longer than other choices, and its label is short. */
+.select-control select[data-part-field='processId'] {
+  max-width: 190px;
 }
 .toggle-control {
   min-height: 36px;

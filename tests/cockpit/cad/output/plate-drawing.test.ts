@@ -146,3 +146,30 @@ test('a slot is drawn as two straight sides and two half circles, centered where
     'Wheel base, hole 1: mounting slot 6.5 mm wide and 66.5 mm long, centered 160 mm from the left edge and 35 mm from the bottom edge',
   );
 });
+
+test('a hole with a problem is marked ⚠ in the drawing, and its description says what it is', async () => {
+  const { plateHoleProblems, problemsOfHole } =
+    await import('../../../../src/cockpit/cad/analysis/hole-problems.ts');
+  const crossing = { holes: [{ xMm: 97, yMm: 0, diameterMm: 8 }, ...referencePattern.holes] };
+  const history = withPeripheral(referenceDesign().slice(0, 2), 'part-2', 'generic-wheel-base', {
+    name: 'Wheel base',
+    mountingPattern: crossing,
+  });
+  const design = replayDesign(history);
+  const plate = ofKind(design.resolved.get('part-2')?.part, 'plate');
+  const holes = holesOfPlate(design, 'part-2');
+  const problems = plateHoleProblems(design, 'part-2');
+  const svg = plateDrawingSvg(plate, holes, problems);
+  assert.match(svg, /<g class="plate-hole has-problem" data-hole="0"/);
+  assert.match(svg, /<g class="plate-hole" data-hole="1"/);
+  assert.equal(texts(svg).filter((shown) => shown === '⚠').length, 1);
+  const described = holeDescription(
+    plate,
+    present(holes[0], 'hole 1'),
+    problemsOfHole(problems, 0),
+  );
+  assert.match(
+    described,
+    /^Wheel base, hole 1: mounting hole ⌀8 mm, .* · ⚠ Wheel base, hole 1 crosses the edge$/,
+  );
+});
