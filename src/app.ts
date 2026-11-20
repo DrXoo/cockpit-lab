@@ -46,6 +46,8 @@ import { renderRoomChecks } from './room-editing/room-checks-panel.ts';
 import { SettingControls } from './room-editing/settings-controls.ts';
 import { drawIcons } from './icons.ts';
 import { ColorTheme } from './theme.ts';
+import { showSaveStatus, toast } from './notices.ts';
+import { bindDialogs } from './dialogs.ts';
 import { ProjectFiles } from './project-files.ts';
 
 drawIcons();
@@ -61,7 +63,7 @@ const newProject = createProject();
 const project = new ProjectSession(newProject, {
   store,
   cockpit: () => cockpitEditor.session.design,
-  showStatus: (message, status) => setSaveStatus(message, status),
+  showStatus: (message, status) => showSaveStatus(message, status),
 });
 let section: Section = 'room',
   /** The tab each editor shows when it opens again. */
@@ -91,9 +93,9 @@ bindCockpitKeys(cockpitEditor, inCockpitEditor);
 const loaded = store.load();
 if (loaded.status === 'loaded') {
   openProject(loaded.project);
-  setSaveStatus('Design restored from this browser');
+  showSaveStatus('Design restored from this browser');
 } else if (loaded.status === 'unavailable')
-  setSaveStatus('This browser blocks saving · export a JSON file', 'error');
+  showSaveStatus('This browser blocks saving · export a JSON file', 'error');
 if (project.setup.step === 'complete') view = 'iso';
 else section = sectionOfStep(project.setup.step);
 if (project.setup.step !== 'complete' && project.state.roomEnabled) roomSelection.editing = true;
@@ -158,19 +160,8 @@ const projectFiles = new ProjectFiles({
     setActiveView('iso');
   },
   toast: (message) => toast(message),
-  showSaveStatus: (message, status) => setSaveStatus(message, status),
+  showSaveStatus: (message, status) => showSaveStatus(message, status),
 });
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
-function toast(message: string) {
-  $('#toast').textContent = message;
-  $('#toast').classList.add('visible');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 3000);
-}
-function setSaveStatus(message: string, status: 'ok' | 'error' = 'ok') {
-  $('#saveStatus').textContent = message;
-  $('.save-info').dataset.state = status;
-}
 /** Makes `project` the open one, editing its active layout. */
 function openProject(opened: Project) {
   project.open(opened);
@@ -510,23 +501,7 @@ $('#adjustDesktop').addEventListener('click', () => {
 });
 $('#helpBtn').addEventListener('click', () => $<HTMLDialogElement>('#helpDialog').showModal());
 $('#openSummary').addEventListener('click', summary);
-$$('[data-close]').forEach((b) =>
-  b.addEventListener('click', () => $<HTMLDialogElement>(`#${dataOf(b, 'close')}`).close()),
-);
-$$<HTMLDialogElement>('dialog').forEach((d) =>
-  d.addEventListener('click', (ev) => {
-    if (ev.target === d) {
-      const r = d.getBoundingClientRect();
-      if (
-        ev.clientX < r.left ||
-        ev.clientX > r.right ||
-        ev.clientY < r.top ||
-        ev.clientY > r.bottom
-      )
-        d.close();
-    }
-  }),
-);
+bindDialogs();
 $('#printBtn').addEventListener('click', () => window.print());
 window.addEventListener('pagehide', () => {
   project.saveNow();
