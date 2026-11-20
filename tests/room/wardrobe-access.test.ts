@@ -13,7 +13,8 @@ import { withId } from '../support/lookups.ts';
 
 const WALLS: readonly WallId[] = ['north', 'east', 'south', 'west'];
 const ACCESS = 'room-access-armario';
-import { roomControls, roomItems } from '../../src/room/editing/room-editor.ts';
+import { roomControls } from '../../src/room/editing/room-editor.ts';
+import { roomItems } from '../../src/room/items.ts';
 import {
   createProject,
   readProject,

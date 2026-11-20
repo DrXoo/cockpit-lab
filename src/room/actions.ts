@@ -3,7 +3,7 @@ import { round } from '../shared/geometry.ts';
 import { furnitureNames, normalizeRoom, officeChairPlacement, type FurnitureType } from './room.ts';
 import type { RoomConfig } from './config.ts';
 import type { CockpitEvaluation } from './evaluate.ts';
-import { isFeature, roomItem } from './editing/room-editor.ts';
+import { isFeature, roomItem } from './items.ts';
 
 export type RoomItemType = 'door' | 'window' | 'wardrobeAccess' | FurnitureType;
 

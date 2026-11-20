@@ -1,6 +1,6 @@
 // One change to a setting, as the settings panel makes it: a number, a toggle or a choice.
 import { choiceOptions, type RoomConfig, type NumericField } from './config.ts';
-import type { BooleanSetting, ChoiceSetting } from './editing/controls-view.ts';
+import type { BooleanSetting, ChoiceSetting } from './config.ts';
 import { desktopTargets, placeDeskItem, updateDeskItem } from './desk.ts';
 import { editArm } from './monitor-arm.ts';
 

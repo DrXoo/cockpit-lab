@@ -3,7 +3,8 @@ import { armPosesHTML, deskElementControls } from './desk-editor.ts';
 import { steps, type SetupProgress } from '../../project/project.ts';
 import type { RoomConfig } from '../config.ts';
 import type { CockpitEvaluation } from '../evaluate.ts';
-import type { BooleanSetting, ControlTemplates } from './controls-view.ts';
+import type { BooleanSetting } from '../config.ts';
+import type { ControlTemplates } from './controls-view.ts';
 import { roomControls } from './room-editor.ts';
 import { escapeHTML as esc } from '../../ui/html.ts';
 

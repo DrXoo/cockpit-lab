@@ -14,7 +14,8 @@ import {
   stepOfRoomItem,
   updateRoomItem,
 } from '../actions.ts';
-import { isFeature, roomItem, roomValue } from './room-editor.ts';
+import { roomValue } from './room-editor.ts';
+import { isFeature, roomItem } from '../items.ts';
 import { isRoomSection } from '../../app/sections.ts';
 import type { RoomEditorHost } from './host.ts';
 import { controlsAll, setRangeFill } from './settings-controls.ts';

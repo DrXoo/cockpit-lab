@@ -3,7 +3,7 @@ import { advanceSetup, type SetupProgress, type SetupStep } from '../../project/
 import type { RoomConfig } from '../config.ts';
 import { resizeDesk } from '../desk.ts';
 import { normalizeRoom } from '../room.ts';
-import { roomItems } from './room-editor.ts';
+import { roomItems } from '../items.ts';
 
 export type SettingsSection = 'room' | 'desk';
 

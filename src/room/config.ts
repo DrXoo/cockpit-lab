@@ -81,6 +81,14 @@ export interface RoomConfig extends Record<NumericField, number> {
   roomFurniture: FurnitureItem[];
 }
 
+/** The settings shown as a switch, and those chosen from a list. */
+export type BooleanSetting = {
+  [K in keyof RoomConfig]: RoomConfig[K] extends boolean ? K : never;
+}[keyof RoomConfig];
+export type ChoiceSetting = {
+  [K in keyof RoomConfig]: RoomConfig[K] extends string ? K : never;
+}[keyof RoomConfig];
+
 export const defaults: RoomConfig = {
   deskEnabled: true,
   monitorEnabled: true,
@@ -160,7 +168,8 @@ const CHOICE_SETTINGS = {
   clampSide: ['xmin', 'xmax', 'zmin', 'zmax'],
 } satisfies { [K in keyof RoomConfig]?: readonly RoomConfig[K][] };
 
-type ChoiceSetting = keyof typeof CHOICE_SETTINGS;
+/** The choices whose options are listed, so a saved value can be checked against them. */
+type ListedChoice = keyof typeof CHOICE_SETTINGS;
 
 /**
  * The chassis width of the retired parametric cockpit, which the oldest files used to place the
@@ -179,7 +188,7 @@ const EARLIER_ARM_SPLIT_PERCENT = { min: 20, max: 80, defaultPercent: 50 };
 
 /** The values a choice setting accepts, or undefined when `key` is not a choice setting. */
 export const choiceOptions = (key: string): readonly string[] | undefined =>
-  Object.hasOwn(CHOICE_SETTINGS, key) ? CHOICE_SETTINGS[key as ChoiceSetting] : undefined;
+  Object.hasOwn(CHOICE_SETTINGS, key) ? CHOICE_SETTINGS[key as ListedChoice] : undefined;
 
 function earlierNumber(raw: Record<string, unknown>, key: string, fallback: number): number {
   if (!(key in raw)) return fallback;
@@ -242,10 +251,10 @@ export function sanitize(input: unknown): RoomConfig {
       if (typeof value !== 'boolean') throw new Error('Invalid option');
       s[key] = value;
     }
-  for (const key of Object.keys(CHOICE_SETTINGS) as ChoiceSetting[]) {
+  for (const key of Object.keys(CHOICE_SETTINGS) as ListedChoice[]) {
     const allowed: readonly unknown[] = CHOICE_SETTINGS[key];
     // The value is one of the allowed literals, so the assignment keeps the setting's type.
-    if (allowed.includes(raw[key])) (s as Record<ChoiceSetting, unknown>)[key] = raw[key];
+    if (allowed.includes(raw[key])) (s as Record<ListedChoice, unknown>)[key] = raw[key];
   }
   if ('armPoses' in raw) s.armPoses = readArmPoses(raw.armPoses);
   return normalizeRoom(s, raw);

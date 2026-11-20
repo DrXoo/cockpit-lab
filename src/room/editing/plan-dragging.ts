@@ -4,7 +4,7 @@ import { $ } from '../../ui/dom.ts';
 import { numericField } from './dom-input.ts';
 import { clamp, clampEdge, desktopTargets, moveArmJoint, placeDeskItem, round } from '../model.ts';
 import { moveRoomTarget } from '../room.ts';
-import { roomItem } from './room-editor.ts';
+import { roomItem } from '../items.ts';
 import { isRoomSection } from '../../app/sections.ts';
 import type { RoomEditorHost } from './host.ts';
 

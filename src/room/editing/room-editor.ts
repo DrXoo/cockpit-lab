@@ -1,42 +1,13 @@
 // Room tab: the editor of the room, its openings and its furniture. Lengths in cm.
 import { round } from '../../shared/geometry.ts';
-import {
-  wallFrame,
-  wallNames,
-  furnitureNames,
-  type FurnitureItem,
-  type RoomFeature,
-} from '../room.ts';
+import { wallFrame, wallNames, furnitureNames } from '../room.ts';
 import type { RoomConfig } from '../config.ts';
 import type { ControlTemplates } from './controls-view.ts';
 import { escapeHTML } from '../../ui/html.ts';
+import { isFeature, roomItem, roomItems, roomTarget } from '../items.ts';
 
 export { escapeHTML };
 
-export type RoomItem = RoomFeature | FurnitureItem;
-type RoomLists = Pick<RoomConfig, 'roomFeatures' | 'roomFurniture'>;
-
-/** Openings sit on a wall; furniture stands in the room. */
-export const isFeature = (item: RoomItem): item is RoomFeature => 'wall' in item;
-
-/** The selection key of an item: `feature:<id>` or `furniture:<id>`. */
-export const roomTarget = (item: RoomItem): string =>
-  (isFeature(item) ? 'feature:' : 'furniture:') + item.id;
-
-export function roomItem(s: RoomLists, target: string): RoomItem | null | undefined {
-  return target.startsWith('feature:')
-    ? s.roomFeatures.find((v) => v.id === target.slice(8))
-    : target.startsWith('furniture:')
-      ? s.roomFurniture.find((v) => v.id === target.slice(10))
-      : null;
-}
-export function roomItems(s: RoomLists, mode: string): RoomItem[] {
-  return mode === 'furniture'
-    ? [...s.roomFurniture, ...s.roomFeatures.filter((v) => v.type === 'wardrobeAccess')]
-    : ['openings', 'room'].includes(mode)
-      ? s.roomFeatures.filter((v) => v.type !== 'wardrobeAccess')
-      : [...s.roomFeatures, ...s.roomFurniture];
-}
 /** A value of the selected item; x and z are measured from the room's walls. */
 export function roomValue(s: RoomConfig, target: string, key: string): string | number | undefined {
   const item = roomItem(s, target);
