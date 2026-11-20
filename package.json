@@ -12,6 +12,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "look": "node scripts/look.mjs",
+    "rename": "node scripts/rename.ts",
     "test": "node --test",
     "check": "node scripts/check.mjs && node scripts/check-casts.ts && npm run typecheck && prettier --check .",
     "format": "prettier --write .",

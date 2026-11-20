@@ -99,7 +99,7 @@ These checks are approximate. They don't validate loads, stiffness or structural
 | `src/scene-camera.ts`, `src/layout-picking.ts` | Camera framing for each view, and what a drag in the plan grabs |
 | `tests/` | Unit tests |
 | `e2e/` | End-to-end tests and the project files they use |
-| `scripts/` | Project checks |
+| `scripts/` | Project checks and development tools (look, rename) |
 | `vite.config.js` | Dev server and build configuration |
 | `docs/` | Detailed documentation and the mini CAD plan |
 
