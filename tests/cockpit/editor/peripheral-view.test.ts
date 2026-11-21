@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { partInspectorHTML } from '../../../src/cockpit/editor/inspector-view.ts';
 import { peripheralPanelHTML } from '../../../src/cockpit/editor/peripheral-view.ts';
-import { draftPeripheral, editPeripheral } from '../../../src/cockpit/cad/history/peripherals.ts';
+import {
+  draftPeripheral,
+  editPeripheral,
+  editPeripheralDraft,
+} from '../../../src/cockpit/cad/history/peripherals.ts';
 import {
   addAnchoredProfile,
   addOperation,
@@ -14,6 +18,7 @@ import {
   anchoredProfiles,
   plateHistory,
   railHistory,
+  seatRails,
   withPeripheral,
 } from '../../support/designs.ts';
 import { captured } from '../../support/lookups.ts';
@@ -148,4 +153,55 @@ test('in Fit, a seat shows the travel of its rails, and a span says why it has n
   const span = partInspectorHTML(history, history[2], undefined, [], [], { fitting: true });
   assert.match(span, /id="adjustmentNone"/);
   assert.doesNotMatch(span, /id="addAdjustment"/);
+});
+
+test('a new seat between two rails names both, and chooses the second among those it can go between', () => {
+  const history = seatRails();
+  const html = peripheralPanelHTML(history, draftPeripheral(history, 'part-1', 'generic-seat'));
+  assert.match(
+    html,
+    /A new seat between <strong>Left rail<\/strong> and <strong>Right rail<\/strong>/,
+  );
+  const between = captured(/id="peripheral-betweenId"[^]*?<\/select>/, html, 0);
+  assert.match(between, /<option value="part-2" selected>Right rail<\/option>/);
+  assert.match(between, /<option value="alone">Nothing: on Left rail alone<\/option>/);
+  assert.match(html, /id="peripheral-acrossMm"/);
+  assert.match(html, /Offset from the middle between them/);
+  assert.doesNotMatch(html, /peripheral-holesOver/, 'between two rails, it rests on neither side');
+  assert.match(
+    html,
+    /data-fit-check="between"[^>]*class="fit-check ok">✓ Centered between them, 360 mm apart/,
+  );
+  assert.match(html, /data-fit-check="holes"[^>]*class="fit-check ok">✓ Every hole over a slot/);
+});
+
+test('rails apart by other than the seat holes warn for each hole, and the seat can still be mounted', () => {
+  const history = seatRails(380);
+  const html = peripheralPanelHTML(history, draftPeripheral(history, 'part-1', 'generic-seat'));
+  assert.match(html, /class="fit-check warning">⚠ Hole 1 is 10 mm off the slot of Right rail/);
+  assert.match(html, /class="fit-check warning">⚠ Hole 3 is 10 mm off the slot of Left rail/);
+  assert.match(html, /id="confirmPeripheral"/);
+});
+
+test('a seat on a rail alone can still choose a second, and other peripherals have no second', () => {
+  const history = seatRails();
+  const alone = editPeripheralDraft(history, draftPeripheral(history, 'part-1', 'generic-seat'), {
+    betweenId: null,
+  });
+  const html = peripheralPanelHTML(history, alone);
+  assert.match(html, /A new seat on <strong>Left rail<\/strong>/);
+  assert.match(html, /<option value="alone" selected>Nothing: on Left rail alone<\/option>/);
+  assert.match(html, /id="peripheral-holesOver"/);
+  const pedals = peripheralPanelHTML(history, draftPeripheral(history, 'part-1', 'generic-pedals'));
+  assert.doesNotMatch(pedals, /betweenId/);
+});
+
+test('the inspector of a seat between two rails changes the second rail', () => {
+  const history = withPeripheral(seatRails(), 'part-1', 'generic-seat', { betweenId: 'part-2' });
+  const html = partInspectorHTML(history, history[2]);
+  assert.match(
+    html,
+    /Mounted between <strong>Left rail<\/strong> and <strong>Right rail<\/strong>/,
+  );
+  assert.match(html, /id="part-betweenId"[^]*<option value="part-2" selected>Right rail<\/option>/);
 });

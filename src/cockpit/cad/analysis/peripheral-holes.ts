@@ -20,6 +20,8 @@ export interface PeripheralHoleProblem {
   peripheralId: string;
   /** The hole it is about, by its place in the peripheral's mounting pattern. */
   holeIndex: number;
+  /** What is wrong with the hole, after its name: "is 10 mm off the slot of Right rail". */
+  wrong: string;
   text: string;
 }
 
@@ -38,11 +40,10 @@ export function peripheralHoleProblems(
     const up = part.placement.face;
     return part.mountingPattern.holes.flatMap((hole, holeIndex) => {
       const pointMm = peripheralPointInFrame(peripheral, { x: hole.xMm, y: 0, z: hole.yMm });
-      const text = holeProblem(pointMm, up, peripheral, parts);
-      if (text === null) return [];
-      return [
-        { peripheralId: part.id, holeIndex, text: `${part.name}, hole ${holeIndex + 1} ${text}` },
-      ];
+      const wrong = holeProblem(pointMm, up, peripheral, parts);
+      if (wrong === null) return [];
+      const text = `${part.name}, hole ${holeIndex + 1} ${wrong}`;
+      return [{ peripheralId: part.id, holeIndex, wrong, text }];
     });
   });
 }

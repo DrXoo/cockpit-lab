@@ -11,11 +11,14 @@ import {
 } from '../../../../src/cockpit/cad/history/history.ts';
 import { ofKind, present } from '../../../support/lookups.ts';
 import {
+  draftPeripheral,
   editPeripheral,
+  editPeripheralDraft,
+  secondProfiles,
   swapPeripheralType,
 } from '../../../../src/cockpit/cad/history/peripherals.ts';
 import { unsupportedParts } from '../../../../src/cockpit/cad/analysis/support.ts';
-import { seatRails, withPeripheral, withPlate } from '../../../support/designs.ts';
+import { railHistory, seatRails, withPeripheral, withPlate } from '../../../support/designs.ts';
 
 /** The seat rails with a third profile (part-3) changed as given. */
 const withThird = (values: Parameters<typeof editProfile>[2]) => {
@@ -108,6 +111,11 @@ test('the two profiles lie apart, with the peripheral over both', () => {
     () => withPeripheral(alongside, 'part-1', 'generic-seat', { betweenId: 'part-3' }),
     /Left rail and Third overlap: a peripheral goes between two profiles apart/,
   );
+  // 600 mm apart, the 540 mm wide seat centered between them reaches neither.
+  assert.throws(
+    () => withPeripheral(seatRails(600), 'part-1', 'generic-seat', { betweenId: 'part-2' }),
+    /^Error: Bucket seat would not sit over Left rail\.$/,
+  );
   const short = withThird({ lengthMm: 200, startMm: { x: -180, y: 20, z: 0 } });
   assert.throws(
     () => withPeripheral(short, 'part-1', 'generic-seat', { betweenId: 'part-3', alongMm: 800 }),
@@ -183,4 +191,44 @@ test('choosing the side it rests on leaves the second profile', () => {
 test('swapping its type keeps it between the two profiles', () => {
   const between = withPeripheral(seatRails(), 'part-1', 'generic-pedals', { betweenId: 'part-2' });
   assert.equal(mounted(swapPeripheralType(between, 'part-3', 'generic-seat')).betweenId, 'part-2');
+});
+
+test('a new seat on a rail goes between it and the nearest profile it can', () => {
+  const far = withThird({ lengthMm: 1000, startMm: { x: -600, y: 20, z: 0 } });
+  assert.equal(draftPeripheral(far, 'part-1', 'generic-seat').betweenId, 'part-2');
+  assert.equal(draftPeripheral(far, 'part-2', 'generic-seat').betweenId, 'part-1');
+});
+
+test('a new seat with no profile to go between stays on its rail, and other peripherals always do', () => {
+  assert.equal(draftPeripheral(railHistory(), 'part-1', 'generic-seat').betweenId, undefined);
+  assert.equal(draftPeripheral(seatRails(), 'part-1', 'generic-pedals').betweenId, undefined);
+});
+
+test('the profiles a peripheral can go between come nearest first, then the others with why not', () => {
+  // Third, 540 mm from Left rail, is as far as the 540 mm wide seat still sits over both.
+  let history = withThird({ lengthMm: 1000, startMm: { x: -360, y: 20, z: 0 } });
+  const { history: withFourth, partId } = addAnchoredProfile(history);
+  history = editProfile(withFourth, partId, {
+    name: 'Crossmember',
+    axis: 'x',
+    lengthMm: 600,
+    startMm: { x: -300, y: 20, z: 900 },
+  });
+  const draft = editPeripheralDraft(history, draftPeripheral(history, 'part-1', 'generic-seat'), {
+    betweenId: null,
+  });
+  const choices = secondProfiles(history, draft);
+  assert.deepEqual(
+    choices.map(({ partId, name }) => [partId, name]),
+    [
+      ['part-2', 'Right rail'],
+      ['part-3', 'Third'],
+      ['part-4', 'Crossmember'],
+    ],
+  );
+  assert.deepEqual(
+    choices.map(({ reason }) => reason === null),
+    [true, true, false],
+  );
+  assert.match(choices[2]?.reason ?? '', /Crossmember is not parallel to Left rail/);
 });

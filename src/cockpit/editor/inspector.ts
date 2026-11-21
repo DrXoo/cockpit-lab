@@ -261,7 +261,7 @@ export class CockpitInspector {
       case 'add-plate':
         return platePanelHTML(history, draft);
       case 'mount-peripheral':
-        return peripheralPanelHTML(history, draft);
+        return peripheralPanelHTML(history, draft, this.editor.at());
     }
   }
 

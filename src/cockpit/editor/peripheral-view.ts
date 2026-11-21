@@ -1,6 +1,7 @@
 // A mounted peripheral in the inspector: its name, its type, where it is mounted, and the values
 // copied from its type; and the panel of a peripheral about to be mounted, shown in the view as
-// a preview, which only places it.
+// a preview, which only places it. A seat also chooses the second rail it is mounted between,
+// with whether its holes fit the slots there.
 import {
   faceAxis,
   HANDS,
@@ -21,12 +22,22 @@ import {
   MAX_PROFILE_LENGTH_MM,
   MIN_ENVELOPE_SIDE_MM,
   operationMaking,
+  replayDesign,
   type MountPeripheral,
   type Operation,
 } from '../cad/history/history.ts';
-import { differsFromItsType } from '../cad/history/peripherals.ts';
+import {
+  differsFromItsType,
+  secondProfiles,
+  type SecondProfile,
+} from '../cad/history/peripherals.ts';
+import { withDraft } from '../cad/history/drafts.ts';
+import {
+  peripheralHoleProblems,
+  type PeripheralHoleProblem,
+} from '../cad/analysis/peripheral-holes.ts';
 import { PATTERN_SIDES, type Hole, type PatternSide } from '../cad/parts/mounting-pattern.ts';
-import { ORIGIN_OVER_ITS_PLACE } from './field-changes.ts';
+import { ON_ITS_PART_ALONE, ORIGIN_OVER_ITS_PLACE } from './field-changes.ts';
 import { round } from '../../shared/geometry.ts';
 import { escapeHTML } from '../../ui/html.ts';
 import {
@@ -53,12 +64,64 @@ const CONTACT_NAMES: Record<ContactRole, string> = {
 
 const HAND_NAMES: Record<Hand, string> = { left: 'Left hand', right: 'Right hand' };
 
-/** The panel of a peripheral about to be mounted, shown in the view as a preview. */
-export function peripheralPanelHTML(history: readonly Operation[], draft: MountPeripheral): string {
+/**
+ * The panel of a peripheral about to be mounted at step `at` of the history, shown in the view as
+ * a preview.
+ */
+export function peripheralPanelHTML(
+  history: readonly Operation[],
+  draft: MountPeripheral,
+  at: number = history.length,
+): string {
   const { widthMm, heightMm, depthMm } = draft.envelope;
   const estimated = draft.source.kind === 'estimated' ? ` (${ESTIMATED_PERIPHERAL_HINT})` : '';
   const size = `<p class="layout-hint">${round(widthMm, 1)} × ${round(heightMm, 1)} × ${round(depthMm, 1)} mm, width × height × depth${estimated}. Its own values are set in its inspector once it is mounted.</p>`;
-  return `<div class="part-inspector" id="peripheralPanel"><p class="layout-hint">A new ${CATEGORY_NOUNS[draft.category]} on <strong>${escapeHTML(nameOf(history, draft.parentId))}</strong>. Click a face of it in the view, or choose one here.</p>${nameFieldHTML('peripheral', draft.name)}${mountedOnHTML(history, draft)}${size}${peripheralPlaceHTML('peripheral', history, draft)}<div class="grow-actions"><button class="button button-dark" id="confirmPeripheral">Mount it</button><button class="button button-light" id="cancelPeripheral">Cancel</button></div></div>`;
+  const place = peripheralPlaceHTML('peripheral', history, draft, pairingOf(history, draft, at));
+  return `<div class="part-inspector" id="peripheralPanel"><p class="layout-hint">${newPeripheralHint(history, draft)}</p>${nameFieldHTML('peripheral', draft.name)}${mountedOnHTML(history, draft)}${size}${place}<div class="grow-actions"><button class="button button-dark" id="confirmPeripheral">Mount it</button><button class="button button-light" id="cancelPeripheral">Cancel</button></div></div>`;
+}
+
+function newPeripheralHint(history: readonly Operation[], draft: MountPeripheral): string {
+  const noun = CATEGORY_NOUNS[draft.category];
+  const on = strongName(history, draft.parentId);
+  if (draft.betweenId === undefined)
+    return `A new ${noun} on ${on}. Click a face of it in the view, or choose one here.`;
+  return `A new ${noun} between ${on} and ${strongName(history, draft.betweenId)}. Choose the second here, or click a face of the first in the view.`;
+}
+
+const strongName = (history: readonly Operation[], partId: string) =>
+  `<strong>${escapeHTML(nameOf(history, partId))}</strong>`;
+
+/**
+ * A seat's choice of the second profile it is mounted between: those it can be, and whether
+ * its holes stand over the slots of the profiles under it where it is.
+ */
+interface Pairing {
+  seconds: SecondProfile[];
+  holeProblems: PeripheralHoleProblem[];
+}
+
+/**
+ * The pairing of a seat on a profile, at step `at` of a history that does not hold it; null for
+ * any other peripheral, which is mounted on its part alone.
+ */
+function pairingOf(
+  history: readonly Operation[],
+  peripheral: MountPeripheral,
+  at: number,
+): Pairing | null {
+  if (peripheral.category !== 'seat') return null;
+  if (!makesAProfileId(history, peripheral.parentId)) return null;
+  const seconds = secondProfiles(history, peripheral, at).filter(({ reason }) => reason === null);
+  const { resolved } = replayDesign(withDraft(history, peripheral, at), at + 1);
+  const holeProblems = peripheralHoleProblems(resolved).filter(
+    (problem) => problem.peripheralId === peripheral.partId,
+  );
+  return { seconds, holeProblems };
+}
+
+function makesAProfileId(history: readonly Operation[], partId: string): boolean {
+  const operation = operationMaking(history, partId);
+  return operation !== undefined && makesAProfile(operation);
 }
 
 /**
@@ -80,13 +143,20 @@ export function peripheralInspectorHTML(
       ? `The values of its type, ${ESTIMATED_PERIPHERAL_HINT}.`
       : 'The values of its type.';
   const type = `${fields.select('typeId', 'Type', types, peripheral.typeId)}<p class="layout-hint">${source}</p>`;
-  const place = `${peripheralPlaceHTML('part', history, peripheral)}${handHTML(fields, peripheral)}`;
+  const at = history.findIndex((operation) => operation.id === peripheral.id);
+  const without = history.filter((operation) => operation.id !== peripheral.id);
+  const pairing = pairingOf(without, peripheral, at);
+  const place = `${peripheralPlaceHTML('part', history, peripheral, pairing)}${handHTML(fields, peripheral)}`;
   const ownValues = `${envelopeHTML(fields, peripheral)}${mountingPatternHTML(peripheral.mountingPattern.holes)}${contactPointsHTML(peripheral.contactPoints)}`;
   return `${nameFieldHTML('part', peripheral.name)}${mountedOnHTML(history, peripheral)}${type}${place}${ownValues}`;
 }
 
-const mountedOnHTML = (history: readonly Operation[], peripheral: MountPeripheral) =>
-  `<p class="part-parent">Mounted on <strong>${escapeHTML(nameOf(history, peripheral.parentId))}</strong></p>`;
+function mountedOnHTML(history: readonly Operation[], peripheral: MountPeripheral): string {
+  const on = strongName(history, peripheral.parentId);
+  const { betweenId } = peripheral;
+  if (betweenId === undefined) return `<p class="part-parent">Mounted on ${on}</p>`;
+  return `<p class="part-parent">Mounted between ${on} and ${strongName(history, betweenId)}</p>`;
+}
 
 /** The axis a place on a part is measured along: a profile's length or a plate's depth. */
 function alongAxisOfPart(history: readonly Operation[], partId: string): Axis | null {
@@ -101,6 +171,7 @@ function peripheralPlaceHTML(
   prefix: string,
   history: readonly Operation[],
   peripheral: MountPeripheral,
+  pairing: Pairing | null,
 ): string {
   const fields = new FieldTemplates(prefix);
   const parent = operationMaking(history, peripheral.parentId);
@@ -124,12 +195,51 @@ function peripheralPlaceHTML(
     END_NAMES[alongAxis][end],
   ]);
   const onAnEnd = parent?.kind !== 'add-plate' && faceAxis(peripheral.face) === alongAxis;
+  const between = peripheral.betweenId !== undefined;
+  const acrossLabel = between ? 'Offset from the middle between them' : 'Offset across the face';
   const place = onAnEnd
     ? '<p class="layout-hint">On an end face it is mounted at the center of the end.</p>'
-    : `${fields.select('fromEnd', 'Measured from', ends, peripheral.fromEnd)}${fields.number('alongMm', 'Distance to its mounting origin', peripheral.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', 'Offset across the face', peripheral.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
-  const over = onAnEnd ? '' : holesOverHTML(fields, peripheral);
-  return `${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${place}${over}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
+    : `${fields.select('fromEnd', 'Measured from', ends, peripheral.fromEnd)}${fields.number('alongMm', 'Distance to its mounting origin', peripheral.alongMm, 0, MAX_PROFILE_LENGTH_MM)}${fields.number('acrossMm', acrossLabel, peripheral.acrossMm, -MAX_POSITION_MM, MAX_POSITION_MM)}`;
+  const over = onAnEnd || between ? '' : holesOverHTML(fields, peripheral);
+  const second = pairing === null ? '' : pairingHTML(fields, history, peripheral, pairing);
+  return `${fields.select('face', 'Face', faces, peripheral.face)}${fields.select('facing', 'Faces', facings, peripheral.facing)}${second}${place}${over}<p class="layout-hint">Its mounting origin is the center of its underside. It faces the way the driver does when using it.</p>`;
 }
+
+/**
+ * The second profile a seat is mounted between, chosen among those it can be, and whether its
+ * holes fit the slots under it: a symbol and words, not color alone.
+ */
+function pairingHTML(
+  fields: FieldTemplates,
+  history: readonly Operation[],
+  peripheral: MountPeripheral,
+  { seconds, holeProblems }: Pairing,
+): string {
+  const alone = `Nothing: on ${escapeHTML(nameOf(history, peripheral.parentId))} alone`;
+  const choices: [string, string][] = [
+    ...seconds.map(({ partId, name }): [string, string] => [partId, escapeHTML(name)]),
+    [ON_ITS_PART_ALONE, alone],
+  ];
+  const chosenId = peripheral.betweenId ?? ON_ITS_PART_ALONE;
+  const select = fields.select('betweenId', 'Between', choices, chosenId);
+  const none =
+    seconds.length === 0
+      ? '<p class="layout-hint">No other profile runs parallel to it, level and apart, to mount it between.</p>'
+      : '';
+  const chosen = seconds.find(({ partId }) => partId === peripheral.betweenId);
+  const apart = chosen ? `Centered between them, ${round(chosen.apartMm, 1)} mm apart` : '';
+  const centered = chosen ? [fitCheckHTML('between', true, apart)] : [];
+  const holes = holeProblems.length
+    ? holeProblems.map(({ holeIndex, wrong }) =>
+        fitCheckHTML('holes', false, `Hole ${holeIndex + 1} ${escapeHTML(wrong)}`),
+      )
+    : [fitCheckHTML('holes', true, 'Every hole over a slot')];
+  const checks = [...centered, ...holes].join('');
+  return `${select}${none}<ul class="fit-checks" id="pairingChecks">${checks}</ul>`;
+}
+
+const fitCheckHTML = (check: string, ok: boolean, text: string) =>
+  `<li data-fit-check="${check}" class="fit-check ${ok ? 'ok' : 'warning'}">${ok ? '✓' : '⚠'} ${text}</li>`;
 
 const HOLES_OVER_NAMES: Record<PatternSide, string> = {
   left: 'Its left holes',

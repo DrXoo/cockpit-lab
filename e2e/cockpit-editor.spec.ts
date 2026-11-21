@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
-import { test, expect, openApp, importProject, getSavedProject } from './support.ts';
+import { test, expect, openApp, importProject, getSavedProject, cockpitFileOf } from './support.ts';
+import { seatRails } from '../tests/support/designs.ts';
 
 // The cockpit design is edited on its own (docs/adr/0001). Until the mini CAD is complete, no room
 // includes it, and a new design starts empty (docs/adr/0004).
@@ -1207,6 +1208,35 @@ test('a seat rests the holes of one side on its profile, chosen in its inspector
   await expect.poll(seat).toMatchObject({ holesOver: 'left', acrossMm: 0 });
   await page.locator('#part-holesOver').selectOption('origin');
   await expect.poll(async () => (await seat())?.holesOver).toBeUndefined();
+});
+
+test('a seat goes between its rail and the nearest other, with how its holes fit the slots', async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.locator('#startWithCockpit').click();
+  // 380 mm apart, the rails are 20 mm wider than the seat's holes.
+  await page.locator('#importCockpitFile').setInputFiles(cockpitFileOf(seatRails(380)));
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#fitModeBtn').click();
+  await page.locator('#mountSeat').click();
+  await expect(page.locator('#peripheral-betweenId')).toHaveValue('part-2');
+  await expect(page.locator('[data-fit-check="between"]')).toBeVisible();
+  await expect(page.locator('[data-fit-check="holes"].warning')).toHaveCount(4);
+  await expect(page.locator('#peripheral-holesOver')).toHaveCount(0);
+
+  await page.locator('#peripheral-betweenId').selectOption('alone');
+  await expect(page.locator('#peripheral-holesOver')).toBeVisible();
+  await expect(page.locator('[data-fit-check="between"]')).toHaveCount(0);
+  await page.locator('#peripheral-betweenId').selectOption('part-2');
+  await page.locator('#confirmPeripheral').click();
+
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ kind: 'mount-peripheral', parentId: 'part-1', betweenId: 'part-2' });
+  await expect(page.locator('#part-betweenId')).toHaveValue('part-2');
+  await page.locator('#part-betweenId').selectOption('alone');
+  await expect.poll(async () => (await savedHistory(page))?.[2]?.betweenId).toBeUndefined();
 });
 
 test('fitting, a part slides along its adjustment, saved with the design without a step', async ({

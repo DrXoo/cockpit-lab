@@ -120,6 +120,8 @@ test('the fields of a peripheral change the values of its operation', () => {
   assert.deepEqual(change('holesOver', 'left'), { holesOver: 'left' });
   assert.deepEqual(change('holesOver', 'origin'), { holesOver: null });
   assert.throws(() => change('holesOver', 'middle'), /middle/);
+  assert.deepEqual(change('betweenId', 'part-2'), { betweenId: 'part-2' });
+  assert.deepEqual(change('betweenId', 'alone'), { betweenId: null });
 });
 
 test('a value typed in the adjustment changes its axis, travel or position', () => {

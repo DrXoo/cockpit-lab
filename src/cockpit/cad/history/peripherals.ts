@@ -18,6 +18,7 @@ import {
   type PeripheralType,
 } from '../parts/catalog.ts';
 import {
+  addOperation,
   changeOperation,
   checkedOperation,
   copiedPeripheral,
@@ -59,7 +60,7 @@ export function draftPeripheral(
   const facing = facingAlong(face, USUAL_FACING);
   const adjustment = railsOf(type, facing, undefined);
   const hand = type.gripHand;
-  return checkedOperation({
+  const onItsPart = checkedOperation<MountPeripheral>({
     kind: 'mount-peripheral',
     ...nextIdentifiers(history),
     name: type.name,
@@ -75,6 +76,68 @@ export function draftPeripheral(
     ...(hand === undefined ? {} : { hand }),
     ...(adjustment === undefined ? {} : { adjustment }),
   });
+  if (type.category !== 'seat') return onItsPart;
+  // A seat bolts to two rails, so it goes between its part and the nearest it can.
+  const nearest = secondProfiles(history, onItsPart, at).find(({ reason }) => reason === null);
+  if (nearest === undefined) return onItsPart;
+  return editPeripheralDraft(history, onItsPart, { betweenId: nearest.partId });
+}
+
+/** A profile a peripheral could be mounted between with the one it is on, or why it cannot. */
+export interface SecondProfile {
+  partId: string;
+  name: string;
+  /** How far its center is across from the center of the profile the peripheral is on. */
+  apartMm: number;
+  /** Why the peripheral cannot be mounted between the two, or null when it can. */
+  reason: string | null;
+}
+
+/**
+ * The profiles a peripheral not yet in the history could be mounted between with the profile it
+ * is on, at step `at`: those it can, nearest across first, then the others with why not.
+ */
+export function secondProfiles(
+  history: readonly Operation[],
+  peripheral: MountPeripheral,
+  at: number = history.length,
+): SecondProfile[] {
+  const { resolved } = replayDesign(history, at);
+  const parent = resolved.get(peripheral.parentId);
+  if (parent?.part.kind !== 'profile') return [];
+  const across = FACE_AXES.find(
+    (axis) => axis !== faceAxis(peripheral.face) && axis !== alongAxisOf(parent),
+  );
+  const apartMm = ({ box }: ResolvedPart) =>
+    across === undefined ? 0 : Math.abs(centerMm(box, across) - centerMm(parent.box, across));
+  return [...resolved.values()]
+    .filter(({ part }) => part.kind === 'profile' && part.id !== parent.part.id)
+    .map((candidate): SecondProfile => ({
+      partId: candidate.part.id,
+      name: candidate.part.name,
+      apartMm: apartMm(candidate),
+      reason: whyNotBetween(history, peripheral, candidate.part.id, at),
+    }))
+    .sort((a, b) => Number(a.reason !== null) - Number(b.reason !== null) || a.apartMm - b.apartMm);
+}
+
+const FACE_AXES: readonly Axis[] = ['x', 'y', 'z'];
+
+const centerMm = (box: ResolvedPart['box'], axis: Axis) => (box.min[axis] + box.max[axis]) / 2;
+
+/** Why a peripheral cannot be mounted between its profile and `secondId` at step `at`, or null. */
+function whyNotBetween(
+  history: readonly Operation[],
+  peripheral: MountPeripheral,
+  secondId: string,
+  at: number,
+): string | null {
+  try {
+    addOperation(history, editPeripheralDraft(history, peripheral, { betweenId: secondId }), at);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }
 
 /**

@@ -1726,14 +1726,16 @@ select option {
 .part-warning {
   color: var(--warning);
 }
-.driver-angles {
+.driver-angles,
+.fit-checks {
   margin: 8px 0;
   padding: 0;
   list-style: none;
   font-size: 13px;
   line-height: 1.6;
 }
-.driver-angle.warning {
+.driver-angle.warning,
+.fit-check.warning {
   color: var(--warning);
 }
 .history-marker {

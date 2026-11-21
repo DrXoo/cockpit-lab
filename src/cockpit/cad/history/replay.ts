@@ -369,7 +369,7 @@ function withPeripheral(
   return (
     misfitOnItsFace({ ...operation, acrossMm: 0 }, resolved) ??
     misfitAcrossBetween(operation, operation.betweenId, resolved) ??
-    offTheSecond(operation, operation.betweenId, resolved) ??
+    offEitherProfile(operation, operation.betweenId, resolved) ??
     withIt
   );
 }
@@ -456,18 +456,20 @@ function misfitAcrossBetween(
   return `${operation.name} would leave the space between its profiles: an offset of ${Math.abs(operation.acrossMm)} mm off the middle between ${names} is more than half the ${Math.round(apartMm)} mm between them.`;
 }
 
-/** Why a peripheral does not sit over the second profile it is mounted between, or null. */
-function offTheSecond(
+/** Why a peripheral does not sit over either profile it is mounted between, or null. */
+function offEitherProfile(
   operation: MountPeripheral,
   betweenId: string,
   resolved: ReadonlyMap<string, ResolvedPart>,
 ): string | null {
   const peripheral = resolved.get(operation.partId);
-  const other = resolved.get(betweenId);
-  if (!peripheral || !other) return null;
-  const along = alongAxisOfPart(other.part);
-  if (along === null || overlapMm(peripheral.box, other.box, along) > CAD_CONTACT_MM) return null;
-  return `${operation.name} would not sit over ${other.part.name}.`;
+  if (!peripheral) return null;
+  for (const id of [operation.parentId, betweenId]) {
+    const profile = resolved.get(id);
+    if (profile && !overlapsAcross(peripheral.box, profile.box, faceAxis(operation.face)))
+      return `${operation.name} would not sit over ${profile.part.name}.`;
+  }
+  return null;
 }
 
 const boxCenterMm = (box: BoxMm, axis: Axis) => (box.min[axis] + box.max[axis]) / 2;

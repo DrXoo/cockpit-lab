@@ -72,6 +72,7 @@ export function partChange(
     case 'contactZMm':
     case 'hand':
     case 'holesOver':
+    case 'betweenId':
       throw new Error(`A profile has no ${field}`);
     case 'startX':
     case 'startY':
@@ -174,6 +175,8 @@ export function peripheralChange(
       return { hand: handOf(value) };
     case 'holesOver':
       return { holesOver: value === ORIGIN_OVER_ITS_PLACE ? null : patternSideOf(value) };
+    case 'betweenId':
+      return { betweenId: value === ON_ITS_PART_ALONE ? null : value };
     case 'typeId':
       throw new Error("A peripheral's type is swapped, not edited: use swapPeripheralType.");
     case 'name':
@@ -238,6 +241,9 @@ export function adjustmentChange(field: AdjustmentField, value: string): Partial
 
 /** The choice of a peripheral's origin, rather than the holes of a side, over its place. */
 export const ORIGIN_OVER_ITS_PLACE = 'origin';
+
+/** The choice of no second profile, for a peripheral mounted on its part alone. */
+export const ON_ITS_PART_ALONE = 'alone';
 
 function patternSideOf(value: string): PatternSide {
   const side = PATTERN_SIDES.find((known) => known === value);
