@@ -1,6 +1,7 @@
 // The side panel of the cockpit editor: the design history with its marker, and the buttons
 // that add a profile, undo and redo.
 import { replayDesign } from '../cad/history/history.ts';
+import { stepMarkedInHistory } from './session.ts';
 import { designPanelHTML } from './history-view.ts';
 import { dataOf } from '../../ui/dom.ts';
 import { canRedo, canUndo } from '../../shared/undo.ts';
@@ -11,7 +12,7 @@ export function historyPanelHTML(editor: CockpitEditor): string {
   return designPanelHTML({
     history: editor.history(),
     marker: editor.at(),
-    selectedOperationId: session.selectedOperationId,
+    selectedOperationId: stepMarkedInHistory(session),
     failures: replayDesign(editor.history()).failures,
     canUndo: canUndo(session.edits),
     canRedo: canRedo(session.edits),
@@ -32,6 +33,8 @@ export function bindHistoryPanel(panel: HTMLElement, editor: CockpitEditor) {
   panel
     .querySelectorAll<HTMLElement>('[data-operation]')
     .forEach((step) =>
-      step.addEventListener('click', () => editor.select(dataOf(step, 'operation'))),
+      step.addEventListener('click', () =>
+        editor.select(dataOf(step, 'operation'), { fromHistory: true }),
+      ),
     );
 }

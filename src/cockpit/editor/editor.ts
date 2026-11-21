@@ -713,9 +713,22 @@ export class CockpitEditor {
     if (redone) this.showDesignChange(redone);
   }
 
-  /** Selects a step. A peripheral's turns Fit on, as peripherals are only changed while fitting. */
-  select(operationId: string | null) {
-    this.showSession(editing.selectStep(this.current, operationId));
+  /**
+   * Selects a step, marked in the history when it was chosen there. A peripheral's turns Fit on,
+   * as peripherals are only changed while fitting.
+   */
+  select(operationId: string | null, options: { fromHistory?: boolean } = {}) {
+    this.showSession(editing.selectStep(this.current, operationId, options));
+  }
+
+  /** Marks the selected step in the history, as if it had been chosen there. */
+  showSelectionInHistory() {
+    this.showSession(editing.showSelectionInHistory(this.current));
+  }
+
+  /** Whether the history panel marks the selected step. */
+  selectionMarkedInHistory(): boolean {
+    return editing.stepMarkedInHistory(this.current) !== null;
   }
 
   /** Selects the step that made a part. */

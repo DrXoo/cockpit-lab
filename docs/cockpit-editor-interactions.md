@@ -14,7 +14,7 @@ An arrow on the floor ahead of the design, labeled **Front**, points along +Z, t
 | --- | --- |
 | Drag in the 3D view | Orbits the camera |
 | Drag in the top or side view | Pans the view |
-| Click a part | Selects it |
+| Click a part | Selects it, shown in the view and the inspector; its step is not marked in the design history until **Show in history**, in the inspector, asks for it. A step chosen in the history, or just added, is marked there |
 | Hover a part | Outlines it; after half a second at rest, a label by the pointer names it with its size ("Left rail · 40 × 80 · 1200 mm") |
 
 ## With a part selected

@@ -507,3 +507,12 @@ test('a seat about to be mounted offers the profiles it can go between, and a cl
   assert.equal(picksSecondProfile(pedals, 'part-2'), false);
   assert.equal(draftSecondProfiles(sessionOf(history)), null);
 });
+
+test('a step just added is selected and marked in the history, where it went in', () => {
+  const session = sessionOf(railHistory());
+  const added = withAddedPart(session, addAnchoredProfile(railHistory()));
+  assert.equal(stepMarkedInHistory(added), added.selectedOperationId);
+  const drafted = confirmDraft(startDraft(session, draftGrowth(railHistory(), 'part-1')));
+  assert.notEqual(drafted.selectedOperationId, null);
+  assert.equal(stepMarkedInHistory(drafted), drafted.selectedOperationId);
+});

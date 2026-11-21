@@ -43,6 +43,15 @@ test('the deletion of a step comes first in its inspector, before any of its val
   }
 });
 
+test('a part picked in the view can show its step in the history, which a step chosen there does not need', () => {
+  const history = anchoredProfiles(1);
+  const picked = partInspectorHTML(history, history[0], undefined, [], [], {
+    markedInHistory: false,
+  });
+  assert.match(picked, /<div class="step-actions">[^]*id="showInHistory"/);
+  assert.doesNotMatch(partInspectorHTML(history, history[0]), /id="showInHistory"/);
+});
+
 test('a failed step says why in its inspector, and its values can still be fixed', () => {
   const history = anchoredProfiles(1);
   const failed = partInspectorHTML(history, history[0], 'It grows out of a part that was deleted.');

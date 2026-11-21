@@ -339,13 +339,13 @@ export const stepAddedAtMarker = (session: CockpitSession): CockpitSession => ({
   marker: session.marker === null ? null : session.marker + 1,
 });
 
-/** A part added at the marker, selected, as an edit that can be undone. */
+/** A part added at the marker, selected and marked in the history, as an edit that can be undone. */
 export function withAddedPart(
   session: CockpitSession,
   added: { history: readonly Operation[]; partId: string },
 ): CockpitSession {
-  const step = operationMaking(added.history, added.partId);
-  const selecting = { ...session, selectedOperationId: step?.id ?? null };
+  const stepId = operationMaking(added.history, added.partId)?.id ?? null;
+  const selecting = { ...session, selectedOperationId: stepId, markedStepId: stepId };
   return withHistory(stepAddedAtMarker(selecting), added.history);
 }
 
@@ -497,12 +497,16 @@ export const placeDraft = (
   snap: Snap | null = null,
 ): CockpitSession => ({ ...session, draft, draftSnap: snap });
 
-/** Adds the part about to be added at the marker, selected, as an edit that can be undone. */
+/**
+ * Adds the part about to be added at the marker, selected and marked in the history, as an edit
+ * that can be undone.
+ */
 export function confirmDraft(session: CockpitSession): CockpitSession {
   const added = session.draft;
   if (added === null) return session;
   const history = addOperation(designHistory(session), added, markerIndex(session));
-  return withHistory(stepAddedAtMarker({ ...session, selectedOperationId: added.id }), history);
+  const selecting = { ...session, selectedOperationId: added.id, markedStepId: added.id };
+  return withHistory(stepAddedAtMarker(selecting), history);
 }
 
 export const cancelDraft = (session: CockpitSession): CockpitSession => ({

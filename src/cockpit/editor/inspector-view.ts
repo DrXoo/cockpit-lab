@@ -35,6 +35,8 @@ export interface PartInspectorOptions extends Mode {
   subassemblies?: readonly AppliedSubassembly[];
   /** The mode shown that takes the part off, or null when it is on. */
   offInMode?: PartOffInMode | null;
+  /** Whether the history panel marks the step; a part picked in the view leaves it unmarked. */
+  markedInHistory?: boolean;
 }
 
 /**
@@ -48,7 +50,12 @@ export function partInspectorHTML(
   failure?: string,
   joints: readonly JointOfPart[] = [],
   touching: readonly TouchingPart[] = [],
-  { fitting = false, subassemblies = [], offInMode = null }: PartInspectorOptions = {},
+  {
+    fitting = false,
+    subassemblies = [],
+    offInMode = null,
+    markedInHistory = true,
+  }: PartInspectorOptions = {},
 ): string {
   if (!operation)
     return `<p class="control-hint" id="noPartSelected">Select a part in the view or in the design history to edit it.</p>`;
@@ -65,7 +72,10 @@ export function partInspectorHTML(
       ? ''
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
   // What can be done with the step comes first, above values that can run long.
-  const heading = `<div class="step-actions">${deleteStep}</div>${warning}`;
+  const showInHistory = markedInHistory
+    ? ''
+    : `<button class="button button-light" id="showInHistory" title="Mark this step in the design history"><i data-icon="layers"></i>Show in history</button>`;
+  const heading = `<div class="step-actions">${deleteStep}${showInHistory}</div>${warning}`;
   // A failed plate step makes no plate to export.
   const exports = failure === undefined ? plateExportsHTML() : '';
   switch (operation.kind) {

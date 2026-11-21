@@ -113,6 +113,7 @@ export class CockpitInspector {
               fitting,
               subassemblies: editor.subassembliesShown(),
               offInMode: editor.selectedPartOff(),
+              markedInHistory: editor.selectionMarkedInHistory(),
             },
           )
         : this.draftPanelHTML(history, draft);
@@ -136,6 +137,12 @@ export class CockpitInspector {
     // A step the mode of the view locks has nothing else to change.
     if (!operation || !editor.changeableInMode(operation)) return;
     $('#deleteStep').addEventListener('click', () => editor.deleteSelectedStep());
+    body.querySelector('#showInHistory')?.addEventListener('click', () => {
+      editor.showSelectionInHistory();
+      document
+        .querySelector(`#designHistory [aria-pressed="true"]`)
+        ?.scrollIntoView({ block: 'nearest' });
+    });
     if (!makesAPart(operation)) return;
     this.fieldsIn(body).forEach((el) => {
       const field = partField(el.dataset.partField);

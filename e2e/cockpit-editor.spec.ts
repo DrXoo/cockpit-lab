@@ -190,7 +190,12 @@ test('clicking a part in the view selects it, and clicking around it clears the 
     await expect(page.locator('#noPartSelected')).toBeVisible();
     await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'false');
     await clickViewport(page, 0.5, 0.5);
+    await expect(page.locator('#part-name')).toHaveValue('40 × 40 profile 1');
+    // A part picked in the view leaves the history as it is, until its step is asked for.
+    await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'false');
+    await page.locator('#showInHistory').click();
     await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#showInHistory')).toHaveCount(0);
   }
 });
 
@@ -622,7 +627,7 @@ test('a plate is selected in the view and edited, but never moved off its face',
   await page.locator('[data-view="top"]').click();
   // The marker of the plate's joint sits at its center, over the rail: click beside it.
   await clickViewport(page, 0.42, 0.5);
-  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-sheetId')).toBeVisible();
   await page.locator('#part-acrossMm').fill('400');
   await page.locator('#part-acrossMm').press('Enter');
   await expect(page.locator('#toast')).toContainText(/would not rest on/);
@@ -1120,13 +1125,15 @@ test('out of Fit a peripheral is a reference that clicks go through; its step tu
   await expect(page.locator('#noPartSelected')).toBeVisible();
   await page.locator('[data-view="top"]').click();
   await clickViewport(page, 0.5, 0.5);
-  await expect(page.locator('[data-part="part-1"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-name')).toHaveValue('40 × 40 profile 1');
   await expect(page.locator('#growProfile')).toBeVisible();
   await page.locator('[data-part="part-2"]').click();
   await expect(page.locator('#fitModeBtn')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#part-facing')).toBeVisible();
   await clickViewport(page, 0.5, 0.5);
-  await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
+  // Picked in the view, the pedals stay selected, no longer marked in the history.
+  await expect(page.locator('#showInHistory')).toBeVisible();
+  await expect(page.locator('#part-typeId')).toHaveValue('generic-pedals');
 });
 
 test("a peripheral's inspector edits its own values, and swapping its type warns when they were edited", async ({
