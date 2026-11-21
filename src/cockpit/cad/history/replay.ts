@@ -262,8 +262,7 @@ function misfitTravel(
   context: StepContext,
 ): string | null {
   const parent = context.parts.find((part) => part.id === operation.parentId);
-  const along =
-    parent?.kind === 'profile' ? parent.axis : parent?.kind === 'plate' ? parent.depthAxis : null;
+  const along = parent ? alongAxisOfPart(parent) : null;
   if (!parent || along === null) return null;
   if (along === faceAxis(operation.face))
     return `${operation.name} is on an end of ${parent.name}, which has a single place for it: it cannot slide there.`;
@@ -582,12 +581,7 @@ function misfitOnItsFace(
   const parent = resolved.get(operation.parentId);
   if (!parent) return null;
   const parentPart = parent.part;
-  const along =
-    parentPart.kind === 'profile'
-      ? parentPart.axis
-      : parentPart.kind === 'plate'
-        ? parentPart.depthAxis
-        : null;
+  const along = alongAxisOfPart(parentPart);
   const normal = faceAxis(operation.face);
   if (along === null || normal === along) return null;
   const across = AXES.find((axis) => axis !== normal && axis !== along) ?? 'y';
