@@ -26,6 +26,9 @@ import { SettingControls } from './room/editing/settings-controls.ts';
 import { CockpitScene } from './scene/scene.ts';
 import { ColorTheme } from './app/theme.ts';
 import { Workbench } from './workbench.ts';
+import { cornersMm } from './cockpit/cad/parts/assembly.ts';
+import { MM_PER_CM } from './shared/units.ts';
+import type { PagePoint } from './scene/pointer.ts';
 
 drawIcons();
 
@@ -110,7 +113,11 @@ colorTheme.apply();
 
 declare global {
   interface Window {
-    cockpitLab: { getState(): RoomConfig; getEvaluation(): CockpitEvaluation };
+    cockpitLab: {
+      getState(): RoomConfig;
+      getEvaluation(): CockpitEvaluation;
+      partScreenPoint(partId: string): PagePoint | null;
+    };
   }
 }
 // Read-only view of the current state and calculations, for checking a configuration.
@@ -118,4 +125,19 @@ declare global {
 window.cockpitLab = {
   getState: () => structuredClone(project.state),
   getEvaluation: () => structuredClone(workbench.evaluation()),
+  partScreenPoint,
 };
+
+/**
+ * Where the center of a part of the cockpit design shows on the page, so a test can click it
+ * whatever the view frames; null while the view does not draw it. A part in front of the center
+ * takes the click instead.
+ */
+function partScreenPoint(partId: string): PagePoint | null {
+  const part = workbench.parts.cockpitEditor.drawing()?.resolved.get(partId);
+  if (!part || !workbench.scene) return null;
+  const corners = cornersMm(part);
+  const mean = (axis: 'x' | 'y' | 'z') =>
+    corners.reduce((sum, corner) => sum + corner[axis], 0) / corners.length / MM_PER_CM;
+  return workbench.scene.pagePointOf({ x: mean('x'), y: mean('y'), z: mean('z') });
+}

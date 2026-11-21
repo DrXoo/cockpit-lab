@@ -1,6 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
-import { test, expect, openApp, importProject, getSavedProject, cockpitFileOf } from './support.ts';
+import {
+  test,
+  expect,
+  openApp,
+  importProject,
+  getSavedProject,
+  cockpitFileOf,
+  clickPart,
+  hoverPart,
+} from './support.ts';
 import { anchoredProfiles, seatRails } from '../tests/support/designs.ts';
 import { editProfile, type Operation } from '../src/cockpit/cad/history/history.ts';
 
@@ -1262,16 +1271,14 @@ test('a seat rests on its rail until a second rail is under its other holes, the
 });
 
 /**
- * Four rails 1000 mm long along Z: Seat rail (part-1) at X 0, with Near rail (part-2) and Far
- * rail (part-3) 360 mm to its right and left, as far as the seat's holes, and a Decoy (part-4)
- * beyond, which puts Far rail in the middle of the top view.
+ * Three rails 1000 mm long along Z: Seat rail (part-1) at X 0, with Near rail (part-2) and Far
+ * rail (part-3) 360 mm to its right and left, as far apart as the seat's holes.
  */
 function railsAcross(): Operation[] {
   const rails: [string, number][] = [
     ['Seat rail', 0],
     ['Near rail', -360],
     ['Far rail', 360],
-    ['Decoy', 1080],
   ];
   let history = anchoredProfiles(rails.length);
   rails.forEach(([name, xMm], index) => {
@@ -1296,13 +1303,13 @@ test('a click on another rail in the view makes it the second rail of the seat a
   await page.locator('#mountSeat').click();
   await expect(page.locator('#peripheral-betweenId')).toHaveValue('part-2');
 
-  await hoverViewport(page, 0.5, 0.5);
+  await hoverPart(page, 'part-3');
   await expect(page.locator('#hoverLabel')).toHaveAttribute('data-part', 'part-3');
-  await clickViewport(page, 0.5, 0.5);
+  await clickPart(page, 'part-3');
   await expect(page.locator('#peripheral-betweenId')).toHaveValue('part-3');
   await page.locator('#confirmPeripheral').click();
   await expect
-    .poll(async () => (await savedHistory(page))?.[4])
+    .poll(async () => (await savedHistory(page))?.[3])
     .toMatchObject({ kind: 'mount-peripheral', parentId: 'part-1', betweenId: 'part-3' });
 });
 

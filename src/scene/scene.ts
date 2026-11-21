@@ -181,6 +181,16 @@ export class CockpitScene implements PointerHost {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Where a point of the scene, in cm, shows on the page, in px from its top left corner. */
+  pagePointOf(pointCm: { x: number; y: number; z: number }): PagePoint {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const p = new T.Vector3(pointCm.x, pointCm.y, pointCm.z).project(this.camera);
+    return {
+      x: rect.left + (p.x * 0.5 + 0.5) * rect.width,
+      y: rect.top + (-p.y * 0.5 + 0.5) * rect.height,
+    };
+  }
+
   /** Keeps an element of the page beside a point of the scene, in cm, or lets it go (null). */
   anchorElement(
     el: HTMLElement,

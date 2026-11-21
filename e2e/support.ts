@@ -51,6 +51,27 @@ export async function importProject(page: Page, fixture: string): Promise<void> 
   await expect(page.locator('body')).toHaveAttribute('data-guided', 'false');
 }
 
+/**
+ * Clicks the center of a part of the cockpit design where the view shows it, through the app's
+ * debugging hook, so the test does not depend on how the view frames the design.
+ */
+export async function clickPart(page: Page, partId: string): Promise<void> {
+  const point = await partPoint(page, partId);
+  await page.mouse.click(point.x, point.y);
+}
+
+/** Rests the pointer on the center of a part of the cockpit design where the view shows it. */
+export async function hoverPart(page: Page, partId: string): Promise<void> {
+  const point = await partPoint(page, partId);
+  await page.mouse.move(point.x, point.y);
+}
+
+async function partPoint(page: Page, partId: string): Promise<{ x: number; y: number }> {
+  const point = await page.evaluate((id) => window.cockpitLab.partScreenPoint(id), partId);
+  if (point === null) throw new Error(`The view does not show ${partId}.`);
+  return point;
+}
+
 /** The configurator state, through the app's read-only debugging hook. */
 export const getState = (page: Page) => page.evaluate(() => (window as any).cockpitLab.getState());
 
