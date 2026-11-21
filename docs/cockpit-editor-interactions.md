@@ -2,6 +2,8 @@
 
 How the mouse and keyboard edit a cockpit design in the view of the cockpit editor. Every edit made here changes the values of the operation that made the part, as the inspector does (see [mini-cad.md](mini-cad.md) and [ADR 0005](adr/0005-a-cockpit-design-is-its-design-history.md)); the view and the inspector are two ways to the same values.
 
+An arrow on the floor ahead of the design, labeled **Front**, points along +Z, the front of the cockpit as the driver faces it; the views frame it with the design. The front is a convention, not a setting: a peripheral faces it unless it is turned, and the driver sits facing it, so a frame is built with its length along it.
+
 ## Terms
 
 **Handle**: a control drawn on the selected part that is dragged to change one of its values along one axis.

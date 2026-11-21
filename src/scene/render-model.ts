@@ -17,7 +17,9 @@ import { drawPartLength, drawPlacementAlong, drawPlateSize } from '../cockpit/re
 import { drawMeasurement } from '../cockpit/render/measurement.ts';
 import { drawDriver } from '../cockpit/render/driver.ts';
 import { drawHandleStems, drawSnapGuide } from '../cockpit/render/handles.ts';
+import { drawFrontArrow } from '../cockpit/render/front-arrow.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from '../room/render/desk.ts';
+import { designBounds } from './camera.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
 import { drawRoom } from '../room/render/room.ts';
 
@@ -71,6 +73,8 @@ export function renderModel(
       },
     );
     drawConnectors(r, ROOT, options.cockpit.connectors ?? []);
+    if (options.cockpit.resolved.size > 0)
+      drawFrontArrow(r, ROOT, designBounds(options.cockpit.resolved));
     if (options.cockpit.plateHoles)
       drawPlateHoles(r, ROOT, options.cockpit.resolved, options.cockpit.plateHoles);
     if (options.cockpit.driver) drawDriver(r, ROOT, options.cockpit.driver);

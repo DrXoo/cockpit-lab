@@ -93,8 +93,28 @@ test('the selected part shows its length with the other dimensions, which can be
   assert.ok(measured.length > 0);
   assert.ok(measured.every((line) => line.parent === dimensions.id));
   assert.deepEqual(
-    model.labels.map((label) => label.text),
+    model.labels.filter((label) => !label.object).map((label) => label.text),
     ['500 mm'],
+  );
+});
+
+test('a cockpit design shows which way is its front, ahead of it on the floor', () => {
+  const history = addAnchoredProfile([]).history;
+  const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: null };
+  const { model } = render(NOTHING_AROUND, { cockpit });
+  const front = present(
+    model.labels.find((label) => label.text === 'Front'),
+    'front label',
+  );
+  assert.ok(front.position.z > 50, 'ahead of the 500 mm profile running along +Z');
+});
+
+test('a cockpit design without parts has no front to show', () => {
+  const cockpit = { resolved: new Map(), selectedPartId: null };
+  const { model } = render(NOTHING_AROUND, { cockpit });
+  assert.equal(
+    model.labels.find((label) => label.text === 'Front'),
+    undefined,
   );
 });
 

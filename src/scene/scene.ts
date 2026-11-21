@@ -10,6 +10,8 @@ import type { RoomConfig } from '../room/config.ts';
 import type { CockpitEvaluation } from '../room/evaluate.ts';
 import type { PartHit } from '../cockpit/cad/interaction/picking.ts';
 import type { CockpitDrawing } from '../cockpit/render/cad.ts';
+import { boundsWithFrontArrow } from '../cockpit/render/front-arrow.ts';
+import type { ResolvedPart } from '../cockpit/cad/parts/assembly.ts';
 import type { ArmHandle } from '../room/render/desk.ts';
 import type { Handle, HandleModifiers } from '../cockpit/cad/interaction/handles.ts';
 import type { JointMarker } from '../cockpit/cad/interaction/joint-markers.ts';
@@ -38,6 +40,12 @@ import {
 import { createRenderer, setVectorBackground } from './renderer.ts';
 import { readSceneTheme, type SceneTheme } from './theme.ts';
 import { addPrimitives, disposeDrawing, type Palette } from './three-adapter.ts';
+
+/** What a view frames of a cockpit design: its parts, and the arrow showing its front. */
+function framedDesign(resolved: ReadonlyMap<string, ResolvedPart>): SceneBounds {
+  const bounds = designBounds(resolved);
+  return resolved.size > 0 ? boundsWithFrontArrow(bounds) : bounds;
+}
 
 /** The scene colors defined by the page's stylesheet. */
 const themeOfPage = () =>
@@ -198,7 +206,7 @@ export class CockpitScene implements PointerHost {
     this.s = s;
     this.e = e;
     this.cockpit = cockpit;
-    this.sceneBounds = cockpit ? designBounds(cockpit.resolved) : sceneBounds(s, e);
+    this.sceneBounds = cockpit ? framedDesign(cockpit.resolved) : sceneBounds(s, e);
     this.placeFloor();
     if (this.root) {
       disposeDrawing(this.root, this.mat);
