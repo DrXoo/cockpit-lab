@@ -1,6 +1,14 @@
 // Turns render primitives into Three.js objects, in the order they were drawn.
 import * as T from 'three';
-import type { MaterialRef, MaterialSpec, PaletteMaterial, Primitive, Vec3 } from './render-list.ts';
+import type {
+  ExtrusionPrimitive,
+  MaterialRef,
+  MaterialSpec,
+  PaletteMaterial,
+  Primitive,
+  Vec2,
+  Vec3,
+} from './render-list.ts';
 import { ROOT } from './render-list.ts';
 
 /** The shared materials, plus the outline used on box edges. */
@@ -15,6 +23,11 @@ const DASHED_LINE = { color: 0x9ba78d, dashSize: 3, gapSize: 2, transparent: tru
 /** Drawn after everything else, so nothing in the scene dims it. */
 const ON_TOP_RENDER_ORDER = 10;
 const UP = new T.Vector3(0, 1, 0);
+/**
+ * Edges between faces turned less than this many degrees are not outlined: a bore's facets, but
+ * not a slot's corners.
+ */
+const EXTRUSION_EDGE_ANGLE_DEG = 30;
 
 const vector = ([x, y, z]: Vec3) => new T.Vector3(x, y, z);
 
@@ -105,6 +118,24 @@ export function addPrimitives(
         parents.set(p.id, mesh);
         break;
       }
+      case 'extrusion': {
+        const mesh = new T.Mesh(extrudedGeometry(p), materialOf(p.material));
+        mesh.position.set(...p.position);
+        const [u, v, along] = p.axes.map(vector);
+        mesh.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(u, v, along));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        parentOf(p.parent).add(mesh);
+        if (p.edges)
+          mesh.add(
+            new T.LineSegments(
+              new T.EdgesGeometry(mesh.geometry, EXTRUSION_EDGE_ANGLE_DEG),
+              palette.edge,
+            ),
+          );
+        parents.set(p.id, mesh);
+        break;
+      }
       case 'cylinder': {
         const geometry = new T.CylinderGeometry(p.radius, p.radius, p.length, p.segments);
         const mesh = new T.Mesh(geometry, materialOf(p.material));
@@ -178,6 +209,17 @@ export function addPrimitives(
     }
   }
   return built;
+}
+
+/** An outline with its holes, extruded along local Z and centered on the origin. */
+function extrudedGeometry(p: ExtrusionPrimitive): T.ExtrudeGeometry {
+  const points = (outline: readonly Vec2[]) => outline.map(([u, v]) => new T.Vector2(u, v));
+  const shape = new T.Shape(points(p.outline));
+  shape.holes = p.holes.map((hole) => new T.Path(points(hole)));
+  const length = Math.max(p.length, MIN_BOX_SIDE_CM);
+  const geometry = new T.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false });
+  geometry.translate(0, 0, -length / 2);
+  return geometry;
 }
 
 /** Frees the geometry and the own materials of a drawing; the palette is shared and kept. */

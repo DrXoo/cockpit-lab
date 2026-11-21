@@ -71,7 +71,7 @@ test('a cockpit design shown on its own is drawn at the origin, with its selecte
   const history = addAnchoredProfile(addAnchoredProfile([]).history).history;
   const cockpit = { resolved: resolveAssembly(replayHistory(history)), selectedPartId: 'part-2' };
   const { model } = render(NOTHING_AROUND, { cockpit });
-  const bars = allOfKind(model.primitives, 'box').filter(
+  const bars = allOfKind(model.primitives, 'extrusion').filter(
     (p) => p.parent === ROOT && (p.material === 'silver' || p.material === 'selected'),
   );
   assert.deepEqual(

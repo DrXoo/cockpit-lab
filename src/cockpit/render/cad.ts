@@ -2,19 +2,27 @@
 // in mm in cockpit coordinates; the scene works in cm. Parts at a tilt go into one group per tilt,
 // turned about the cockpit origin as their frame is (src/cad/assembly.ts).
 import { degToRad } from '../../shared/geometry.ts';
-import type { PaletteMaterial, ParentRef, RenderList, Vec3 } from '../../scene/render-list.ts';
+import type {
+  PaletteMaterial,
+  ParentRef,
+  RenderList,
+  Vec2,
+  Vec3,
+} from '../../scene/render-list.ts';
 import {
   faceAxis,
   peripheralPointInFrame,
   type Axis,
   type BoxMm,
   type PeripheralPart,
+  type ProfilePart,
   type ResolvedPart,
   type Vec3Mm,
 } from '../cad/parts/assembly.ts';
 import {
   connectorType,
   isPlateBolt,
+  profileSection,
   profileSystem,
   type PeripheralCategory,
 } from '../cad/parts/catalog.ts';
@@ -22,6 +30,7 @@ import type { PlacedConnector } from '../cad/parts/connectors.ts';
 import type { Hole } from '../cad/parts/mounting-pattern.ts';
 import { pointOnPlate, type PlateHole } from '../cad/parts/plate-holes.ts';
 import type { MeasureDrawing } from './measurement.ts';
+import { profileSectionOutline, type SectionPoint } from './profile-section.ts';
 import type { Handle } from '../cad/interaction/handles.ts';
 import type { SnapGuide } from '../cad/interaction/snapping.ts';
 import type { JointMarker } from '../cad/interaction/joint-markers.ts';
@@ -61,19 +70,11 @@ export interface CockpitDrawing {
   driver?: DriverFigure | null;
 }
 
-/** Grooves stop this much short of the profile length. */
-const GROOVE_SHORTFALL_CM = 0.5;
-/** A groove as drawn: a thin strip standing just proud of its face. */
-const GROOVE_WIDTH_CM = 0.3;
-const GROOVE_THICKNESS_CM = 0.09;
-const GROOVE_PROUD_CM = 0.04;
-
 /** A foot as drawn: a rubber pad on the floor and a threaded stem up to the profile. */
 const FOOT_PAD_HEIGHT_MM = 15;
 const FOOT_STEM_RADIUS_MM = 8;
 
 const AXES: readonly Axis[] = ['x', 'y', 'z'];
-const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 
 /** One group per tilt, turned about the cockpit origin, made the first time a tilt is drawn. */
 function tiltFrames(r: RenderList, parent: ParentRef): (tiltDeg: number) => ParentRef {
@@ -122,7 +123,6 @@ export function drawCadProfiles(
       drawPeripheral(r, frameOf(tiltDeg), resolvedPart, shown);
     }
     if (part.kind !== 'profile' && part.kind !== 'plate') continue;
-    const size = sizeOf(box);
     const material = ghost
       ? 'ghost'
       : part.id === previewId
@@ -130,10 +130,48 @@ export function drawCadProfiles(
         : part.id === selectedId
           ? 'selected'
           : 'silver';
-    const solid = r.box(...size, ...centerOf(box), material, frameOf(tiltDeg), true);
-    if (part.kind === 'profile')
-      drawGrooves(r, solid.id, size, part.axis, cm(profileSystem(part.systemId).series));
+    if (part.kind === 'profile') drawProfile(r, frameOf(tiltDeg), part, box, material);
+    else r.box(...sizeOf(box), ...centerOf(box), material, frameOf(tiltDeg), true);
   }
+}
+
+const UNIT: Record<Axis, Vec3> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+
+/**
+ * A profile as its section extruded along its length, centered on its box: the section's height
+ * across its height axis, and its width across the third axis, which makes the frame
+ * right-handed.
+ */
+function drawProfile(
+  r: RenderList,
+  frame: ParentRef,
+  part: ProfilePart,
+  box: BoxMm,
+  material: PaletteMaterial,
+): void {
+  const system = profileSystem(part.systemId);
+  const section = profileSectionOutline(system, profileSection(system, part.sectionId));
+  const toCm = (outline: readonly SectionPoint[]): Vec2[] =>
+    outline.map(([u, v]) => [cm(u), cm(v)]);
+  const along = UNIT[part.axis];
+  const up = UNIT[part.heightAxis];
+  const across: Vec3 = [
+    up[1] * along[2] - up[2] * along[1],
+    up[2] * along[0] - up[0] * along[2],
+    up[0] * along[1] - up[1] * along[0],
+  ];
+  r.extrusion(
+    {
+      outline: toCm(section.outer),
+      holes: section.holes.map(toCm),
+      length: cm(box.max[part.axis] - box.min[part.axis]),
+      axes: [across, up, along],
+    },
+    centerOf(box),
+    material,
+    frame,
+    true,
+  );
 }
 
 /** How a peripheral is drawn: in its own materials, or all in one that marks its state. */
@@ -660,37 +698,4 @@ function drawFoot(
     materialOf('silver'),
     frame,
   );
-}
-
-/**
- * One groove per slot on each long face of a bar of `size`, centered on the bar. The slots of
- * a series sit one series module apart, so a face as wide as two modules has two.
- */
-function drawGrooves(
-  r: RenderList,
-  bar: ParentRef,
-  size: Vec3,
-  lengthAxis: Axis,
-  moduleCm: number,
-): void {
-  const along = AXIS_INDEX[lengthAxis];
-  for (const normalAxis of AXES) {
-    if (normalAxis === lengthAxis) continue;
-    const normal = AXIS_INDEX[normalAxis];
-    const across = 3 - along - normal;
-    const faceWidth = size[across];
-    const slots = Math.max(1, Math.round(faceWidth / moduleCm));
-    for (const side of [-1, 1]) {
-      for (let slot = 0; slot < slots; slot++) {
-        const grooveSize: Vec3 = [0, 0, 0];
-        grooveSize[along] = size[along] - GROOVE_SHORTFALL_CM;
-        grooveSize[normal] = GROOVE_THICKNESS_CM;
-        grooveSize[across] = GROOVE_WIDTH_CM;
-        const position: Vec3 = [0, 0, 0];
-        position[normal] = side * (size[normal] / 2 + GROOVE_PROUD_CM);
-        position[across] = (slot + 0.5) * (faceWidth / slots) - faceWidth / 2;
-        r.box(...grooveSize, ...position, 'groove', bar);
-      }
-    }
-  }
 }

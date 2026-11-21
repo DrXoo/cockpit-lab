@@ -98,6 +98,27 @@ export interface SpherePrimitive extends Placed {
   scale: Vec3;
   material: MaterialRef;
 }
+/** A point of a flat outline, in the outline's own two axes. */
+export type Vec2 = readonly [u: number, v: number];
+
+/**
+ * A flat outline, with holes, extruded along its third axis and centered on its position, as an
+ * aluminium profile's section along its length.
+ */
+export interface ExtrusionPrimitive {
+  kind: 'extrusion';
+  id: ParentRef;
+  parent: ParentRef;
+  outline: readonly Vec2[];
+  holes: readonly (readonly Vec2[])[];
+  length: number;
+  position: Vec3;
+  /** The directions the outline's u and v and its length run along: a right-handed frame. */
+  axes: readonly [u: Vec3, v: Vec3, length: Vec3];
+  material: MaterialRef;
+  /** Outlines its edges, the slots of a profile among them. */
+  edges: boolean;
+}
 /** A cylinder between two points. */
 export interface TubePrimitive {
   kind: 'tube';
@@ -142,6 +163,7 @@ export type Primitive =
   | MaterialPrimitive
   | GroupPrimitive
   | BoxPrimitive
+  | ExtrusionPrimitive
   | CylinderPrimitive
   | SpherePrimitive
   | TubePrimitive
@@ -236,6 +258,23 @@ export function createRenderList() {
       position: [x, y, z],
       rotation: [...ORIGIN],
       scale: [...UNIT_SCALE],
+      material: mat,
+      edges,
+    });
+
+  const extrusion = (
+    shape: Pick<ExtrusionPrimitive, 'outline' | 'holes' | 'length' | 'axes'>,
+    position: Vec3,
+    mat: MaterialRef,
+    parent: ParentRef,
+    edges = false,
+  ) =>
+    add<ExtrusionPrimitive>({
+      kind: 'extrusion',
+      id: ++lastId,
+      parent,
+      ...shape,
+      position,
       material: mat,
       edges,
     });
@@ -372,6 +411,7 @@ export function createRenderList() {
     material,
     group,
     box,
+    extrusion,
     cylinder,
     sphere,
     tube,

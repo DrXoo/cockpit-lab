@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderList, ROOT, type Primitive } from '../../../src/scene/render-list.ts';
+import {
+  createRenderList,
+  ROOT,
+  type ExtrusionPrimitive,
+  type Primitive,
+} from '../../../src/scene/render-list.ts';
+import { profileSectionOutline } from '../../../src/cockpit/render/profile-section.ts';
 import { allOfKind, present } from '../../support/lookups.ts';
 import {
   resolveAssembly,
@@ -16,7 +22,11 @@ import {
   drawPlateHoles,
 } from '../../../src/cockpit/render/cad.ts';
 import { degToRad } from '../../../src/shared/geometry.ts';
-import { peripheralType } from '../../../src/cockpit/cad/parts/catalog.ts';
+import {
+  MOTEDIS_SERIES_40_SLOT_8,
+  peripheralType,
+  profileSection,
+} from '../../../src/cockpit/cad/parts/catalog.ts';
 
 const SYSTEM = 'motedis-40-i-slot-8';
 const profile = (id: string, changes: Partial<ProfilePart> = {}): ProfilePart => ({
@@ -42,41 +52,67 @@ const draw = (
   return r.primitives;
 };
 const BAR_MATERIALS: readonly unknown[] = ['silver', 'selected', 'preview'];
+/** The profiles drawn: each its section extruded along its length. */
 const bars = (primitives: readonly Primitive[]) =>
+  allOfKind(primitives, 'extrusion').filter((p) => BAR_MATERIALS.includes(p.material));
+/** The plates drawn: each an outlined slab. */
+const slabs = (primitives: readonly Primitive[]) =>
   allOfKind(primitives, 'box').filter((p) => BAR_MATERIALS.includes(p.material));
-const groovesOf = (primitives: readonly Primitive[], bar: { id: number }) =>
-  allOfKind(primitives, 'box').filter((p) => p.material === 'groove' && p.parent === bar.id);
+/** The size an extrusion takes along X, Y and Z, in cm. */
+const sizeOf = (bar: ExtrusionPrimitive): number[] => {
+  const extent = (index: 0 | 1) => {
+    const values = bar.outline.map((point) => point[index]);
+    return Math.max(...values) - Math.min(...values);
+  };
+  const sides = [extent(0), extent(1), bar.length];
+  return [0, 1, 2].map((axis) =>
+    bar.axes.reduce((sum, direction, side) => sum + Math.abs(direction[axis]) * sides[side], 0),
+  );
+};
 
-test('a profile is drawn as an outlined bar centered on its box, in cm', () => {
+test('a profile is drawn as its section extruded along its length, centered on its box, in cm', () => {
   const [bar] = bars(draw([profile('rail')]));
   assert.deepEqual(bar.position, [-28, 10, 60]);
-  assert.deepEqual(bar.size, [4, 8, 120]);
+  assert.deepEqual(sizeOf(bar), [4, 8, 120]);
+  assert.deepEqual(bar.axes, [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+  ]);
   assert.equal(bar.parent, ROOT);
   assert.equal(bar.edges, true);
+  const section = profileSectionOutline(
+    MOTEDIS_SERIES_40_SLOT_8,
+    profileSection(MOTEDIS_SERIES_40_SLOT_8, '40x80'),
+  );
+  assert.deepEqual(
+    bar.outline,
+    section.outer.map(([u, v]) => [u / 10, v / 10]),
+    'its slots are cut into its outline',
+  );
+  assert.equal(bar.holes.length, 2);
 });
 
 test('an upright 40 × 80 with its wide side across is drawn that way', () => {
   const upright = profile('upright', { axis: 'y', heightAxis: 'x', lengthMm: 500 });
-  assert.deepEqual(bars(draw([upright]))[0].size, [8, 50, 4]);
+  assert.deepEqual(sizeOf(bars(draw([upright]))[0]), [8, 50, 4]);
 });
 
-test('every section is drawn in any orientation, at its box', () => {
+test('every section is drawn in any orientation, at its box, in a right-handed frame', () => {
   const across = profile('across', { sectionId: '40x120', axis: 'x', heightAxis: 'z' });
-  assert.deepEqual(bars(draw([across]))[0].size, [120, 4, 12]);
+  const [acrossBar] = bars(draw([across]));
+  assert.deepEqual(sizeOf(acrossBar), [120, 4, 12]);
   const lying = profile('lying', { axis: 'z', heightAxis: 'x' });
-  assert.deepEqual(bars(draw([lying]))[0].size, [8, 4, 120]);
-});
-
-test('each long face shows one groove per slot: two on the wide side of a 40 × 80', () => {
-  const primitives = draw([profile('rail')]);
-  const grooves = groovesOf(primitives, bars(primitives)[0]);
-  assert.equal(grooves.length, 6);
-  const onSide = grooves.filter((groove) => groove.position[0] > 0);
-  assert.deepEqual(
-    onSide.map((groove) => groove.position[1]),
-    [-2, 2],
-  );
-  assert.ok(grooves.every((groove) => groove.size[2] < 120 && groove.size[2] > 110));
+  const [lyingBar] = bars(draw([lying]));
+  assert.deepEqual(sizeOf(lyingBar), [8, 4, 120]);
+  for (const { axes } of [acrossBar, lyingBar]) {
+    const [u, v, w] = axes;
+    const cross = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    assert.deepEqual(
+      cross.map((value) => value + 0),
+      [...w],
+    );
+  }
 });
 
 test('the selected profile is drawn apart from the others', () => {
@@ -118,6 +154,7 @@ const foot: FootPart = {
 
 test('feet are not drawn as profiles', () => {
   assert.equal(bars(draw([profile('rail'), foot])).length, 1);
+  assert.equal(slabs(draw([profile('rail'), foot])).length, 0);
 });
 
 test('a foot is drawn as a rubber pad and a threaded stem up to the underside', () => {
@@ -167,20 +204,19 @@ const plateOn = (parentId: string): PlatePart => ({
   placement: { kind: 'attachment', parentId, face: '+y', alongMm: 600, fromEnd: 'start' },
 });
 
-test('a plate is drawn as an outlined slab at its box, without grooves', () => {
+test('a plate is drawn as an outlined slab at its box', () => {
   const primitives = draw([profile('rail'), plateOn('rail')]);
-  const slab = bars(primitives)[1];
+  const [slab] = slabs(primitives);
   assert.deepEqual(slab.position, [-28, 14.4, 60]);
   assert.deepEqual(slab.size, [30, 0.8, 25]);
   assert.equal(slab.material, 'silver');
   assert.equal(slab.edges, true);
-  assert.equal(groovesOf(primitives, slab).length, 0);
 });
 
 test('a selected plate, or one about to be added, is drawn as such', () => {
-  assert.equal(bars(draw([profile('rail'), plateOn('rail')], 'plate'))[1].material, 'selected');
+  assert.equal(slabs(draw([profile('rail'), plateOn('rail')], 'plate'))[0].material, 'selected');
   assert.equal(
-    bars(draw([profile('rail'), plateOn('rail')], null, 'plate'))[1].material,
+    slabs(draw([profile('rail'), plateOn('rail')], null, 'plate'))[0].material,
     'preview',
   );
 });
