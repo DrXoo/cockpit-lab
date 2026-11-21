@@ -1227,46 +1227,51 @@ test('a seat rests the holes of one side on its profile, chosen in its inspector
   await expect.poll(async () => (await seat())?.holesOver).toBeUndefined();
 });
 
-test('a seat goes between its rail and the nearest other, with how its holes fit the slots', async ({
+test('a seat rests on its rail until a second rail is under its other holes, then bolts to it', async ({
   page,
 }) => {
   await openApp(page);
   await page.locator('#startWithCockpit').click();
-  // 380 mm apart, the rails are 20 mm wider than the seat's holes.
-  await page.locator('#importCockpitFile').setInputFiles(cockpitFileOf(seatRails(380)));
+  // 240 mm apart, the rails are 120 mm narrower than the seat's holes.
+  await page.locator('#importCockpitFile').setInputFiles(cockpitFileOf(seatRails(240)));
   await page.locator('[data-part="part-1"]').click();
   await page.locator('#fitModeBtn').click();
   await page.locator('#mountSeat').click();
-  await expect(page.locator('#peripheral-betweenId')).toHaveValue('part-2');
-  await expect(page.locator('[data-fit-check="between"]')).toBeVisible();
-  await expect(page.locator('[data-fit-check="holes"].warning')).toHaveCount(4);
-  await expect(page.locator('#peripheral-holesOver')).toHaveCount(0);
-
-  await page.locator('#peripheral-betweenId').selectOption('alone');
-  await expect(page.locator('#peripheral-holesOver')).toBeVisible();
-  await expect(page.locator('[data-fit-check="between"]')).toHaveCount(0);
-  await page.locator('#peripheral-betweenId').selectOption('part-2');
+  await expect(page.locator('#peripheral-betweenId')).toHaveValue('alone');
+  await expect(page.locator('#peripheral-holesOver')).toHaveValue('left');
+  await expect(page.locator('[data-fit-check="holes"].warning')).toHaveCount(2);
+  await expect(page.locator('#boltToSecond')).toHaveCount(0);
   await page.locator('#confirmPeripheral').click();
-
   await expect
     .poll(async () => (await savedHistory(page))?.[2])
-    .toMatchObject({ kind: 'mount-peripheral', parentId: 'part-1', betweenId: 'part-2' });
+    .toMatchObject({ kind: 'mount-peripheral', parentId: 'part-1', holesOver: 'left' });
+
+  // The frame moves with Fit off; the seat, on Left rail alone, stays where it is.
+  await page.locator('#fitModeBtn').click();
+  await page.locator('[data-part="part-2"]').click();
+  await page.locator('#part-startX').fill('-240');
+  await page.locator('#part-startX').press('Enter');
+  await page.locator('[data-part="part-3"]').click();
+  await expect(page.locator('[data-fit-check="second"]')).toBeVisible();
+  await page.locator('#boltToSecond').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[2])
+    .toMatchObject({ betweenId: 'part-2', acrossMm: 0 });
   await expect(page.locator('#part-betweenId')).toHaveValue('part-2');
-  await page.locator('#part-betweenId').selectOption('alone');
-  await expect.poll(async () => (await savedHistory(page))?.[2]?.betweenId).toBeUndefined();
+  await expect(page.locator('[data-fit-check="holes"].ok')).toBeVisible();
 });
 
 /**
- * Four rails 1000 mm long along Z: Seat rail (part-1) at X 0, Near rail (part-2) 300 mm to its
- * right, Far rail (part-3) 400 mm to its left and a Decoy (part-4) beyond it, which puts Far rail
- * in the middle of the top view.
+ * Four rails 1000 mm long along Z: Seat rail (part-1) at X 0, with Near rail (part-2) and Far
+ * rail (part-3) 360 mm to its right and left, as far as the seat's holes, and a Decoy (part-4)
+ * beyond, which puts Far rail in the middle of the top view.
  */
 function railsAcross(): Operation[] {
   const rails: [string, number][] = [
     ['Seat rail', 0],
-    ['Near rail', -300],
-    ['Far rail', 400],
-    ['Decoy', 1100],
+    ['Near rail', -360],
+    ['Far rail', 360],
+    ['Decoy', 1080],
   ];
   let history = anchoredProfiles(rails.length);
   rails.forEach(([name, xMm], index) => {

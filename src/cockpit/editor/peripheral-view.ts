@@ -27,6 +27,7 @@ import {
   type Operation,
 } from '../cad/history/history.ts';
 import {
+  boltsInto,
   differsFromItsType,
   secondProfiles,
   type SecondProfile,
@@ -92,8 +93,9 @@ const strongName = (history: readonly Operation[], partId: string) =>
   `<strong>${escapeHTML(nameOf(history, partId))}</strong>`;
 
 /**
- * A seat's choice of the second profile it is mounted between: those it can be, and whether
- * its holes stand over the slots of the profiles under it where it is.
+ * A seat's choice of the second profile it is mounted between, with whether it could be and
+ * whether its holes would bolt there, and whether its holes stand over the slots of the
+ * profiles under it where it is.
  */
 interface Pairing {
   seconds: SecondProfile[];
@@ -111,7 +113,7 @@ function pairingOf(
 ): Pairing | null {
   if (peripheral.category !== 'seat') return null;
   if (!makesAProfileId(history, peripheral.parentId)) return null;
-  const seconds = secondProfiles(history, peripheral, at).filter(({ reason }) => reason === null);
+  const seconds = secondProfiles(history, peripheral, at);
   const { resolved } = replayDesign(withDraft(history, peripheral, at), at + 1);
   const holeProblems = peripheralHoleProblems(resolved).filter(
     (problem) => problem.peripheralId === peripheral.partId,
@@ -215,27 +217,47 @@ function pairingHTML(
   peripheral: MountPeripheral,
   { seconds, holeProblems }: Pairing,
 ): string {
+  const { betweenId } = peripheral;
+  // A seat goes between two profiles only where its holes bolt into both; the one it is
+  // between stays offered after the frame moves it.
+  const offered = seconds.filter((second) => boltsInto(second) || second.partId === betweenId);
   const alone = `Nothing: on ${escapeHTML(nameOf(history, peripheral.parentId))} alone`;
   const choices: [string, string][] = [
-    ...seconds.map(({ partId, name }): [string, string] => [partId, escapeHTML(name)]),
+    ...offered.map(({ partId, name }): [string, string] => [partId, escapeHTML(name)]),
     [ON_ITS_PART_ALONE, alone],
   ];
-  const chosenId = peripheral.betweenId ?? ON_ITS_PART_ALONE;
-  const select = fields.select('betweenId', 'Between', choices, chosenId);
-  const none =
-    seconds.length === 0
-      ? '<p class="layout-hint">No other profile runs parallel to it, level and apart, to mount it between.</p>'
-      : '';
-  const chosen = seconds.find(({ partId }) => partId === peripheral.betweenId);
-  const apart = chosen ? `Centered between them, ${round(chosen.apartMm, 1)} mm apart` : '';
-  const centered = chosen ? [fitCheckHTML('between', true, apart)] : [];
+  const select = fields.select('betweenId', 'Between', choices, betweenId ?? ON_ITS_PART_ALONE);
+  const chosen = seconds.find(({ partId }) => partId === betweenId);
+  const bolting = betweenId === undefined ? seconds.find(boltsInto) : undefined;
+  const second = chosen
+    ? [fitCheckHTML('between', true, `Centered between them, ${round(chosen.apartMm, 1)} mm apart`)]
+    : bolting
+      ? [fitCheckHTML('second', true, `${escapeHTML(bolting.name)} is under its other holes`)]
+      : [];
   const holes = holeProblems.length
     ? holeProblems.map(({ holeIndex, wrong }) =>
         fitCheckHTML('holes', false, `Hole ${holeIndex + 1} ${escapeHTML(wrong)}`),
       )
     : [fitCheckHTML('holes', true, 'Every hole over a slot')];
-  const checks = [...centered, ...holes].join('');
-  return `${select}${none}<ul class="fit-checks" id="pairingChecks">${checks}</ul>`;
+  const checks = `<ul class="fit-checks" id="pairingChecks">${[...second, ...holes].join('')}</ul>`;
+  const bolt = bolting
+    ? `<div class="part-actions"><button class="button button-light" id="boltToSecond" data-second-id="${escapeHTML(bolting.partId)}" title="Mount it between ${escapeHTML(nameOf(history, peripheral.parentId))} and ${escapeHTML(bolting.name)}, centered">Bolt to ${escapeHTML(bolting.name)}</button></div>`
+    : '';
+  return `${select}${checks}${bolt}${pairingHint(chosen, bolting, seconds)}`;
+}
+
+/** What to do when the seat is on its rail alone, with no profile under its other holes. */
+function pairingHint(
+  chosen: SecondProfile | undefined,
+  bolting: SecondProfile | undefined,
+  seconds: readonly SecondProfile[],
+): string {
+  if (chosen || bolting) return '';
+  const beside = seconds.find(({ reason }) => reason === null);
+  const text = beside
+    ? `No profile is under its other holes yet. Move ${escapeHTML(beside.name)} there with Fit off, then bolt the seat to it here.`
+    : 'No other profile runs parallel to it, level and apart, to mount it between.';
+  return `<p class="layout-hint" id="pairingHint">${text}</p>`;
 }
 
 const fitCheckHTML = (check: string, ok: boolean, text: string) =>

@@ -175,12 +175,30 @@ test('a new seat between two rails names both, and chooses the second among thos
   assert.match(html, /data-fit-check="holes"[^>]*class="fit-check ok">✓ Every hole over a slot/);
 });
 
-test('rails apart by other than the seat holes warn for each hole, and the seat can still be mounted', () => {
+test('rails apart by other than the seat holes leave it on the first, warning for the holes that miss', () => {
   const history = seatRails(380);
   const html = peripheralPanelHTML(history, draftPeripheral(history, 'part-1', 'generic-seat'));
-  assert.match(html, /class="fit-check warning">⚠ Hole 1 is 10 mm off the slot of Right rail/);
-  assert.match(html, /class="fit-check warning">⚠ Hole 3 is 10 mm off the slot of Left rail/);
+  assert.match(html, /A new seat on <strong>Left rail<\/strong>/);
+  assert.match(html, /class="fit-check warning">⚠ Hole 1 is 20 mm off the slot of Right rail/);
+  assert.doesNotMatch(html, /<option value="part-2"/, 'it is offered only where its holes bolt');
+  assert.doesNotMatch(html, /id="boltToSecond"/);
   assert.match(html, /id="confirmPeripheral"/);
+});
+
+test('a seat on its rail alone, with a profile under its other holes, offers to bolt to it', () => {
+  const history = withPeripheral(seatRails(), 'part-1', 'generic-seat', {
+    betweenId: null,
+    holesOver: 'left',
+  });
+  const html = partInspectorHTML(history, history[2]);
+  assert.match(
+    html,
+    /data-fit-check="second"[^>]*class="fit-check ok">✓ Right rail is under its other holes/,
+  );
+  assert.match(
+    html,
+    /<button[^>]*id="boltToSecond"[^>]*data-second-id="part-2"[^>]*>Bolt to Right rail/,
+  );
 });
 
 test('a seat on a rail alone can still choose a second, and other peripherals have no second', () => {

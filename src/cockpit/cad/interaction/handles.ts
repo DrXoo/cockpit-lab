@@ -513,6 +513,8 @@ function movingAxes(history: readonly Operation[], operation: MakingOperation): 
   const normal = operation.kind === 'add-foot' ? 'y' : faceAxis(operation.face);
   if (along === null || along === normal) return [];
   if (operation.kind === 'add-foot') return [along];
+  // Between two profiles, a peripheral is placed across them by the profiles themselves.
+  if (operation.kind === 'mount-peripheral' && operation.betweenId !== undefined) return [along];
   const across = AXES.filter((axis) => axis !== normal && axis !== along);
   return [along, ...across];
 }

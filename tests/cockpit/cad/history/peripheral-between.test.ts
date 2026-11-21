@@ -200,8 +200,37 @@ test('a new seat on a rail goes between it and the nearest profile it can', () =
 });
 
 test('a new seat with no profile to go between stays on its rail, and other peripherals always do', () => {
-  assert.equal(draftPeripheral(railHistory(), 'part-1', 'generic-seat').betweenId, undefined);
+  const alone = draftPeripheral(railHistory(), 'part-1', 'generic-seat');
+  assert.equal(alone.betweenId, undefined);
+  assert.equal(alone.holesOver, undefined);
   assert.equal(draftPeripheral(seatRails(), 'part-1', 'generic-pedals').betweenId, undefined);
+});
+
+test('a new seat goes between two rails only where its holes bolt into both', () => {
+  // 240 mm apart, the rails are 120 mm narrower than the seat's holes.
+  const narrow = seatRails(240);
+  const onLeft = draftPeripheral(narrow, 'part-1', 'generic-seat');
+  assert.equal(onLeft.betweenId, undefined);
+  // Its left holes rest on Left rail, so it stands towards Right rail, on the driver's right.
+  assert.equal(onLeft.holesOver, 'left');
+  assert.equal(onLeft.acrossMm, 0);
+  assert.equal(draftPeripheral(narrow, 'part-2', 'generic-seat').holesOver, 'right');
+  const fits = draftPeripheral(seatRails(), 'part-1', 'generic-seat');
+  assert.equal(fits.betweenId, 'part-2');
+  assert.equal(fits.holesOver, undefined);
+});
+
+test('a second profile says why the holes would not bolt into it, though the seat could go between', () => {
+  const history = seatRails(380);
+  const draft = draftPeripheral(history, 'part-1', 'generic-seat');
+  const [right] = secondProfiles(history, draft);
+  assert.equal(right?.reason, null);
+  assert.match(right?.holesOff ?? '', /hole 1 is 10 mm off the slot of Right rail/);
+  const [fitting] = secondProfiles(
+    seatRails(),
+    draftPeripheral(seatRails(), 'part-1', 'generic-seat'),
+  );
+  assert.equal(fitting?.holesOff, null);
 });
 
 test('the profiles a peripheral can go between come nearest first, then the others with why not', () => {

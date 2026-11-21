@@ -8,7 +8,9 @@ import {
   type SeatedDriver,
 } from '../cad/driver/driver.ts';
 import {
+  boltsInto,
   draftPeripheral,
+  editPeripheral,
   editPeripheralDraft,
   peripheralAt,
   type SecondProfile,
@@ -224,13 +226,16 @@ export class CockpitEditor {
     };
   }
 
-  /** The profiles a seat about to be mounted could go between instead of the one it is. */
+  /**
+   * The profiles a seat about to be mounted could be bolted to instead of the one it is, its
+   * holes bolting into both.
+   */
   private secondCandidateIds(): string[] {
     const { draft } = this.current;
     if (draft?.kind !== 'mount-peripheral') return [];
     const seconds = this.draftSeconds() ?? [];
     return seconds
-      .filter(({ partId, reason }) => reason === null && partId !== draft.betweenId)
+      .filter((second) => boltsInto(second) && second.partId !== draft.betweenId)
       .map(({ partId }) => partId);
   }
 
@@ -253,7 +258,14 @@ export class CockpitEditor {
     if (draft?.kind !== 'mount-peripheral' || draft.betweenId === partId) return null;
     const second = this.draftSeconds()?.find((candidate) => candidate.partId === partId);
     if (second === undefined) return null;
-    return second.reason ?? `Click to mount ${draft.name} between it and the first`;
+    return second.reason ?? second.holesOff ?? `Click to bolt ${draft.name} to it as well`;
+  }
+
+  /** Mounts the selected seat between its profile and another its holes bolt into as well. */
+  boltSelectedTo(secondId: string) {
+    const partId = this.selectedPartId();
+    if (partId === null) return;
+    this.changeHistory((history) => editPeripheral(history, partId, { betweenId: secondId }));
   }
 
   /**
@@ -760,6 +772,12 @@ export class CockpitEditor {
     }
     if (hit === null) return;
     if (draft.kind === 'mount-peripheral' && editing.picksSecondProfile(this.current, hit.partId)) {
+      // A seat is bolted only to a profile its holes bolt into; any other says why not.
+      const second = this.draftSeconds()?.find(({ partId }) => partId === hit.partId);
+      if (second && !boltsInto(second)) {
+        this.host.toast(second.reason ?? second.holesOff ?? '');
+        return;
+      }
       const betweenId = hit.partId;
       this.changeDraft((history) => editPeripheralDraft(history, draft, { betweenId }));
       return;

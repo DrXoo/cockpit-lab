@@ -3,6 +3,7 @@
 // swapping its type. Lengths are in mm.
 import { cleanUserText } from '../../../shared/user-text.ts';
 import {
+  crossFace,
   faceAxis,
   type Axis,
   type ContactPoint,
@@ -35,7 +36,8 @@ import {
   type PeripheralShape,
   type Adjustment,
 } from './history.ts';
-import type { Hole, MountingPattern } from '../parts/mounting-pattern.ts';
+import type { Hole, MountingPattern, PatternSide } from '../parts/mounting-pattern.ts';
+import { peripheralHoleProblems } from '../analysis/peripheral-holes.ts';
 import { adjustmentTurnedWith, withinTravel } from './travel.ts';
 
 /** A peripheral faces the front of the cockpit, as the driver does, unless it cannot. */
@@ -77,11 +79,32 @@ export function draftPeripheral(
     ...(adjustment === undefined ? {} : { adjustment }),
   });
   if (type.category !== 'seat') return onItsPart;
-  // A seat bolts to two rails, so it goes between its part and the nearest it can.
-  const nearest = secondProfiles(history, onItsPart, at).find(({ reason }) => reason === null);
-  if (nearest === undefined) return onItsPart;
-  return editPeripheralDraft(history, onItsPart, { betweenId: nearest.partId });
+  return onSeatRails(history, onItsPart, at);
 }
+
+/**
+ * A seat bolts to two rails. It goes between its rail and the nearest profile whose slot its
+ * holes bolt into as well. Short of one, it rests the holes of one side on its rail, standing
+ * towards the nearest profile it could go between, whose slot its other holes miss for now.
+ */
+function onSeatRails(
+  history: readonly Operation[],
+  seat: MountPeripheral,
+  at: number,
+): MountPeripheral {
+  const seconds = secondProfiles(history, seat, at);
+  const bolting = seconds.find(boltsInto);
+  if (bolting) return editPeripheralDraft(history, seat, { betweenId: bolting.partId });
+  const beside = seconds.find(({ reason }) => reason === null);
+  if (beside === undefined) return seat;
+  return editPeripheralDraft(history, seat, { holesOver: OTHER_SIDE[beside.side] });
+}
+
+const OTHER_SIDE: Record<PatternSide, PatternSide> = { left: 'right', right: 'left' };
+
+/** Whether a peripheral goes between its profile and this one, its holes bolting into both. */
+export const boltsInto = (second: SecondProfile): boolean =>
+  second.reason === null && second.holesOff === null;
 
 /** A profile a peripheral could be mounted between with the one it is on, or why it cannot. */
 export interface SecondProfile {
@@ -89,8 +112,15 @@ export interface SecondProfile {
   name: string;
   /** How far its center is across from the center of the profile the peripheral is on. */
   apartMm: number;
+  /** The side of the peripheral, as the driver sees it, that the profile lies on. */
+  side: PatternSide;
   /** Why the peripheral cannot be mounted between the two, or null when it can. */
   reason: string | null;
+  /**
+   * Mounted between the two, why its holes would not all bolt into their slots, such as
+   * "Bucket seat, hole 1 is 10 mm off the slot of Right rail"; null when they would.
+   */
+  holesOff: string | null;
 }
 
 /**
@@ -108,15 +138,20 @@ export function secondProfiles(
   const across = FACE_AXES.find(
     (axis) => axis !== faceAxis(peripheral.face) && axis !== alongAxisOf(parent),
   );
-  const apartMm = ({ box }: ResolvedPart) =>
-    across === undefined ? 0 : Math.abs(centerMm(box, across) - centerMm(parent.box, across));
+  const offsetMm = ({ box }: ResolvedPart) =>
+    across === undefined ? 0 : centerMm(box, across) - centerMm(parent.box, across);
+  // The peripheral's left, as the driver sees it, is towards + on the face across it.
+  const left = crossFace(peripheral.face, peripheral.facing);
+  const sideOf = (candidate: ResolvedPart): PatternSide =>
+    Math.sign(offsetMm(candidate)) === (left[0] === '+' ? 1 : -1) ? 'left' : 'right';
   return [...resolved.values()]
     .filter(({ part }) => part.kind === 'profile' && part.id !== parent.part.id)
     .map((candidate): SecondProfile => ({
       partId: candidate.part.id,
       name: candidate.part.name,
-      apartMm: apartMm(candidate),
-      reason: whyNotBetween(history, peripheral, candidate.part.id, at),
+      apartMm: Math.abs(offsetMm(candidate)),
+      side: sideOf(candidate),
+      ...mountedBetween(history, peripheral, candidate.part.id, at),
     }))
     .sort((a, b) => Number(a.reason !== null) - Number(b.reason !== null) || a.apartMm - b.apartMm);
 }
@@ -125,19 +160,31 @@ const FACE_AXES: readonly Axis[] = ['x', 'y', 'z'];
 
 const centerMm = (box: ResolvedPart['box'], axis: Axis) => (box.min[axis] + box.max[axis]) / 2;
 
-/** Why a peripheral cannot be mounted between its profile and `secondId` at step `at`, or null. */
-function whyNotBetween(
+/**
+ * Why a peripheral cannot be mounted between its profile and `secondId` at step `at`, or else
+ * why its holes would not all bolt into their slots there.
+ */
+function mountedBetween(
   history: readonly Operation[],
   peripheral: MountPeripheral,
   secondId: string,
   at: number,
-): string | null {
+): Pick<SecondProfile, 'reason' | 'holesOff'> {
+  const between = editPeripheralDraft(history, peripheral, {
+    betweenId: secondId,
+    acrossMm: 0,
+  });
+  let mounted: Operation[];
   try {
-    addOperation(history, editPeripheralDraft(history, peripheral, { betweenId: secondId }), at);
-    return null;
+    mounted = addOperation(history, between, at);
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    return { reason: error instanceof Error ? error.message : String(error), holesOff: null };
   }
+  const { resolved } = replayDesign(mounted, at + 1);
+  const off = peripheralHoleProblems(resolved).find(
+    (problem) => problem.peripheralId === peripheral.partId,
+  );
+  return { reason: null, holesOff: off?.text ?? null };
 }
 
 /**

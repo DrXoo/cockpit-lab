@@ -28,7 +28,13 @@ import {
 } from '../../../../src/cockpit/cad/interaction/handles.ts';
 import { addAdjustment, editAdjustment } from '../../../../src/cockpit/cad/history/adjustments.ts';
 import { snapToParts } from '../../../../src/cockpit/cad/interaction/snapping.ts';
-import { railHistory, withGrowth, withPlate } from '../../../support/designs.ts';
+import {
+  railHistory,
+  seatRails,
+  withGrowth,
+  withPeripheral,
+  withPlate,
+} from '../../../support/designs.ts';
 
 const ends = (handles: readonly EndHandle[]) =>
   handles.map(({ id, end, pointMm, outwardMm }) => [id, end, pointMm, outwardMm]);
@@ -218,6 +224,19 @@ test('a part that hangs from another moves along and across the face it hangs fr
     moves(footed, 'part-2').map(([id]) => id),
     ['part-2:move:z'],
     'a foot stays under the middle of its profile',
+  );
+});
+
+test('a seat between two rails moves only along them: across, the rails place it', () => {
+  const between = withPeripheral(seatRails(), 'part-1', 'generic-seat', { betweenId: 'part-2' });
+  assert.deepEqual(
+    moves(between, 'part-3').map(([id]) => id),
+    ['part-3:move:z'],
+  );
+  const onOne = withPeripheral(seatRails(), 'part-1', 'generic-seat', { betweenId: null });
+  assert.deepEqual(
+    moves(onOne, 'part-3').map(([id]) => id),
+    ['part-3:move:z', 'part-3:move:x'],
   );
 });
 

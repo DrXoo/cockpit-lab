@@ -150,7 +150,11 @@ export class CockpitInspector {
         this.editPartField(operation, field, el.value, el.dataset.partItem),
       );
     });
-    if (operation.kind === 'mount-peripheral') this.bindMountingHoles(body, operation.partId);
+    if (operation.kind === 'mount-peripheral') {
+      this.bindMountingHoles(body, operation.partId);
+      const bolt = body.querySelector<HTMLElement>('#boltToSecond');
+      bolt?.addEventListener('click', () => editor.boltSelectedTo(dataOf(bolt, 'secondId')));
+    }
     bindJointActions(body, editor);
   }
 
@@ -278,6 +282,12 @@ export class CockpitInspector {
       el.addEventListener('change', () =>
         this.editor.changeDraft((current) => this.editedDraft(current, draft, field, el.value)),
       );
+    });
+    const bolt = body.querySelector<HTMLElement>('#boltToSecond');
+    bolt?.addEventListener('click', () => {
+      if (draft.kind !== 'mount-peripheral') return;
+      const betweenId = dataOf(bolt, 'secondId');
+      this.editor.changeDraft((current) => editPeripheralDraft(current, draft, { betweenId }));
     });
     const [confirm, cancel] = DRAFT_BUTTONS[draft.kind];
     $(confirm).addEventListener('click', () => this.editor.confirmDraft());
