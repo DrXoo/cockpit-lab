@@ -19,9 +19,15 @@ export function unsupportedParts(
     link(joint.partId, joint.toPartId);
     link(joint.toPartId, joint.partId);
   }
-  for (const { part } of resolved.values())
-    if (part.kind === 'peripheral' && part.placement.kind === 'attachment')
-      link(part.placement.parentId, part.id);
+  for (const { part } of resolved.values()) {
+    if (part.kind !== 'peripheral' || part.placement.kind !== 'attachment') continue;
+    link(part.placement.parentId, part.id);
+    if (part.betweenId === undefined) continue;
+    // Bolted to both profiles it is between, it carries either with the other.
+    link(part.betweenId, part.id);
+    link(part.id, part.betweenId);
+    link(part.id, part.placement.parentId);
+  }
 
   const supported = new Set<string>();
   const pending: string[] = [];

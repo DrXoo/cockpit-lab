@@ -21,7 +21,7 @@ import {
   type RemovePart,
 } from '../../src/cockpit/cad/history/history.ts';
 import { addAdjustment, editAdjustment } from '../../src/cockpit/cad/history/adjustments.ts';
-import { deckHistory } from '../support/designs.ts';
+import { deckHistory, seatRails, withPeripheral } from '../support/designs.ts';
 
 const designWith = (count: number): CockpitDesign => {
   let history: Operation[] = [];
@@ -376,6 +376,18 @@ test('a peripheral reads back with the side whose holes rest on its place', () =
     history: [data.history[0], { ...pedals, holesOver }],
   });
   assert.throws(() => readDesign(withSide('middle')), /side of a mounting pattern/);
+});
+
+test('a peripheral reads back with the second profile it is mounted between', () => {
+  const history = withPeripheral(seatRails(), 'part-1', 'generic-seat', { betweenId: 'part-2' });
+  const data = stored({ ...emptyDesign(), history });
+  assert.equal(ofKind(readDesign(data).history[2], 'mount-peripheral').betweenId, 'part-2');
+  const between = (betweenId: unknown) => ({
+    ...data,
+    history: [...data.history.slice(0, 2), { ...data.history[2], betweenId }],
+  });
+  assert.throws(() => readDesign(between('')), /identifier/);
+  assert.throws(() => readDesign(between(2)), /identifier/);
 });
 
 test('a mounted peripheral reads back with the values copied from its type and its place', () => {

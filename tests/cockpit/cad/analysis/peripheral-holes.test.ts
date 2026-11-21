@@ -7,7 +7,7 @@ import {
   type Operation,
 } from '../../../../src/cockpit/cad/history/history.ts';
 import { peripheralHoleProblems } from '../../../../src/cockpit/cad/analysis/peripheral-holes.ts';
-import { plateHistory, railHistory, withPeripheral } from '../../../support/designs.ts';
+import { plateHistory, railHistory, seatRails, withPeripheral } from '../../../support/designs.ts';
 
 /**
  * Two 40 × 40 rails along Z, Left rail at X 0 and Right rail `gapMm` towards −X, the driver's
@@ -44,6 +44,18 @@ test('a hole beside the slot of the profile under it is off by how far it is', (
     'Bucket seat, hole 1 is 20 mm off the slot of Right rail',
     'Bucket seat, hole 2 is 20 mm off the slot of Right rail',
   ]);
+});
+
+test('a seat between two rails farther apart than its holes has each side off by half', () => {
+  const seat = withPeripheral(seatRails(380), 'part-1', 'generic-seat', { betweenId: 'part-2' });
+  assert.deepEqual(problemsOf(seat), [
+    'Bucket seat, hole 1 is 10 mm off the slot of Right rail',
+    'Bucket seat, hole 2 is 10 mm off the slot of Right rail',
+    'Bucket seat, hole 3 is 10 mm off the slot of Left rail',
+    'Bucket seat, hole 4 is 10 mm off the slot of Left rail',
+  ]);
+  const fits = withPeripheral(seatRails(), 'part-1', 'generic-seat', { betweenId: 'part-2' });
+  assert.deepEqual(problemsOf(fits), []);
 });
 
 test('a hole over no profile has nothing to bolt into', () => {

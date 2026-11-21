@@ -363,6 +363,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     'facing',
     'hand',
     'holesOver',
+    'betweenId',
     'adjustment',
   ]);
   if (typeof data.name !== 'string') throw new Error('A part name must be text');
@@ -389,6 +390,7 @@ function readMounting(data: Record<string, unknown>): Operation {
     facing: face(data.facing),
     ...(data.hand === undefined ? {} : { hand: hand(data.hand) }),
     ...(data.holesOver === undefined ? {} : { holesOver: patternSide(data.holesOver) }),
+    ...(data.betweenId === undefined ? {} : { betweenId: identifier(data.betweenId) }),
     ...peripheralAdjustment(data.adjustment),
   };
 }

@@ -160,6 +160,11 @@ export interface PeripheralPart {
    */
   holesOver?: PatternSide;
   /**
+   * A second profile it is bolted to, parallel to the one it is attached to: it is centered
+   * between the two across them, off the middle by the attachment's offset across.
+   */
+  betweenId?: string;
+  /**
    * The way the driver faces when using it, along the face it is mounted on: +Z, the front of
    * the cockpit, for a peripheral mounted as usual.
    */
@@ -262,6 +267,11 @@ function resolvePeripheral(part: PeripheralPart, dependency: Dependency): Resolv
   }
   const parent = dependency(placement.parentId);
   const origin = attachmentPoint(parent, placement);
+  if (part.betweenId !== undefined) {
+    const across = axisAcross(parent.part, placement.face);
+    const other = dependency(part.betweenId);
+    origin[across] += (center(other.box)[across] - center(parent.box)[across]) / 2;
+  }
   if (part.holesOver !== undefined) {
     const lineMm = sideLineMm(part.mountingPattern, part.holesOver);
     if (lineMm === null)
@@ -554,6 +564,15 @@ function attachmentPoint(parent: ResolvedPart, attachment: Attachment | Span): V
   const across = AXES.find((axis) => axis !== normal && axis !== along);
   if (across) point[across] += attachment.acrossMm ?? 0;
   return point;
+}
+
+/** The axis across a face of a part: neither out of it nor along the part. */
+function axisAcross(part: Part, face: Face): Axis {
+  const along = alongAxisOf(part);
+  const normal = faceAxis(face);
+  const across = AXES.find((axis) => axis !== normal && axis !== along);
+  if (!across) throw new Error(`An end face of ${part.name} has no axis across it.`);
+  return across;
 }
 
 /** The axis an attachment's distance runs along: a profile's length, or a plate's depth. */

@@ -280,18 +280,23 @@ function misfitTravel(
 }
 
 /**
- * Why a peripheral slid along its travel no longer sits over the part it is mounted on, or
- * null. Its mounting stays bolted where it is attached and the peripheral slides on it, as a
- * seat on its rails, so it only has to stay over part of the face, as a plate does; its origin
- * may leave a profile narrower than its travel.
+ * Why a peripheral slid along its travel no longer sits over the part it is mounted on, or the
+ * second profile it is mounted between, or null. Its mounting stays bolted where it is attached
+ * and the peripheral slides on it, as a seat on its rails, so it only has to stay over part of
+ * the face, as a plate does; its origin may leave a profile narrower than its travel.
  */
 function peripheralOffItsPart(operation: MountPeripheral, context: StepContext): string | null {
   const resolved = resolveAssembly([...context.parts, partMadeBy(operation)]);
   const peripheral = resolved.get(operation.partId);
-  const parent = resolved.get(operation.parentId);
-  if (!peripheral || !parent) return null;
-  if (overlapsAcross(peripheral.box, parent.box, faceAxis(operation.face))) return null;
-  return `${operation.name} would no longer sit over ${parent.part.name}.`;
+  if (!peripheral) return null;
+  const carriers = [operation.parentId, operation.betweenId].flatMap((id) => {
+    const carrier = id === undefined ? undefined : resolved.get(id);
+    return carrier ? [carrier] : [];
+  });
+  const left = carriers.find(
+    (carrier) => !overlapsAcross(peripheral.box, carrier.box, faceAxis(operation.face)),
+  );
+  return left ? `${operation.name} would no longer sit over ${left.part.name}.` : null;
 }
 
 /** The parts with the one the operation makes where its values place it, or why it cannot. */
@@ -305,7 +310,7 @@ function placing(operation: MakingOperation, context: StepContext): Part[] | str
     operation.kind === 'mount-peripheral' &&
     (parent?.kind === 'profile' || parent?.kind === 'plate')
   )
-    return withPeripheral(operation, context.parts, parent);
+    return withPeripheral(operation, context, parent);
   if (parent?.kind !== 'profile')
     return `${refers} ${parent?.name ?? operation.parentId}, and ${needsAProfile}.`;
   if (operation.kind === 'add-plate') return withPlate(operation, context.parts, parent);
@@ -345,7 +350,7 @@ function withPlate(
  */
 function withPeripheral(
   operation: MountPeripheral,
-  parts: readonly Part[],
+  context: StepContext,
   parent: ProfilePart | PlatePart,
 ): Part[] | string {
   const normal = faceAxis(operation.face);
@@ -354,10 +359,124 @@ function withPeripheral(
   const onAnEnd = parent.kind === 'profile' && parent.axis === normal;
   if (onAnEnd && (operation.alongMm !== 0 || operation.acrossMm !== 0))
     return `${operation.name} is mounted on an end of ${parent.name}, which has only its center to mount on.`;
-  const sideMisfit = misfitHolesOver(operation, parent);
+  const sideMisfit =
+    misfitHolesOver(operation, parent) ?? misfitBetween(operation, context, parent);
   if (sideMisfit) return sideMisfit;
-  const withIt = [...parts, partMadeBy(operation)];
-  return misfitOnItsFace(operation, resolveAssembly(withIt)) ?? withIt;
+  const withIt = [...context.parts, partMadeBy(operation)];
+  const resolved = resolveAssembly(withIt);
+  if (operation.betweenId === undefined) return misfitOnItsFace(operation, resolved) ?? withIt;
+  // Between two profiles, the offset across is off the middle between them, not off the face.
+  return (
+    misfitOnItsFace({ ...operation, acrossMm: 0 }, resolved) ??
+    misfitAcrossBetween(operation, operation.betweenId, resolved) ??
+    offTheSecond(operation, operation.betweenId, resolved) ??
+    withIt
+  );
+}
+
+/**
+ * Why a peripheral cannot be mounted between its profile and the second one it names, or null:
+ * the second must be another profile, in the design at this step.
+ */
+function misfitBetween(
+  operation: MountPeripheral,
+  context: StepContext,
+  parent: ProfilePart | PlatePart,
+): string | null {
+  const { betweenId } = operation;
+  if (betweenId === undefined) return null;
+  if (betweenId === parent.id)
+    return `${operation.name} is mounted between two profiles, not between ${parent.name} and itself.`;
+  if (alongAxisOfPart(parent) === faceAxis(operation.face))
+    return `${operation.name} rests on the sides of two profiles, not on an end of ${parent.name}.`;
+  const missing = missingPart(betweenId, context, `It is mounted between ${parent.name} and`);
+  if (missing) return missing;
+  const other = context.parts.find((part) => part.id === betweenId);
+  const notAProfile = [parent, other].find((part) => part?.kind !== 'profile');
+  if (notAProfile)
+    return `${operation.name} is mounted between two profiles, and ${notAProfile.name} is not one.`;
+  if (operation.holesOver !== undefined)
+    return `${operation.name} between two profiles is centered between them, and does not rest on its ${operation.holesOver} holes.`;
+  const resolved = resolveAssembly(context.parts);
+  const first = resolved.get(parent.id);
+  const second = resolved.get(betweenId);
+  if (!first || !second) return null;
+  return misfitPair(operation, first, second);
+}
+
+/**
+ * Why two profiles cannot carry a peripheral between them, or null: they run parallel, apart
+ * across, with the faces it rests on level.
+ */
+function misfitPair(
+  operation: MountPeripheral,
+  first: ResolvedPart,
+  second: ResolvedPart,
+): string | null {
+  const along = alongAxisOfPart(first.part);
+  const normal = faceAxis(operation.face);
+  const names = { first: first.part.name, second: second.part.name };
+  if (along !== alongAxisOfPart(second.part) || first.tiltDeg !== second.tiltDeg)
+    return `${names.second} is not parallel to ${names.first}: a peripheral goes between two profiles that run the same way.`;
+  const levelOffMm = Math.abs(
+    faceLevelMm(second.box, operation.face) - faceLevelMm(first.box, operation.face),
+  );
+  if (levelOffMm > CAD_CONTACT_MM)
+    return `${operation.name} would not sit level: the face of ${names.second} is ${Math.round(levelOffMm)} mm off that of ${names.first}.`;
+  const across = AXES.find((axis) => axis !== normal && axis !== along);
+  if (across && overlapMm(first.box, second.box, across) > CAD_CONTACT_MM)
+    return `${names.first} and ${names.second} overlap: a peripheral goes between two profiles apart.`;
+  return null;
+}
+
+/** Where a face of a box lies, along the axis it looks along. */
+const faceLevelMm = (box: BoxMm, face: Face) =>
+  face[0] === '+' ? box.max[faceAxis(face)] : box.min[faceAxis(face)];
+
+/** How much two boxes overlap along an axis; negative for the gap between them. */
+const overlapMm = (a: BoxMm, b: BoxMm, axis: Axis) =>
+  Math.min(a.max[axis], b.max[axis]) - Math.max(a.min[axis], b.min[axis]);
+
+/** Why a peripheral's offset across takes it out of the space between its two profiles, or null. */
+function misfitAcrossBetween(
+  operation: MountPeripheral,
+  betweenId: string,
+  resolved: ReadonlyMap<string, ResolvedPart>,
+): string | null {
+  const parent = resolved.get(operation.parentId);
+  const other = resolved.get(betweenId);
+  if (!parent || !other) return null;
+  const across = AXES.find(
+    (axis) => axis !== faceAxis(operation.face) && axis !== alongAxisOfPart(parent.part),
+  );
+  if (!across) return null;
+  const apartMm = Math.abs(boxCenterMm(other.box, across) - boxCenterMm(parent.box, across));
+  if (Math.abs(operation.acrossMm) <= apartMm / 2) return null;
+  const names = `${parent.part.name} and ${other.part.name}`;
+  return `${operation.name} would leave the space between its profiles: an offset of ${Math.abs(operation.acrossMm)} mm off the middle between ${names} is more than half the ${Math.round(apartMm)} mm between them.`;
+}
+
+/** Why a peripheral does not sit over the second profile it is mounted between, or null. */
+function offTheSecond(
+  operation: MountPeripheral,
+  betweenId: string,
+  resolved: ReadonlyMap<string, ResolvedPart>,
+): string | null {
+  const peripheral = resolved.get(operation.partId);
+  const other = resolved.get(betweenId);
+  if (!peripheral || !other) return null;
+  const along = alongAxisOfPart(other.part);
+  if (along === null || overlapMm(peripheral.box, other.box, along) > CAD_CONTACT_MM) return null;
+  return `${operation.name} would not sit over ${other.part.name}.`;
+}
+
+const boxCenterMm = (box: BoxMm, axis: Axis) => (box.min[axis] + box.max[axis]) / 2;
+
+/** The axis a place on a part is measured along: a profile's length or a plate's depth. */
+function alongAxisOfPart(part: Part): Axis | null {
+  if (part.kind === 'profile') return part.axis;
+  if (part.kind === 'plate') return part.depthAxis;
+  return null;
 }
 
 /**
@@ -396,12 +515,13 @@ function removal(operation: RemovePart, context: StepContext): Part[] | string {
   if (missing) return missing;
   const resolved = resolveAssembly(context.parts);
   // A foot is fastened to its profile by its own adapter, and a peripheral is bolted through its
-  // mounting pattern, so they go with the part they are on.
+  // mounting pattern, so they go with the part they are on, or either profile they are between.
   const goesWithIt = (part: Part) =>
     part.id === operation.removedId ||
     ((part.kind === 'foot' || part.kind === 'peripheral') &&
       part.placement.kind !== 'anchor' &&
-      part.placement.parentId === operation.removedId);
+      part.placement.parentId === operation.removedId) ||
+    (part.kind === 'peripheral' && part.betweenId === operation.removedId);
   return context.parts
     .filter((part) => !goesWithIt(part))
     .map((part) => {

@@ -206,6 +206,11 @@ export interface MountPeripheral extends PeripheralShape {
    * `acrossMm` then measures to the line along them.
    */
   holesOver?: PatternSide;
+  /**
+   * A second profile, parallel to the one it is mounted on, that it is bolted to as well: it is
+   * centered between the two, `acrossMm` off the middle, and placed along the first.
+   */
+  betweenId?: string;
   adjustment?: Adjustment;
 }
 
@@ -328,6 +333,8 @@ export interface PeripheralValues {
   hand: Hand;
   /** The side whose holes stand on its place, or null for its origin. */
   holesOver: PatternSide | null;
+  /** The second profile it is mounted between, or null for the one it is mounted on alone. */
+  betweenId: string | null;
 }
 
 /** The values the inspector edits; each kind of operation takes the ones that place it. */
@@ -439,6 +446,7 @@ function peripheralMadeBy(operation: MountPeripheral): PeripheralPart {
     ...copiedPeripheral(operation),
     ...(operation.hand === undefined ? {} : { hand: operation.hand }),
     ...(operation.holesOver === undefined ? {} : { holesOver: operation.holesOver }),
+    ...(operation.betweenId === undefined ? {} : { betweenId: operation.betweenId }),
     facing: operation.facing,
     placement: {
       kind: 'attachment',

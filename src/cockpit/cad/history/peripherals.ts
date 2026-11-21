@@ -136,10 +136,9 @@ export function editPeripheralDraft(
   const adjustment = adjustmentTurnedWith(draft.adjustment, draft.facing, face, facing);
   const backrestDeg = changes.backrestDeg ?? draft.backrestDeg;
   const hand = changes.hand ?? draft.hand;
-  // Choosing the side it rests on puts its holes over the middle of the face, on the slot.
-  const sideChosen = changes.holesOver !== undefined;
-  const holesOver = sideChosen ? (changes.holesOver ?? undefined) : draft.holesOver;
-  const { holesOver: _had, ...kept } = draft;
+  // Choosing how it rests on its place puts it in the middle of that place.
+  const restingChosen = changes.holesOver !== undefined || changes.betweenId !== undefined;
+  const { holesOver: _had, betweenId: _wasBetween, ...kept } = draft;
   const edited: MountPeripheral = {
     ...kept,
     ...copiedPeripheral({
@@ -152,14 +151,35 @@ export function editPeripheralDraft(
     face,
     fromEnd: changes.fromEnd ?? draft.fromEnd,
     alongMm: changes.alongMm ?? draft.alongMm,
-    acrossMm: changes.acrossMm ?? (sideChosen ? 0 : draft.acrossMm),
+    acrossMm: changes.acrossMm ?? (restingChosen ? 0 : draft.acrossMm),
     name: cleanUserText(changes.name, draft.name, MAX_PART_NAME_LENGTH),
     facing,
     ...(hand === undefined ? {} : { hand }),
-    ...(holesOver === undefined ? {} : { holesOver }),
+    ...restingOf(draft, changes),
     ...(adjustment === undefined ? {} : { adjustment }),
   };
   return checkedOperation(onAnEndAtItsCenter(history, edited));
+}
+
+/**
+ * How a peripheral rests on its place once changed: on the holes of one side over the middle of
+ * the face, between two profiles, or on its origin. Choosing a side leaves the second profile,
+ * and choosing a second profile leaves the side; null takes either away.
+ */
+function restingOf(
+  draft: MountPeripheral,
+  changes: Partial<PeripheralValues>,
+): Pick<MountPeripheral, 'holesOver' | 'betweenId'> {
+  const side = changes.holesOver;
+  const second = changes.betweenId;
+  const keptSide = second ? undefined : draft.holesOver;
+  const keptSecond = side ? undefined : draft.betweenId;
+  const holesOver = side === undefined ? keptSide : (side ?? undefined);
+  const betweenId = second === undefined ? keptSecond : (second ?? undefined);
+  return {
+    ...(holesOver === undefined ? {} : { holesOver }),
+    ...(betweenId === undefined ? {} : { betweenId }),
+  };
 }
 
 /** Changes the values of the step that mounts a peripheral. */
@@ -227,6 +247,7 @@ export function swapPeripheralType(
     acrossMm: operation.acrossMm,
     facing: operation.facing,
     ...(hand === undefined ? {} : { hand }),
+    ...(operation.betweenId === undefined ? {} : { betweenId: operation.betweenId }),
     ...(adjustment === undefined ? {} : { adjustment }),
   };
   return changeOperation(history, checkedOperation(swapped));

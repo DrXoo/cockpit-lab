@@ -462,7 +462,11 @@ export function dependentsOf(history: readonly Operation[], partId: string): Set
         operation.kind === 'grow-profile' &&
         operation.reachesId !== undefined &&
         dependents.has(operation.reachesId);
-      if (dependents.has(operation.parentId) || reached) {
+      const between =
+        operation.kind === 'mount-peripheral' &&
+        operation.betweenId !== undefined &&
+        dependents.has(operation.betweenId);
+      if (dependents.has(operation.parentId) || reached || between) {
         dependents.add(operation.partId);
         grown = true;
       }
@@ -641,8 +645,13 @@ function partIdsNamed(operation: Operation): string[] {
       return [operation.partId];
     case 'add-foot':
     case 'add-plate':
-    case 'mount-peripheral':
       return [operation.partId, operation.parentId];
+    case 'mount-peripheral':
+      return [
+        operation.partId,
+        operation.parentId,
+        ...(operation.betweenId ? [operation.betweenId] : []),
+      ];
     case 'fasten-joint':
     case 'join-parts':
       return [operation.partId, operation.toPartId];

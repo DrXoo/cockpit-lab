@@ -29,6 +29,25 @@ export function railHistory(): Operation[] {
   return editProfile(history, partId, { name: 'Rail', lengthMm: 1000 });
 }
 
+/**
+ * Two 40 × 40 rails 1000 mm long along z, standing on the floor either side of X 0 with their
+ * centers `apartMm` apart, by default as far as the generic seat's holes: Left rail (part-1)
+ * towards +X, the driver's left, and Right rail (part-2).
+ */
+export function seatRails(apartMm = 360): Operation[] {
+  let history = anchoredProfiles(2);
+  history = editProfile(history, 'part-1', {
+    name: 'Left rail',
+    lengthMm: 1000,
+    startMm: { x: apartMm / 2, y: 20, z: 0 },
+  });
+  return editProfile(history, 'part-2', {
+    name: 'Right rail',
+    lengthMm: 1000,
+    startMm: { x: -apartMm / 2, y: 20, z: 0 },
+  });
+}
+
 /** The rail with a 300 × 300 × 8 mm plate on the middle of its top: part-2. */
 export function plateHistory(): Operation[] {
   return withPlate(railHistory(), 'part-1');
