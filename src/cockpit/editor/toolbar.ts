@@ -10,6 +10,7 @@ const PART_TOOL_BUTTONS: Record<Exclude<PartTool, 'mount'>, string> = {
   plate: '#putPlate',
   foot: '#addFoot',
   remove: '#removePart',
+  delete: '#deletePeripheral',
 };
 
 /** The button that mounts a peripheral of each type in the catalog, as the markup names it. */
@@ -45,6 +46,7 @@ export class CockpitToolbar {
     $('#fitModeBtn').addEventListener('click', () => editor.setFitting(!editor.session.fitting));
     $('#addFoot').addEventListener('click', () => editor.addFootUnderSelected());
     $('#removePart').addEventListener('click', () => editor.removeSelectedPart());
+    $('#deletePeripheral').addEventListener('click', () => editor.deleteSelectedStep());
     const modeShown = $<HTMLSelectElement>('#modeShown');
     modeShown.addEventListener('change', () => editor.showMode(modeShown.value || null));
   }

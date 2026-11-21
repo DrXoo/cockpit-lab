@@ -41,17 +41,17 @@ test('the Delete key removes the selected part, or deletes a step that makes non
   assert.equal(deleteKeyAction(undefined), null);
 });
 
-test('in Fit, a plate or a profile mounts peripherals, and a peripheral can be removed', () => {
+test('in Fit, a plate or a profile mounts peripherals, and the step of a peripheral can be deleted', () => {
   const history = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
   assert.deepEqual(partToolsOf(history[0], undefined, fitting), ['mount']);
-  assert.deepEqual(partToolsOf(history[1], undefined, fitting), ['remove']);
+  assert.deepEqual(partToolsOf(history[1], undefined, fitting), ['delete']);
   assert.deepEqual(partToolsOf(plateHistory()[1], undefined, fitting), ['mount']);
   assert.deepEqual(partToolsOf(history[1]), [], 'out of Fit a peripheral is only a reference');
 });
 
-test('in Fit, the Delete key leaves the frame alone and removes a peripheral', () => {
+test('in Fit, the Delete key leaves the frame alone and deletes the step of a peripheral', () => {
   const history = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
   assert.equal(deleteKeyAction(history[0], undefined, fitting), null);
-  assert.equal(deleteKeyAction(history[1], undefined, fitting), 'remove-part');
+  assert.equal(deleteKeyAction(history[1], undefined, fitting), 'delete-step');
   assert.equal(deleteKeyAction(history[1]), null, 'out of Fit a peripheral is left alone');
 });

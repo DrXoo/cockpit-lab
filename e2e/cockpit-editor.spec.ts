@@ -1098,7 +1098,8 @@ test('Fit locks the frame and mounts a peripheral on it, previewed until it is m
   await page.locator('#confirmPeripheral').click();
   await expect(page.locator('[data-part="part-2"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#part-facing')).toHaveValue('+z');
-  await expect(page.locator('#removePart')).toBeVisible();
+  await expect(page.locator('#deletePeripheral')).toBeVisible();
+  await expect(page.locator('#removePart')).toBeHidden();
   await expect
     .poll(async () => (await savedHistory(page))?.[1])
     .toMatchObject({
@@ -1109,10 +1110,10 @@ test('Fit locks the frame and mounts a peripheral on it, previewed until it is m
       face: '+y',
       facing: '+z',
     });
-  await page.locator('#removePart').click();
-  await expect
-    .poll(async () => (await savedHistory(page))?.[2])
-    .toMatchObject({ kind: 'remove-part', removedId: 'part-2' });
+  // A peripheral's step goes from the whole history, as if it had never been mounted.
+  await page.locator('#deletePeripheral').click();
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  await expect(page.locator('[data-part="part-2"]')).toHaveCount(0);
 });
 
 test('out of Fit a peripheral is a reference that clicks go through; its step turns Fit on', async ({
