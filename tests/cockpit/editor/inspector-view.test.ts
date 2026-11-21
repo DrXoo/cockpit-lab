@@ -25,6 +25,24 @@ test('the inspector of a part deletes its step; the view has its other tools', (
   assert.doesNotMatch(html, /id="removePart"|id="growProfile"|id="putPlate"|id="addFoot"/);
 });
 
+test('the deletion of a step comes first in its inspector, before any of its values', () => {
+  const peripheral = withPeripheral(railHistory(), 'part-1', 'generic-seat');
+  const removal = removePart(railHistory(), 'part-1');
+  for (const [history, step] of [
+    [peripheral, peripheral[1]],
+    [peripheral, peripheral[0]],
+    [removal, removal[1]],
+  ] as const) {
+    const html = partInspectorHTML(history, step, 'A reason.', [], [], {
+      fitting: step.kind === 'mount-peripheral',
+    });
+    assert.match(
+      html,
+      /^<div class="part-inspector" id="partInspectorFields"><div class="step-actions">[^]*?id="deleteStep"[^]*?<\/div><p class="layout-hint part-warning">⚠ Failed/,
+    );
+  }
+});
+
 test('a failed step says why in its inspector, and its values can still be fixed', () => {
   const history = anchoredProfiles(1);
   const failed = partInspectorHTML(history, history[0], 'It grows out of a part that was deleted.');

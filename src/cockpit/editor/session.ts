@@ -60,6 +60,11 @@ export interface CockpitSession {
   readonly edits: Edits<CockpitDesign | null>;
   /** The step selected in the history, or null. */
   readonly selectedOperationId: string | null;
+  /**
+   * The step marked in the history panel: one chosen there, or shown there on request. A part
+   * picked in the view is selected without marking its step, which goes with any other choice.
+   */
+  readonly markedStepId: string | null;
   /** The history marker: how many steps the view shows, or null to follow the last step. */
   readonly marker: number | null;
   /** A part about to be added to the selected one, shown as a preview until it is added. */
@@ -95,6 +100,7 @@ export const newSession = (design: CockpitDesign | null): CockpitSession => ({
   design,
   edits: noEdits(),
   selectedOperationId: null,
+  markedStepId: null,
   marker: null,
   draft: null,
   draftSnap: null,
@@ -432,12 +438,37 @@ export function setFitting(session: CockpitSession, on: boolean): CockpitSession
   };
 }
 
-/** Selects a step. A peripheral's turns Fit on, as peripherals are only changed while fitting. */
-export function selectStep(session: CockpitSession, operationId: string | null): CockpitSession {
+/**
+ * Selects a step, marked in the history when it was chosen there. A peripheral's turns Fit on,
+ * as peripherals are only changed while fitting.
+ */
+export function selectStep(
+  session: CockpitSession,
+  operationId: string | null,
+  { fromHistory = false }: { fromHistory?: boolean } = {},
+): CockpitSession {
   const operation = designHistory(session).find((step) => step.id === operationId);
   const moded = operation?.kind === 'mount-peripheral' ? setFitting(session, true) : session;
-  return { ...moded, pendingChange: null, selectedOperationId: operationId, draft: null };
+  return {
+    ...moded,
+    pendingChange: null,
+    selectedOperationId: operationId,
+    markedStepId: fromHistory ? operationId : null,
+    draft: null,
+  };
 }
+
+/** The selected step, marked in the history panel. */
+export const showSelectionInHistory = (session: CockpitSession): CockpitSession => ({
+  ...session,
+  markedStepId: session.selectedOperationId,
+});
+
+/** The step the history panel marks: the selected one, when it was chosen or shown there. */
+export const stepMarkedInHistory = (session: CockpitSession): string | null =>
+  session.markedStepId !== null && session.markedStepId === session.selectedOperationId
+    ? session.markedStepId
+    : null;
 
 /** Turns the measure tool on, with no points yet, dropping what was being added; or off. */
 export const setMeasuring = (session: CockpitSession, on: boolean): CockpitSession =>

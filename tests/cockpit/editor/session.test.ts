@@ -35,6 +35,8 @@ import {
   selectedOperation,
   selectedPartId,
   selectStep,
+  showSelectionInHistory,
+  stepMarkedInHistory,
   setFitting,
   setMeasuring,
   shownHandles,
@@ -112,6 +114,19 @@ test('selecting a step selects the part it makes', () => {
   const session = sessionOf(threeSteps());
   const selected = selectStep(session, stepOf(session, 'part-2'));
   assert.equal(selectedPartId(selected), 'part-2');
+});
+
+test('a step chosen in the history is marked there, and a part picked in the view is not', () => {
+  const session = sessionOf(threeSteps());
+  const step = stepOf(session, 'part-2');
+  const fromHistory = selectStep(session, step, { fromHistory: true });
+  assert.equal(stepMarkedInHistory(fromHistory), step);
+  const fromView = selectStep(fromHistory, step);
+  assert.equal(selectedPartId(fromView), 'part-2');
+  assert.equal(stepMarkedInHistory(fromView), null);
+  assert.equal(stepMarkedInHistory(showSelectionInHistory(fromView)), step);
+  const other = selectStep(showSelectionInHistory(fromView), stepOf(session, 'part-1'));
+  assert.equal(stepMarkedInHistory(other), null, 'the mark goes with the selection');
 });
 
 test('selecting a peripheral turns Fit on, and turning Fit off unselects it', () => {

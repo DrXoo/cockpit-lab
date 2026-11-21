@@ -60,21 +60,23 @@ export function partInspectorHTML(
   if (fitting && !isAPeripheral(operation))
     return lockedStepHTML(history, operation, failure, subassembly);
   const deleteStep = `<button class="button button-light" id="deleteStep" title="Take this step out of the whole history"><i data-icon="trash"></i>Delete this step</button>`;
-  const failed =
+  const warning =
     failure === undefined
       ? ''
       : `<p class="layout-hint part-warning">⚠ Failed: ${escapeHTML(failure)} It adds nothing until it applies again.</p>`;
+  // What can be done with the step comes first, above values that can run long.
+  const heading = `<div class="step-actions">${deleteStep}</div>${warning}`;
   // A failed plate step makes no plate to export.
   const exports = failure === undefined ? plateExportsHTML() : '';
   switch (operation.kind) {
     case 'remove-part':
-      return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${heading}<p class="layout-hint">Removes <strong>${escapeHTML(nameOf(history, operation.removedId))}</strong> from this step on: the parts that hung from it stay where they are, anchored, and spans that reached it keep their length. Earlier steps still have it.</p></div>`;
     case 'fasten-joint':
-      return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${heading}<p class="layout-hint">Puts ${escapeHTML(connectorCountText(operation))} on the joint of <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>. Change its connectors from the inspector of either part.</p></div>`;
     case 'join-parts':
-      return `<div class="part-inspector" id="partInspectorFields"><p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p>${failed}<div class="grow-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${heading}<p class="layout-hint">Joins <strong>${escapeHTML(nameOf(history, operation.partId))}</strong> to <strong>${escapeHTML(nameOf(history, operation.toPartId))}</strong>, which it touches, so the joint can take connectors and carries support. Fasten it from the inspector of either part.</p></div>`;
     case 'mount-peripheral':
-      return `<div class="part-inspector" id="partInspectorFields">${failed}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(history, operation) : ''}${subassembly}<div class="part-actions">${deleteStep}</div></div>`;
+      return `<div class="part-inspector" id="partInspectorFields">${heading}${peripheralInspectorHTML(history, operation)}${fitting ? adjustmentHTML(history, operation) : ''}${subassembly}</div>`;
     case 'add-foot':
       return partFieldsHTML(footFieldsHTML(history, operation));
     case 'add-plate':
@@ -86,9 +88,9 @@ export function partInspectorHTML(
       );
   }
 
-  /** The fields of a part of the frame, with its joints and the deletion of its step. */
+  /** The fields of a part of the frame, with its joints, after the deletion of its step. */
   function partFieldsHTML(fields: string): string {
-    return `<div class="part-inspector" id="partInspectorFields">${failed}${fields}${jointsHTML(joints, touching)}${subassembly}<div class="part-actions">${deleteStep}</div></div>`;
+    return `<div class="part-inspector" id="partInspectorFields">${heading}${fields}${jointsHTML(joints, touching)}${subassembly}</div>`;
   }
 }
 

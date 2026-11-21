@@ -1774,10 +1774,14 @@ select option {
   opacity: 0.55;
   cursor: default;
 }
-.part-actions {
+.part-actions,
+.step-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.step-actions {
+  margin-bottom: 12px;
 }
 .part-joints {
   margin: 4px 0 8px;
@@ -1864,7 +1868,8 @@ select option {
 .joint-side[aria-pressed='true'] {
   color: var(--accent-text);
 }
-.part-actions .button {
+.part-actions .button,
+.step-actions .button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
