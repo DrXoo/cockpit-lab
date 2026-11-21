@@ -136,11 +136,16 @@ export class CockpitViewOverlays {
       const area = label.parentElement;
       if (!resolved || !(area instanceof HTMLElement)) return;
       const bounds = area.getBoundingClientRect();
-      label.textContent = hoverLabel(resolved);
+      const note = this.editor.secondProfileNote(hit.partId);
+      label.textContent = note === null ? hoverLabel(resolved) : `${hoverLabel(resolved)}: ${note}`;
       label.dataset.part = hit.partId;
-      label.style.left = `${pointer.x - bounds.left + HOVER_LABEL_OFFSET_PX}px`;
       label.style.top = `${pointer.y - bounds.top + HOVER_LABEL_OFFSET_PX}px`;
       label.hidden = false;
+      // Beside the pointer, or before it where the view has no room after it.
+      const after = pointer.x - bounds.left + HOVER_LABEL_OFFSET_PX;
+      const before = pointer.x - bounds.left - HOVER_LABEL_OFFSET_PX - label.offsetWidth;
+      const fits = after + label.offsetWidth <= bounds.width;
+      label.style.left = `${fits ? after : Math.max(0, before)}px`;
     }, HOVER_LABEL_DELAY_MS);
   }
 

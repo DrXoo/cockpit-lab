@@ -928,8 +928,9 @@ select option {
   z-index: 4;
   margin: 0;
   padding: 4px 8px;
+  max-width: 320px;
+  width: max-content;
   font-size: 12px;
-  white-space: nowrap;
   color: var(--text);
   background: color-mix(in srgb, var(--surface-subtle) 93%, transparent);
   border: 1px solid var(--border-strong);

@@ -68,6 +68,10 @@ export interface CockpitDrawing {
   fitting?: boolean;
   /** The driver seated in the design, drawn while fitting. */
   driver?: DriverFigure | null;
+  /** The profiles a seat about to be mounted could go between instead, marked to click. */
+  secondCandidateIds?: readonly string[];
+  /** Every other profile offered to a seat about to be mounted, named on hover with why not. */
+  secondChoiceIds?: readonly string[];
 }
 
 /** A foot as drawn: a rubber pad on the floor and a threaded stem up to the profile. */

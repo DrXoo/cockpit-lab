@@ -7,7 +7,12 @@ import {
   type DriverFigure,
   type SeatedDriver,
 } from '../cad/driver/driver.ts';
-import { draftPeripheral, peripheralAt } from '../cad/history/peripherals.ts';
+import {
+  draftPeripheral,
+  editPeripheralDraft,
+  peripheralAt,
+  type SecondProfile,
+} from '../cad/history/peripherals.ts';
 import { draftPlate, plateAt } from '../cad/history/plates.ts';
 import {
   addAnchoredProfile,
@@ -102,10 +107,13 @@ const messageOf = (error: unknown): string =>
 export class CockpitEditor {
   declare private readonly host: CockpitEditorHost;
   declare private current: editing.CockpitSession;
+  /** The profiles each seat about to be mounted could go between, worked out once per draft. */
+  declare private readonly secondsOfDraft: WeakMap<Draft, readonly SecondProfile[] | null>;
 
   constructor(host: CockpitEditorHost, design: CockpitDesign | null) {
     this.host = host;
     this.current = editing.newSession(design);
+    this.secondsOfDraft = new WeakMap();
   }
 
   get session(): editing.CockpitSession {
@@ -211,7 +219,41 @@ export class CockpitEditor {
         .shownJointMarkers(this.current)
         .filter(({ partId, toPartId }) => !partsOff.has(partId) && !partsOff.has(toPartId)),
       fitting,
+      secondCandidateIds: this.secondCandidateIds(),
+      secondChoiceIds: this.draftSeconds()?.map(({ partId }) => partId) ?? [],
     };
+  }
+
+  /** The profiles a seat about to be mounted could go between instead of the one it is. */
+  private secondCandidateIds(): string[] {
+    const { draft } = this.current;
+    if (draft?.kind !== 'mount-peripheral') return [];
+    const seconds = this.draftSeconds() ?? [];
+    return seconds
+      .filter(({ partId, reason }) => reason === null && partId !== draft.betweenId)
+      .map(({ partId }) => partId);
+  }
+
+  private draftSeconds(): readonly SecondProfile[] | null {
+    const { draft } = this.current;
+    if (draft === null) return null;
+    const known = this.secondsOfDraft.get(draft);
+    if (known !== undefined) return known;
+    const seconds = editing.draftSecondProfiles(this.current);
+    this.secondsOfDraft.set(draft, seconds);
+    return seconds;
+  }
+
+  /**
+   * What a click on a profile would do for the seat about to be mounted: mount it between, or
+   * why it cannot; null for any other part, or while nothing is being mounted.
+   */
+  secondProfileNote(partId: string): string | null {
+    const { draft } = this.current;
+    if (draft?.kind !== 'mount-peripheral' || draft.betweenId === partId) return null;
+    const second = this.draftSeconds()?.find((candidate) => candidate.partId === partId);
+    if (second === undefined) return null;
+    return second.reason ?? `Click to mount ${draft.name} between it and the first`;
   }
 
   /**
@@ -703,7 +745,13 @@ export class CockpitEditor {
       this.select(maker?.id ?? null);
       return;
     }
-    if (hit === null || hit.partId !== draft.parentId) return;
+    if (hit === null) return;
+    if (draft.kind === 'mount-peripheral' && editing.picksSecondProfile(this.current, hit.partId)) {
+      const betweenId = hit.partId;
+      this.changeDraft((history) => editPeripheralDraft(history, draft, { betweenId }));
+      return;
+    }
+    if (hit.partId !== draft.parentId) return;
     const at = this.at();
     this.changeDraft((history) => {
       switch (draft.kind) {

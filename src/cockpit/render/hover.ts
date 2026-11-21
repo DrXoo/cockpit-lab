@@ -1,9 +1,10 @@
 // Marks what is under the pointer in the cockpit editor: the part, wrapped in a see-through box
 // just larger than it, or the face of it a click would choose, as a thin slab standing off it.
+// A part a click would pick for what is being added is wrapped the same way, fainter.
 // Parts are in mm in cockpit coordinates; the scene works in cm.
 import { faceAxis, type BoxMm, type Face, type ResolvedPart } from '../cad/parts/assembly.ts';
 import { degToRad } from '../../shared/geometry.ts';
-import type { ParentRef, RenderList, Vec3 } from '../../scene/render-list.ts';
+import type { PaletteMaterial, ParentRef, RenderList, Vec3 } from '../../scene/render-list.ts';
 import { MM_PER_CM } from '../../shared/units.ts';
 
 /** How far the box around a hovered part stands off it on every side. */
@@ -18,12 +19,27 @@ export function drawHover(
   resolved: ResolvedPart,
   face: Face | null,
 ): void {
+  const box = face === null ? grown(resolved.box, PART_MARGIN_MM) : slabOn(resolved.box, face);
+  drawMarkBox(r, parent, resolved, box, 'hover');
+}
+
+/** Wraps a part a click would pick, such as the second rail of a seat about to be mounted. */
+export function drawCandidate(r: RenderList, parent: ParentRef, resolved: ResolvedPart): void {
+  drawMarkBox(r, parent, resolved, grown(resolved.box, PART_MARGIN_MM), 'candidate');
+}
+
+function drawMarkBox(
+  r: RenderList,
+  parent: ParentRef,
+  resolved: ResolvedPart,
+  box: BoxMm,
+  material: PaletteMaterial,
+) {
   const frame =
     resolved.tiltDeg === 0
       ? parent
       : r.group(parent, { rotation: [-degToRad(resolved.tiltDeg), 0, 0] });
-  const box = face === null ? grown(resolved.box, PART_MARGIN_MM) : slabOn(resolved.box, face);
-  r.box(...sizeOf(box), ...centerOf(box), 'hover', frame);
+  r.box(...sizeOf(box), ...centerOf(box), material, frame);
 }
 
 function grown(box: BoxMm, marginMm: number): BoxMm {

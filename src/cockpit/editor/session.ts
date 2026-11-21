@@ -6,6 +6,7 @@ import {
   addOperation,
   deleteOperation,
   makesAPart,
+  makesAProfile,
   operationMaking,
   removePart,
   replayDesign,
@@ -27,6 +28,7 @@ import {
 import type { Axis } from '../cad/parts/assembly.ts';
 import { snapToParts, type Snap } from '../cad/interaction/snapping.ts';
 import { draftEditedBy, withDraft, type Draft } from '../cad/history/drafts.ts';
+import { secondProfiles, type SecondProfile } from '../cad/history/peripherals.ts';
 import { jointMarkers, type JointMarker } from '../cad/interaction/joint-markers.ts';
 import type { PartHit } from '../cad/interaction/picking.ts';
 import { nextMeasurePicks } from '../cad/analysis/measure.ts';
@@ -476,6 +478,28 @@ export const cancelDraft = (session: CockpitSession): CockpitSession => ({
   ...session,
   draft: null,
 });
+
+/**
+ * The profiles a seat about to be mounted could go between with the profile it is on, those it
+ * can first, nearest first, and the others with why not; null for any other part being added.
+ */
+export function draftSecondProfiles(session: CockpitSession): readonly SecondProfile[] | null {
+  const { draft } = session;
+  if (draft?.kind !== 'mount-peripheral' || draft.category !== 'seat') return null;
+  return secondProfiles(designHistory(session), draft, markerIndex(session));
+}
+
+/**
+ * Whether a click on a part picks it as the second profile of the seat about to be mounted:
+ * any other profile does, and a click on its own profile places it there instead.
+ */
+export function picksSecondProfile(session: CockpitSession, partId: string): boolean {
+  const { draft } = session;
+  if (draft?.kind !== 'mount-peripheral' || draft.category !== 'seat') return false;
+  if (partId === draft.parentId) return false;
+  const operation = operationMaking(designHistory(session), partId);
+  return operation !== undefined && makesAProfile(operation);
+}
 
 /**
  * A drag of a handle shown as a change waiting to be confirmed, or null when the operation of

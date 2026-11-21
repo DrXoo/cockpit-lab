@@ -40,6 +40,8 @@ import {
   shownHandles,
   shownJointMarkers,
   startDraft,
+  draftSecondProfiles,
+  picksSecondProfile,
   typedChange,
   undoEdit,
   withAddedPart,
@@ -54,7 +56,14 @@ import {
   type CockpitSession,
   type HistoryChange,
 } from '../../../src/cockpit/editor/session.ts';
-import { railHistory, withGrowth, withPeripheral, withPlate } from '../../support/designs.ts';
+import {
+  railHistory,
+  seatRails,
+  withGrowth,
+  withPeripheral,
+  withPlate,
+} from '../../support/designs.ts';
+import { draftPeripheral } from '../../../src/cockpit/cad/history/peripherals.ts';
 import { present } from '../../support/lookups.ts';
 
 const designOf = (history: readonly Operation[]): CockpitDesign => ({
@@ -464,4 +473,22 @@ test('a handle of the part about to be added changes it at once', () => {
   assert.equal(dragged.pendingChange, null);
   const grown = present(dragged.draft, 'the part being added');
   assert.equal(grown.kind === 'grow-profile' ? grown.lengthMm : 0, lengthBefore + 100);
+});
+
+test('a seat about to be mounted offers the profiles it can go between, and a click on one picks it', () => {
+  const history = seatRails();
+  const seat = startDraft(sessionOf(history), draftPeripheral(history, 'part-1', 'generic-seat'));
+  assert.deepEqual(
+    draftSecondProfiles(seat)?.map(({ partId, reason }) => [partId, reason]),
+    [['part-2', null]],
+  );
+  assert.equal(picksSecondProfile(seat, 'part-2'), true);
+  assert.equal(picksSecondProfile(seat, 'part-1'), false, 'a click on its own profile places it');
+  const pedals = startDraft(
+    sessionOf(history),
+    draftPeripheral(history, 'part-1', 'generic-pedals'),
+  );
+  assert.equal(draftSecondProfiles(pedals), null);
+  assert.equal(picksSecondProfile(pedals, 'part-2'), false);
+  assert.equal(draftSecondProfiles(sessionOf(history)), null);
 });

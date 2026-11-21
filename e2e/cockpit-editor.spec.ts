@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import { test, expect, openApp, importProject, getSavedProject, cockpitFileOf } from './support.ts';
-import { seatRails } from '../tests/support/designs.ts';
+import { anchoredProfiles, seatRails } from '../tests/support/designs.ts';
+import { editProfile, type Operation } from '../src/cockpit/cad/history/history.ts';
 
 // The cockpit design is edited on its own (docs/adr/0001). Until the mini CAD is complete, no room
 // includes it, and a new design starts empty (docs/adr/0004).
@@ -1237,6 +1238,51 @@ test('a seat goes between its rail and the nearest other, with how its holes fit
   await expect(page.locator('#part-betweenId')).toHaveValue('part-2');
   await page.locator('#part-betweenId').selectOption('alone');
   await expect.poll(async () => (await savedHistory(page))?.[2]?.betweenId).toBeUndefined();
+});
+
+/**
+ * Four rails 1000 mm long along Z: Seat rail (part-1) at X 0, Near rail (part-2) 300 mm to its
+ * right, Far rail (part-3) 400 mm to its left and a Decoy (part-4) beyond it, which puts Far rail
+ * in the middle of the top view.
+ */
+function railsAcross(): Operation[] {
+  const rails: [string, number][] = [
+    ['Seat rail', 0],
+    ['Near rail', -300],
+    ['Far rail', 400],
+    ['Decoy', 1100],
+  ];
+  let history = anchoredProfiles(rails.length);
+  rails.forEach(([name, xMm], index) => {
+    history = editProfile(history, `part-${index + 1}`, {
+      name,
+      lengthMm: 1000,
+      startMm: { x: xMm, y: 20, z: 0 },
+    });
+  });
+  return history;
+}
+
+test('a click on another rail in the view makes it the second rail of the seat about to be mounted', async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.locator('#startWithCockpit').click();
+  await page.locator('#importCockpitFile').setInputFiles(cockpitFileOf(railsAcross()));
+  await page.locator('[data-part="part-1"]').click();
+  await page.locator('#fitModeBtn').click();
+  await page.locator('[data-view="top"]').click();
+  await page.locator('#mountSeat').click();
+  await expect(page.locator('#peripheral-betweenId')).toHaveValue('part-2');
+
+  await hoverViewport(page, 0.5, 0.5);
+  await expect(page.locator('#hoverLabel')).toHaveAttribute('data-part', 'part-3');
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('#peripheral-betweenId')).toHaveValue('part-3');
+  await page.locator('#confirmPeripheral').click();
+  await expect
+    .poll(async () => (await savedHistory(page))?.[4])
+    .toMatchObject({ kind: 'mount-peripheral', parentId: 'part-1', betweenId: 'part-3' });
 });
 
 test('fitting, a part slides along its adjustment, saved with the design without a step', async ({

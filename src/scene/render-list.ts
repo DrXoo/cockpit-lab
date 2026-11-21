@@ -28,6 +28,8 @@ export type PaletteMaterial =
   | 'preview'
   /** What is under the pointer in the cockpit editor, seen through. */
   | 'hover'
+  /** A part a click would pick for what is being added, fainter than what is under the pointer. */
+  | 'candidate'
   /** A peripheral out of Fit: grey and seen through, a reference for designing the frame. */
   | 'reference'
   /** A selected part that the mode shown takes off: faint, in the accent of the selection. */

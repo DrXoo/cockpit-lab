@@ -258,7 +258,9 @@ export class ScenePointer {
 
   /**
    * Marks the part under the pointer, or, while a part is about to be added to another, the face
-   * of that part a click would choose. Nothing is marked while a button is held.
+   * of that part a click would choose, or a profile a click would pick as the second rail of a
+   * seat. Any other profile offered as the second rail is named, with why it cannot be, but not
+   * marked. Nothing is marked while a button is held.
    */
   private hoverAt(event: PointerEvent) {
     const { cockpit } = this.host;
@@ -268,15 +270,19 @@ export class ScenePointer {
     }
     const hit = this.partAt(event);
     const choosing = cockpit.choosingFaceOf ?? null;
-    const marked = hit && (choosing === null || hit.partId === choosing) ? hit : null;
-    const face = marked && choosing !== null ? marked.face : null;
+    const picks = (ids: readonly string[] | undefined) =>
+      hit !== null && (ids ?? []).includes(hit.partId);
+    const onTheFace = hit !== null && (choosing === null || hit.partId === choosing);
+    const marked = onTheFace || picks(cockpit.secondCandidateIds) ? hit : null;
+    const named = marked ?? (picks(cockpit.secondChoiceIds) ? hit : null);
+    const face = marked && marked.partId === choosing ? marked.face : null;
     const key = marked ? `${marked.partId}|${face ?? ''}` : '';
     if (key !== this.hoverKey) {
       this.hoverKey = key;
       const resolved = marked ? cockpit.resolved.get(marked.partId) : undefined;
       this.host.markHover(resolved ? { resolved, face } : null);
     }
-    this.host.onPartHover?.(marked, { x: event.clientX, y: event.clientY });
+    this.host.onPartHover?.(named, { x: event.clientX, y: event.clientY });
   }
 
   private onPointerDown(event: PointerEvent) {

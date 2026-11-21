@@ -40,6 +40,13 @@ export function createPalette(vectorFallback: boolean): Palette {
       opacity: 0.45,
       depthWrite: false,
     }),
+    // The blue of the hover, fainter, so the part under the pointer still stands out.
+    candidate: new T.MeshBasicMaterial({
+      color: 0x2f7fd0,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
     ghost: new T.MeshStandardMaterial({
       color: 0xca6036,
       transparent: true,

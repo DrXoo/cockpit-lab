@@ -163,3 +163,16 @@ test('a profile being placed shows its own length, even with dimensions hidden',
   assert.equal(length.alwaysShown, true);
   assert.equal(model.labels.filter((label) => label.measures === 'part-length').length, 1);
 });
+
+test('the profiles a seat about to be mounted could go between are marked to click', () => {
+  const history = addAnchoredProfile(addAnchoredProfile([]).history).history;
+  const resolved = resolveAssembly(replayHistory(history));
+  const marks = (secondCandidateIds: string[]) =>
+    allOfKind(
+      render(NOTHING_AROUND, { cockpit: { resolved, selectedPartId: null, secondCandidateIds } })
+        .model.primitives,
+      'box',
+    ).filter((box) => box.material === 'candidate');
+  assert.equal(marks([]).length, 0);
+  assert.equal(marks(['part-2']).length, 1);
+});

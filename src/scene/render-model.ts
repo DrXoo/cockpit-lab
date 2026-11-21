@@ -18,6 +18,7 @@ import { drawMeasurement } from '../cockpit/render/measurement.ts';
 import { drawDriver } from '../cockpit/render/driver.ts';
 import { drawHandleStems, drawSnapGuide } from '../cockpit/render/handles.ts';
 import { drawFrontArrow } from '../cockpit/render/front-arrow.ts';
+import { drawCandidate } from '../cockpit/render/hover.ts';
 import { drawArmReach, drawDesk, drawMonitor, type ArmHandle } from '../room/render/desk.ts';
 import { designBounds } from './camera.ts';
 import { createRenderList, ROOT, type Primitive, type SceneLabel } from './render-list.ts';
@@ -79,6 +80,10 @@ export function renderModel(
       drawPlateHoles(r, ROOT, options.cockpit.resolved, options.cockpit.plateHoles);
     if (options.cockpit.driver) drawDriver(r, ROOT, options.cockpit.driver);
     const { resolved, selectedPartId, placedPartId = null } = options.cockpit;
+    for (const id of options.cockpit.secondCandidateIds ?? []) {
+      const candidate = resolved.get(id);
+      if (candidate) drawCandidate(r, ROOT, candidate);
+    }
     // While a part is placed on the selected profile, it is measured along it instead, and a
     // profile being placed shows its own length, whether dimensions are shown or not.
     const placingOnSelected = placedPartId !== null && placedPartId !== selectedPartId;
