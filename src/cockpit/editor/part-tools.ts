@@ -34,18 +34,25 @@ export function partToolsOf(
   return makesAProfile(operation) ? ['grow', 'plate', 'foot', 'remove'] : ['remove'];
 }
 
+/** Where the selected step was chosen: a step marked in the history was chosen there. */
+export interface Chosen extends Mode {
+  markedInHistory?: boolean;
+}
+
 /**
- * What the Delete key does to the selected step, as the toolbar offers it: remove the part of
- * the frame it made from the history marker on, or delete the step of a peripheral, a failed
- * step or one that makes no part. Fitting, the frame is locked; designing, a peripheral is only
+ * What the Delete key does to the selected step. Chosen in the history, the step is deleted, as
+ * a timeline does. Picked in the view, as the toolbar offers it: the part of the frame it made
+ * is removed from the history marker on, and the step of a peripheral, a failed step or one
+ * that makes no part is deleted. Fitting, the frame is locked; designing, a peripheral is only
  * a reference: both are left alone.
  */
 export function deleteKeyAction(
   operation: Operation | undefined,
   failure?: string,
-  { fitting = false }: Mode = {},
+  { fitting = false, markedInHistory = false }: Chosen = {},
 ): 'remove-part' | 'delete-step' | null {
   if (!operation || fitting !== isAPeripheral(operation)) return null;
-  const removable = makesAPart(operation) && !isAPeripheral(operation) && failure === undefined;
+  const removable =
+    !markedInHistory && makesAPart(operation) && !isAPeripheral(operation) && failure === undefined;
   return removable ? 'remove-part' : 'delete-step';
 }

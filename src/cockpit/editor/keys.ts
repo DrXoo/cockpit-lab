@@ -69,14 +69,15 @@ export function bindCockpitKeys(editor: CockpitEditor, shown: () => boolean) {
 }
 
 /**
- * Delete removes the selected part, or deletes a selected step that makes none, as the buttons
- * of its inspector do. A part about to be added is left alone: Escape cancels it.
+ * Delete deletes a step chosen in the history, and otherwise does what the toolbar offers for
+ * the part picked in the view. A part about to be added is left alone: Escape cancels it.
  */
 function deleteWithKey(editor: CockpitEditor, event: KeyboardEvent) {
   const { session } = editor;
   if (session.draft !== null || session.pendingChange) return;
   const action = deleteKeyAction(editor.selectedOperation(), editor.selectedFailure(), {
     fitting: session.fitting,
+    markedInHistory: editor.selectionMarkedInHistory(),
   });
   if (action === null) return;
   event.preventDefault();

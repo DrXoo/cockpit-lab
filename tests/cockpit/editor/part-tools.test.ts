@@ -55,3 +55,15 @@ test('in Fit, the Delete key leaves the frame alone and deletes the step of a pe
   assert.equal(deleteKeyAction(history[1], undefined, fitting), 'delete-step');
   assert.equal(deleteKeyAction(history[1]), null, 'out of Fit a peripheral is left alone');
 });
+
+test('the Delete key deletes a step chosen in the history, the frame as well', () => {
+  const history = withPeripheral(railHistory(), 'part-1', 'generic-pedals');
+  const inHistory = { markedInHistory: true };
+  assert.equal(deleteKeyAction(history[0], undefined, inHistory), 'delete-step');
+  assert.equal(deleteKeyAction(history[0]), 'remove-part', 'picked in the view, it is removed');
+  assert.equal(
+    deleteKeyAction(history[0], undefined, { ...inHistory, fitting: true }),
+    null,
+    'in Fit the frame stays locked',
+  );
+});

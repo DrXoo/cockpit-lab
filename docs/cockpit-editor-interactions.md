@@ -116,8 +116,9 @@ Subassemblies and modes came with stage 7 (see [mini-cad.md](mini-cad.md)). The 
 
 | Key | Result |
 | --- | --- |
-| Delete, with a part selected | **Remove this part**: a step that removes it from the history marker on |
-| Delete, with a step that makes no part selected (a fastening, a join or a removal) | **Delete this step** |
+| Delete, with a step chosen in the design history (marked there) | **Delete this step**, as a timeline does |
+| Delete, with a part of the frame picked in the view | **Remove this part**: a step that removes it from the history marker on |
+| Delete, with a peripheral picked in the view, or a step that makes no part (a fastening, a join or a removal) | **Delete this step** |
 | Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z | Undo and redo the edits of the session |
 | Enter, with a part about to be added | Adds it, as ✓ in its box does |
 | Escape | Closes a card, cancels a change waiting to be confirmed or a part about to be added, or stops measuring |

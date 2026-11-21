@@ -760,9 +760,13 @@ test('fitting, a seat on a plate runs on its rails or in slots, which the plate 
   await expect(page.locator('#plateDrawingSheet .has-problem')).toHaveCount(4);
 });
 
-test('Delete removes the selected part, and deletes a selected removal', async ({ page }) => {
+test('Delete removes a part picked in the view, and deletes a step chosen in the history', async ({
+  page,
+}) => {
   await startDesign(page);
-  await page.locator('#viewport canvas').focus();
+  await page.locator('[data-view="top"]').click();
+  await clickViewport(page, 0.5, 0.5);
+  await expect(page.locator('#showInHistory')).toBeVisible();
   await page.keyboard.press('Delete');
   await expect
     .poll(async () => (await savedHistory(page))?.[1])
@@ -770,10 +774,14 @@ test('Delete removes the selected part, and deletes a selected removal', async (
   await page.locator('[data-operation="op-2"]').click();
   await page.keyboard.press('Delete');
   await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  // Typing in a field, Delete edits the field.
   await page.locator('[data-operation="op-1"]').click();
   await page.locator('#part-name').focus();
   await page.keyboard.press('Delete');
   await expect.poll(async () => (await savedHistory(page))?.length).toBe(1);
+  await page.locator('[data-operation="op-1"]').click();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await savedHistory(page))?.length).toBe(0);
 });
 
 test('the part under the pointer is named beside it once the pointer rests there', async ({
